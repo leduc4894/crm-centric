@@ -176,3 +176,46 @@ diagnostic/security tests to Task 5; no results for those tasks are claimed.
   `dotnet test CrmPlatform.sln -c Release --no-build --no-restore` passed
   4/4, no skips; `.venv/bin/python -m unittest discover -s tests/Contract -v`
   passed 32/32. Local-only evidence; Wave 0/P0 acceptance remains open.
+
+## Task 3 — migration failure and rollback safety
+
+The three new regression tests exercise the unchanged Task 2 production code
+against the existing disposable Testcontainers PostgreSQL fixture. Initial
+`dotnet test tests/Integration/Integration.csproj -c Release --filter FullyQualifiedName~MigrationTests`
+passed 5/5, with zero failures/skips (43 seconds). This is **baseline regression
+GREEN**, not behavioral RED: no defect required a production change, and no RED
+was fabricated, per the controller ruling.
+
+- `Down_then_up_preserves_unowned_objects` creates a sentinel table and row as
+  the migration identity, invokes `IMigrator.MigrateAsync("0", cancellationToken)`
+  only inside the disposable test, verifies history is empty and sentinel data
+  survives, then runs Up and verifies one history row and preserved data.
+- `Ddl_failure_never_reports_success` verifies the migration identity is neither
+  superuser/BYPASSRLS nor database owner, with an explicit CREATE grant. Admin
+  revokes CREATE before Up on an empty dedicated database. The runner exits 1,
+  emits only a valid `DATABASE_MIGRATION_FAILED` JSON diagnostic with a nonempty
+  correlation GUID, and produces no success stdout. No history table exists.
+  Restoring CREATE permits two successful Up runs with exactly the initial row.
+- `Missing_application_role_fails_safely` supplies a nonexistent role, checks the
+  same safe failure contract and absence of history, then supplies the existing
+  valid role and verifies two successful Up runs and the exact initial history.
+
+Transaction boundaries: EF manages migration/history transactions; Down retains
+technical schema/history table and removes the applied migration row. The DDL
+failure here is at schema/history bootstrap, before an initial row exists; this
+is not evidence of rolling back arbitrary future migration statements. Missing
+role validation occurs before migration and leaves no partial provisioning in
+this tested case. Grants execute after `MigrateAsync`, outside its completed
+migration transaction. A later grant failure can therefore leave committed
+migration history with incomplete privileges; retry Up after correcting the
+cause is the recovery path, not automatic Down. That post-commit failure window
+is documented, not injected by these tests. No production rollback CLI was added.
+
+Final Task 3 checks: `dotnet restore CrmPlatform.sln --locked-mode` passed;
+`dotnet build CrmPlatform.sln -c Release --no-restore` passed with 0 warnings/errors;
+`dotnet test tests/Integration/Integration.csproj -c Release --no-build --no-restore --filter 'FullyQualifiedName~MigrationTests|FullyQualifiedName~RolePrivilegeTests'`
+passed 6/6, zero skipped (40 seconds); `dotnet test CrmPlatform.sln -c Release --no-build --no-restore`
+passed 7/7, zero skipped (35 seconds). `.venv/bin/python -m unittest discover -s tests/Contract -v`
+passed 32/32. An initial mistaken pytest invocation failed because pytest is not
+installed; the existing unittest command above passed without dependency changes.
+Task 3 does not close Plan 1, Wave 0 or P0 acceptance.
