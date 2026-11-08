@@ -96,3 +96,83 @@ No credentials are passed through command-line arguments or test logs.
 Readiness and 500 Problem behavior are contract definitions only at this step.
 The migrator builds, emits a safe `MIGRATOR_NOT_IMPLEMENTED` reason and correlation,
 and exits 1; it cannot report a successful migration.
+
+## Task 2 — explicit migrations and restricted application role
+
+Task 2 uses the SDK, EF/Npgsql and PostgreSQL pins above. Added private
+design-time dependency `Microsoft.EntityFrameworkCore.Design` **10.0.14** and
+local `dotnet-ef` **10.0.14** in `dotnet-tools.json`, aligned with the verified
+EF patch. Restore tools with `dotnet tool restore`.
+
+Generated the initial migration, designer and snapshot with:
+
+```bash
+dotnet ef migrations add InitialPlatformInfrastructure --project src/Platform.Infrastructure --output-dir Persistence/Migrations
+```
+
+The entity-free generated Up was empty; explicitly added only
+`EnsureSchema("platform")`. Provider-managed history is
+`platform.__EFMigrationsHistory`; migration ID is
+`20261108144703_InitialPlatformInfrastructure`. Real PostgreSQL verifies the
+provider creates the schema before its history table. No invented entity/table
+or startup migration is present.
+
+### Dedicated database privilege boundary
+
+Controller ruling supersedes the plan's database-owner migrator fixture:
+a database owner retains CREATE even after REVOKE. The administrator therefore
+owns each new disposable dedicated database. It provisions separate LOGIN roles
+with runtime-generated credentials, neither superuser nor BYPASSRLS; the
+migration role is a non-owner with only CONNECT and CREATE on that database.
+It creates and owns the technical schema/history through EF. The application
+role initially has only CONNECT.
+
+In that **new dedicated database only**, administrator provisioning revokes ALL
+database privileges from PUBLIC (including CREATE/TEMPORARY/CONNECT) and ALL
+privileges on schema public from PUBLIC. It grants CONNECT/CREATE to the
+migrator and CONNECT to the app. These are local database ACL changes, never
+cluster-wide role defaults or changes to other host databases. The migrator
+cannot revoke database-owner privileges: administrators must establish this
+baseline before running it. Do not apply these revocations blindly to an
+existing shared database.
+
+The runner checks the configured app login exists, differs from current_user,
+is not superuser/BYPASSRLS and has no effective database/public-schema CREATE.
+It fails safely if those prerequisites are violated. After Up it grants only
+USAGE on platform and SELECT on history to the app, quoting its identifier with
+NpgsqlCommandBuilder. It does not create logins or grant future domain access.
+Tests use an app role containing a hyphen and quote, inspect effective privileges
+and ownership, SELECT history successfully, and observe SQLSTATE 42501 for
+INSERT/UPDATE/DELETE, CREATE TABLE in platform/public, and CREATE SCHEMA.
+
+Run with settings securely injected into the process environment or secret
+store, never put credential values in shell arguments or logs:
+
+```bash
+dotnet run --project src/Platform.Migrator --no-build -c Release
+```
+
+Required environment keys: `ConnectionStrings__Platform` (migration identity),
+`Database__ApplicationRole` (already-provisioned login name, not a password).
+The API uses the same connection setting name with the app identity.
+Only one runner may execute at a time. Success exits 0; configuration failures
+exit 1 with DATABASE_CONFIGURATION_INVALID; other failures exit 1 with
+DATABASE_MIGRATION_FAILED. Diagnostics contain a generated correlation GUID,
+never raw exceptions/provider messages. A grant failure after committed
+migrations can leave partial provisioning; retrying Up is idempotent.
+Rollback/failure-path tests belong to Task 3, readiness to Task 4 and expanded
+diagnostic/security tests to Task 5; no results for those tasks are claimed.
+
+### Task 2 RED / GREEN
+
+- RED: `dotnet test tests/Integration/Integration.csproj --filter 'FullyQualifiedName~MigrationTests|FullyQualifiedName~RolePrivilegeTests'`:
+  3 failed / 0 passed, each expected exit 0 but got 1 from the real Task 1 stub.
+  PostgreSQL containers and provisioning succeeded; this was a behavioral RED.
+- GREEN: same command: 3 passed / 0 failed / 0 skipped. Release build:
+  0 warnings, 0 errors. Each test owns its own container/database/roles.
+- Final verification after exact migration/schema assertions and quoted-role
+  coverage: `dotnet restore CrmPlatform.sln --locked-mode` passed;
+  `dotnet build CrmPlatform.sln -c Release --no-restore` passed, 0 warnings/errors;
+  `dotnet test CrmPlatform.sln -c Release --no-build --no-restore` passed
+  4/4, no skips; `.venv/bin/python -m unittest discover -s tests/Contract -v`
+  passed 32/32. Local-only evidence; Wave 0/P0 acceptance remains open.
