@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "P0 CRM Automation Rule",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "ruleId",
+    "version",
+    "triggerEventType",
+    "condition",
+    "actions"
+  ],
+  "properties": {
+    "ruleId": {
+      "type": "string"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "triggerEventType": {
+      "type": "string"
+    },
+    "condition": {
+      "type": "object",
+      "required": [
+        "field",
+        "op",
+        "value"
+      ],
+      "properties": {
+        "field": {
+          "type": "string"
+        },
+        "op": {
+          "enum": [
+            "eq",
+            "gt",
+            "exists"
+          ]
+        },
+        "value": {}
+      },
+      "additionalProperties": false
+    },
+    "actions": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 10,
+      "items": {
+        "type": "object",
+        "required": [
+          "type",
+          "input"
+        ],
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "input": {
+            "type": "object"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  }
+}

@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CRM Module Manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "moduleId",
+    "version",
+    "platformApiVersion",
+    "displayName",
+    "baseUrl",
+    "capabilities"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1"
+    },
+    "moduleId": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(\\.[a-z0-9-]+)+$"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "platformApiVersion": {
+      "type": "string"
+    },
+    "displayName": {
+      "type": "string",
+      "minLength": 1
+    },
+    "baseUrl": {
+      "type": "string",
+      "format": "uri"
+    },
+    "capabilities": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "navigation",
+          "contact.panel",
+          "events",
+          "automation.trigger",
+          "automation.action",
+          "health"
+        ]
+      }
+    },
+    "permissions": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string"
+      }
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "navigationUrl": {
+      "type": "string",
+      "format": "uri"
+    },
+    "healthUrl": {
+      "type": "string",
+      "format": "uri"
+    }
+  }
+}

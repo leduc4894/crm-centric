@@ -1,0 +1,116 @@
+openapi: 3.1.0
+info:
+  title: CRM Platform API (MVP illustrative contract)
+  version: 1.0.0
+servers:
+  - url: https://crm.example.com
+security:
+  - bearerAuth: []
+paths:
+  /api/v1/contacts:
+    get:
+      operationId: listContacts
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - name: cursor
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Paged contacts
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Contact' }
+                  nextCursor: { type: [string, 'null'] }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      operationId: createContact
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateContact' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Contact' }
+        '400': { description: Invalid request }
+        '403': { description: Insufficient permission }
+  /api/v1/contacts/{id}:
+    get:
+      operationId: getContact
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Contact
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Contact' }
+        '404': { description: Not found or inaccessible }
+  /api/v1/integrations/installations:
+    post:
+      operationId: installModule
+      description: Requires integrations.install; URL validation and admin approval workflow
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [manifestUrl]
+              properties:
+                manifestUrl: { type: string, format: uri }
+      responses:
+        '202': { description: Pending validation/approval }
+        '403': { description: Insufficient permission }
+  /api/v1/integrations/events:
+    post:
+      operationId: ingestIntegrationEvent
+      description: Signed webhook per installation; auth scheme is illustrative and endpoint requires integration credential, not human bearer token
+      security: [{ webhookSignature: [] }]
+      parameters:
+        - { name: X-Event-Timestamp, in: header, required: true, schema: { type: string } }
+        - { name: X-Event-Id, in: header, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/cloudevents+json:
+            schema: { type: object }
+      responses:
+        '202': { description: Durably accepted or previously accepted duplicate }
+        '400': { description: Invalid schema }
+        '401': { description: Invalid signature }
+        '409': { description: Conflicting reuse of event id }
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+    webhookSignature: { type: apiKey, in: header, name: X-Event-Signature }
+  responses:
+    Unauthorized: { description: Missing or invalid token }
+  schemas:
+    Contact:
+      type: object
+      required: [id, displayName, version, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        displayName: { type: string }
+        email: { type: [string, 'null'], format: email }
+        version: { type: integer, minimum: 1 }
+        createdAt: { type: string, format: date-time }
+    CreateContact:
+      type: object
+      required: [displayName]
+      properties:
+        displayName: { type: string, minLength: 1, maxLength: 200 }
+        email: { type: string, format: email }
