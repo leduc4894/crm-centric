@@ -1,7 +1,7 @@
 # Wave 0 — Plan 1 handoff
 
 ## Objective and status
-Implement backend/PostgreSQL foundation per approved spec/plan. Tasks 1–5 implemented and task-reviewed; Task 6 smoke/docs implemented with local verification. Clean tracked-source export evidence is pending below; final controller review remains pending. Wave 0/P0 are OPEN.
+Implement backend/PostgreSQL foundation per approved spec/plan. Tasks 1–5 implemented and task-reviewed; Task 6 smoke/docs implemented with local verification. Clean tracked-source export smoke passed; final controller review remains pending. Wave 0/P0 are OPEN.
 
 ## References and decisions
 - Spec: [backend/PostgreSQL design](../superpowers/specs/2026-11-08-wave-0-plan-1-backend-postgresql-design.md).
@@ -13,7 +13,7 @@ Implement backend/PostgreSQL foundation per approved spec/plan. Tasks 1–5 impl
 ## Workspace
 - Active branch: `feat/wave-0-plan-1-backend-postgresql`; implementation base `45141e8`.
 - SDD recovery ledger (ignored): `.superpowers/sdd/2026-11-08-wave-0-plan-1-backend-postgresql/progress.md`. Read this and git history before resuming; do not repeat completed tasks.
-- Tasks 1–5 implemented and task-reviewed: `71c9959`, `7f713dc`, `d320f06`, `91ef2ec`, `2f889bd`. Task 6 candidate is based on `2f889bd`; final source/evidence commits recorded after export.
+- Tasks 1–5 implemented and task-reviewed: `71c9959`, `7f713dc`, `d320f06`, `91ef2ec`, `2f889bd`. Task 6 tested source: `bd16017ce6bebee98601c112037d61b03bd71572` (`docs(platform): record backend foundation verification`), based on `2f889bd`. The following `docs(platform): finalize clean-export smoke evidence` commit is docs-only; resolve final SHA via git history.
 - SDK installed at `/tmp/crm-dotnet-10.0.403`; export DOTNET_ROOT and prepend it to PATH. Python tooling in `.venv`.
 - Controller explicitly delegated the existing modified handoff to the Task 6 implementer, including it in the Task 6 commit. Existing full-plan SDD authorization is preserved. No merge, push or deployment.
 
@@ -27,7 +27,10 @@ Implement backend/PostgreSQL foundation per approved spec/plan. Tasks 1–5 impl
 - Docker 29.9.3; SDK 10.0.403; PostgreSQL 18.6 pinned tag/digest. Full versions,
   source references, W0P1-01→10, historical RED/GREEN and rollback limitations:
   [verification](../engineering/05-WAVE-0-PLAN-1-VERIFICATION.md).
-- Clean committed-source export smoke pending candidate commit; no remote CI,
+- Clean committed-source export: locked restore PASS (fresh NuGet directory),
+  Release build PASS (0 warnings/errors), focused process smoke 2/2 PASS, zero
+  skips (32s); final script hash matched committed source. See verification for
+  exact export path/commands/source SHA. No remote CI,
   P0/Wave 0, tenant/business/OIDC/remote E2E/restore/DR success claimed.
 
 ## Task 6 changes and decisions
@@ -44,8 +47,7 @@ Implement backend/PostgreSQL foundation per approved spec/plan. Tasks 1–5 impl
 ## Blockers and next steps
 No current implementation blocker. Final read-only task/final reviewer steps are
 controller-owned and pending; implementer self-review does not replace them.
-1. Commit candidate, export exact tracked-source SHA, locked restore/build and run
-   focused real-process smoke; record actual source SHA and result.
-2. Commit evidence/docs update; keep tested source SHA distinct from evidence SHA.
-3. Controller reviews Task 6/final branch and updates final-review status/evidence.
+1. Candidate and clean-export verification completed; evidence-only commit follows.
+   No uncommitted runtime work remains; ignored task report lives in SDD ledger.
+2. Controller reviews Task 6/final branch and updates final-review status/evidence.
    Continue later Wave 0 plans only under their scope; no merge/push/deploy here.

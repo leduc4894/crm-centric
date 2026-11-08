@@ -41,8 +41,9 @@ bash -n scripts/backend-smoke.sh
 git diff --check
 ```
 
-Candidate source is based on `2f889bd`; final candidate and clean-export results
-will be recorded below after the committed-source smoke. Working-checkout
+Tested source: `bd16017ce6bebee98601c112037d61b03bd71572` (candidate based on `2f889bd`).
+The following evidence commit changes documentation only; it is not the tested
+source SHA. Working-checkout
 verification: locked restore passed; Release build zero warnings/errors;
 integration 22 passed, zero failed/skipped; contracts 32 passed. No business
 contract files or dependency pins changed in Task 6.
@@ -51,7 +52,7 @@ contract files or dependency pins changed in Task 6.
 
 | ID | Executable evidence | Result |
 |---|---|---|
-| W0P1-01 | Locked restore and Release build above; clean tracked-source export below | Local working checkout PASS; export recorded below |
+| W0P1-01 | Locked restore and Release build above; clean tracked-source export below | Working checkout and clean export PASS |
 | W0P1-02 | MigrationTests: empty DB Up, exact schema/history, second Up | PASS |
 | W0P1-03 | HealthTests, Ready_uses_application_identity; SmokeTests real API process | PASS |
 | W0P1-04 | Unmigrated_database_is_not_ready_and_is_not_modified | live 200, ready 503, no startup DDL: PASS |
@@ -107,4 +108,37 @@ backup restore/DR drill**.
 
 ## Clean tracked-source export
 
-Pending committed candidate export; no export success claimed yet.
+Tested source **`bd16017ce6bebee98601c112037d61b03bd71572`**, committed with final script/test
+before export. Export directory `/tmp/crm-task6-export.9Y4JUJ` was created fresh by
+`git archive bd16017ce6bebee98601c112037d61b03bd71572 | tar -x -C <fresh-dir>`.
+Confirmed script present and no API bin/obj before restore. No untracked source,
+venv, caller configuration or previous build artifacts were copied.
+
+With DOTNET_ROOT/PATH set as above and
+`NUGET_PACKAGES=/tmp/crm-task6-clean-nuget-bd16017` (fresh package directory):
+
+```bash
+dotnet restore CrmPlatform.sln --locked-mode
+dotnet build CrmPlatform.sln -c Release --no-restore
+dotnet test CrmPlatform.sln -c Release --no-build --no-restore --filter FullyQualifiedName~SmokeTests
+```
+
+Actual results: all four project restores PASS; build PASS, zero warnings/errors
+(7.36s); smoke **2 passed, 0 failed, 0 skipped** (32s). The helper runs
+`bash scripts/backend-smoke.sh` from the export root using only its own fixture's
+disposable database/roles. Success capture is asserted exactly
+`SMOKE_PASS live=200 ready=200`; failure capture asserts BACKEND_SMOKE_FAILED plus
+a valid correlation GUID, no success marker. Both assert the listener is gone.
+No WebApplicationFactory is used by these smoke cases.
+
+Committed/exported script SHA-256 both:
+`6c7c593c3e98b03aa8d06555ce9190eade97315fc98f39122210d36434aeea3e`.
+Local redacted command logs: `/tmp/task6-export-restore.log`,
+`/tmp/task6-export-build.log`, `/tmp/task6-export-smoke.log`; working-source logs:
+`/tmp/task6-restore.log`, `/tmp/task6-build.log`, `/tmp/task6-full.log`,
+`/tmp/task6-contract.log`. Logs/export are disposable local artifacts, not remote CI.
+
+Evidence-only commit follows the tested source; resolve its SHA from branch
+history by subject `docs(platform): finalize clean-export smoke evidence`.
+Final controller review remains pending. No runtime source changed after the
+verified candidate; docs-only updates do not trigger redundant suite reruns.

@@ -143,11 +143,10 @@ Tên namespace tương ứng project. Các signature dưới đây là contract 
 - [x] Viết smoke script + hướng dẫn prerequisites, provision identities, credential injection, migration/retry/rollback. Phân biệt test-only superuser provisioning với application/migrator; DB mới dành riêng cho platform. Ghi rõ chưa hỗ trợ chạy nhiều migrator đồng thời.
 - [x] Chạy `dotnet restore CrmPlatform.sln --locked-mode` sau lần restore đầu sinh lockfiles; `dotnet build CrmPlatform.sln -c Release --no-restore`; `dotnet test CrmPlatform.sln -c Release --no-build --no-restore`. Expected: tất cả pass, không skipped integration tests vì thiếu Docker.
 - [x] Chạy `python -m unittest discover -s tests/Contract -v` với venv đã cài đúng `requirements-contracts.lock`; `git diff --check`. Expected: tất cả pass, business contract không breaking diff.
-- [ ] Chạy smoke trong checkout/export sạch của tracked source có đủ candidate files, dependencies được restore locked; `bash scripts/backend-smoke.sh`. Expected: API process thật live/ready 200 sau migration. Không gọi script vào DB production; lưu pass/fail đã redacted. Nếu dùng source snapshot trước commit cuối, ghi snapshot hash rồi final commit SHA riêng.
+- [x] Chạy smoke trong checkout/export sạch của tracked source có đủ candidate files, dependencies được restore locked; `bash scripts/backend-smoke.sh`. Expected: API process thật live/ready 200 sau migration. Không gọi script vào DB production; lưu pass/fail đã redacted. Nếu dùng source snapshot trước commit cuối, ghi snapshot hash rồi final commit SHA riêng.
 - [x] Điền W0P1-01→10 vào verification report: command, versions/digest, RED/GREEN, test counts, environment, migration rollback evidence, limitations/local-only. Coverage: 01 Tasks 1/6; 02 Tasks 2/3; 03 Tasks 1/4; 04–05 Task 4; 06 Task 2; 07 Task 3; 08 Tasks 3/5; 09 Task 4; 10 Tasks 1/6.
 - [x] Cập nhật README theo runtime thực tế; acceptance matrix chỉ bổ sung evidence phần Plan 1 Wave 0. Giữ OIDC/tenant/business/remote E2E/restore OPEN; không coi DB outage test là DR drill.
 - [ ] Reviewer chỉ đọc diff theo AGENTS/spec và privileges/secret paths. Findings cần sửa phải có regression test phù hợp; chạy lại suite bị ảnh hưởng rồi full required verification. Commit explicit files với message `docs(platform): record backend foundation verification`; không merge/push.
-
 
 ## Self-review của plan
 
