@@ -26,6 +26,8 @@ React + TypeScript strict, Vite, TanStack Router, TanStack Query, Tailwind CSS, 
 .NET 10 LTS, C# 14 when compatible, ASP.NET Core, EF Core 10, FluentValidation or explicit validators, OpenTelemetry, structured logging, problem details error contract; xUnit + Testcontainers. Native AOT only after compatibility/profiling assessment.
 
 ## CI pipeline
+Hiện có contract-only CI tại `.github/workflows/contracts.yml` và tooling lock `requirements-contracts.lock`; các bước application/security/SDK/diff bên dưới là Wave 0+ chưa triển khai. Không xem contract CI xanh là MVP CI hoàn chỉnh.
+
 1. Format/lint/TS typecheck, .NET build, dependency license + vulnerability scan.
 2. Unit tests + static analysis/security scan, secret scan.
 3. Start ephemeral PostgreSQL/IdP via Testcontainers/compose; integration and RLS tests.

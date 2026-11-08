@@ -27,6 +27,7 @@
 - CRM API 99.9% monthly availability (after first production stabilization).
 - 99% accepted events processed within 60s when dependencies healthy; benchmark and refine.
 - RPO ≤15min/RTO ≤4h targets, validate restore drills; not guaranteed by architecture alone.
+- Durability invariant áp dụng process/worker crash và network outage khi committed storage còn nguyên. Total storage loss nằm trong DR envelope có RPO riêng; không dùng availability percentage làm allowance mất accepted events. DR runbook: `03-RECOVERY-AND-INCIDENT-RUNBOOK.md`.
 
 ## Capacity
 - Start single-tenant/small load benchmark; resource budgets per host. Avoid bundling Temporal/RabbitMQ/ClickHouse into MVP on a 16GB dev machine unless needed.

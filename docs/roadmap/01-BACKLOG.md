@@ -4,7 +4,7 @@
 - ADR and module boundary baselines, repo scaffolding, compose local stack.
 - Install .NET 10/EF Core 10 and front-end toolchain versions; CI build/unit tests.
 - Fake OIDC provider for tests, production-ready IdP config documented.
-**Exit:** cold-start and CI reproducible, structured logs + trace IDs.
+**Exit:** cold-start and CI reproducible, structured logs + trace IDs. Contract schema/sample gate có trong `.github/workflows/contracts.yml`; application scaffold, SDK generation/breaking diff gate và cold-start runtime vẫn chưa triển khai.
 
 ## Wave 1 — Identity + Tenancy
 - OIDC login, organizations/tenants, membership, RBAC, RLS and audit.
@@ -14,12 +14,12 @@
 ## Wave 2 — CRM Contacts
 - Contacts CRUD, filters/pagination, tags, custom field definitions and values, activity timeline.
 - Optimistic concurrency, audit, contacts API contract, TS client generation.
-**Exit:** 50k contact fixture and permission tests.
+**Exit:** 50k contacts/tenant, 50 concurrent users; p95 <400ms trong benchmark environment ghi rõ CPU/RAM/DB/network; permission/concurrency/audit tests pass. Chỉ seed fixture không đủ đóng wave.
 
 ## Wave 3 — Integration Kernel
 - Module manifest schema+registry, install/uninstall, connector credentials, verified webhook ingestion/inbox, outbox worker, delivery retries/DLQ.
 - Contact external identity links, unmatched queue, schema registry.
-**Exit:** cross-host DemoModule install without CRM Core changes.
+**Exit:** cross-host DemoModule verified publisher + approved schema v2 install; panel/SSO/event descriptors được resolve không sửa Core; webhook binding/rotation/SSRF/concurrent dedup pass. Remote action effects được chứng minh ở Wave 4.
 
 ## Wave 4 — Automation P0
 - Trigger registry, safe condition DSL, add-tag and remote action, versioned rule definitions, history, pause/resume.
@@ -28,7 +28,7 @@
 
 ## Wave 5 — Hardening / MVP release
 - End-to-end UX, Playwright, failure injection, security testing, backup/restore, dashboards, docs, operator runbook and release checklist.
-**Exit:** all P0 acceptance passed and no security blocker.
+**Exit:** all P0 acceptance passed; backup/WAL restore đo đạt RPO/RTO, outage/recovery và remote DemoModule E2E có evidence; no security blocker. Theo dõi từng US tại `../engineering/03-ACCEPTANCE-MATRIX.md`.
 
 ## P1 — Product and Marketing
 - Consent management, provider abstraction (SES/Postmark/etc.), transactional vs marketing mail, unsubscribe, suppressions, bounces/complaints.

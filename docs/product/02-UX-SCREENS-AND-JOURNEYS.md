@@ -8,6 +8,8 @@
 - `/app/settings/team` → invites/roles.
 - `/app/settings/custom-fields` → field schema.
 - `/app/settings/modules` → directory / installations / health / permissions.
+- `/app/settings/modules/unmatched` → review typed external references, explicit contact link và requeue event identity cũ.
+- `/app/settings/modules/dead-letters` → reason/correlation, attempts và authorized replay có audit; disabled module không tự replay.
 - `/app/audit` → audit trail (tenant admin).
 
 ## Tích hợp UI module
@@ -26,5 +28,7 @@ Module event persisted in its outbox → delivery retry; CRM accepts event trans
 
 ## UX Rules
 - Bất kỳ sự kiện nào chưa map được contact phải vào Unmatched Events queue, không tự động merge theo email.
+- Rule form chọn trigger installation và destination installation từng remote action; không chọn chỉ bằng tên action. Panel/link hiển thị entityType để phân biệt external IDs trùng nhau.
+- Contact edit dùng ETag/If-Match; 412 hiển thị conflict và yêu cầu đọc lại, không overwrite âm thầm. Invite token chỉ hiển thị một lần cho admin để chuyển thủ công trong P0, không persist vào browser storage/logs.
 - Hiển thị freshness/last sync; eventual consistency không bị che giấu.
 - Module unavailable: show disabled state and last known status, core CRM vẫn hoạt động.

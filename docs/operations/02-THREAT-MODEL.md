@@ -14,4 +14,4 @@
 | Consent abuse | marketing without permission | purpose-specific consent, suppression, unsubscribe | negative send tests |
 
 ## P0 Security Release Blockers
-No cross-tenant disclosure, no auth bypass, no accepting unsigned/webhook replay, no SSRF to local services, no plaintext secrets, no PII in traces. Security incident runbook required before public production.
+No cross-tenant disclosure, no auth bypass, no unsigned webhook acceptance, no replay creating new effects or bypassing credential/timestamp checks, no SSRF to local services, no plaintext secrets, no PII in traces. Signed duplicate retry hợp lệ chỉ trả lại identity cũ. Security incident runbook required before public production.

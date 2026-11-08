@@ -32,9 +32,15 @@ Một tổ chức cần lưu trữ leads/contacts, phân quyền nhân viên, th
 - Trading journal, LMS lesson, Backcom ledger: không xây trong CRM MVP; chỉ tích hợp demo.
 - Payment/billing/commerce, no-code custom module marketplace, AI scoring: roadmap.
 
+## Pilot và giả thuyết sản phẩm
+- P0 là pilot nền tảng Customer 360 + integration/automation, chưa phải CRM sales pipeline đầy đủ. Giả thuyết ban đầu: team vận hành cần xem activity ngoài CRM và tự gắn tag/action mà không copy dữ liệu thủ công; đây là giả thuyết cần xác nhận với khách hàng, không phải market evidence.
+- Pilot dùng synthetic data trước. Luồng cần quan sát: admin cài integration/link record, agent tìm contact/xem nguồn activity, operator cấu hình rule bằng form và xem outcome/error/retry. Ghi task completion, thời gian hoàn thành, thao tác thủ công còn lại và lý do thất bại.
+- Trước real-data/commercial pilot, product owner xác nhận nhóm người mua đầu tiên, luồng tiết kiệm công việc và tiêu chí pilot với họ; privacy/retention policy phải được chốt. Không coi remote demo kỹ thuật là bằng chứng product-market fit; không mở deals/marketing/AI để thay thế việc xác nhận nhu cầu.
+
 ## Non-functional requirements P0 (mốc mục tiêu cần benchmark, không phải cam kết thực tế)
 - Contact list p95 < 400ms tại 50k contacts/tenant, 50 concurrent users trong môi trường benchmark xác định.
-- 99.9% no-loss durable accepted events trong fault-injection; chấp nhận at-least-once, dedup đúng.
+- Durability invariant: không mất accepted event trong process/worker crash và network outage khi committed PostgreSQL storage còn nguyên; chấp nhận at-least-once, dedup đúng. ACK chỉ sau commit.
+- Processing SLO: 99% accepted events được xử lý trong 60s khi dependencies healthy; báo cáo riêng unmatched/blocked/DLQ và tổng backlog, không che event chưa xử lý. Disaster recovery theo RPO/RTO riêng bên dưới.
 - Tenant A không thể đọc/sửa/truy xuất event của Tenant B, cả API, search, worker và export.
 - Audit mọi contact mutation, role/permission change, module install/remove và automation action.
 - Recovery: RPO <= 15 phút, RTO <= 4 giờ là mục tiêu thiết kế; đo bằng restore drill.
