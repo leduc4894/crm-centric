@@ -79,3 +79,22 @@ Source fix commit follows this record. Next: export that exact commit, restore
 locked/build/run covering SmokeTests there, verify matching final script hash,
 then commit docs-only export evidence and return to controller. No runtime edits
 are planned after the verified source commit; any such edit requires fresh checks.
+
+### Fix-wave evidence completion
+
+Source fix commit: `e54eb3e728eddad000f536cadaca47b5a71f2956`.
+Clean export `/tmp/crm-final-fix-export.0DwEPq` of that exact commit, with fresh
+NuGet cache, passed four locked project restores, Release build (0 warnings/errors)
+and covering SmokeTests **4/4**, 0 failed/skipped (1m3s). Script SHA-256:
+`471bae90aa92573bbad151045af4fc7ea45c6718fa8e5f1878378491d712cf3e`,
+identical in committed source, working checkout and export. Exact commands/logs
+are in the verification document's final script export section. Previous export
+is historical; no full suite in export or remote CI claim.
+
+This evidence-only commit changes verification and this handoff; no runtime/test
+source changes after the verified source. Resolve final docs commit by subject
+`docs(platform): record final smoke fix export evidence`. Ignored full report:
+`.superpowers/sdd/2026-11-08-wave-0-plan-1-backend-postgresql/final-fix-report.md`.
+No implementation blocker or uncommitted runtime work remains. Next action:
+controller reviews F1/F2 disposition and owns final-review status/plan checkbox.
+No merge/push/deploy; later waves and all P0 acceptance boundaries remain OPEN.

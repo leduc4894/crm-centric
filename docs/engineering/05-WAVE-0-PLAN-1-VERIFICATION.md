@@ -174,3 +174,31 @@ Final changed working source: `dotnet restore CrmPlatform.sln --locked-mode` PAS
 `/tmp/final-fix-{restore,build,full,contract}.log`. Shell syntax and diff check PASS.
 The source commit immediately following this record contains the final script;
 its exact committed-source clean export is recorded separately below.
+
+### Final script clean committed-source export
+
+Tested source: **`e54eb3e728eddad000f536cadaca47b5a71f2956`**.
+Fresh directory `/tmp/crm-final-fix-export.0DwEPq`, populated solely via
+`git archive e54eb3e | tar -x -C <fresh-dir>`, with no copied bin/obj or caller
+configuration. Fresh `NUGET_PACKAGES=/tmp/crm-final-fix-clean-nuget-e54eb3e`;
+SDK DOTNET_ROOT/PATH as above. Commands run from export root:
+
+```bash
+dotnet restore CrmPlatform.sln --locked-mode
+dotnet build CrmPlatform.sln -c Release --no-restore
+dotnet test CrmPlatform.sln -c Release --no-build --no-restore --filter FullyQualifiedName~SmokeTests
+```
+
+Actual: four project restores PASS; Release build PASS, 0 warnings/errors
+(6.88s); SmokeTests **4 passed, 0 failed/skipped** (1m3s). Includes real
+API/PostgreSQL success/failure plus occupied-listener and bounded-cleanup cases.
+The test helper invokes the exported `bash scripts/backend-smoke.sh` using
+only disposable fixture values/env. Full .NET and contract suites were run in
+the working source, not repeated in export; export coverage is focused smoke.
+
+Final committed/working/exported script SHA-256 all match:
+`471bae90aa92573bbad151045af4fc7ea45c6718fa8e5f1878378491d712cf3e`.
+Logs `/tmp/final-fix-export-{restore,build,smoke}.log`. This supersedes the
+historical Task 6 script export for the changed script. The following commit is
+**documentation only**, subject `docs(platform): record final smoke fix export evidence`.
+Controller final-review status and plan final checkbox remain untouched/pending.
