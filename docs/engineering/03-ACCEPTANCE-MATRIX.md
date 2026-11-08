@@ -21,7 +21,9 @@
 
 ## Wave 0 tooling gates
 - Executable: JSON Schema meta-validation; sample/negative validation; OpenAPI validation; current consumer expectations; known-answer HMAC; pinned dependencies và CI definition.
-- OPEN: application scaffold/Compose cold start, .NET/React build, generated TS/C# SDK compile, automated baseline breaking-diff detector, dependency/secret/container scans và CI remote run.
+- Plan 1 local runtime evidence: .NET scaffold, locked restore/Release build, PostgreSQL migrations/privileges, operational health/errors và process smoke; xem [verification](05-WAVE-0-PLAN-1-VERIFICATION.md). Final controller review pending.
+- OPEN: Compose cold start, React build, generated TS/C# SDK compile, automated baseline breaking-diff detector, dependency/secret/container scans và CI remote run.
+- Plan 1 không đóng RT-* ở trên: OIDC/tenant/business/remote E2E/restore vẫn OPEN; database outage/recovery không phải DR drill.
 - Chưa có consumer production; fixtures không thay compatibility proof cho released consumer. SDK compilation và breaking diff phải pin/gate trước release đầu.
 
 ## Evidence format

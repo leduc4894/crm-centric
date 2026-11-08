@@ -1,6 +1,6 @@
 # Wave 0 — Plan 1: Backend và PostgreSQL
 
-Ngày: 2026-11-08. Trạng thái: đề xuất để review, chưa phê duyệt triển khai.
+Ngày: 2026-11-08. Trạng thái: phạm vi/spec và plan đã được người dùng duyệt; đã cho phép triển khai SDD trên feature branch, không worktree. Runtime evidence xem verification; final reviewer còn pending.
 
 ## Mục tiêu và kết quả
 
@@ -23,7 +23,7 @@ Plan này là phần đầu Wave 0, không đóng Wave 0 hoặc acceptance P0. C
 2. Chỉ tạo API health không persistence: nhanh nhưng chưa chứng minh EF migrations, PostgreSQL và integration harness.
 3. API + infrastructure PostgreSQL tối thiểu + migration runner riêng + Testcontainers: chứng minh được đường chạy thực tế với phạm vi nhỏ.
 
-Chọn hướng 3 làm đề xuất của người viết, dựa trên phạm vi Plan 1 đã được người dùng đồng ý. Các chi tiết kỹ thuật dưới đây là đề xuất, chưa được coi là người dùng phê duyệt.
+Chọn hướng 3 theo phạm vi và implementation plan đã được người dùng duyệt.
 
 ## Phạm vi
 
@@ -126,4 +126,4 @@ Rủi ro chính: Docker/user namespace permissions, dependency compatibility và
 
 Builder review chỉ đọc: không còn câu hỏi quan trọng cản trở lập implementation plan. Kiểm tra tài liệu bằng `git diff --check`; chưa chạy runtime tests vì đây chỉ là spec.
 
-Sau khi người dùng duyệt spec, viết implementation plan bằng `superpowers:writing-plans`; sau đó mới scaffold hoặc cài dependencies. Spec này không tự cấp phê duyệt xây dựng.
+Người dùng đã duyệt triển khai theo plan bằng SDD, tuần tự trên feature branch trong checkout hiện có, không worktree. Tasks 1–5 đã task-review; Task 6 và final review theo controller. Evidence: `docs/engineering/05-WAVE-0-PLAN-1-VERIFICATION.md`. Không đóng Wave 0/P0.

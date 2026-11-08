@@ -1,29 +1,51 @@
 # Wave 0 — Plan 1 handoff
 
 ## Objective and status
-Prepare backend/PostgreSQL foundation before application coding. Spec and implementation plan have been written; no application code or runtime tests exist from this work.
+Implement backend/PostgreSQL foundation per approved spec/plan. Tasks 1–5 implemented and task-reviewed; Task 6 smoke/docs implemented with local verification. Clean tracked-source export evidence is pending below; final controller review remains pending. Wave 0/P0 are OPEN.
 
 ## References and decisions
 - Spec: [backend/PostgreSQL design](../superpowers/specs/2026-11-08-wave-0-plan-1-backend-postgresql-design.md).
 - Plan: [implementation tasks](../superpowers/plans/2026-11-08-wave-0-plan-1-backend-postgresql.md).
 - User agreed to divide Wave 0 into four plans and requested the Plan 1 spec, then requested its implementation plan.
-- Native execution with one coding agent and a read-only reviewer was recommended. Implementation approval/execution choice has not yet been explicitly confirmed.
+- User explicitly authorized implementing the full plan with SDD, on a new branch in the existing checkout, without worktrees. One implementer at a time; read-only task and final reviewers.
 - User requested adding the handoff rule to `AGENTS.md` before coding; this rule is now recorded there.
 
 ## Workspace
-- `AGENTS.md`: added handoff instructions.
-- User explicitly requested committing the new/modified documentation, including this handoff.
-- Commit prepared on branch `main`, parent `f0897e4`, with message `docs: add Wave 0 Plan 1 design, implementation plan and handoff rules`. Resolve the resulting SHA from git history; the commit cannot embed its own SHA.
-- Commit scope: `AGENTS.md`, the linked spec/plan and this handoff. No application changes, merge, push or deployment requested.
+- Active branch: `feat/wave-0-plan-1-backend-postgresql`; implementation base `45141e8`.
+- SDD recovery ledger (ignored): `.superpowers/sdd/2026-11-08-wave-0-plan-1-backend-postgresql/progress.md`. Read this and git history before resuming; do not repeat completed tasks.
+- Tasks 1–5 implemented and task-reviewed: `71c9959`, `7f713dc`, `d320f06`, `91ef2ec`, `2f889bd`. Task 6 candidate is based on `2f889bd`; final source/evidence commits recorded after export.
+- SDK installed at `/tmp/crm-dotnet-10.0.403`; export DOTNET_ROOT and prepend it to PATH. Python tooling in `.venv`.
+- Controller explicitly delegated the existing modified handoff to the Task 6 implementer, including it in the Task 6 commit. Existing full-plan SDD authorization is preserved. No merge, push or deployment.
 
 ## Verification
-- Spec builder review: no important unanswered questions reported.
-- Spec/plan writing: `git diff --check` passed. Before commit, stage all four documentation files and run `git diff --cached --check` to include newly created Markdown; this does not validate runtime behavior.
-- Application build/integration tests: not run; application scaffold has not been created.
-- Sandbox had earlier bubblewrap/user-namespace failures; subsequent session commands ran with sandbox disabled. Docker/Testcontainers readiness remains unverified.
+- Final working-source commands: `dotnet restore CrmPlatform.sln --locked-mode` PASS;
+  `dotnet build CrmPlatform.sln -c Release --no-restore` PASS (0 warnings/errors);
+  `dotnet test CrmPlatform.sln -c Release --no-build --no-restore` PASS 22/22,
+  0 failed/skipped (45s). Real PostgreSQL; includes success/failure script process cleanup.
+- `.venv/bin/python -m unittest discover -s tests/Contract -v` PASS 32/32 (1.642s).
+  `bash -n scripts/backend-smoke.sh` and `git diff --check` PASS.
+- Docker 29.9.3; SDK 10.0.403; PostgreSQL 18.6 pinned tag/digest. Full versions,
+  source references, W0P1-01→10, historical RED/GREEN and rollback limitations:
+  [verification](../engineering/05-WAVE-0-PLAN-1-VERIFICATION.md).
+- Clean committed-source export smoke pending candidate commit; no remote CI,
+  P0/Wave 0, tenant/business/OIDC/remote E2E/restore/DR success claimed.
 
-## Next steps
-1. Review the spec and six-task plan with current repository instructions.
-2. Confirm plan review/execution direction before implementation as requested in the plan handoff.
-3. Establish workspace isolation at execution time, verify SDK/Docker prerequisites, then execute sequentially with tests first.
-4. Record actual evidence for W0P1-01 through W0P1-10. Keep remaining Wave 0 and P0 acceptance open.
+## Task 6 changes and decisions
+- New `scripts/backend-smoke.sh` and `tests/Integration/SmokeTests.cs`.
+- Updated README, acceptance matrix, verification, spec status, plan execution
+  choice/checklists and this handoff. No dependency/business contract changes.
+- Caller provisions new dedicated DB/admin-owned baseline plus distinct non-owner
+  migrator/app identities. Script never creates/drops DB/roles; fixture alone
+  supplies disposable test provisioning. No concurrent migrators supported.
+- Process output suppressed; credentials enter env only, never argv/logs. Smoke
+  checks real live/ready HTTP 200 and trap cleanup. Failure gives reason/correlation.
+- Down→Up and stop/start evidence are not production rollback/DR acceptance.
+
+## Blockers and next steps
+No current implementation blocker. Final read-only task/final reviewer steps are
+controller-owned and pending; implementer self-review does not replace them.
+1. Commit candidate, export exact tracked-source SHA, locked restore/build and run
+   focused real-process smoke; record actual source SHA and result.
+2. Commit evidence/docs update; keep tested source SHA distinct from evidence SHA.
+3. Controller reviews Task 6/final branch and updates final-review status/evidence.
+   Continue later Wave 0 plans only under their scope; no merge/push/deploy here.
