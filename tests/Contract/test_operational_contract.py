@@ -64,7 +64,10 @@ class OperationalContractTests(unittest.TestCase):
                 media = response["content"]["application/problem+json"]
                 self.assertEqual(media["schema"], {"$ref": "#/components/schemas/Problem"})
                 for example in media["examples"].values():
-                    reasons.add(example["value"]["reasonToken"])
+                    value = example["value"]
+                    validator.validate(value)
+                    self.assertEqual(value["type"], "urn:crm:problem:" + value["reasonToken"].lower().replace("_", "-"))
+                    reasons.add(value["reasonToken"])
                     self.assertEqual(example["value"]["status"], int(status))
         self.assertEqual(reasons, {"DATABASE_UNAVAILABLE", "DATABASE_SCHEMA_NOT_READY", "INTERNAL_ERROR"})
 

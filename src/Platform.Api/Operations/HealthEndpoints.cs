@@ -13,16 +13,14 @@ public static class HealthEndpoints
             var result = await readiness.CheckAsync(context.RequestAborted);
             context.RequestAborted.ThrowIfCancellationRequested();
             if (result == DatabaseReadinessResult.Ready)
-                return Results.Ok(new { status = "ready" });
+            {
+                await Results.Ok(new { status = "ready" }).ExecuteAsync(context);
+                return;
+            }
 
-            return Results.Problem(statusCode: StatusCodes.Status503ServiceUnavailable,
-                type: "about:blank", title: "Dependency unavailable",
-                extensions: new Dictionary<string, object?>
-                {
-                    ["reasonToken"] = result == DatabaseReadinessResult.SchemaNotReady
-                        ? "DATABASE_SCHEMA_NOT_READY" : "DATABASE_UNAVAILABLE",
-                    ["correlationId"] = context.TraceIdentifier
-                });
+            await OperationalErrors.WriteProblemAsync(context, 503,
+                result == DatabaseReadinessResult.SchemaNotReady
+                    ? "DATABASE_SCHEMA_NOT_READY" : "DATABASE_UNAVAILABLE", context.RequestAborted);
         }).AllowAnonymous();
         return endpoints;
     }

@@ -65,7 +65,7 @@ paths:
               examples:
                 INTERNAL_ERROR:
                   value:
-                    type: about:blank
+                    type: urn:crm:problem:internal-error
                     title: Internal server error
                     status: 500
                     reasonToken: INTERNAL_ERROR
@@ -129,7 +129,7 @@ paths:
               examples:
                 INTERNAL_ERROR:
                   value:
-                    type: about:blank
+                    type: urn:crm:problem:internal-error
                     title: Internal server error
                     status: 500
                     reasonToken: INTERNAL_ERROR
@@ -157,14 +157,14 @@ paths:
               examples:
                 DATABASE_UNAVAILABLE:
                   value:
-                    type: about:blank
+                    type: urn:crm:problem:database-unavailable
                     title: Dependency unavailable
                     status: 503
                     reasonToken: DATABASE_UNAVAILABLE
                     correlationId: 92d7a8d0e37340c69d66b31313cda39a
                 DATABASE_SCHEMA_NOT_READY:
                   value:
-                    type: about:blank
+                    type: urn:crm:problem:database-schema-not-ready
                     title: Dependency unavailable
                     status: 503
                     reasonToken: DATABASE_SCHEMA_NOT_READY

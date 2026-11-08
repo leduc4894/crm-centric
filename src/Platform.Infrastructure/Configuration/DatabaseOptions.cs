@@ -4,6 +4,8 @@ namespace Platform.Infrastructure.Configuration;
 
 public sealed record DatabaseOptions(string ConnectionString)
 {
+    public override string ToString() => nameof(DatabaseOptions);
+
     public static DatabaseOptions Parse(string? value)
     {
         if (string.IsNullOrWhiteSpace(value)) throw new ArgumentException("Database configuration required.");
