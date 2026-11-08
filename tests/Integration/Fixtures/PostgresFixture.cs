@@ -1,14 +1,31 @@
+using System.Net;
+using System.Net.Sockets;
 using Npgsql;
 using Testcontainers.PostgreSql;
 using Xunit;
 
 namespace Integration.Fixtures;
 
-public sealed class PostgresFixture : IAsyncLifetime
+public sealed class PostgresFixture(bool stableHostPort = false) : IAsyncLifetime
 {
-    public PostgreSqlContainer Container { get; } = new PostgreSqlBuilder(
-        "postgres:18.6-bookworm@sha256:f1ea2a1a4fb7b68d4836be1fdcb8a6466a89b072158bf9d97663600538c294c5")
-        .WithPassword(Guid.NewGuid().ToString("N")).Build();
+    public PostgreSqlContainer Container { get; } = CreateContainer(stableHostPort);
+
+    private static PostgreSqlContainer CreateContainer(bool stableHostPort)
+    {
+        var builder = new PostgreSqlBuilder(
+            "postgres:18.6-bookworm@sha256:f1ea2a1a4fb7b68d4836be1fdcb8a6466a89b072158bf9d97663600538c294c5")
+            .WithPassword(Guid.NewGuid().ToString("N"));
+        if (stableHostPort)
+        {
+            // Docker can reassign dynamic mappings on restart. Outage tests need
+            // the same dependency address for the lifetime of their API host.
+            using var reservation = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            reservation.Bind(new IPEndPoint(IPAddress.Loopback, 0));
+            builder = builder.WithPortBinding(((IPEndPoint)reservation.LocalEndPoint!).Port, 5432);
+        }
+        return builder.Build();
+    }
+
     public string MigrationConnectionString { get; private set; } = "";
     public string ApplicationConnectionString { get; private set; } = "";
     public string ApplicationRole { get; } = "app-\"" + Guid.NewGuid().ToString("N");

@@ -1,6 +1,17 @@
 using Platform.Api.Operations;
+using Microsoft.EntityFrameworkCore;
+using Platform.Infrastructure.Configuration;
+using Platform.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddDbContext<PlatformDbContext>((services, options) =>
+{
+    var configuration = services.GetRequiredService<IConfiguration>();
+    var database = DatabaseOptions.Parse(configuration.GetConnectionString("Platform"));
+    options.UseNpgsql(database.ConnectionString, provider =>
+        provider.MigrationsHistoryTable(PlatformDbContext.HistoryTable, PlatformDbContext.HistorySchema));
+});
+builder.Services.AddScoped<DatabaseReadiness>();
 var app = builder.Build();
 
 app.Use(async (context, next) =>
