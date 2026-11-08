@@ -202,3 +202,32 @@ Logs `/tmp/final-fix-export-{restore,build,smoke}.log`. This supersedes the
 historical Task 6 script export for the changed script. The following commit is
 **documentation only**, subject `docs(platform): record final smoke fix export evidence`.
 Controller final-review status and plan final checkbox remain untouched/pending.
+
+
+## Final controller closure (2026-11-08)
+
+Earlier pending-review labels above describe historical checkpoints. All six task
+reviews approved. Whole-branch review of `45141e8..2696930` found F1 (smoke could
+accept a foreign listener) and F2 (unbounded TERM wait). Fix range
+`2696930..32dace8` adds real listener ownership proof, bounded shutdown and two
+behavioral RED→GREEN regressions. Scoped re-review marked both ADDRESSED, with no
+new breakage, residual findings or parked blockers. Review exclusions agree with
+approved Plan 1 scope and remain OPEN as detailed in the handoff.
+
+Controller independently verified final runtime/test source on **`32dace8`**:
+
+| Command | Actual result |
+|---|---|
+| `dotnet restore CrmPlatform.sln --locked-mode` | PASS |
+| `dotnet build CrmPlatform.sln -c Release --no-restore` | PASS, 0 warnings/errors, 7.39s |
+| `dotnet test CrmPlatform.sln -c Release --no-build --no-restore` | PASS, 24 passed, 0 failed/skipped, 1m1s |
+| `.venv/bin/python -m unittest discover -s tests/Contract -v` | PASS, 32 tests, 1.790s |
+| `bash -n scripts/backend-smoke.sh` | PASS |
+| `git diff --check` | PASS |
+
+Exact clean-source export proof remains the final `e54eb3e` export above, including
+four SmokeTests and matching final script hash. This closure commit changes only
+documentation; no redundant export or suite run is implied. Local Plan 1 evidence
+is complete; full Wave 0/P0, remote CI and production acceptance remain OPEN.
+No merge, push or deployment. Durable decisions and next steps are in
+`docs/handoff/2026-11-08-wave-0-plan-1-handoff.md`.

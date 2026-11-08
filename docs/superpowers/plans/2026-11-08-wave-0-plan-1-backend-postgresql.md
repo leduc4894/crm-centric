@@ -1,6 +1,6 @@
 # Wave 0 Plan 1 — Backend và PostgreSQL Implementation Plan
 
-> **Execution choice (user authorized 2026-11-08):** SDD trên feature branch `feat/wave-0-plan-1-backend-postgresql` trong checkout hiện có, không worktree. Một implementer tại một thời điểm, task/final reviewers chỉ đọc; Task 6 thực hiện trực tiếp theo implementer template, không subagents. Checkboxes ghi kết quả thực tế, không thay final review.
+> **Execution choice (user authorized 2026-11-08):** SDD trên feature branch `feat/wave-0-plan-1-backend-postgresql` trong checkout hiện có, không worktree. Một implementer tại một thời điểm, task/final reviewers chỉ đọc; Mỗi task do một subagent implementer thực hiện; implementer không tự spawn agent. Checkboxes ghi kết quả thực tế, không thay final review.
 
 **Goal:** Có backend build được, migration runner riêng và operational HTTP endpoints được chứng minh bằng PostgreSQL/Testcontainers thật.
 
@@ -146,7 +146,7 @@ Tên namespace tương ứng project. Các signature dưới đây là contract 
 - [x] Chạy smoke trong checkout/export sạch của tracked source có đủ candidate files, dependencies được restore locked; `bash scripts/backend-smoke.sh`. Expected: API process thật live/ready 200 sau migration. Không gọi script vào DB production; lưu pass/fail đã redacted. Nếu dùng source snapshot trước commit cuối, ghi snapshot hash rồi final commit SHA riêng.
 - [x] Điền W0P1-01→10 vào verification report: command, versions/digest, RED/GREEN, test counts, environment, migration rollback evidence, limitations/local-only. Coverage: 01 Tasks 1/6; 02 Tasks 2/3; 03 Tasks 1/4; 04–05 Task 4; 06 Task 2; 07 Task 3; 08 Tasks 3/5; 09 Task 4; 10 Tasks 1/6.
 - [x] Cập nhật README theo runtime thực tế; acceptance matrix chỉ bổ sung evidence phần Plan 1 Wave 0. Giữ OIDC/tenant/business/remote E2E/restore OPEN; không coi DB outage test là DR drill.
-- [ ] Reviewer chỉ đọc diff theo AGENTS/spec và privileges/secret paths. Findings cần sửa phải có regression test phù hợp; chạy lại suite bị ảnh hưởng rồi full required verification. Commit explicit files với message `docs(platform): record backend foundation verification`; không merge/push.
+- [x] Reviewer chỉ đọc diff theo AGENTS/spec và privileges/secret paths. Findings cần sửa phải có regression test phù hợp; chạy lại suite bị ảnh hưởng rồi full required verification. Commit explicit files với message `docs(platform): record backend foundation verification`; không merge/push.
 
 ## Self-review của plan
 
@@ -158,4 +158,4 @@ Tên namespace tương ứng project. Các signature dưới đây là contract 
 
 ## Execution handoff
 
-Người dùng đã chọn SDD tuần tự trên feature branch trong checkout hiện có, không worktree. Một coding agent tại một thời điểm; controller thực hiện task review và final read-only review. Final reviewer còn pending; không merge/push/deploy.
+Người dùng đã chọn SDD tuần tự trên feature branch trong checkout hiện có, không worktree. Một coding agent tại một thời điểm; controller thực hiện task review và final read-only review. Task/final reviews đã hoàn tất; F1/F2 được sửa và scoped re-review xác nhận không còn findings. Controller chạy lại: 24 integration và 32 contract tests pass, build không warning/error. Giữ branch, không merge/push/deploy.
