@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "actionId",
+    "actionRunId",
+    "contactRef",
+    "input"
+  ],
+  "properties": {
+    "actionId": {
+      "type": "string",
+      "pattern": "^[a-z][a-zA-Z0-9.-]*\\.v[1-9][0-9]*$"
+    },
+    "actionRunId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "contactRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entityType",
+        "externalId"
+      ],
+      "properties": {
+        "entityType": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9.-]{0,127}$"
+        },
+        "externalId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        }
+      }
+    },
+    "input": {
+      "type": "object"
+    }
+  }
+}

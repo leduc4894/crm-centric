@@ -1,7 +1,7 @@
 {
   "specversion": "1.0",
   "id": "evt-demo-0001",
-  "source": "/modules/com.example.demo/installations/install-123",
+  "source": "/modules/com.example.demo/installations/75629fa8-bcb4-47d7-938f-393236a7cc01",
   "type": "demo.activity.created.v1",
   "subject": "demo-member-001",
   "time": "2026-11-08T07:00:00Z",

@@ -1,8 +1,207 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "CRM Module Manifest v1",
+  "title": "CRM Module Manifest v2",
   "type": "object",
   "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "const": "2"
+    },
+    "moduleId": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(\\.[a-z0-9-]+)+$",
+      "maxLength": 128
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
+    },
+    "platformApiVersion": {
+      "const": "^1.0"
+    },
+    "displayName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "baseUrl": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https://",
+      "maxLength": 2048
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "navigation",
+          "contact.panel",
+          "event.trigger",
+          "automation.action",
+          "health"
+        ]
+      },
+      "minItems": 1,
+      "maxItems": 5,
+      "uniqueItems": true
+    },
+    "permissions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-zA-Z0-9.-]{0,127}$"
+      },
+      "uniqueItems": true,
+      "maxItems": 50
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "type": {
+            "type": "string",
+            "pattern": "^[a-z][a-zA-Z0-9.-]*\\.v[1-9][0-9]*$",
+            "maxLength": 128
+          },
+          "schema": {
+            "$ref": "#/$defs/schemaRef"
+          },
+          "requiredScopes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-zA-Z0-9.-]{0,127}$"
+            },
+            "minItems": 1,
+            "uniqueItems": true,
+            "maxItems": 20
+          },
+          "entityType": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9.-]{0,127}$"
+          }
+        },
+        "required": [
+          "type",
+          "schema",
+          "requiredScopes",
+          "entityType"
+        ]
+      },
+      "minItems": 1,
+      "maxItems": 100
+    },
+    "actions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-zA-Z0-9.-]*\\.v[1-9][0-9]*$",
+            "maxLength": 128
+          },
+          "endpoint": {
+            "type": "string",
+            "format": "uri",
+            "pattern": "^https://",
+            "maxLength": 2048
+          },
+          "requiredScopes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-zA-Z0-9.-]{0,127}$"
+            },
+            "uniqueItems": true,
+            "minItems": 1,
+            "maxItems": 20
+          },
+          "inputSchema": {
+            "$ref": "#/$defs/schemaRef"
+          },
+          "outputSchema": {
+            "$ref": "#/$defs/schemaRef"
+          },
+          "entityType": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9.-]{0,127}$"
+          }
+        },
+        "required": [
+          "id",
+          "endpoint",
+          "requiredScopes",
+          "inputSchema",
+          "outputSchema",
+          "entityType"
+        ]
+      },
+      "minItems": 1,
+      "maxItems": 50
+    },
+    "panels": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-zA-Z0-9.-]*\\.v[1-9][0-9]*$",
+            "maxLength": 128
+          },
+          "endpoint": {
+            "type": "string",
+            "format": "uri",
+            "pattern": "^https://",
+            "maxLength": 2048
+          },
+          "requiredScopes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-zA-Z0-9.-]{0,127}$"
+            },
+            "uniqueItems": true,
+            "minItems": 1,
+            "maxItems": 20
+          },
+          "outputSchema": {
+            "$ref": "#/$defs/schemaRef"
+          },
+          "entityType": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9.-]{0,127}$"
+          }
+        },
+        "required": [
+          "id",
+          "endpoint",
+          "requiredScopes",
+          "outputSchema",
+          "entityType"
+        ]
+      },
+      "minItems": 1,
+      "maxItems": 20
+    },
+    "navigationUrl": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https://",
+      "maxLength": 2048
+    },
+    "healthUrl": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https://",
+      "maxLength": 2048
+    }
+  },
   "required": [
     "schemaVersion",
     "moduleId",
@@ -10,65 +209,151 @@
     "platformApiVersion",
     "displayName",
     "baseUrl",
-    "capabilities"
+    "capabilities",
+    "permissions"
   ],
-  "properties": {
-    "schemaVersion": {
-      "const": "1"
-    },
-    "moduleId": {
-      "type": "string",
-      "pattern": "^[a-z0-9]+(\\.[a-z0-9-]+)+$"
-    },
-    "version": {
-      "type": "string",
-      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
-    },
-    "platformApiVersion": {
-      "type": "string"
-    },
-    "displayName": {
-      "type": "string",
-      "minLength": 1
-    },
-    "baseUrl": {
-      "type": "string",
-      "format": "uri"
-    },
-    "capabilities": {
-      "type": "array",
-      "uniqueItems": true,
-      "items": {
-        "enum": [
-          "navigation",
-          "contact.panel",
-          "events",
-          "automation.trigger",
-          "automation.action",
-          "health"
-        ]
-      }
-    },
-    "permissions": {
-      "type": "array",
-      "uniqueItems": true,
-      "items": {
-        "type": "string"
-      }
-    },
-    "events": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      }
-    },
-    "navigationUrl": {
-      "type": "string",
-      "format": "uri"
-    },
-    "healthUrl": {
-      "type": "string",
-      "format": "uri"
+  "$defs": {
+    "schemaRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "uri": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://",
+          "maxLength": 2048
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*$"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "uri",
+        "version",
+        "sha256"
+      ]
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "capabilities": {
+            "contains": {
+              "const": "navigation"
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "navigationUrl"
+        ]
+      },
+      "else": {
+        "not": {
+          "required": [
+            "navigationUrl"
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "capabilities": {
+            "contains": {
+              "const": "contact.panel"
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "panels"
+        ]
+      },
+      "else": {
+        "not": {
+          "required": [
+            "panels"
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "capabilities": {
+            "contains": {
+              "const": "event.trigger"
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "events"
+        ]
+      },
+      "else": {
+        "not": {
+          "required": [
+            "events"
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "capabilities": {
+            "contains": {
+              "const": "automation.action"
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "actions"
+        ]
+      },
+      "else": {
+        "not": {
+          "required": [
+            "actions"
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "capabilities": {
+            "contains": {
+              "const": "health"
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "healthUrl"
+        ]
+      },
+      "else": {
+        "not": {
+          "required": [
+            "healthUrl"
+          ]
+        }
+      }
+    }
+  ]
 }

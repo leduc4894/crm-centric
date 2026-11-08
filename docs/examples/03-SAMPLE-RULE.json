@@ -1,0 +1,35 @@
+{
+  "ruleId": "demo-engaged",
+  "version": 1,
+  "triggerEventType": "demo.activity.created.v1",
+  "triggerInstallationId": "75629fa8-bcb4-47d7-938f-393236a7cc01",
+  "condition": {
+    "all": [
+      {
+        "field": "/data/score",
+        "op": "gt",
+        "value": 100
+      },
+      {
+        "field": "/data/activityKind",
+        "op": "eq",
+        "value": "milestone"
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "crm.addTag.v1",
+      "input": {
+        "tag": "engaged"
+      }
+    },
+    {
+      "type": "demo.echo.v1",
+      "installationId": "75629fa8-bcb4-47d7-938f-393236a7cc01",
+      "input": {
+        "message": "milestone reached"
+      }
+    }
+  ]
+}

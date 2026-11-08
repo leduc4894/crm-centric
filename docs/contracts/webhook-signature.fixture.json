@@ -1,0 +1,11 @@
+{
+  "purpose": "PUBLIC TEST VECTOR ONLY; never provision this key",
+  "testOnlyKeyHex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+  "installationId": "75629fa8-bcb4-47d7-938f-393236a7cc01",
+  "keyId": "fixture-key-1",
+  "timestamp": "1794121200",
+  "eventId": "evt-demo-0001",
+  "bodyUtf8": "{\"specversion\":\"1.0\",\"id\":\"evt-demo-0001\",\"source\":\"/modules/com.example.demo/installations/75629fa8-bcb4-47d7-938f-393236a7cc01\",\"type\":\"demo.activity.created.v1\",\"subject\":\"demo-member-001\",\"time\":\"2026-11-08T07:00:00Z\",\"datacontenttype\":\"application/json\",\"data\":{\"externalEntityId\":\"demo-member-001\",\"activityKind\":\"milestone\",\"score\":120}}",
+  "bodySha256": "ea4f76dcc7bf52f521d0e8ea47f86991b492891f77a9f0f30ccc93db3552bfa1",
+  "signature": "v1=77f98979b7b1dd8190a01fde997f5831ff26e775007dbde688352085708200ca"
+}

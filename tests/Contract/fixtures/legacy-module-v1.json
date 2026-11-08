@@ -1,0 +1,25 @@
+{
+  "schemaVersion": "1",
+  "moduleId": "com.example.demo",
+  "version": "1.0.0",
+  "platformApiVersion": "^1.0",
+  "displayName": "Demo Module",
+  "baseUrl": "https://demo.example.net",
+  "capabilities": [
+    "navigation",
+    "contact.panel",
+    "events",
+    "automation.trigger",
+    "automation.action",
+    "health"
+  ],
+  "permissions": [
+    "demo.events.publish",
+    "demo.actions.invoke"
+  ],
+  "events": [
+    "demo.activity.created.v1"
+  ],
+  "navigationUrl": "https://demo.example.net/app",
+  "healthUrl": "https://demo.example.net/health"
+}

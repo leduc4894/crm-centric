@@ -1,7 +1,7 @@
 # Eventing, Synchronization, Automation
 
 ## Integration envelope
-Use CloudEvents-aligned metadata: `specversion`, `id`, `source`, `type`, `subject?`, `time`, `datacontenttype`, `dataschema?`, `data`. Transport headers contain authenticated installation/tenant, not blindly trusted payload context.
+Use CloudEvents-aligned metadata: `specversion`, `id`, `source`, `type`, `subject?`, `time`, `datacontenttype`, `dataschema?`, `data`. Installation/key headers là untrusted selectors cho đến khi credential binding/signature verify; chỉ binding cấp tenant context. Không suy tenant authorization từ payload/source. Normative transport: `../contracts/WEBHOOK-PROTOCOL.md`.
 
 ## Inbound path
 1. Validate transport credential/signature, timestamp, content-type, size and rate limits.
@@ -27,10 +27,10 @@ Use CloudEvents-aligned metadata: `specversion`, `id`, `source`, `type`, `subjec
 
 ## Automation P0
 - `rule`: tenant-scoped, versioned `triggerEventType`, predicate DSL with allowlist, list of built-in/registered actions, status.
-- Execution identity: `(tenant_id, rule_id, rule_version, event_id)` unique; each action run idempotency token stable.
+- Execution identity: `(tenant_id, rule_id, rule_version, inbox_id)` unique cho P0 single-contact subject. Inbox có stable internal UUID, ingress unique `(tenant_id,installation_id,source,event_id)`. Không dedup downstream chỉ bằng raw event_id. action_run.id là remote idempotency key bất biến.
 - Interpreter supports equality/exists/greater-than on validated schema fields, AND/OR, max depth and execution quota. No arbitrary JavaScript, SQL or C# expressions.
 - Actions P0: CRM add-tag, create timeline note, remote demo action. Results: pending/succeeded/retryable_failed/terminal_failed/skipped.
-- Contact-centric state keyed by contact_id where known; one event can trigger many independent contacts/rules; all runs auditable.
+- P0 map một external subject tới một contact; nhiều rules có thể match độc lập. Multi-contact fan-out cần contract tương lai, không implicit email matching. Snapshot mapping và active rule revisions ở lần materialize execution đầu tiên; replay giữ nguyên. Xem `07-P0-ACCESS-AND-STATE.md` cho DSL, quotas, lifecycle và partial failures.
 
 ## P1 Temporal
 - Use .NET Temporal SDK for durable contact-centric long-running workflows (delay, branch, cancel, re-entry); version workflow definitions/worker code and define migration behavior.

@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CRM CloudEvent v1",
+  "type": "object",
+  "required": [
+    "specversion",
+    "id",
+    "source",
+    "type",
+    "time",
+    "datacontenttype",
+    "data",
+    "subject"
+  ],
+  "properties": {
+    "specversion": {
+      "const": "1.0"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9._:-]+$"
+    },
+    "source": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "format": "uri-reference"
+    },
+    "type": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "time": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "datacontenttype": {
+      "const": "application/json"
+    },
+    "subject": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "dataschema": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https://",
+      "maxLength": 2048
+    },
+    "data": {
+      "type": "object"
+    }
+  }
+}

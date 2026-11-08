@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "1",
+  "schemaVersion": "2",
   "moduleId": "com.example.demo",
   "version": "1.0.0",
   "platformApiVersion": "^1.0",
@@ -8,17 +8,63 @@
   "capabilities": [
     "navigation",
     "contact.panel",
-    "events",
-    "automation.trigger",
+    "event.trigger",
     "automation.action",
     "health"
   ],
   "permissions": [
     "demo.events.publish",
-    "demo.actions.invoke"
+    "demo.actions.invoke",
+    "demo.panel.read"
   ],
   "events": [
-    "demo.activity.created.v1"
+    {
+      "type": "demo.activity.created.v1",
+      "schema": {
+        "uri": "https://demo.example.net/schemas/demo-event.schema.json",
+        "version": "1",
+        "sha256": "12ff9827134c2cbd033238bc1a2e07bc12c9b7204c653948f0ffa4337d2b8840"
+      },
+      "requiredScopes": [
+        "demo.events.publish"
+      ],
+      "entityType": "demo.member"
+    }
+  ],
+  "actions": [
+    {
+      "id": "demo.echo.v1",
+      "endpoint": "https://demo.example.net/api/v1/actions/echo",
+      "requiredScopes": [
+        "demo.actions.invoke"
+      ],
+      "inputSchema": {
+        "uri": "https://demo.example.net/schemas/demo-echo-input.schema.json",
+        "version": "1",
+        "sha256": "cb06b937cdc90802f8bf3e51bd97db18221efe4b11f0d27ac6cd9e5b4109a1a7"
+      },
+      "outputSchema": {
+        "uri": "https://demo.example.net/schemas/demo-echo-output.schema.json",
+        "version": "1",
+        "sha256": "574e8263605ffc9fe0f7c18004450f7b1ec0772036d25cc4b20174760bc56ded"
+      },
+      "entityType": "demo.member"
+    }
+  ],
+  "panels": [
+    {
+      "id": "demo.summary.v1",
+      "endpoint": "https://demo.example.net/api/v1/panels/summary",
+      "requiredScopes": [
+        "demo.panel.read"
+      ],
+      "outputSchema": {
+        "uri": "https://demo.example.net/schemas/demo-panel.schema.json",
+        "version": "1",
+        "sha256": "11e098468bb2839a7987f3fe39972f99fa7a983e332ac0d4076130451edbc57a"
+      },
+      "entityType": "demo.member"
+    }
   ],
   "navigationUrl": "https://demo.example.net/app",
   "healthUrl": "https://demo.example.net/health"

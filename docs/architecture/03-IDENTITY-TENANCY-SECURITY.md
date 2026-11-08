@@ -27,5 +27,11 @@
 - Retention, deletion/export request, legal hold and audit policy per tenant/jurisdiction; document handling of backup and derived data.
 - Trading/Backcom integration minimizes transmitted personal/financial data. No raw brokerage credentials or payment card data in CRM.
 
+## Normative P0 details
+- Verified tenant selection, role matrix và invite/identity lifecycle: `07-P0-ACCESS-AND-STATE.md`.
+- Webhook framing, key binding/rotation và replay: `../contracts/WEBHOOK-PROTOCOL.md`.
+- Publisher trust, SSRF trên mọi schema/endpoint fetch, callback/panel authorization: `../contracts/MODULE-CALLBACKS.md`.
+- Contract validation không chứng minh runtime controls; xem acceptance matrix.
+
 ## Tests
 - Cross-tenant IDOR, forged role/tenant, webhook replay, JWT wrong issuer/audience, expired signatures, server-side request forgery, scope escalation, revoked installation and unsubscribe enforcement must be automated.

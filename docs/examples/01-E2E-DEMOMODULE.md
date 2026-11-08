@@ -9,9 +9,9 @@
 1. Boot CRM+IdP+DB, boot demo on another container network (simulate host separation).
 2. CRM admin installs `com.example.demo` from manifest and approves scopes.
 3. SSO opens demo external URL, verifies logged in user via OIDC.
-4. Link external record `demo-member-001` to a CRM contact.
+4. Link external record `(entityType=demo.member, externalId=demo-member-001)` to a CRM contact dưới installation đã xác minh.
 5. Demo emits valid signed CloudEvent `demo.activity.created.v1` with score 120.
-6. CRM inbox persist+ack; project timeline; rule score>100 adds tag `engaged` and executes demo.echo remote action.
+6. CRM inbox persist+ack; project timeline; rule fixture `03-SAMPLE-RULE.json` bind đúng trigger/action installation, score>100 adds tag `engaged` và executes demo.echo. UUID trong fixture là synthetic; runtime thay bằng installation UUID thực đã cấp.
 7. Resend same event 100 times with concurrency; one logical timeline item, tag and action effect.
 8. Disable demo network → event pending, backoff and visible lag; reconnect → recovery.
 9. Trigger schema mismatch and invalid signature → reject with reason token, auditable.
@@ -19,6 +19,7 @@
 
 ## Negative test matrix
 - Wrong tenant / contact link; token wrong audience; tampered signature; expired timestamp; manifest SSRF; duplicate event id with different payload; two parallel workers; crashing after send before ack; modified manifest requiring new scope without approval.
+- Hai installations xuất cùng action ID phải dispatch đúng explicit destination; hai entity types cùng external ID không bị merge. Subject khác data.externalEntityId bị reject trước ACK; rule/action schema/grants phải dùng pinned snapshot.
 
 ## Proof artifacts
 - CI logs and screenshots of installed module, contact panel and execution history.

@@ -24,7 +24,7 @@
 - Application → domain and ports; infrastructure implements ports.
 - Integration translates external payload to domain commands; no business logic inside webhook handler.
 - Shared library only primitives/observability, NOT shared `ContactEntity`, DbContext, repositories or mutable domain models.
-- One transaction only within one business module; inter-module consistency via events or explicit orchestration.
+- One business transaction belongs to one module; inter-module domain changes use durable inbox/outbox and idempotent ports. Technical outbox/audit append is an explicit exception: the owning module writes business rows, audit entry and outbox intent on the same PostgreSQL connection/transaction through infrastructure ports. No other module domain tables/DbContext access; no remote I/O inside transaction.
 
 ## CRM customer projection
 `Contact360` is a materialized/read projection of selected external facts; original LMS progress/trade/commission remain in owner domain. Projection stores source, timestamp, mapping version and provenance.

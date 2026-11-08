@@ -1,116 +1,3831 @@
 openapi: 3.1.0
 info:
-  title: CRM Platform API (MVP illustrative contract)
-  version: 1.0.0
+  title: CRM Platform P0 Contract Baseline
+  version: 0.2.0
+  description: 'Pre-runtime P0 specification; not evidence of implemented routes. Breaking pre-release changes:
+    ADR-018. Selected tenant is always verified server-side.'
 servers:
-  - url: https://crm.example.com
+- url: https://crm.example.com
 security:
-  - bearerAuth: []
+- bearerAuth: []
 paths:
-  /api/v1/contacts:
+  /api/v1/tenants:
     get:
-      operationId: listContacts
-      parameters:
-        - name: limit
-          in: query
-          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
-        - name: cursor
-          in: query
-          schema: { type: string }
+      operationId: listMyTenants
+      summary: listMyTenants
       responses:
         '200':
-          description: Paged contacts
+          description: Success
           content:
             application/json:
               schema:
-                type: object
-                required: [items]
-                properties:
-                  items:
-                    type: array
-                    items: { $ref: '#/components/schemas/Contact' }
-                  nextCursor: { type: [string, 'null'] }
-        '401': { $ref: '#/components/responses/Unauthorized' }
+                $ref: '#/components/schemas/TenantPage'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+      description: Returns only active memberships of the verified issuer/subject.
+      parameters:
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
     post:
-      operationId: createContact
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/CreateContact' }
+      operationId: createTenant
+      summary: createTenant
       responses:
         '201':
           description: Created
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Contact' }
-        '400': { description: Invalid request }
-        '403': { description: Insufficient permission }
-  /api/v1/contacts/{id}:
-    get:
-      operationId: getContact
-      parameters:
-        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
-      responses:
-        '200':
-          description: Contact
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Contact' }
-        '404': { description: Not found or inaccessible }
-  /api/v1/integrations/installations:
-    post:
-      operationId: installModule
-      description: Requires integrations.install; URL validation and admin approval workflow
+              schema:
+                $ref: '#/components/schemas/Tenant'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+      description: Only platform provisioners; owner assigned to verified actor. Bootstrap is an operator procedure.
+      x-required-scopes:
+      - platform.tenants.create
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [manifestUrl]
-              properties:
-                manifestUrl: { type: string, format: uri }
+              $ref: '#/components/schemas/CreateTenant'
+  /api/v1/memberships:
+    get:
+      operationId: listMemberships
+      summary: listMemberships
       responses:
-        '202': { description: Pending validation/approval }
-        '403': { description: Insufficient permission }
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MembershipPage'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+      x-required-scopes:
+      - team.manage
+      parameters:
+      - $ref: '#/components/parameters/TenantContext'
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+  /api/v1/memberships/{id}:
+    get:
+      operationId: getMembership
+      summary: getMembership
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Membership'
+          headers:
+            ETag:
+              description: Strong optimistic concurrency token.
+              schema:
+                type: string
+                pattern: ^"v[1-9][0-9]*"$
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+      x-required-scopes:
+      - team.manage
+      parameters:
+      - $ref: '#/components/parameters/TenantContext'
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    patch:
+      operationId: updateMembership
+      summary: updateMembership
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Membership'
+          headers:
+            ETag:
+              description: Strong optimistic concurrency token.
+              schema:
+                type: string
+                pattern: ^"v[1-9][0-9]*"$
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+        '412':
+          $ref: '#/components/responses/Problem'
+        '428':
+          $ref: '#/components/responses/Problem'
+      description: Owner role cannot be granted here; cannot revoke/demote the last owner. Owner transfer requires
+        a separately reviewed future contract.
+      x-required-scopes:
+      - team.manage
+      parameters:
+      - $ref: '#/components/parameters/TenantContext'
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMembership'
+  /api/v1/invites:
+    get:
+      operationId: listInvites
+      summary: listInvites
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvitePage'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+      x-required-scopes:
+      - team.manage
+      parameters:
+      - $ref: '#/components/parameters/TenantContext'
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+    post:
+      operationId: createInvite
+      summary: createInvite
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InviteCreated'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+      description: Expiry 24 hours. Return token once to authorized admin over TLS for manual delivery in P0; persist
+        only hash. Lists/audit/logs never contain token. Client clears token from memory after delivery.
+      x-required-scopes:
+      - team.manage
+      parameters:
+      - $ref: '#/components/parameters/TenantContext'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateInvite'
+  /api/v1/invites/{id}:
+    delete:
+      operationId: revokeInvite
+      summary: revokeInvite
+      responses:
+        '204':
+          description: Completed
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+      x-required-scopes:
+      - team.manage
+      parameters:
+      - $ref: '#/components/parameters/TenantContext'
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+  /api/v1/invites/accept:
+    post:
+      operationId: acceptInvite
+      summary: acceptInvite
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Membership'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+      description: Token resolves tenant server-side; require authenticated account with verified email matching
+        invite. Transactionally single-use.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AcceptInvite'
+  /api/v1/contacts:
+    get:
+      operationId: listContacts
+      summary: listContacts
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactPage'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+      x-required-scopes:
+      - crm.contacts.read
+      parameters:
+      - $ref: '#/components/parameters/TenantContext'
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+      - name: q
+        in: query
+        schema:
+          type: string
+          maxLength: 200
+      - name: tagId
+        in: query
+        schema:
+          type: string
+          format: uuid
+      - name: updatedSince
+        in: query
+        schema:
+          type: string
+          format: date-time
+    post:
+      operationId: createContact
+      summary: createContact
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Contact'
+          headers:
+            ETag:
+              description: Strong optimistic concurrency token.
+              schema:
+                type: string
+                pattern: ^"v[1-9][0-9]*"$
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+      x-required-scopes:
+      - crm.contacts.write
+      parameters:
+      - $ref: '#/components/parameters/TenantContext'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateContact'
+  /api/v1/contacts/{id}:
+    get:
+      operationId: getContact
+      summary: getContact
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Contact'
+          headers:
+            ETag:
+              description: Strong optimistic concurrency token.
+              schema:
+                type: string
+                pattern: ^"v[1-9][0-9]*"$
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+      x-required-scopes:
+      - crm.contacts.read
+      parameters:
+      - $ref: '#/components/parameters/TenantContext'
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    patch:
+      operationId: updateContact
+      summary: updateContact
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Contact'
+          headers:
+            ETag:
+              description: Strong optimistic concurrency token.
+              schema:
+                type: string
+                pattern: ^"v[1-9][0-9]*"$
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+        '412':
+          $ref: '#/components/responses/Problem'
+        '428':
+          $ref: '#/components/responses/Problem'
+      description: 'Partial update: omitted fields unchanged, explicit null clears email/phone; displayName cannot
+        be null.'
+      x-required-scopes:
+      - crm.contacts.write
+      parameters:
+      - $ref: '#/components/parameters/TenantContext'
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateContact'
+    delete:
+      operationId: softDeleteContact
+      summary: softDeleteContact
+      responses:
+        '204':
+          description: Completed
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+        '412':
+          $ref: '#/components/responses/Problem'
+        '428':
+          $ref: '#/components/responses/Problem'
+      description: Soft delete with audit/outbox in same transaction; exclude from normal reads.
+      x-required-scopes:
+      - crm.contacts.write
+      parameters:
+      - $ref: '#/components/parameters/TenantContext'
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/IfMatch'
+  /api/v1/tags:
+    get:
+      operationId: listTags
+      summary: listTags
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TagPage'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+      x-required-scopes:
+      - crm.contacts.read
+      parameters:
+      - $ref: '#/components/parameters/TenantContext'
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+    post:
+      operationId: createTag
+      summary: createTag
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tag'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+      x-required-scopes:
+      - crm.contacts.write
+      parameters:
+      - $ref: '#/components/parameters/TenantContext'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTag'
+  /api/v1/contacts/{id}/tags:
+    get:
+      operationId: listContactTags
+      summary: listContactTags
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TagPage'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+      x-required-scopes:
+      - crm.contacts.read
+      parameters:
+      - $ref: '#/components/parameters/TenantContext'
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+  /api/v1/contacts/{id}/tags/{tagId}:
+    put:
+      operationId: addContactTag
+      summary: addContactTag
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Contact'
+          headers:
+            ETag:
+              description: Strong optimistic concurrency token.
+              schema:
+                type: string
+                pattern: ^"v[1-9][0-9]*"$
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+        '412':
+          $ref: '#/components/responses/Problem'
+        '428':
+          $ref: '#/components/responses/Problem'
+      x-required-scopes:
+      - crm.contacts.write
+      parameters:
+      - $ref: '#/components/parameters/TenantContext'
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: tagId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/IfMatch'
+    delete:
+      operationId: removeContactTag
+      summary: removeContactTag
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Contact'
+          headers:
+            ETag:
+              description: Strong optimistic concurrency token.
+              schema:
+                type: string
+                pattern: ^"v[1-9][0-9]*"$
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+        '412':
+          $ref: '#/components/responses/Problem'
+        '428':
+          $ref: '#/components/responses/Problem'
+      x-required-scopes:
+      - crm.contacts.write
+      parameters:
+      - $ref: '#/components/parameters/TenantContext'
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: tagId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/IfMatch'
+  /api/v1/custom-fields:
+    get:
+      operationId: listCustomFields
+      summary: listCustomFields
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FieldDefinitionPage'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+      x-required-scopes:
+      - crm.contacts.read
+      parameters:
+      - $ref: '#/components/parameters/TenantContext'
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+    post:
+      operationId: createCustomField
+      summary: createCustomField
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FieldDefinition'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+      x-required-scopes:
+      - crm.fields.manage
+      parameters:
+      - $ref: '#/components/parameters/TenantContext'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateField'
+  /api/v1/contacts/{id}/fields/{fieldId}:
+    get:
+      operationId: getContactField
+      summary: getContactField
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SetFieldValue'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+      x-required-scopes:
+      - crm.contacts.read
+      parameters:
+      - $ref: '#/components/parameters/TenantContext'
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: fieldId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    put:
+      operationId: setContactField
+      summary: setContactField
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Contact'
+          headers:
+            ETag:
+              description: Strong optimistic concurrency token.
+              schema:
+                type: string
+                pattern: ^"v[1-9][0-9]*"$
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+        '412':
+          $ref: '#/components/responses/Problem'
+        '428':
+          $ref: '#/components/responses/Problem'
+      description: Validate against tenant field definition and dataType; null clears optional value; reject null
+        for required fields.
+      x-required-scopes:
+      - crm.contacts.write
+      parameters:
+      - $ref: '#/components/parameters/TenantContext'
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: fieldId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetFieldValue'
+  /api/v1/contacts/{id}/timeline:
+    get:
+      operationId: listTimeline
+      summary: listTimeline
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TimelineEntryPage'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+      x-required-scopes:
+      - crm.contacts.read
+      parameters:
+      - $ref: '#/components/parameters/TenantContext'
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+  /api/v1/contacts/{id}/notes:
+    post:
+      operationId: createContactNote
+      summary: createContactNote
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TimelineEntry'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+        '412':
+          $ref: '#/components/responses/Problem'
+        '428':
+          $ref: '#/components/responses/Problem'
+      x-required-scopes:
+      - crm.contacts.write
+      parameters:
+      - $ref: '#/components/parameters/TenantContext'
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateNote'
+  /api/v1/contacts/{id}/identity-links:
+    get:
+      operationId: listIdentityLinks
+      summary: listIdentityLinks
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IdentityLinkPage'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+      x-required-scopes:
+      - crm.identities.manage
+      parameters:
+      - $ref: '#/components/parameters/TenantContext'
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+    post:
+      operationId: linkIdentity
+      summary: linkIdentity
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IdentityLink'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+      description: Explicit approved link; does not grant login/membership or merge contacts.
+      x-required-scopes:
+      - crm.identities.manage
+      parameters:
+      - $ref: '#/components/parameters/TenantContext'
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateIdentityLink'
+  /api/v1/contacts/{id}/identity-links/{linkId}:
+    delete:
+      operationId: unlinkIdentity
+      summary: unlinkIdentity
+      responses:
+        '204':
+          description: Completed
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+      x-required-scopes:
+      - crm.identities.manage
+      parameters:
+      - $ref: '#/components/parameters/TenantContext'
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: linkId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+  /api/v1/integrations/installations:
+    get:
+      operationId: listInstallations
+      summary: listInstallations
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstallationPage'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+      x-required-scopes:
+      - integrations.install
+      parameters:
+      - $ref: '#/components/parameters/TenantContext'
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+    post:
+      operationId: installModule
+      summary: installModule
+      responses:
+        '202':
+          description: Durably accepted or idempotently scheduled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Installation'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+      description: Persist installation/work item before 202; fetch manifest asynchronously under SSRF policy. No
+        credentials active until approval and signed challenge.
+      x-required-scopes:
+      - integrations.install
+      parameters:
+      - $ref: '#/components/parameters/TenantContext'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InstallModule'
+  /api/v1/integrations/installations/{id}:
+    get:
+      operationId: getInstallation
+      summary: getInstallation
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Installation'
+          headers:
+            ETag:
+              description: Strong optimistic concurrency token.
+              schema:
+                type: string
+                pattern: ^"v[1-9][0-9]*"$
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+      x-required-scopes:
+      - integrations.install
+      parameters:
+      - $ref: '#/components/parameters/TenantContext'
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    patch:
+      operationId: changeInstallationState
+      summary: changeInstallationState
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Installation'
+          headers:
+            ETag:
+              description: Strong optimistic concurrency token.
+              schema:
+                type: string
+                pattern: ^"v[1-9][0-9]*"$
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+        '412':
+          $ref: '#/components/responses/Problem'
+        '428':
+          $ref: '#/components/responses/Problem'
+      description: disabled revokes inbound/outbound credentials and prevents new claims; active requires fresh
+        credentials/challenge and current approval. In-flight remote work follows documented disable semantics.
+      x-required-scopes:
+      - integrations.install
+      parameters:
+      - $ref: '#/components/parameters/TenantContext'
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangeInstallation'
+    delete:
+      operationId: uninstallModule
+      summary: uninstallModule
+      responses:
+        '204':
+          description: Completed
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+        '412':
+          $ref: '#/components/responses/Problem'
+        '428':
+          $ref: '#/components/responses/Problem'
+      description: Tombstone, revoke keys, cancel unsent actions, preserve immutable history.
+      x-required-scopes:
+      - integrations.install
+      parameters:
+      - $ref: '#/components/parameters/TenantContext'
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/IfMatch'
+  /api/v1/integrations/installations/{id}/approvals:
+    post:
+      operationId: approveInstallation
+      summary: approveInstallation
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Installation'
+          headers:
+            ETag:
+              description: Strong optimistic concurrency token.
+              schema:
+                type: string
+                pattern: ^"v[1-9][0-9]*"$
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+        '412':
+          $ref: '#/components/responses/Problem'
+        '428':
+          $ref: '#/components/responses/Problem'
+      description: Bind approval to immutable manifest hash and scopes; reject stale snapshot or unrequested scopes.
+      x-required-scopes:
+      - integrations.install
+      parameters:
+      - $ref: '#/components/parameters/TenantContext'
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApproveInstallation'
+  /api/v1/integrations/external-links:
+    get:
+      operationId: listExternalLinks
+      summary: listExternalLinks
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExternalLinkPage'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+      x-required-scopes:
+      - integrations.links.manage
+      parameters:
+      - $ref: '#/components/parameters/TenantContext'
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+    post:
+      operationId: linkExternalIdentity
+      summary: linkExternalIdentity
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExternalLink'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+      x-required-scopes:
+      - integrations.links.manage
+      parameters:
+      - $ref: '#/components/parameters/TenantContext'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateExternalLink'
+  /api/v1/integrations/external-links/{id}:
+    delete:
+      operationId: unlinkExternalIdentity
+      summary: unlinkExternalIdentity
+      responses:
+        '204':
+          description: Completed
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+      x-required-scopes:
+      - integrations.links.manage
+      parameters:
+      - $ref: '#/components/parameters/TenantContext'
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+  /api/v1/integrations/unmatched-events:
+    get:
+      operationId: listUnmatchedEvents
+      summary: listUnmatchedEvents
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnmatchedEventPage'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+      x-required-scopes:
+      - integrations.links.manage
+      parameters:
+      - $ref: '#/components/parameters/TenantContext'
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+  /api/v1/integrations/unmatched-events/{id}/resolve:
+    post:
+      operationId: resolveUnmatchedEvent
+      summary: resolveUnmatchedEvent
+      responses:
+        '202':
+          description: Durably accepted or idempotently scheduled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Accepted'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+      description: Verify subject/source binding and contact tenant; atomically create explicit mapping and enqueue
+        original inbox ID. Duplicate resolution reuses work identity.
+      x-required-scopes:
+      - integrations.links.manage
+      parameters:
+      - $ref: '#/components/parameters/TenantContext'
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResolveUnmatched'
+  /api/v1/integrations/dead-letters:
+    get:
+      operationId: listDeadLetters
+      summary: listDeadLetters
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeadLetterPage'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+      x-required-scopes:
+      - integrations.replay
+      parameters:
+      - $ref: '#/components/parameters/TenantContext'
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+  /api/v1/integrations/dead-letters/{id}/replay:
+    post:
+      operationId: replayDeadLetter
+      summary: replayDeadLetter
+      responses:
+        '202':
+          description: Durably accepted or idempotently scheduled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Accepted'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+      description: Requeue existing work identity and action idempotency key; disabled/uninstalled receivers fail
+        closed. Audit operator reason.
+      x-required-scopes:
+      - integrations.replay
+      parameters:
+      - $ref: '#/components/parameters/TenantContext'
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReplayRequest'
   /api/v1/integrations/events:
     post:
       operationId: ingestIntegrationEvent
-      description: Signed webhook per installation; auth scheme is illustrative and endpoint requires integration credential, not human bearer token
-      security: [{ webhookSignature: [] }]
+      summary: ingestIntegrationEvent
+      responses:
+        '202':
+          description: Durably accepted or idempotently scheduled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Accepted'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+      description: 'Protocol: docs/contracts/WEBHOOK-PROTOCOL.md. Authenticated key resolves tenant/installation.
+        Never use human bearer token or payload tenant. ACK follows inbox/work-item commit.'
       parameters:
-        - { name: X-Event-Timestamp, in: header, required: true, schema: { type: string } }
-        - { name: X-Event-Id, in: header, required: true, schema: { type: string } }
+      - $ref: '#/components/parameters/InstallationId'
+      - $ref: '#/components/parameters/WebhookKeyId'
+      - $ref: '#/components/parameters/EventId'
+      - $ref: '#/components/parameters/EventTimestamp'
       requestBody:
         required: true
         content:
           application/cloudevents+json:
-            schema: { type: object }
+            schema:
+              $ref: '#/components/schemas/CloudEvent'
+      security:
+      - webhookSignature: []
+  /api/v1/contacts/{id}/panels/{panelId}:
+    get:
+      operationId: getContactPanel
+      summary: getContactPanel
       responses:
-        '202': { description: Durably accepted or previously accepted duplicate }
-        '400': { description: Invalid schema }
-        '401': { description: Invalid signature }
-        '409': { description: Conflicting reuse of event id }
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PanelData'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+      description: Server resolves authorized external link; fetch only pinned approved schema/endpoint under SSRF
+        policy. No raw HTML/JS. Unavailable module does not affect core readiness.
+      x-required-scopes:
+      - crm.contacts.read
+      parameters:
+      - $ref: '#/components/parameters/TenantContext'
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: panelId
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+      - name: installationId
+        in: query
+        required: true
+        description: Explicit approved destination, never resolved from panelId alone. Tenant/contact/link/grants
+          verified server-side.
+        schema:
+          type: string
+          format: uuid
+  /api/v1/automations/rules:
+    get:
+      operationId: listRules
+      summary: listRules
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuleSummaryPage'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+      x-required-scopes:
+      - automation.manage
+      parameters:
+      - $ref: '#/components/parameters/TenantContext'
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+    post:
+      operationId: createRule
+      summary: createRule
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutomationRule'
+          headers:
+            ETag:
+              description: Strong optimistic concurrency token.
+              schema:
+                type: string
+                pattern: ^"v[1-9][0-9]*"$
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+      description: Initial revision must be version 1, starts paused. Validate fields/action schemas/scopes and
+        total node quota before publish.
+      x-required-scopes:
+      - automation.manage
+      parameters:
+      - $ref: '#/components/parameters/TenantContext'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AutomationRule'
+  /api/v1/automations/rules/{id}:
+    get:
+      operationId: getRule
+      summary: getRule
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutomationRule'
+          headers:
+            ETag:
+              description: Strong optimistic concurrency token.
+              schema:
+                type: string
+                pattern: ^"v[1-9][0-9]*"$
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+      x-required-scopes:
+      - automation.manage
+      parameters:
+      - $ref: '#/components/parameters/TenantContext'
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    put:
+      operationId: publishRuleRevision
+      summary: publishRuleRevision
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutomationRule'
+          headers:
+            ETag:
+              description: Strong optimistic concurrency token.
+              schema:
+                type: string
+                pattern: ^"v[1-9][0-9]*"$
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+        '412':
+          $ref: '#/components/responses/Problem'
+        '428':
+          $ref: '#/components/responses/Problem'
+      description: Path ID identifies internal rule resource; ruleId in body is immutable public key. Version must
+        be current+1. Existing executions retain their snapshot.
+      x-required-scopes:
+      - automation.manage
+      parameters:
+      - $ref: '#/components/parameters/TenantContext'
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AutomationRule'
+  /api/v1/automations/rules/{id}/status:
+    patch:
+      operationId: setRuleStatus
+      summary: setRuleStatus
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RuleSummary'
+          headers:
+            ETag:
+              description: Strong optimistic concurrency token.
+              schema:
+                type: string
+                pattern: ^"v[1-9][0-9]*"$
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+        '412':
+          $ref: '#/components/responses/Problem'
+        '428':
+          $ref: '#/components/responses/Problem'
+      x-required-scopes:
+      - automation.manage
+      parameters:
+      - $ref: '#/components/parameters/TenantContext'
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RuleStatus'
+  /api/v1/automations/executions:
+    get:
+      operationId: listExecutions
+      summary: listExecutions
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecutionPage'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+      x-required-scopes:
+      - automation.manage
+      parameters:
+      - $ref: '#/components/parameters/TenantContext'
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+  /api/v1/automations/executions/{id}:
+    get:
+      operationId: getExecution
+      summary: getExecution
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Execution'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+      x-required-scopes:
+      - automation.manage
+      parameters:
+      - $ref: '#/components/parameters/TenantContext'
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+  /api/v1/automations/executions/{id}/actions:
+    get:
+      operationId: listActionRuns
+      summary: listActionRuns
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActionRunPage'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+      x-required-scopes:
+      - automation.manage
+      parameters:
+      - $ref: '#/components/parameters/TenantContext'
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
+  /api/v1/audit:
+    get:
+      operationId: listAudit
+      summary: listAudit
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditEntryPage'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '413':
+          $ref: '#/components/responses/Problem'
+        '415':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+      x-required-scopes:
+      - audit.read
+      parameters:
+      - $ref: '#/components/parameters/TenantContext'
+      - $ref: '#/components/parameters/Limit'
+      - $ref: '#/components/parameters/Cursor'
 components:
   securitySchemes:
-    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
-    webhookSignature: { type: apiKey, in: header, name: X-Event-Signature }
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    webhookSignature:
+      type: apiKey
+      in: header
+      name: X-Event-Signature
+  parameters:
+    TenantContext:
+      name: X-Tenant-Id
+      in: header
+      required: true
+      description: Selected tenant only; server verifies active membership or credential binding. Never an authorization
+        assertion.
+      schema:
+        type: string
+        format: uuid
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    Cursor:
+      name: cursor
+      in: query
+      schema:
+        type: string
+        maxLength: 2048
+    IfMatch:
+      name: If-Match
+      in: header
+      required: true
+      description: Strong ETag from latest resource read; wildcard and weak tags rejected.
+      schema:
+        type: string
+        pattern: ^"v[1-9][0-9]*"$
+    InstallationId:
+      name: X-Installation-Id
+      in: header
+      required: true
+      schema:
+        type: string
+        format: uuid
+    WebhookKeyId:
+      name: X-Webhook-Key-Id
+      in: header
+      required: true
+      schema:
+        type: string
+        pattern: ^[a-zA-Z0-9_-]{1,64}$
+    EventId:
+      name: X-Event-Id
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+        pattern: ^[A-Za-z0-9._:-]+$
+    EventTimestamp:
+      name: X-Event-Timestamp
+      in: header
+      required: true
+      schema:
+        type: string
+        pattern: ^[1-9][0-9]{9,11}$
   responses:
-    Unauthorized: { description: Missing or invalid token }
+    Problem:
+      description: Closed error; safe reasonToken and correlationId. No secrets or raw payload.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
   schemas:
+    Problem:
+      type: object
+      additionalProperties: false
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
+        reasonToken:
+          type: string
+          pattern: ^[A-Z][A-Z0-9_]+$
+        correlationId:
+          type: string
+          minLength: 1
+          maxLength: 128
+        detail:
+          type: string
+          maxLength: 1000
+      required:
+      - type
+      - title
+      - status
+      - reasonToken
+      - correlationId
+    Accepted:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum:
+          - pending
+          - accepted
+          - duplicate
+        correlationId:
+          type: string
+          minLength: 1
+      required:
+      - id
+      - status
+      - correlationId
+    Tenant:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        status:
+          type: string
+          enum:
+          - active
+          - suspended
+      required:
+      - id
+      - name
+      - status
+    CreateTenant:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+      required:
+      - name
+    Membership:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        issuer:
+          type: string
+          format: uri
+        subject:
+          type: string
+          minLength: 1
+          maxLength: 256
+        role:
+          type: string
+          enum:
+          - owner
+          - admin
+          - agent
+          - operator
+        status:
+          type: string
+          enum:
+          - active
+          - revoked
+        version:
+          type: integer
+          minimum: 1
+      required:
+      - id
+      - issuer
+      - subject
+      - role
+      - status
+      - version
+    UpdateMembership:
+      type: object
+      additionalProperties: false
+      properties:
+        role:
+          enum:
+          - admin
+          - agent
+          - operator
+        status:
+          type: string
+          enum:
+          - active
+          - revoked
+      required: []
+      minProperties: 1
+    CreateInvite:
+      type: object
+      additionalProperties: false
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 320
+        role:
+          enum:
+          - admin
+          - agent
+          - operator
+      required:
+      - email
+      - role
+    Invite:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        role:
+          enum:
+          - admin
+          - agent
+          - operator
+        expiresAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum:
+          - pending
+          - accepted
+          - revoked
+          - expired
+      required:
+      - id
+      - email
+      - role
+      - expiresAt
+      - status
+    AcceptInvite:
+      type: object
+      additionalProperties: false
+      properties:
+        token:
+          type: string
+          minLength: 32
+          maxLength: 512
+      required:
+      - token
     Contact:
       type: object
-      required: [id, displayName, version, createdAt]
+      additionalProperties: false
       properties:
-        id: { type: string, format: uuid }
-        displayName: { type: string }
-        email: { type: [string, 'null'], format: email }
-        version: { type: integer, minimum: 1 }
-        createdAt: { type: string, format: date-time }
+        id:
+          type: string
+          format: uuid
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 200
+        email:
+          type:
+          - string
+          - 'null'
+          format: email
+          maxLength: 320
+        phone:
+          type:
+          - string
+          - 'null'
+          maxLength: 40
+        version:
+          type: integer
+          minimum: 1
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+      - id
+      - displayName
+      - version
+      - createdAt
+      - updatedAt
     CreateContact:
       type: object
-      required: [displayName]
+      additionalProperties: false
       properties:
-        displayName: { type: string, minLength: 1, maxLength: 200 }
-        email: { type: string, format: email }
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 200
+        email:
+          type:
+          - string
+          - 'null'
+          format: email
+          maxLength: 320
+        phone:
+          type:
+          - string
+          - 'null'
+          maxLength: 40
+      required:
+      - displayName
+    UpdateContact:
+      type: object
+      additionalProperties: false
+      properties:
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 200
+        email:
+          type:
+          - string
+          - 'null'
+          format: email
+          maxLength: 320
+        phone:
+          type:
+          - string
+          - 'null'
+          maxLength: 40
+      required: []
+      minProperties: 1
+    CreateTag:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 64
+      required:
+      - name
+    Tag:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 64
+      required:
+      - id
+      - name
+    CreateField:
+      type: object
+      additionalProperties: false
+      properties:
+        key:
+          type: string
+          pattern: ^[a-z][a-z0-9_]{0,63}$
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 200
+        dataType:
+          type: string
+          enum:
+          - string
+          - number
+          - boolean
+          - date
+        required:
+          type: boolean
+      required:
+      - key
+      - displayName
+      - dataType
+    FieldDefinition:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        key:
+          type: string
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 200
+        dataType:
+          type: string
+          enum:
+          - string
+          - number
+          - boolean
+          - date
+        required:
+          type: boolean
+        version:
+          type: integer
+          minimum: 1
+      required:
+      - id
+      - key
+      - displayName
+      - dataType
+      - required
+      - version
+    SetFieldValue:
+      type: object
+      additionalProperties: false
+      properties:
+        value:
+          type:
+          - string
+          - number
+          - boolean
+          - 'null'
+      required:
+      - value
+    TimelineEntry:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        contactId:
+          type: string
+          format: uuid
+        inboxId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        source:
+          type: string
+        type:
+          type: string
+        occurredAt:
+          type: string
+          format: date-time
+        summary:
+          type: string
+          maxLength: 1000
+      required:
+      - id
+      - contactId
+      - inboxId
+      - source
+      - type
+      - occurredAt
+      - summary
+    CreateNote:
+      type: object
+      additionalProperties: false
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 1000
+      required:
+      - text
+    IdentityLink:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        contactId:
+          type: string
+          format: uuid
+        issuer:
+          type: string
+          format: uri
+        subject:
+          type: string
+          minLength: 1
+          maxLength: 256
+      required:
+      - id
+      - contactId
+      - issuer
+      - subject
+    CreateIdentityLink:
+      type: object
+      additionalProperties: false
+      properties:
+        issuer:
+          type: string
+          format: uri
+        subject:
+          type: string
+          minLength: 1
+          maxLength: 256
+      required:
+      - issuer
+      - subject
+    InstallModule:
+      type: object
+      additionalProperties: false
+      properties:
+        manifestUrl:
+          type: string
+          format: uri
+          pattern: ^https://
+          maxLength: 2048
+      required:
+      - manifestUrl
+    Installation:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        moduleId:
+          type: string
+        version:
+          type: string
+        manifestHash:
+          type: string
+          pattern: ^[a-f0-9]{64}$
+        state:
+          type: string
+          enum:
+          - discovered
+          - validated
+          - pending_approval
+          - active
+          - degraded
+          - disabled
+          - uninstalled
+        requestedScopes:
+          type: array
+          items:
+            type: string
+            pattern: ^[a-z][a-zA-Z0-9.-]{0,127}$
+        grantedScopes:
+          type: array
+          items:
+            type: string
+            pattern: ^[a-z][a-zA-Z0-9.-]{0,127}$
+        lastHealthAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+      required:
+      - id
+      - moduleId
+      - version
+      - manifestHash
+      - state
+      - requestedScopes
+      - grantedScopes
+      - lastHealthAt
+    ApproveInstallation:
+      type: object
+      additionalProperties: false
+      properties:
+        manifestHash:
+          type: string
+          pattern: ^[a-f0-9]{64}$
+        grantedScopes:
+          type: array
+          items:
+            type: string
+            pattern: ^[a-z][a-zA-Z0-9.-]{0,127}$
+          uniqueItems: true
+      required:
+      - manifestHash
+      - grantedScopes
+    ChangeInstallation:
+      type: object
+      additionalProperties: false
+      properties:
+        state:
+          type: string
+          enum:
+          - active
+          - disabled
+      required:
+      - state
+    CreateExternalLink:
+      type: object
+      additionalProperties: false
+      properties:
+        installationId:
+          type: string
+          format: uuid
+        entityType:
+          type: string
+          minLength: 1
+          maxLength: 128
+        externalId:
+          type: string
+          minLength: 1
+          maxLength: 256
+        contactId:
+          type: string
+          format: uuid
+      required:
+      - installationId
+      - entityType
+      - externalId
+      - contactId
+    ExternalLink:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        installationId:
+          type: string
+          format: uuid
+        entityType:
+          type: string
+        externalId:
+          type: string
+        contactId:
+          type: string
+          format: uuid
+        version:
+          type: integer
+          minimum: 1
+      required:
+      - id
+      - installationId
+      - entityType
+      - externalId
+      - contactId
+      - version
+    UnmatchedEvent:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        installationId:
+          type: string
+          format: uuid
+        source:
+          type: string
+        eventId:
+          type: string
+        externalId:
+          type: string
+        entityType:
+          type: string
+        status:
+          type: string
+          enum:
+          - unmatched
+          - queued
+          - resolved
+          - ignored
+        receivedAt:
+          type: string
+          format: date-time
+      required:
+      - id
+      - installationId
+      - source
+      - eventId
+      - externalId
+      - entityType
+      - status
+      - receivedAt
+    ResolveUnmatched:
+      type: object
+      additionalProperties: false
+      properties:
+        contactId:
+          type: string
+          format: uuid
+        entityType:
+          type: string
+          minLength: 1
+          maxLength: 128
+        externalId:
+          type: string
+          minLength: 1
+          maxLength: 256
+      required:
+      - contactId
+      - entityType
+      - externalId
+    DeadLetter:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        installationId:
+          type: string
+          format: uuid
+        actionRunId:
+          type:
+          - string
+          - 'null'
+          format: uuid
+        reasonToken:
+          type: string
+        attempts:
+          type: integer
+          minimum: 0
+        failedAt:
+          type: string
+          format: date-time
+      required:
+      - id
+      - installationId
+      - actionRunId
+      - reasonToken
+      - attempts
+      - failedAt
+    ReplayRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+      required:
+      - reason
+    RuleStatus:
+      type: object
+      additionalProperties: false
+      properties:
+        status:
+          type: string
+          enum:
+          - active
+          - paused
+      required:
+      - status
+    RuleSummary:
+      type: object
+      additionalProperties: false
+      properties:
+        ruleId:
+          type: string
+        version:
+          type: integer
+          minimum: 1
+        triggerEventType:
+          type: string
+        status:
+          type: string
+          enum:
+          - active
+          - paused
+        id:
+          type: string
+          format: uuid
+      required:
+      - id
+      - ruleId
+      - version
+      - triggerEventType
+      - status
+    Execution:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        inboxId:
+          type: string
+          format: uuid
+        ruleId:
+          type: string
+        ruleVersion:
+          type: integer
+          minimum: 1
+        status:
+          type: string
+          enum:
+          - pending
+          - succeeded
+          - retryable_failed
+          - terminal_failed
+          - skipped
+        createdAt:
+          type: string
+          format: date-time
+      required:
+      - id
+      - inboxId
+      - ruleId
+      - ruleVersion
+      - status
+      - createdAt
+    ActionRun:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        stepNo:
+          type: integer
+          minimum: 0
+        idempotencyKey:
+          type: string
+        status:
+          type: string
+          enum:
+          - pending
+          - succeeded
+          - retryable_failed
+          - terminal_failed
+          - skipped
+        reasonToken:
+          type:
+          - string
+          - 'null'
+      required:
+      - id
+      - stepNo
+      - idempotencyKey
+      - status
+      - reasonToken
+    AuditEntry:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        actor:
+          type: string
+        action:
+          type: string
+        target:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        correlationId:
+          type: string
+        summary:
+          type: string
+          maxLength: 1000
+      required:
+      - id
+      - actor
+      - action
+      - target
+      - timestamp
+      - correlationId
+      - summary
+    PanelData:
+      type: object
+      additionalProperties: false
+      properties:
+        schemaHash:
+          type: string
+          pattern: ^[a-f0-9]{64}$
+        data:
+          type: object
+        fetchedAt:
+          type: string
+          format: date-time
+        stale:
+          type: boolean
+      required:
+      - schemaHash
+      - data
+      - fetchedAt
+      - stale
+    AutomationRule:
+      title: P0 CRM Automation Rule
+      type: object
+      additionalProperties: false
+      properties:
+        ruleId:
+          type: string
+          minLength: 1
+          maxLength: 128
+        version:
+          type: integer
+          minimum: 1
+        triggerEventType:
+          type: string
+          pattern: ^[a-z][a-zA-Z0-9.-]*\.v[1-9][0-9]*$
+          maxLength: 128
+        condition:
+          $ref: '#/components/schemas/Rule_condition0'
+        actions:
+          type: array
+          items:
+            oneOf:
+            - type: object
+              additionalProperties: false
+              required:
+              - type
+              - input
+              properties:
+                type:
+                  const: crm.addTag.v1
+                input:
+                  type: object
+                  additionalProperties: false
+                  required:
+                  - tag
+                  properties:
+                    tag:
+                      type: string
+                      minLength: 1
+                      maxLength: 64
+            - type: object
+              additionalProperties: false
+              required:
+              - type
+              - input
+              properties:
+                type:
+                  const: crm.createNote.v1
+                input:
+                  type: object
+                  additionalProperties: false
+                  required:
+                  - text
+                  properties:
+                    text:
+                      type: string
+                      minLength: 1
+                      maxLength: 1000
+            - type: object
+              additionalProperties: false
+              required:
+              - type
+              - installationId
+              - input
+              properties:
+                type:
+                  type: string
+                  pattern: ^(?!crm\.)[a-z][a-zA-Z0-9.-]*\.v[1-9][0-9]*$
+                  maxLength: 128
+                installationId:
+                  type: string
+                  format: uuid
+                input:
+                  type: object
+          minItems: 1
+          maxItems: 10
+        triggerInstallationId:
+          type: string
+          format: uuid
+      required:
+      - ruleId
+      - version
+      - triggerEventType
+      - condition
+      - actions
+      allOf:
+      - if:
+          properties:
+            triggerEventType:
+              pattern: ^crm[.]
+        then:
+          not:
+            required:
+            - triggerInstallationId
+        else:
+          required:
+          - triggerInstallationId
+    Rule_leaf:
+      oneOf:
+      - type: object
+        additionalProperties: false
+        properties:
+          field:
+            type: string
+            pattern: ^/data(/([^~/]|~[01])+)+$
+            maxLength: 256
+          op:
+            const: eq
+          value:
+            type:
+            - string
+            - number
+            - boolean
+            - 'null'
+        required:
+        - field
+        - op
+        - value
+      - type: object
+        additionalProperties: false
+        properties:
+          field:
+            type: string
+            pattern: ^/data(/([^~/]|~[01])+)+$
+            maxLength: 256
+          op:
+            const: gt
+          value:
+            type: number
+        required:
+        - field
+        - op
+        - value
+      - type: object
+        additionalProperties: false
+        properties:
+          field:
+            type: string
+            pattern: ^/data(/([^~/]|~[01])+)+$
+            maxLength: 256
+          op:
+            const: exists
+        required:
+        - field
+        - op
+    Rule_condition4:
+      oneOf:
+      - $ref: '#/components/schemas/Rule_leaf'
+    Rule_condition3:
+      oneOf:
+      - $ref: '#/components/schemas/Rule_leaf'
+      - type: object
+        additionalProperties: false
+        properties:
+          all:
+            type: array
+            items:
+              $ref: '#/components/schemas/Rule_condition4'
+            minItems: 1
+            maxItems: 10
+        required:
+        - all
+      - type: object
+        additionalProperties: false
+        properties:
+          any:
+            type: array
+            items:
+              $ref: '#/components/schemas/Rule_condition4'
+            minItems: 1
+            maxItems: 10
+        required:
+        - any
+    Rule_condition2:
+      oneOf:
+      - $ref: '#/components/schemas/Rule_leaf'
+      - type: object
+        additionalProperties: false
+        properties:
+          all:
+            type: array
+            items:
+              $ref: '#/components/schemas/Rule_condition3'
+            minItems: 1
+            maxItems: 10
+        required:
+        - all
+      - type: object
+        additionalProperties: false
+        properties:
+          any:
+            type: array
+            items:
+              $ref: '#/components/schemas/Rule_condition3'
+            minItems: 1
+            maxItems: 10
+        required:
+        - any
+    Rule_condition1:
+      oneOf:
+      - $ref: '#/components/schemas/Rule_leaf'
+      - type: object
+        additionalProperties: false
+        properties:
+          all:
+            type: array
+            items:
+              $ref: '#/components/schemas/Rule_condition2'
+            minItems: 1
+            maxItems: 10
+        required:
+        - all
+      - type: object
+        additionalProperties: false
+        properties:
+          any:
+            type: array
+            items:
+              $ref: '#/components/schemas/Rule_condition2'
+            minItems: 1
+            maxItems: 10
+        required:
+        - any
+    Rule_condition0:
+      oneOf:
+      - $ref: '#/components/schemas/Rule_leaf'
+      - type: object
+        additionalProperties: false
+        properties:
+          all:
+            type: array
+            items:
+              $ref: '#/components/schemas/Rule_condition1'
+            minItems: 1
+            maxItems: 10
+        required:
+        - all
+      - type: object
+        additionalProperties: false
+        properties:
+          any:
+            type: array
+            items:
+              $ref: '#/components/schemas/Rule_condition1'
+            minItems: 1
+            maxItems: 10
+        required:
+        - any
+    CloudEvent:
+      title: CRM CloudEvent v1
+      type: object
+      required:
+      - specversion
+      - id
+      - source
+      - type
+      - time
+      - datacontenttype
+      - data
+      - subject
+      properties:
+        specversion:
+          const: '1.0'
+        id:
+          type: string
+          minLength: 1
+          maxLength: 128
+          pattern: ^[A-Za-z0-9._:-]+$
+        source:
+          type: string
+          minLength: 1
+          maxLength: 1024
+          format: uri-reference
+        type:
+          type: string
+          minLength: 1
+          maxLength: 128
+        time:
+          type: string
+          format: date-time
+        datacontenttype:
+          const: application/json
+        subject:
+          type: string
+          minLength: 1
+          maxLength: 256
+        dataschema:
+          type: string
+          format: uri
+          pattern: ^https://
+          maxLength: 2048
+        data:
+          type: object
+    TenantPage:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Tenant'
+        nextCursor:
+          type:
+          - string
+          - 'null'
+      required:
+      - items
+      - nextCursor
+    MembershipPage:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Membership'
+        nextCursor:
+          type:
+          - string
+          - 'null'
+      required:
+      - items
+      - nextCursor
+    InvitePage:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Invite'
+        nextCursor:
+          type:
+          - string
+          - 'null'
+      required:
+      - items
+      - nextCursor
+    ContactPage:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Contact'
+        nextCursor:
+          type:
+          - string
+          - 'null'
+      required:
+      - items
+      - nextCursor
+    TagPage:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Tag'
+        nextCursor:
+          type:
+          - string
+          - 'null'
+      required:
+      - items
+      - nextCursor
+    FieldDefinitionPage:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/FieldDefinition'
+        nextCursor:
+          type:
+          - string
+          - 'null'
+      required:
+      - items
+      - nextCursor
+    TimelineEntryPage:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/TimelineEntry'
+        nextCursor:
+          type:
+          - string
+          - 'null'
+      required:
+      - items
+      - nextCursor
+    IdentityLinkPage:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/IdentityLink'
+        nextCursor:
+          type:
+          - string
+          - 'null'
+      required:
+      - items
+      - nextCursor
+    InstallationPage:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Installation'
+        nextCursor:
+          type:
+          - string
+          - 'null'
+      required:
+      - items
+      - nextCursor
+    ExternalLinkPage:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExternalLink'
+        nextCursor:
+          type:
+          - string
+          - 'null'
+      required:
+      - items
+      - nextCursor
+    UnmatchedEventPage:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/UnmatchedEvent'
+        nextCursor:
+          type:
+          - string
+          - 'null'
+      required:
+      - items
+      - nextCursor
+    DeadLetterPage:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DeadLetter'
+        nextCursor:
+          type:
+          - string
+          - 'null'
+      required:
+      - items
+      - nextCursor
+    RuleSummaryPage:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuleSummary'
+        nextCursor:
+          type:
+          - string
+          - 'null'
+      required:
+      - items
+      - nextCursor
+    ExecutionPage:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Execution'
+        nextCursor:
+          type:
+          - string
+          - 'null'
+      required:
+      - items
+      - nextCursor
+    ActionRunPage:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ActionRun'
+        nextCursor:
+          type:
+          - string
+          - 'null'
+      required:
+      - items
+      - nextCursor
+    AuditEntryPage:
+      type: object
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditEntry'
+        nextCursor:
+          type:
+          - string
+          - 'null'
+      required:
+      - items
+      - nextCursor
+    InviteCreated:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        role:
+          enum:
+          - admin
+          - agent
+          - operator
+        expiresAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum:
+          - pending
+          - accepted
+          - revoked
+          - expired
+        token:
+          type: string
+          minLength: 32
+          maxLength: 512
+          description: Single-use secret returned once, no logs/list/audit. Persist hash only.
+      required:
+      - id
+      - email
+      - role
+      - expiresAt
+      - status
+      - token

@@ -3,6 +3,115 @@
   "title": "P0 CRM Automation Rule",
   "type": "object",
   "additionalProperties": false,
+  "properties": {
+    "ruleId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "triggerEventType": {
+      "type": "string",
+      "pattern": "^[a-z][a-zA-Z0-9.-]*\\.v[1-9][0-9]*$",
+      "maxLength": 128
+    },
+    "condition": {
+      "$ref": "#/$defs/condition0"
+    },
+    "actions": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type",
+              "input"
+            ],
+            "properties": {
+              "type": {
+                "const": "crm.addTag.v1"
+              },
+              "input": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "tag"
+                ],
+                "properties": {
+                  "tag": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  }
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type",
+              "input"
+            ],
+            "properties": {
+              "type": {
+                "const": "crm.createNote.v1"
+              },
+              "input": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "text"
+                ],
+                "properties": {
+                  "text": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000
+                  }
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type",
+              "installationId",
+              "input"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "pattern": "^(?!crm\\.)[a-z][a-zA-Z0-9.-]*\\.v[1-9][0-9]*$",
+                "maxLength": 128
+              },
+              "installationId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "input": {
+                "type": "object"
+              }
+            }
+          }
+        ]
+      },
+      "minItems": 1,
+      "maxItems": 10
+    },
+    "triggerInstallationId": {
+      "type": "string",
+      "format": "uuid"
+    }
+  },
   "required": [
     "ruleId",
     "version",
@@ -10,59 +119,271 @@
     "condition",
     "actions"
   ],
-  "properties": {
-    "ruleId": {
-      "type": "string"
-    },
-    "version": {
-      "type": "integer",
-      "minimum": 1
-    },
-    "triggerEventType": {
-      "type": "string"
-    },
-    "condition": {
-      "type": "object",
-      "required": [
-        "field",
-        "op",
-        "value"
-      ],
-      "properties": {
-        "field": {
-          "type": "string"
-        },
-        "op": {
-          "enum": [
-            "eq",
-            "gt",
-            "exists"
+  "$defs": {
+    "leaf": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "field": {
+              "type": "string",
+              "pattern": "^/data(/([^~/]|~[01])+)+$",
+              "maxLength": 256
+            },
+            "op": {
+              "const": "eq"
+            },
+            "value": {
+              "type": [
+                "string",
+                "number",
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "field",
+            "op",
+            "value"
           ]
         },
-        "value": {}
-      },
-      "additionalProperties": false
-    },
-    "actions": {
-      "type": "array",
-      "minItems": 1,
-      "maxItems": 10,
-      "items": {
-        "type": "object",
-        "required": [
-          "type",
-          "input"
-        ],
-        "properties": {
-          "type": {
-            "type": "string"
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "field": {
+              "type": "string",
+              "pattern": "^/data(/([^~/]|~[01])+)+$",
+              "maxLength": 256
+            },
+            "op": {
+              "const": "gt"
+            },
+            "value": {
+              "type": "number"
+            }
           },
-          "input": {
-            "type": "object"
-          }
+          "required": [
+            "field",
+            "op",
+            "value"
+          ]
         },
-        "additionalProperties": false
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "field": {
+              "type": "string",
+              "pattern": "^/data(/([^~/]|~[01])+)+$",
+              "maxLength": 256
+            },
+            "op": {
+              "const": "exists"
+            }
+          },
+          "required": [
+            "field",
+            "op"
+          ]
+        }
+      ]
+    },
+    "condition4": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/leaf"
+        }
+      ]
+    },
+    "condition3": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/leaf"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "all": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/condition4"
+              },
+              "minItems": 1,
+              "maxItems": 10
+            }
+          },
+          "required": [
+            "all"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "any": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/condition4"
+              },
+              "minItems": 1,
+              "maxItems": 10
+            }
+          },
+          "required": [
+            "any"
+          ]
+        }
+      ]
+    },
+    "condition2": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/leaf"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "all": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/condition3"
+              },
+              "minItems": 1,
+              "maxItems": 10
+            }
+          },
+          "required": [
+            "all"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "any": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/condition3"
+              },
+              "minItems": 1,
+              "maxItems": 10
+            }
+          },
+          "required": [
+            "any"
+          ]
+        }
+      ]
+    },
+    "condition1": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/leaf"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "all": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/condition2"
+              },
+              "minItems": 1,
+              "maxItems": 10
+            }
+          },
+          "required": [
+            "all"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "any": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/condition2"
+              },
+              "minItems": 1,
+              "maxItems": 10
+            }
+          },
+          "required": [
+            "any"
+          ]
+        }
+      ]
+    },
+    "condition0": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/leaf"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "all": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/condition1"
+              },
+              "minItems": 1,
+              "maxItems": 10
+            }
+          },
+          "required": [
+            "all"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "any": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/condition1"
+              },
+              "minItems": 1,
+              "maxItems": 10
+            }
+          },
+          "required": [
+            "any"
+          ]
+        }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "triggerEventType": {
+            "pattern": "^crm[.]"
+          }
+        }
+      },
+      "then": {
+        "not": {
+          "required": [
+            "triggerInstallationId"
+          ]
+        }
+      },
+      "else": {
+        "required": [
+          "triggerInstallationId"
+        ]
       }
     }
-  }
+  ]
 }
