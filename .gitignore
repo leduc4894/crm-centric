@@ -2,3 +2,11 @@
 __pycache__/
 *.pyc
 .superpowers/
+
+# Backend build products and local secret stores; package locks stay tracked.
+**/bin/
+**/obj/
+**/secrets.json
+**/appsettings.Local.json
+.env
+.env.*
