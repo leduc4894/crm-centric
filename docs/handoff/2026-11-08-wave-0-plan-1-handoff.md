@@ -51,3 +51,31 @@ controller-owned and pending; implementer self-review does not replace them.
    No uncommitted runtime work remains; ignored task report lives in SDD ledger.
 2. Controller reviews Task 6/final branch and updates final-review status/evidence.
    Continue later Wave 0 plans only under their scope; no merge/push/deploy here.
+
+## Final-review fix session (2026-11-08)
+
+User explicitly authorized one final-review fix wave on the current feature
+branch, no worktree/subagents, no merge/push/deploy. Read and checked this handoff,
+the requirements spec, Task 6 brief and full ignored final-review report against
+clean entry HEAD `2696930`.
+
+Addressed F1 (listener identity) and F2 (bounded cleanup) in
+`scripts/backend-smoke.sh`; added deterministic lifecycle regressions in
+`tests/Integration/SmokeTests.cs`, updated Linux prerequisites/behavior in README
+and appended current verification evidence. Prior export evidence is historical.
+Controller owns final-review pending status and plan final checkbox; untouched.
+Declined-to-judge review topics remain outside scope and P0 remains OPEN.
+
+Observed RED: both new lifecycle cases fail against prior script (foreign
+listener accepted; TERM-ignoring cleanup exceeds 35 seconds). Observed covering
+GREEN: SmokeTests 4/4, no failures/skips. Contracts 32/32; shell syntax and diff
+whitespace PASS. Full-suite and exact committed-source export results follow in
+the evidence completion below; do not infer them from the earlier Task 6 run.
+
+Final changed working-source checks: locked restore PASS; Release build PASS,
+0 warnings/errors; full .NET suite PASS 24/24, zero failed/skipped (1m1s);
+contracts PASS 32/32. Logs `/tmp/final-fix-{restore,build,full,contract}.log`.
+Source fix commit follows this record. Next: export that exact commit, restore
+locked/build/run covering SmokeTests there, verify matching final script hash,
+then commit docs-only export evidence and return to controller. No runtime edits
+are planned after the verified source commit; any such edit requires fresh checks.

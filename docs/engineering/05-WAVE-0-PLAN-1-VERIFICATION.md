@@ -142,3 +142,35 @@ Evidence-only commit follows the tested source; resolve its SHA from branch
 history by subject `docs(platform): finalize clean-export smoke evidence`.
 Final controller review remains pending. No runtime source changed after the
 verified candidate; docs-only updates do not trigger redundant suite reruns.
+
+## Final-review fix wave — F1/F2 (2026-11-08)
+
+The preceding `bd16017` export/hash evidence is historical and does not verify
+this changed script. Final controller review/status remains pending.
+
+- F1: match LISTEN socket inodes in the child's Linux `/proc/<pid>/net/tcp{,6}`
+  with `/proc/<pid>/fd` before and after HTTP probes. All listeners on the selected
+  port must belong to the launched child. No free-port precheck is used as proof.
+  Python 3 and readable proc metadata are now explicit Linux prerequisites; failure
+  to establish ownership fails closed. No product API or contract changes.
+- F2: TERM then a three-second watchdog escalates to KILL; reap the owned child,
+  cancel/reap the watchdog, preserve the original script exit status.
+- Behavioral RED against the prior script: focused new theory failed 2/2.
+  Foreign healthy listener was falsely accepted (172ms); TERM-ignoring child
+  exceeded the 35-second test budget. `/tmp/final-fix-red.log`.
+- GREEN: `dotnet test tests/Integration/Integration.csproj -c Release --no-restore
+  --filter FullyQualifiedName~SmokeTests`: 4 passed, 0 failed/skipped (1m1s).
+  `/tmp/final-fix-green.log`. Two deterministic lifecycle fixtures substitute only
+  the dotnet process boundary; existing two cases still run real API/PostgreSQL.
+  Foreign listener serves exact live/ready responses and survives smoke failure;
+  owned TERM-ignoring server is gone on successful script exit.
+- Credentials remain env-only and captured diagnostics withheld. Lifecycle
+  fixtures use disposable placeholder values, never real credentials.
+
+Final changed working source: `dotnet restore CrmPlatform.sln --locked-mode` PASS;
+`dotnet build CrmPlatform.sln -c Release --no-restore` PASS (0 warnings/errors,
+3.97s); `dotnet test CrmPlatform.sln -c Release --no-build --no-restore` PASS
+24/24, 0 failed/skipped (1m1s). Contracts PASS 32/32 (1.542s). Logs:
+`/tmp/final-fix-{restore,build,full,contract}.log`. Shell syntax and diff check PASS.
+The source commit immediately following this record contains the final script;
+its exact committed-source clean export is recorded separately below.

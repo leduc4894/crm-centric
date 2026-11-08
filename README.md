@@ -28,8 +28,8 @@ Breaking baseline: [ADR-018](docs/architecture/08-ADR-018-P0-CONTRACT-BASELINE.m
 Chi tiết thay đổi, kiểm chứng và giới hạn: [báo cáo baseline](docs/engineering/04-P0-BASELINE-VERIFICATION.md).
 
 ## Backend foundation (Linux)
-Prerequisites: SDK **10.0.403** (global.json), Bash, curl, GNU timeout, Docker cho
-integration tests, Python venv theo `requirements-contracts.lock`. PostgreSQL test
+Prerequisites: SDK **10.0.403** (global.json), Bash, curl, GNU timeout, Python 3,
+readable Linux `/proc` (including child socket/fd metadata), Docker cho integration tests, Python venv theo `requirements-contracts.lock`. PostgreSQL test
 image và versions đầy đủ: [verification](docs/engineering/05-WAVE-0-PLAN-1-VERIFICATION.md).
 
 ```bash
@@ -75,6 +75,9 @@ bash scripts/backend-smoke.sh
 Smoke dùng DB non-production đã provision; không tạo/drop database/roles, không
 restore/build ngầm. Script giữ credentials trong environment, không in values,
 chạy runner tối đa 60 giây, poll API hữu hạn và trap cleanup khi thành công/lỗi.
+Smoke verifies listening socket ownership against the launched PID before and after
+HTTP probes; an occupied port cannot supply success for another process. Cleanup
+sends TERM, allows three seconds, then KILLs/reaps the owned child if necessary.
 Diagnostic của script là reasonToken/correlationId an toàn; process output bị ẩn.
 Không hỗ trợ nhiều migrators đồng thời; caller phải serialize migration/smoke.
 Up có thể retry idempotent sau khi sửa nguyên nhân. Grants sau migration transaction
