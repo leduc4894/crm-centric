@@ -60,8 +60,12 @@ leave an old ready API masking failure. Successful up requires real API live/rea
 realm metadata. API readiness itself depends only on CRM PostgreSQL. See
 [IdP configuration](05-IDP-CONFIGURATION.md) for realm drift and production limits.
 
-Smoke checks the existing project's container labels, exact loopback port mapping,
-container-local health, host API endpoints and actual IdP realm metadata. It does
+Smoke checks the existing project's container labels, each service's exact secret
+source filename and destination, bind type/read-only flag, exact loopback port
+mapping, container-local health, host API endpoints and actual IdP realm metadata.
+Missing, extra, writable or reassigned credential mounts fail
+`LOCAL_SECRET_STATE_MISMATCH`, including another credential from the same state
+directory. Healthy endpoints alone do not prove the API uses its restricted role. It does
 not launch a host API or accept an unrelated HTTP listener as evidence. All three
 commands take the same nonblocking OS lock, scoped to the local Docker endpoint
 and project across checkout/state paths. Concurrent use fails

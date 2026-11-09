@@ -136,6 +136,16 @@ def project_lock(docker):
     finally:
         os.close(fd)
 
+_SECRET_GRANTS = {
+    'crm-db': {'crm_admin_password': 'crm_admin_password'},
+    'crm-bootstrap': {'crm_admin_connection': 'crm_admin_connection',
+                      'crm_migrator_password': 'crm_migrator_password', 'crm_app_password': 'crm_app_password'},
+    'crm-migrate': {'crm_migrator_connection': 'platform_connection'},
+    'crm-api': {'crm_app_connection': 'platform_connection'},
+    'idp-db': {'idp_db_admin_password': 'idp_db_admin_password', 'idp_db_password': 'idp_db_password'},
+    'keycloak': {'idp_db_password': 'idp_db_password', 'idp_admin_password': 'idp_admin_password'}
+}
+
 def _owned(config, containers):
     result = {}
     for container in containers:
@@ -148,10 +158,21 @@ def _owned(config, containers):
         service = labels.get('com.docker.compose.service')
         if service not in ('crm-db', 'crm-bootstrap', 'crm-migrate', 'crm-api', 'idp-db', 'keycloak') or service in result:
             raise LocalFailure('LOCAL_CONFIGURATION_INVALID')
-        # A different state directory must not silently replace credential mounts.
+        expected = {(str(config.state_dir / source), '/run/secrets/' + target)
+                    for source, target in _SECRET_GRANTS[service].items()}
+        actual = []
         for mount in container['Mounts']:
-            if mount['Destination'].startswith('/run/secrets/') and Path(mount['Source']).parent != config.state_dir:
-                raise LocalFailure('LOCAL_SECRET_STATE_MISMATCH')
+            source, destination = mount.get('Source', ''), mount.get('Destination', '')
+            # The stack has no non-secret bind mounts. Also reject secret mounts
+            # hidden under other destinations or supplied as volumes/directories.
+            if (mount.get('Type') == 'bind' or destination == '/run/secrets' or
+                    destination.startswith('/run/secrets/') or Path(source) == config.state_dir or
+                    Path(source).parent == config.state_dir):
+                if mount.get('Type') != 'bind' or mount.get('RW') is not False:
+                    raise LocalFailure('LOCAL_SECRET_STATE_MISMATCH')
+                actual.append((source, destination))
+        if len(actual) != len(expected) or set(actual) != expected:
+            raise LocalFailure('LOCAL_SECRET_STATE_MISMATCH')
         result[service] = container
     return result
 

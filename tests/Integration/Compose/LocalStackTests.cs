@@ -81,5 +81,31 @@ public sealed class LocalStackTests
         }
         var crmVolume = (await stack.Inspect("crm-db")).GetProperty("Mounts").EnumerateArray().Single(m => m.GetProperty("Type").GetString() == "volume").GetProperty("Name").GetString();
         var idpVolume = (await stack.Inspect("idp-db")).GetProperty("Mounts").EnumerateArray().Single(m => m.GetProperty("Type").GetString() == "volume").GetProperty("Name").GetString(); Assert.NotEqual(crmVolume,idpVolume);
+
+        // A healthy API using the higher-privilege migrator file must fail smoke.
+        // Replace only this random fixture's API and retain its ownership labels.
+        Assert.Equal(0, (await ComposeFixture.Docker("rm", "-f", await stack.Container("crm-api"))).ExitCode);
+        var replacement = await ComposeFixture.Docker("run", "-d", "--name", stack.Project + "-wrong-api",
+            "--label", "com.docker.compose.project=" + stack.Project,
+            "--label", "com.docker.compose.service=crm-api",
+            "--label", "com.docker.compose.project.working_dir=" + stack.Root,
+            "--label", "com.docker.compose.project.config_files=" + Path.Combine(stack.Root, "compose.yaml"),
+            "--label", "com.docker.compose.oneoff=False", "--network", crmNetwork,
+            "-p", $"127.0.0.1:{stack.ApiPort}:8080", "-e", "ASPNETCORE_URLS=http://+:8080",
+            "--mount", $"type=bind,source={Path.Combine(stack.State, "crm_migrator_connection")},target=/run/secrets/platform_connection,readonly",
+            api.GetProperty("Config").GetProperty("Image").GetString()!);
+        Assert.Equal(0, replacement.ExitCode);
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(30);
+        while ((await stack.Inspect("crm-api")).GetProperty("State").GetProperty("Health").GetProperty("Status").GetString() != "healthy" && DateTime.UtcNow < deadline)
+            await Task.Delay(200);
+        Assert.Equal("healthy", (await stack.Inspect("crm-api")).GetProperty("State").GetProperty("Health").GetProperty("Status").GetString());
+        using var client = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+        Assert.Equal(System.Net.HttpStatusCode.OK, (await client.GetAsync($"http://127.0.0.1:{stack.ApiPort}/health/live")).StatusCode);
+        Assert.Equal(System.Net.HttpStatusCode.OK, (await client.GetAsync($"http://127.0.0.1:{stack.ApiPort}/health/ready")).StatusCode);
+        var rejected = await stack.Command("smoke");
+        Assert.Equal(1, rejected.ExitCode);
+        using var rejection = System.Text.Json.JsonDocument.Parse(rejected.Output);
+        Assert.Equal("LOCAL_SECRET_STATE_MISMATCH", rejection.RootElement.GetProperty("reasonToken").GetString());
+        Assert.False(string.IsNullOrEmpty(rejection.RootElement.GetProperty("correlationId").GetString()));
     }
 }

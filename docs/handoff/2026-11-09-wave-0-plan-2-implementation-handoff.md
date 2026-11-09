@@ -537,3 +537,34 @@ report `.superpowers/sdd/2026-11-09-wave-0-plan-2-local-stack-observability/task
 No credentials/raw captures are included. No external blocker. Next: independent Task6 review, then Task7 failure gates. Task7 failure gates/Task8 clean export, remote acceptance
 and Wave0/P0 remain OPEN. Rollback is revert lifecycle/docs; retained volumes and
 credentials require no data rollback.
+
+## Task6 review fix round1 — credential mount identity
+
+Objective: close the reviewed source-parent-only ownership gap at `007883b`.
+No new user approval was needed; this is within the authorized Task6 review fix.
+The API could mount a more privileged connection from the same state directory
+and still satisfy the old mount check. Exact source filename/destination/type/
+readonly validation now enforces each of the six documented service grants;
+missing/extra/duplicate/writable/misdirected credentials fail safely. No secret or
+lifecycle metadata schema changes, password rotation, data reset or new dependency.
+
+Changed `scripts/local/compose.py`, Python lifecycle regression,
+`Compose/LocalStackTests.cs`, local guide, verification record and this handoff.
+Branch is unchanged; base `007883b`; fix is committed under subject
+`fix(local): enforce exact service secret mount grants` (resolve SHA from branch
+history), parent `007883b`. No intended fix work remains uncommitted after this
+commit. RED14 failing subcases across1 new Python
+method; focused GREEN9 methods and all Local20 methods,5.139s. The actual Compose
+case additionally substitutes the migrator connection into its test-owned API,
+proves healthy endpoints, then requires safe smoke rejection. Actual selected
+`Category=Compose&FullyQualifiedName~Sql_and_secret_mount_boundaries_hold` run:
+**1 passed,0 failed/skipped**,1m25s,exit0. Python compilation/diff checks PASS;
+all fixture-owned resources including the replacement were cleaned.
+
+Report: `.superpowers/sdd/2026-11-09-wave-0-plan-2-local-stack-observability/task-6-report.md`;
+private captures `/tmp/crm-task6-review1-*`, no values/raw responses reproduced.
+The previous full70/4 gates are baseline evidence, not rerun for this narrow fix
+under the controller-approved scope. No subagents or push/merge/deploy. Next:
+repeat independent review.
+Task7/8 and Wave0/P0 remain OPEN. Rollback only this validator/test/docs fix;
+persistent state/data require no rollback.

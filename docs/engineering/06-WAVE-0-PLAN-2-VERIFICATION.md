@@ -459,3 +459,25 @@ included in this record.
 Task7 failure/leak/outage/concurrency gates and Task8 clean-source export remain
 planned. No remote DemoModule E2E, tenant isolation, production login, restore
 readiness or Wave0/P0 completion is claimed.
+
+### Task6 review fix round1 — exact credential grants
+
+Review of `007883b` found that source-directory-only ownership checks accepted an
+API bind to a higher-privilege credential file from the same directory. `_owned`
+now requires every service's exact source filename, `/run/secrets` destination,
+bind type and readonly flag, rejecting missing/extra/duplicate or reassigned
+credentials. All six documented service maps are covered; data volumes remain
+allowed. No secret/metadata compatibility or public contract change.
+
+Focused Python RED: **14 failing subcases in1 new method;8 existing methods passed**,
+3.241s. Focused GREEN **9 passed**,3.999s; all Local **20 passed**,5.139s.
+Command: `python3 -m unittest discover -s tests/Local -v`.
+The real SQL/secret boundary Compose test also replaces only its random owned API
+with a healthy API using the same-directory migrator connection, then asserts
+smoke fails with `LOCAL_SECRET_STATE_MISMATCH` and correlation. Actual runtime
+command `dotnet test tests/Integration/Integration.csproj -c Release --no-restore --filter 'Category=Compose&FullyQualifiedName~Sql_and_secret_mount_boundaries_hold'`:
+**1 passed,0 failed/skipped**,1m25s,exit0. Actual healthy privilege substitution
+was rejected; all valid service mounts passed. Python compilation/diff checks PASS;
+fixture cleanup left no running containers. Baseline full70/4 suites remain evidence
+for `007883b`; the narrow fix uses the controller-approved focused scope.
+Captures `/tmp/crm-task6-review1-*.txt` are0600; no raw output/credential is reproduced.

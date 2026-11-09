@@ -1,5 +1,6 @@
 """Real CLI validation/OS-lock tests; no mocked Docker commands."""
 import json
+import copy
 import os
 from pathlib import Path
 import subprocess
@@ -11,13 +12,65 @@ import uuid
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'scripts'))
-from local.compose import Docker, LocalStackConfig, project_lock, _ports, LocalFailure, read_stack_metadata, write_stack_metadata
+from local.compose import Docker, LocalStackConfig, project_lock, _ports, LocalFailure, read_stack_metadata, write_stack_metadata, _owned
 
 class LifecycleConfigurationTests(unittest.TestCase):
     def cli(self, action, **environment):
         env = dict(os.environ, **environment)
         return subprocess.run(['bash', str(ROOT / f'scripts/dev-{action}.sh')], env=env,
                               capture_output=True, text=True, timeout=10)
+
+    def test_owned_container_requires_exact_readonly_secret_grants_for_every_service(self):
+        config = LocalStackConfig(ROOT, 'crm-mount-validation', Path('/tmp/crm-owned-state'))
+        # Hand-checked against the six consumers' documented credential boundaries.
+        grants = {
+            'crm-db': [('crm_admin_password', 'crm_admin_password')],
+            'crm-bootstrap': [('crm_admin_connection', 'crm_admin_connection'),
+                              ('crm_migrator_password', 'crm_migrator_password'), ('crm_app_password', 'crm_app_password')],
+            'crm-migrate': [('crm_migrator_connection', 'platform_connection')],
+            'crm-api': [('crm_app_connection', 'platform_connection')],
+            'idp-db': [('idp_db_admin_password', 'idp_db_admin_password'), ('idp_db_password', 'idp_db_password')],
+            'keycloak': [('idp_db_password', 'idp_db_password'), ('idp_admin_password', 'idp_admin_password')]
+        }
+        containers = []
+        for service, pairs in grants.items():
+            mounts = [dict(Type='bind', Source=str(config.state_dir / source),
+                           Destination='/run/secrets/' + target, RW=False) for source, target in pairs]
+            if service in ('crm-db', 'idp-db'):
+                mounts.append(dict(Type='volume', Source='/var/lib/docker/volumes/test/_data',
+                                   Destination='/var/lib/postgresql', RW=True))
+            containers.append({'Config': {'Labels': {
+                'com.docker.compose.project': config.project, 'com.docker.compose.service': service,
+                'com.docker.compose.project.working_dir': str(ROOT),
+                'com.docker.compose.project.config_files': str(ROOT / 'compose.yaml'),
+                'com.docker.compose.oneoff': 'False'}}, 'Mounts': mounts})
+        self.assertEqual(set(grants), set(_owned(config, containers)))
+        api = next(c for c in containers if c['Config']['Labels']['com.docker.compose.service'] == 'crm-api')
+        original = api['Mounts'][0]
+        cases = {
+            'wrong file in correct directory': [dict(original, Source=str(config.state_dir / 'crm_admin_connection'))],
+            'missing mount': [],
+            'extra credential': [original, dict(original, Source=str(config.state_dir / 'idp_admin_password'), Destination='/run/secrets/idp_admin_password')],
+            'writable mount': [dict(original, RW=True)],
+            'wrong destination': [dict(original, Destination='/run/secrets/other')],
+            'wrong mount type': [dict(original, Type='volume')],
+            'duplicate mount': [original, original],
+            'credential outside secret directory': [original, dict(original, Source=str(config.state_dir / 'crm_admin_connection'), Destination='/tmp/admin')]
+        }
+        for name, mounts in cases.items():
+            with self.subTest(case=name):
+                changed = copy.deepcopy(containers)
+                next(c for c in changed if c['Config']['Labels']['com.docker.compose.service'] == 'crm-api')['Mounts'] = mounts
+                with self.assertRaises(LocalFailure) as error:
+                    _owned(config, changed)
+                self.assertEqual('LOCAL_SECRET_STATE_MISMATCH', error.exception.token)
+        for service in grants:
+            with self.subTest(service=service):
+                changed = copy.deepcopy(containers)
+                target = next(c for c in changed if c['Config']['Labels']['com.docker.compose.service'] == service)
+                target['Mounts'][0]['Source'] = str(config.state_dir / 'ungranted_credential')
+                with self.assertRaises(LocalFailure):
+                    _owned(config, changed)
 
     def test_invalid_configuration_closes_without_creating_state(self):
         with tempfile.TemporaryDirectory() as parent:
