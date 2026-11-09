@@ -100,8 +100,13 @@ public static class LocalDatabaseBootstrap
           AND NOT EXISTS(SELECT FROM pg_namespace n CROSS JOIN LATERAL aclexplode(n.nspacl) a WHERE n.nspname='public' AND a.grantee=0)
           AND NOT EXISTS(SELECT FROM pg_namespace n WHERE n.nspname !~ '^pg_' AND n.nspname<>'information_schema' AND
             (n.nspowner=(SELECT oid FROM pg_roles WHERE rolname='crm_app') OR has_schema_privilege('crm_app',n.oid,'CREATE')))
+          AND NOT EXISTS(SELECT FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+            WHERE n.nspname !~ '^pg_' AND n.nspname<>'information_schema'
+              AND c.relowner=(SELECT oid FROM pg_roles WHERE rolname='crm_app'))
+          AND NOT EXISTS(SELECT FROM pg_namespace n WHERE n.nspname='platform'
+            AND n.nspowner<>(SELECT oid FROM pg_roles WHERE rolname='crm_migrator'))
           AND NOT EXISTS(SELECT FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='platform' AND
-            (c.relowner=(SELECT oid FROM pg_roles WHERE rolname='crm_app') OR
+            (c.relowner<>(SELECT oid FROM pg_roles WHERE rolname='crm_migrator') OR
              c.relkind IN ('r','p') AND has_table_privilege('crm_app',c.oid,'INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')))
         """, token);
 

@@ -131,4 +131,42 @@ public sealed class LocalBootstrapTests : IAsyncLifetime
         Assert.True(await Check("SELECT EXISTS(SELECT FROM public.sentinel WHERE id=42)"));
         if (drift == "acl") Assert.True(await Check("SELECT has_database_privilege('crm_app',current_database(),'CREATE')"));
     }
+    [Theory]
+    [InlineData("public_app_owner")]
+    [InlineData("custom_app_owner")]
+    [InlineData("platform_schema_owner")]
+    [InlineData("platform_history_owner")]
+    [InlineData("platform_relation_owner")]
+    public async Task Warm_bootstrap_rejects_relation_or_managed_schema_ownership_drift_without_repair(string drift)
+    {
+        AssertSafe(await Bootstrap(), true);
+        Assert.Equal(0, (await MigratorProcess.RunAsync(Connection("crm_migrator"), "crm_app")).ExitCode);
+        await Sql("CREATE TABLE public.sentinel(id integer); INSERT INTO public.sentinel VALUES (42)");
+        var (change, ownerPreserved) = drift switch
+        {
+            "public_app_owner" => (
+                "ALTER TABLE public.sentinel OWNER TO crm_app",
+                "SELECT relowner=(SELECT oid FROM pg_roles WHERE rolname='crm_app') FROM pg_class WHERE oid='public.sentinel'::regclass"),
+            "custom_app_owner" => (
+                "CREATE SCHEMA fixture; CREATE TABLE fixture.drift(id integer); ALTER TABLE fixture.drift OWNER TO crm_app",
+                "SELECT relowner=(SELECT oid FROM pg_roles WHERE rolname='crm_app') FROM pg_class WHERE oid='fixture.drift'::regclass"),
+            "platform_schema_owner" => (
+                "CREATE ROLE unrelated_owner NOLOGIN; ALTER SCHEMA platform OWNER TO unrelated_owner",
+                "SELECT nspowner=(SELECT oid FROM pg_roles WHERE rolname='unrelated_owner') FROM pg_namespace WHERE nspname='platform'"),
+            "platform_history_owner" => (
+                "CREATE ROLE unrelated_owner NOLOGIN; ALTER TABLE platform.\"__EFMigrationsHistory\" OWNER TO unrelated_owner",
+                "SELECT relowner=(SELECT oid FROM pg_roles WHERE rolname='unrelated_owner') FROM pg_class WHERE oid='platform.\"__EFMigrationsHistory\"'::regclass"),
+            "platform_relation_owner" => (
+                "CREATE TABLE platform.drift(id integer)",
+                "SELECT relowner=(SELECT oid FROM pg_roles WHERE rolname='postgres') FROM pg_class WHERE oid='platform.drift'::regclass"),
+            _ => throw new ArgumentOutOfRangeException(nameof(drift))
+        };
+        await Sql(change);
+        Assert.True(await Check(ownerPreserved));
+        AssertSafe(await Bootstrap(), false);
+        Assert.True(await Check(ownerPreserved), "Bootstrap silently repaired relation/schema ownership.");
+        Assert.True(await Check("SELECT count(*)=1 AND min(id)=42 FROM public.sentinel"));
+        Assert.True(await Check("SELECT count(*)=1 FROM platform.\"__EFMigrationsHistory\""));
+    }
+
 }

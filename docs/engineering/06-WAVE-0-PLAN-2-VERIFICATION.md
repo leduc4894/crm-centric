@@ -253,3 +253,34 @@ and the rebuilt runtime-image/context/security regression. Captures
 are owner-only files under `/tmp/crm-task4-*`; no raw capture or credentials are
 tracked. Compose topology, cold-source startup, outage/recovery and restore drills
 remain pending Tasks 6–8; these tests do not close Wave 0 or P0.
+
+### Task 4 review fix round 1 — ownership drift
+
+Review of `19cb472` identified that relation ownership checks only covered
+`platform`, and existing managed schema/history ownership was not required to
+match `crm_migrator`. Five additional warm-state cases reproduced incorrect
+acceptance: application-owned public/custom-schema tables, unrelated platform
+schema/history owners, and an unexpected admin-owned platform relation.
+
+The validator now rejects app relation ownership across user schemas and requires
+known migrator ownership for existing platform schema/relations. Pre-migration
+absence and authorized migrator ownership stay valid. Tests verify safe rejection
+without ownership/data repair and retained sentinel/history data.
+
+- RED:
+  `dotnet test tests/Integration/Integration.csproj -c Release --no-restore --filter FullyQualifiedName~Warm_bootstrap_rejects_relation_or_managed_schema_ownership_drift_without_repair`:
+  **5 failed, 0 passed/skipped**, 1m01s (incorrect exit 0 instead of mismatch).
+- `dotnet build CrmPlatform.sln -c Release --no-restore`: **PASS**, zero
+  warnings/errors, 5.60s.
+- GREEN:
+  `dotnet test tests/Integration/Integration.csproj -c Release --no-build --no-restore --filter 'FullyQualifiedName~LocalBootstrapTests|FullyQualifiedName~RolePrivilegeTests|FullyQualifiedName~MigrationTests'`:
+  **19 passed, 0 failed/skipped**, 1m47s. This includes all 13 bootstrap cases
+  plus existing migration/role regressions. `git diff --check`: **PASS**.
+
+The full image suite was not repeated for this SQL-only fix under the controller's
+verification scope. The prior 60-test full suite is evidence for `19cb472`.
+No CLI, secrets, adapters, packages, contract or migration changes. Current branch
+remains the Plan 2 feature branch; separate fix commit subject
+`fix(local): reject bootstrap ownership drift across user schemas`.
+Repeat independent review and Compose/P0 gates remain pending. Private captures:
+mode 0600 `/tmp/crm-task4-review1-{red,build,green}.txt`.

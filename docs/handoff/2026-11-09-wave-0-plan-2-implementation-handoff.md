@@ -337,3 +337,39 @@ or built-image regression as Compose acceptance. Rollback: revert the task code;
 retain volumes and secret state. Existing managed roles/DB/technical marker are
 preserved; no automatic drop/password rotation or destructive reset is provided.
 Report: `.superpowers/sdd/2026-11-09-wave-0-plan-2-local-stack-observability/task-4-report.md`.
+
+### Task 4 review fix round 1 — ownership boundary
+
+Review of `19cb472` found an ownership validation gap: relation ownership was
+checked only within `platform`, and existing managed schema/history ownership was
+not required to match `crm_migrator`. The finding was reproduced with five real
+PostgreSQL warm-state cases: app-owned public/custom-schema tables, an unrelated
+platform schema owner, unrelated history owner and an admin-owned unexpected
+platform relation. All five were incorrectly accepted before the fix.
+
+Completed fix: reject app-owned relations throughout user schemas; require
+existing `platform` schema and relations (including history) to be migrator-owned.
+The pre-migration no-schema state and valid migrator-owned schema/history remain
+accepted. Validation does not transfer ownership or repair data; regression tests
+verify rejected owners, sentinel data and migration history remain unchanged.
+No CLI, secret, adapter, package, contract or migration changes. Changed files:
+`LocalDatabaseBootstrap.cs`, `LocalBootstrapTests.cs`, this handoff and verification
+evidence; ignored Task 4 report was updated.
+
+Actual verification (SDK PATH/DOTNET_ROOT exported):
+
+- RED ownership-regression filter: **5 failed, 0 passed/skipped**, 1m01s;
+  every case returned exit 0 instead of safe mismatch exit 1.
+- `dotnet build CrmPlatform.sln -c Release --no-restore`: **PASS**, zero
+  warnings/errors, 5.60s.
+- `dotnet test tests/Integration/Integration.csproj -c Release --no-build --no-restore --filter 'FullyQualifiedName~LocalBootstrapTests|FullyQualifiedName~RolePrivilegeTests|FullyQualifiedName~MigrationTests'`:
+  **19 passed, 0 failed/skipped**, 1m47s (13 bootstrap, five migration, one role case).
+- `git diff --check`: **PASS**. The prior full 60-test suite applies to
+  `19cb472`; it was not rerun for this SQL-only review fix, per the controller's
+  verification scope. Compose/P0 acceptance remains open.
+
+Branch remains `feat/wave-0-plan-2-local-stack-observability`, base `19cb472`.
+Separate fix commit subject:
+`fix(local): reject bootstrap ownership drift across user schemas`.
+No other intended/uncommitted work or known blocker; ready for repeat independent
+review. No push/merge/deploy. Next: rerun review, then resume sequential Tasks 5–8.
