@@ -1,3 +1,6 @@
+using System.Diagnostics;
+using Platform.Infrastructure.Observability;
+
 namespace Platform.Api.Operations;
 
 public static class OperationalErrors
@@ -7,8 +10,9 @@ public static class OperationalErrors
         context.Response.StatusCode = status;
         context.Response.Headers.CacheControl = "no-store";
         context.Response.Headers["X-Correlation-Id"] = context.TraceIdentifier;
-        context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("Platform.OperationalErrors")
-            .LogError("Operational failure {ReasonToken} {CorrelationId}", reasonToken, context.TraceIdentifier);
+        var logger = context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("Platform.OperationalErrors");
+        using (PlatformLogging.BeginOperation(logger, "platform-api", "dependency_failed", context.TraceIdentifier))
+            logger.LogError("Operational failure {reasonToken} {correlationId}", reasonToken, context.TraceIdentifier);
         return context.Response.WriteAsJsonAsync(new
         {
             type = "urn:crm:problem:" + reasonToken.ToLowerInvariant().Replace('_', '-'),
@@ -26,6 +30,7 @@ public static class OperationalErrors
             context.TraceIdentifier = Guid.NewGuid().ToString("N");
             context.Response.Headers.CacheControl = "no-store";
             context.Response.Headers["X-Correlation-Id"] = context.TraceIdentifier;
+            using var activity = Activity.Current is null ? new Activity("platform-api.request").SetIdFormat(ActivityIdFormat.W3C).Start() : null;
             try { await next(context); }
             catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested) { throw; }
             catch (Exception) when (!context.Response.HasStarted)
