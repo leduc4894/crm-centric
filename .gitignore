@@ -10,3 +10,5 @@ __pycache__/
 **/appsettings.Local.json
 .env
 .env.*
+
+.local/

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Platform.Infrastructure.Local;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using Platform.Infrastructure.Configuration;
@@ -7,6 +8,27 @@ using Platform.Infrastructure.Observability;
 
 var correlationId = Guid.NewGuid().ToString("N");
 using var activity = Activity.Current is null ? new Activity("crm-migrate.migration").SetIdFormat(ActivityIdFormat.W3C).Start() : null;
+if (args.Length > 0)
+{
+    var local = args.Length == 1 && args[0] == "--local-bootstrap";
+    try
+    {
+        if (!local) throw new ArgumentException();
+        string Setting(string name) => Environment.GetEnvironmentVariable("LocalBootstrap__" + name) ?? throw new ArgumentException();
+        var options = new LocalBootstrapOptions(Setting("AdminConnectionString"), Setting("DatabaseName"),
+            Setting("ProjectId"), Setting("MigratorSecretFile"), Setting("ApplicationSecretFile"));
+        await LocalDatabaseBootstrap.RunAsync(options, CancellationToken.None);
+        ProcessDiagnostic.Write(Console.Out, "crm-bootstrap", "bootstrap_completed", correlationId, status: "bootstrapped");
+        return 0;
+    }
+    catch (Exception error)
+    {
+        ProcessDiagnostic.Write(Console.Error, local ? "crm-bootstrap" : "crm-migrate", "bootstrap_failed", correlationId,
+            reasonToken: error is LocalSecretStateMismatchException ? "LOCAL_SECRET_STATE_MISMATCH" :
+                error is ArgumentException ? "LOCAL_CONFIGURATION_INVALID" : "LOCAL_BOOTSTRAP_FAILED");
+        return 1;
+    }
+}
 DatabaseOptions configuration;
 var applicationRole = Environment.GetEnvironmentVariable("Database__ApplicationRole");
 try

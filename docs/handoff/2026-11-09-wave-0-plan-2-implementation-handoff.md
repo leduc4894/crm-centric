@@ -7,7 +7,7 @@ and [design](../superpowers/specs/2026-11-09-wave-0-plan-2-local-stack-observabi
 in sequential SDD tasks. The user requested full Plan 2 SDD execution on a new
 branch, without a worktree. Current branch is
 `feat/wave-0-plan-2-local-stack-observability`; no worktree, push, merge or deploy
-was performed. This record covers Tasks 1–3; Task 3 awaits independent review.
+was performed. This record covers Tasks 1–4; Task 4 awaits independent review.
 
 ## Task 1 — structured diagnostics
 
@@ -271,3 +271,69 @@ Task 3 final verification, after the argv guard and capture/cleanup repairs:
 
 Task 3 is ready for independent review. No remaining Task 3 implementation work
 or known blocker; full Plan 2 and P0 acceptance remain open as described above.
+
+## Task 4 — persistent secret state and isolated database bootstrap
+
+Task 3 passed independent review at `23d7952`. This section supersedes the earlier
+Task 3 pending-review statement. Task 4 implements the approved plan's secret
+state/bootstrap slice on the same feature branch, no worktree/push/merge/deploy.
+Commit subject: `feat(local): provision isolated database identities and persistent secret state`.
+
+Completed implementation:
+
+- Linux private state generation/reuse: five independent random passwords and
+  three file-based CRM connections, v1 project/fingerprint manifest, atomic
+  fsync/no-replace publication, actual 0700/0600/owner/symlink validation. Existing
+  volume plus missing state and changed files fail without rotation or repair.
+- Fixed `--local-bootstrap` migrator mode and typed Infrastructure bootstrap;
+  default migration is unchanged. Private admin-owned maintenance-DB `_local`
+  marker controls interrupted retries; role/password/ownership/ACL drift on
+  completed state fails. No application migration was added.
+- Actual authentication of migrator/app credentials; admin-owned `crm`, non-owner
+  `crm_migrator` CONNECT/CREATE, app CONNECT, no PUBLIC DB/schema privileges,
+  no TEMPORARY or elevated memberships. Warm validation allows authorized
+  migrator-owned application schema/history, rejects app CREATE/DML/ownership.
+- Explicit entrypoint file mapping, safe one-root JSON `crm-bootstrap`
+  diagnostics, disabled SQL statement/error/duration/sample logging around
+  password SQL and database adapter startup; no credentials in argv or logs.
+
+Changed files: `.gitignore`; `scripts/local/secrets.py`; `tests/Local/test_secrets.py`;
+`src/Platform.Infrastructure/Local/LocalDatabaseBootstrap.cs`; migrator `Program.cs`;
+platform/PostgreSQL entrypoints; `Fixtures/MigratorProcess.cs`, new
+`Fixtures/LocalSecretFixture.cs`, `LocalBootstrapTests.cs`; Plan 2 verification
+evidence and this handoff. No dependency lock or public contract/schema changes.
+
+Actual evidence: filesystem initial RED **2 failures/1 missing-behavior error**;
+initial GREEN **3 passed**, interruption/owner characterizations **5 passed**;
+no-replace publication RED **1 failure/5 passes**, then **6 passed**. A real
+lifecycle-directory import regression RED **1 failure/6 passes** caught stdlib
+name shadowing; standard cryptographic `os.urandom` fixed it, final Python
+**7 passed**.
+Real PostgreSQL bootstrap RED **6 failed**, first GREEN **6 passed**; actual
+adapter RED **1 failed**; initial expanded GREEN **19 passed**. Added schema-ACL
+negative case RED **1 failed/3 passed**, final expanded local/migration/role/
+security GREEN **20 passed**, 58s. Locked restore/build **PASS** (final zero
+warnings/errors); contracts **32 passed**; Bash syntax/Python compilation/diff
+checks **PASS**. Full non-Compose regression
+`dotnet test CrmPlatform.sln -c Release --no-build --no-restore --filter 'Category!=Compose'`:
+**60 passed, 0 failed/skipped**, 4m04s (actual built-image audits included). Complete
+commands and actual intermediate outcomes are in
+[verification evidence](../engineering/06-WAVE-0-PLAN-2-VERIFICATION.md).
+
+Task 6 integration contract: `SecretState.files` exposes eight exact filenames
+listed in the evidence. Set crm-db initial database to maintenance **postgres**,
+not `crm`; use `POSTGRES_PASSWORD_FILE` for `crm_admin_password`. Only bootstrap
+mounts `crm_admin_connection`, `crm_migrator_password`, `crm_app_password`;
+selectors/default mount paths are documented in evidence. Set public
+`LocalBootstrap__DatabaseName=crm` and project ID. Bootstrap mode's maintenance
+marker is `_local.bootstrap`; roles are fixed `crm_migrator`/`crm_app`.
+Migration/API retain `PLATFORM_CONNECTION_FILE` and app-only API secret mounts.
+Use host non-root UID/GID build args, retain 0700/0600. Secret generation requires
+Linux renameat2 and lifecycle serialization; unsupported/root-host state fails.
+
+No known product blocker. Task 4 awaits independent review; Tasks 5–8 remain
+planned, and full Compose/P0 acceptance is open. Do not treat the PostgreSQL-only
+or built-image regression as Compose acceptance. Rollback: revert the task code;
+retain volumes and secret state. Existing managed roles/DB/technical marker are
+preserved; no automatic drop/password rotation or destructive reset is provided.
+Report: `.superpowers/sdd/2026-11-09-wave-0-plan-2-local-stack-observability/task-4-report.md`.

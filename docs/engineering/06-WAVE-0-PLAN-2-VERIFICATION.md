@@ -1,6 +1,6 @@
 # Wave 0 Plan 2 — verification evidence
 
-Plan 2 remains open. This record currently covers Task 3 container prerequisites;
+Plan 2 remains open. This record covers Task 3 container prerequisites and Task 4 bootstrap;
 full Compose lifecycle, clean-source startup, realm metadata/drift, recovery,
 remote DemoModule, concurrent duplicates, tenant isolation and restore gates are
 not established by these container tests.
@@ -148,3 +148,108 @@ an actual `COPY` audit of the Docker-filtered context. The sentinel audit exclud
 `.git`, `.venv`, `.superpowers`, local state/env, tests, build outputs and local
 secret configuration. Public contracts, migrations and dependency lockfiles are
 unchanged. No Compose/P0/production acceptance claim follows from these results.
+
+## Task 4 — persistent secret state and local database bootstrap
+
+Based on approved Tasks 1–3, parent `23d7952` on
+`feat/wave-0-plan-2-local-stack-observability`. No public contract, dependency
+or application migration changed. Full Compose and P0 acceptance remain open.
+
+`ensure_secret_state(state_dir: Path, project: str, existing_volumes: bool)`
+returns `SecretState(directory, project, files)`; `files` maps the eight fixed
+names below to absolute paths. Lifecycle callers serialize their operations and
+must determine whether either project's named data volume exists before calling.
+On Linux, private temporary files/directories are fsynced and atomically published
+with `renameat2(RENAME_NOREPLACE)`, including refusal to replace an empty foreign
+directory. The v1 manifest stores project and file SHA-256 fingerprints, never
+password values. Existing state is read-only validation; missing/changed state,
+foreign project/owner, broad permissions or symlinks fail with
+`LOCAL_SECRET_STATE_MISMATCH`. Root-host generation fails safely. The caller must
+emit its safe JSON/correlation envelope; the helper never prints values.
+
+| State filename | Use |
+| --- | --- |
+| `crm_admin_password` | crm-db `POSTGRES_PASSWORD_FILE` |
+| `crm_migrator_password` | bootstrap migrator credential file |
+| `crm_app_password` | bootstrap application credential file |
+| `idp_db_password` | idp-db and Keycloak database password file |
+| `idp_admin_password` | Keycloak bootstrap administrator file |
+| `crm_admin_connection` | bootstrap administrative connection, `postgres` maintenance DB |
+| `crm_migrator_connection` | default migrator connection, fixed `crm` DB/`crm_migrator` role |
+| `crm_app_connection` | API connection, fixed `crm` DB/`crm_app` role |
+
+All five passwords use independent standard cryptographic randomness; directory
+0700/files0600, owned by the invoking non-root user. Connections use internal
+`crm-db:5432`. This is a local secret store, not a production secret manager.
+
+The only new CLI mode is `Platform.Migrator.dll --local-bootstrap`; the default
+Up/app grant path remains unchanged. Typed options map environment settings
+`LocalBootstrap__AdminConnectionString`, `LocalBootstrap__DatabaseName` (`crm`),
+`LocalBootstrap__ProjectId`, `LocalBootstrap__MigratorSecretFile` and
+`LocalBootstrap__ApplicationSecretFile`. Runtime adapters accept only this exact
+single flag for the migrator, validate mounted files, and populate the private
+process environment. API accepts no additional argv or bootstrap admin setting.
+Bootstrap adapter selectors and defaults:
+
+- `LOCAL_BOOTSTRAP_ADMIN_CONNECTION_FILE=/run/secrets/crm_admin_connection`
+- `LOCAL_BOOTSTRAP_MIGRATOR_SECRET_FILE=/run/secrets/crm_migrator_password`
+- `LOCAL_BOOTSTRAP_APPLICATION_SECRET_FILE=/run/secrets/crm_app_password`
+
+Task 6 must mount only these three files into `crm-bootstrap`; API mounts only
+`crm_app_connection`, default migration only `crm_migrator_connection`. Initialize
+crm-db with maintenance `postgres`, **not** `POSTGRES_DB=crm`: bootstrap creates
+the dedicated database, and rejects an unknown existing `crm` database/roles.
+Pass actual host UID/GID through Task 3 public build args; never broaden permissions.
+
+An admin-owned private `_local.bootstrap` table in the **maintenance postgres
+DB** records project/database and provisioning/completion. It is separate from
+domain migrations. An advisory lock serializes bootstrap; the marker and roles
+are created transactionally before database creation, so an interrupted controlled
+provision can finish fixed grants. Both actual role credentials must authenticate;
+role/DB ownership, role memberships, base ACLs and app schema/history restrictions
+are validated. Completed state performs no ACL or password repair. Warm validation
+accepts the authorized migrator-owned `platform` schema/history. Unknown state or
+drift returns safe `LOCAL_SECRET_STATE_MISMATCH`; operational bootstrap failure
+uses `LOCAL_BOOTSTRAP_FAILED`, configuration uses `LOCAL_CONFIGURATION_INVALID`.
+Every CLI result is one JSON root with `crm-bootstrap` and correlation ID.
+
+Passwords are escaped using fixed identifiers and standard-conforming SQL literal
+rules. Before any credential-bearing SQL, the bootstrap disables session statement,
+error-statement, duration and sample logging. The PostgreSQL adapter also fixes
+those server settings at startup; provider errors/SQL are never emitted by the
+owned CLI. Vendor operational logs remain enabled.
+
+Actual Task 4 evidence (SDK PATH/DOTNET_ROOT as above):
+
+- Python baseline RED: **2 failed, 1 error**, missing implementation. Initial
+  filesystem GREEN **3 passed**. Supplementary interruption/actual foreign-owner
+  characterization raised coverage to five passing tests.
+- Python atomic-publication regression RED **1 failed, 5 passed**: ordinary rename
+  could overwrite an empty foreign directory. No-replace Python GREEN: **6 passed**,
+  real filesystem permissions/ownership and injected interrupted write included.
+  A lifecycle-directory import regression then failed **1/7** tests because
+  `secrets.py` shadowed the stdlib module; switching to standard cryptographic
+  `os.urandom` resolved the collision. Final Python GREEN: **7 passed**, 1.255s.
+- `dotnet test tests/Integration/Integration.csproj -c Release --no-restore --filter FullyQualifiedName~LocalBootstrapTests`:
+  initial behavioral RED **6 failed, 0 passed/skipped**, 28s; old mode emitted
+  `crm-migrate`. First implementation GREEN **6 passed**, 44s, real PostgreSQL.
+- Real entrypoint/CLI RED **1 failed**, 5s (mode rejected); after adapter support,
+  focused local/migration/role/security GREEN **19 passed**, 53s.
+- Schema ACL drift regression RED **1 failed, 3 passed**, 32s: the bootstrap
+  accepted app CREATE on `platform`. Corrected validation rejects it while
+  retaining authorized migrator ownership. Final focused command below:
+  **20 passed, 0 failed/skipped**, 58s.
+  `dotnet test tests/Integration/Integration.csproj -c Release --no-build --no-restore --filter 'FullyQualifiedName~LocalBootstrapTests|FullyQualifiedName~MigrationTests|FullyQualifiedName~RolePrivilegeTests|FullyQualifiedName~OperationalSecurityTests'`.
+- Locked restore: **PASS**. Final solution build: **PASS**, zero warnings/errors,
+  2.26s on the final repeated build. The first implementation build had four Unix platform-analysis warnings;
+  explicit platform guards corrected them before final verification.
+- Contract suite: **32 passed**, 2.409s. Shell syntax, Python compilation and
+  `git diff --check`: **PASS**. No skipped prerequisite is counted as evidence.
+
+Full non-Compose regression:
+`dotnet test CrmPlatform.sln -c Release --no-build --no-restore --filter 'Category!=Compose'`:
+**60 passed, 0 failed/skipped**, 4m04s. This includes the eight new local cases
+and the rebuilt runtime-image/context/security regression. Captures
+are owner-only files under `/tmp/crm-task4-*`; no raw capture or credentials are
+tracked. Compose topology, cold-source startup, outage/recovery and restore drills
+remain pending Tasks 6–8; these tests do not close Wave 0 or P0.

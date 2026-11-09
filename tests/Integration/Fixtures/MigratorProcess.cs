@@ -6,7 +6,8 @@ public static class MigratorProcess
 {
     public sealed record Result(int ExitCode, string StandardOutput, string StandardError);
 
-    public static async Task<Result> RunAsync(string? connectionString, string? applicationRole, bool api = false)
+    public static async Task<Result> RunAsync(string? connectionString, string? applicationRole, bool api = false,
+        IReadOnlyList<string>? arguments = null, IReadOnlyDictionary<string, string?>? environment = null)
     {
         var root = new DirectoryInfo(AppContext.BaseDirectory);
         while (root is not null && !File.Exists(Path.Combine(root.FullName, "CrmPlatform.sln")))
@@ -19,6 +20,15 @@ public static class MigratorProcess
         };
         foreach (var argument in new[] { "run", "--project", api ? "src/Platform.Api" : "src/Platform.Migrator", "--no-build", "-c", "Release" })
             start.ArgumentList.Add(argument);
+        if (arguments is { Count: > 0 })
+        {
+            start.ArgumentList.Add("--");
+            foreach (var argument in arguments) start.ArgumentList.Add(argument);
+        }
+        if (environment is not null)
+            foreach (var pair in environment)
+                if (pair.Value is null) start.Environment.Remove(pair.Key);
+                else start.Environment[pair.Key] = pair.Value;
         start.Environment["ASPNETCORE_URLS"] = "http://127.0.0.1:0";
         start.Environment.Remove("ConnectionStrings__Platform");
         start.Environment.Remove("Database__ApplicationRole");
