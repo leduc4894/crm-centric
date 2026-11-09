@@ -254,7 +254,13 @@ public sealed class ContainerRuntimeTests(ContainerImages images)
         await db.InitializeAsync();
         var name = "crm-task3-kc-" + Guid.NewGuid().ToString("N");
         using var secrets = new SecretDirectory();
-        var dbPassword = new NpgsqlConnectionStringBuilder(db.Container.GetConnectionString()).Password!;
+        var dbPassword = Guid.NewGuid().ToString("N");
+        await using (var provisioning = new NpgsqlConnection(db.AdminConnectionString))
+        {
+            await provisioning.OpenAsync();
+            await PostgresFixture.ExecuteAsync(provisioning, "SET log_min_error_statement=panic; CREATE ROLE keycloak LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD '" + dbPassword + "'");
+            await PostgresFixture.ExecuteAsync(provisioning, "ALTER DATABASE " + PostgresFixture.Quote(db.DatabaseName) + " OWNER TO keycloak; ALTER SCHEMA public OWNER TO keycloak");
+        }
         var password = secrets.Write("db-password", dbPassword);
         var adminValue = Guid.NewGuid().ToString("N");
         var admin = secrets.Write("admin-password", adminValue);
@@ -264,9 +270,9 @@ public sealed class ContainerRuntimeTests(ContainerImages images)
             await ContainerImages.Docker("network", "connect", name, db.Container.Name);
             await ContainerImages.Docker("run", "--detach", "--name", name, "--network", name,
                 "--mount", Mount(password, "/run/secrets/db-password"), "--mount", Mount(admin, "/run/secrets/admin-password"),
-                "--env", "KC_DB_URL=jdbc:postgresql://" + db.Container.Name.TrimStart('/') + ":5432/postgres", "--env", "KC_DB_USERNAME=postgres",
+                "--env", "KC_DB_URL=jdbc:postgresql://" + db.Container.Name.TrimStart('/') + ":5432/" + db.DatabaseName, "--env", "KC_DB_USERNAME=keycloak",
                 "--env", "KC_DB_PASSWORD_FILE=/run/secrets/db-password", "--env", "KC_BOOTSTRAP_ADMIN_USERNAME=local-admin",
-                "--env", "KC_BOOTSTRAP_ADMIN_PASSWORD_FILE=/run/secrets/admin-password", images.Keycloak, "start-dev", "--hostname=http://localhost:8080");
+                "--env", "KC_BOOTSTRAP_ADMIN_PASSWORD_FILE=/run/secrets/admin-password", "--env", "KC_HOSTNAME=http://localhost:8080", images.Keycloak, "start-dev");
             var healthy = false;
             for (var attempt = 0; attempt < 100; attempt++)
             {
@@ -280,7 +286,7 @@ public sealed class ContainerRuntimeTests(ContainerImages images)
                 ContainerImages.SavePrivateCapture("keycloak-startup", failure.Output + failure.Error);
             }
             Assert.True(healthy, "Keycloak management health did not become ready.");
-            await using var idp = new NpgsqlConnection(db.Container.GetConnectionString());
+            await using var idp = new NpgsqlConnection(db.AdminConnectionString);
             await idp.OpenAsync();
             await using var realm = new NpgsqlCommand("SELECT count(*) FROM realm WHERE name = 'master'", idp);
             Assert.Equal(1L, await realm.ExecuteScalarAsync());

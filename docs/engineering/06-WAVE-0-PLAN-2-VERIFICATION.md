@@ -284,3 +284,73 @@ remains the Plan 2 feature branch; separate fix commit subject
 `fix(local): reject bootstrap ownership drift across user schemas`.
 Repeat independent review and Compose/P0 gates remain pending. Private captures:
 mode 0600 `/tmp/crm-task4-review1-{red,build,green}.txt`.
+
+## Task 5 — isolated Keycloak realm and warm metadata inspection
+
+Task 4's ownership review fix passed independent review at `02d0962`. Task 5
+adds the `crm-local` startup import, two distinct public Authorization Code/S256
+browser clients, canonical localhost issuer, and a read-only trusted-host realm
+inspector. Image digests are unchanged. No CRM authentication, login callback,
+end-user token issuance, production deployment, public API/schema or dependency
+changes are included.
+
+The [IdP guide](../operations/05-IDP-CONFIGURATION.md) contains exact Task 6
+file/environment/argv contracts and production design boundaries. It supersedes
+the earlier eight-file/five-password intermediate state contract: state now has
+**nine files/six independent passwords**, including separate
+`idp_db_admin_password`. Earlier intermediate state fails safely without rotation.
+Keycloak receives only its own database-login and bootstrap-admin password files.
+The dedicated non-superuser `keycloak` PostgreSQL login owns its isolated database
+and public schema; SQL/password errors are suppressed during private initialization.
+The older runtime health test now also uses a dedicated non-superuser login.
+
+Actual Task 5 RED/intermediate results:
+
+- `dotnet test tests/Integration/Integration.csproj -c Release --no-restore --filter FullyQualifiedName~KeycloakContainerTests`:
+  initial **3 failed, 0 passed/skipped**, 2m30s. Real Keycloak management readiness
+  succeeded; absent `crm-local` discovery/admin metadata returned 404.
+- `--filter FullyQualifiedName~Idp_database_initializer`: **1 failed**, 4s;
+  real PostgreSQL did not have the required login (expected true, actual null).
+- `--filter FullyQualifiedName~Nonlocal_hostname`: **1 failed**, 1s;
+  the old adapter accepted a nonlocal canonical hostname and exited 0.
+- Filesystem RED: **1 failed/6 passed**, expected nine files, actual eight.
+- First implementation runtime run: **3 failed/1 passed**, 4m51s; DB initializer
+  passed, but source-directory permissions made the copied import directory
+  unreadable. The image now explicitly grants directory traversal.
+- Next runtime run reached public discovery/JWKS/client/database checks, then
+  caught completed-response handling in the Python inspector. A real socket
+  regression reproduced **1 failed/2 passed** (expected drift, actual unavailable).
+  The bounded read loop now stops when the HTTP response closes.
+- Another real socket regression reproduced malformed HTTP escaping the safe
+  status boundary: **1 failed/1 passed**. HTTP protocol errors now map to
+  `unavailable` with `LOCAL_IDP_NOT_READY` and a fresh correlation ID.
+
+Final runtime/regression evidence is recorded below. All commands
+use SDK PATH/DOTNET_ROOT `/tmp/crm-dotnet-10.0.403`; captures remain private
+mode0600 `/tmp/crm-task5-*`. No raw response, password, token or key material is
+reproduced here. Compose/clean-source/outage and Wave 0/P0 acceptance remain open.
+
+Task 5 final focused GREEN:
+`dotnet test tests/Integration/Integration.csproj -c Release --no-restore --filter FullyQualifiedName~KeycloakContainerTests`:
+**5 passed, 0 failed/skipped**, 3m04s. Actual public discovery/JWKS, persisted
+Admin API client flags/redirects/origins/no-secret, no seeded realm users,
+restricted authenticated PostgreSQL owner/schema, unchanged warm restart,
+intentional persisted grant drift, unavailable stopped provider, port override
+and safe nonlocal-host rejection all passed. Helper statuses also assert exact
+reason mappings and correlation length. Runtime captures inspect/log-scan all
+three independent secret sentinels without printing raw data.
+
+Final Python local suite: **10 passed**, 1.156s; contract suite: **32 passed**,
+3.376s. Locked restore **PASS**. Python compilation, all entrypoint Bash syntax
+and `git diff --check`: **PASS**.
+
+Final Task 5 solution build: **PASS**, zero warnings/errors, 2.84s. Final regression:
+`dotnet test CrmPlatform.sln -c Release --no-build --no-restore --filter 'Category!=Compose'`:
+**70 passed, 0 failed/skipped**, 7 minutes. This includes all previous behavior,
+actual built-image context/history/layer/secret audits, the dedicated-role old
+runtime fixture and all five Keycloak cases. Captures:
+`/tmp/crm-task5-{build-final,regression,focused,local-final,contracts}.txt` (0600).
+No unresolved test failure or skipped prerequisite. Final self-review also made
+owned fixture cleanup remove its anonymous PostgreSQL volumes; no global prune
+was performed. The implementation is ready for independent review. Full Compose,
+clean-source export, outage/recovery and Wave 0/P0 acceptance remain open.

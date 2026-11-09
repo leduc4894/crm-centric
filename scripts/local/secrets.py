@@ -15,7 +15,7 @@ import tempfile
 from typing import NamedTuple
 
 PASSWORDS = ('crm_admin_password', 'crm_migrator_password', 'crm_app_password',
-             'idp_db_password', 'idp_admin_password')
+             'idp_db_password', 'idp_db_admin_password', 'idp_admin_password')
 CONNECTIONS = {'crm_admin_connection': ('postgres', 'postgres', 'crm_admin_password'),
                'crm_migrator_connection': ('crm', 'crm_migrator', 'crm_migrator_password'),
                'crm_app_connection': ('crm', 'crm_app', 'crm_app_password')}

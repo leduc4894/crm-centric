@@ -7,7 +7,7 @@ and [design](../superpowers/specs/2026-11-09-wave-0-plan-2-local-stack-observabi
 in sequential SDD tasks. The user requested full Plan 2 SDD execution on a new
 branch, without a worktree. Current branch is
 `feat/wave-0-plan-2-local-stack-observability`; no worktree, push, merge or deploy
-was performed. This record covers Tasks 1–4; Task 4 awaits independent review.
+was performed. This record covers Tasks 1–5; Tasks 1–4 passed review and Task 5 is verified, awaiting independent review.
 
 ## Task 1 — structured diagnostics
 
@@ -373,3 +373,78 @@ Separate fix commit subject:
 `fix(local): reject bootstrap ownership drift across user schemas`.
 No other intended/uncommitted work or known blocker; ready for repeat independent
 review. No push/merge/deploy. Next: rerun review, then resume sequential Tasks 5–8.
+
+## Task 5 — local realm, canonical issuer and warm validation
+
+Task 4 passed repeat independent review at `02d0962`. Task 5 continues the approved
+Plan 2 on branch `feat/wave-0-plan-2-local-stack-observability`, same checkout,
+without worktree/push/merge/deploy. Objective/spec/plan remain the linked Plan 2
+sources at the top of this handoff. User authorization covers full sequential
+Plan 2 implementation; no new production/authentication scope was inferred.
+
+Completed source work: `crm-local` import with two public S256 clients and exact
+redirect/origin placeholders; canonical localhost hostname validation/default;
+trusted-host read-only discovery/JWKS/Admin API inspection with ready/drift/
+unavailable reason/correlation results; dedicated non-superuser Keycloak database
+login/bootstrap and separate PostgreSQL administrator file; production IdP guide.
+Management tokens remain in memory and no realm/user data is repaired on drift.
+Keycloak mounts no CRM or PostgreSQL administrator credential. Existing pinned
+images/native health probe remain. The old runtime fixture's Keycloak login was
+also changed to a dedicated non-superuser.
+
+Changed files: `.dockerignore`; Keycloak/PostgreSQL Dockerfiles and entrypoints;
+new `infra/compose/entrypoints/idp-db-init.sh`, `infra/keycloak/crm-local-realm.json`,
+`scripts/local/realm.py`, `tests/Integration/KeycloakContainerTests.cs`,
+`tests/Local/test_realm.py`, `docs/operations/05-IDP-CONFIGURATION.md`;
+`scripts/local/secrets.py`, `tests/Local/test_secrets.py`,
+`tests/Integration/ContainerRuntimeTests.cs`, verification evidence and this handoff.
+No contract/schema/dependency-lock or CRM migration changes.
+
+Task 6 must consume **nine exact state filenames**, superseding Task 4's earlier
+eight-file contract: new `idp_db_admin_password` is used only by idp-db via
+`POSTGRES_PASSWORD_FILE`; existing `idp_db_password` is its role initializer input
+via `LOCAL_IDP_DB_PASSWORD_FILE` and Keycloak's `KC_DB_PASSWORD_FILE`.
+Use `LOCAL_DATABASE_SERVICE=idp-db` with initial `POSTGRES_USER=postgres`/
+`POSTGRES_DB=postgres`; the initializer creates the separate database. Set
+`KC_DB_USERNAME=keycloak`, dedicated database
+`keycloak`, `KC_BOOTSTRAP_ADMIN_USERNAME=local-admin`, and canonical
+`KC_HOSTNAME=http://localhost:<LOCAL_IDP_PORT>`. The local Keycloak adapter accepts
+only `start-dev` or `start-dev --import-realm`; no extra argv override. Exact
+mount/default paths and `AdminSecretFiles`/`RealmStatus` fields are in the IdP guide.
+Old intermediate state fails `LOCAL_SECRET_STATE_MISMATCH`; no automatic migration,
+repair or rotation was added. Controller explicitly agreed to this separate IdP
+administrator secret while Task 5 was in progress.
+
+Behavioral RED/intermediate failures are retained in the verification evidence and ignored
+local report `.superpowers/sdd/2026-11-09-wave-0-plan-2-local-stack-observability/task-5-report.md`.
+All intended Task 5 source/docs are included in the task commit described below.
+No known product blocker; implementation and final verification are complete for
+this slice, awaiting independent review.
+Tasks 6–8/Compose/production authentication/P0 remain planned. Rollback is a source
+revert while retaining secret files and IdP storage; never delete a persisted
+realm or reset credentials as part of normal up/down.
+
+Task 5 final verification (SDK PATH/DOTNET_ROOT exported):
+
+- Focused `dotnet test tests/Integration/Integration.csproj -c Release --no-restore --filter FullyQualifiedName~KeycloakContainerTests`:
+  **5 passed, 0 failed/skipped**, 3m04s, actual PostgreSQL/Keycloak.
+- `dotnet restore CrmPlatform.sln --locked-mode`: **PASS**.
+- Final `dotnet build CrmPlatform.sln -c Release --no-restore`: **PASS**, zero
+  warnings/errors, 2.84s; includes the final owned-container anonymous-volume
+  cleanup adjustment found in self-review.
+- `dotnet test CrmPlatform.sln -c Release --no-build --no-restore --filter 'Category!=Compose'`:
+  **70 passed, 0 failed/skipped**, 7 minutes, including all built-image runtime,
+  source/context/secret audits and new realm cases. No unresolved test failure.
+- `.venv/bin/python -m unittest discover -s tests/Local -v`: **10 passed**,
+  1.156s. Contracts: **32 passed**, 3.376s. Python compilation, all entrypoint
+  Bash syntax and whitespace checks: **PASS**.
+
+Private captures: mode0600 `/tmp/crm-task5-*`. Final fixture removes anonymous
+volumes only with its exact owned test containers; no global prune or operator
+volume removal. Earlier unidentifiable orphan volumes were left untouched.
+
+Task commit subject: `feat(local): configure isolated Keycloak realm and issuer checks`,
+parent `02d0962`; resolve its SHA from branch history. No other intended work is
+left uncommitted. Next: independent Task 5 review, then sequential Task 6 Compose/
+lifecycle implementation. Full Compose, clean-source startup, outage/recovery,
+production authentication and Wave 0/P0 acceptance remain open.

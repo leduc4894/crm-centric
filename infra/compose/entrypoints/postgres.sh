@@ -11,6 +11,14 @@ case "$service" in crm-db|idp-db) ;; *) service=crm-db; fail ;; esac
 file=${POSTGRES_PASSWORD_FILE:-}
 [[ -n "$file" && -f "$file" && ! -L "$file" && -r "$file" && -s "$file" ]] || fail
 [[ $(stat -c %a -- "$file" 2>/dev/null) == 600 && -z ${POSTGRES_PASSWORD:-} ]] || fail
+if [[ "$service" == idp-db ]]; then
+    role_file=${LOCAL_IDP_DB_PASSWORD_FILE:-/run/secrets/idp_db_password}
+    [[ -f "$role_file" && ! -L "$role_file" && -r "$role_file" && -s "$role_file" ]] || fail
+    [[ $(stat -c %a -- "$role_file" 2>/dev/null) == 600 && -z ${LOCAL_IDP_DB_PASSWORD:-} ]] || fail
+    if ! LOCAL_IDP_DB_PASSWORD=$(cat -- "$role_file" 2>/dev/null); then fail; fi
+    export LOCAL_IDP_DB_PASSWORD
+    unset LOCAL_IDP_DB_PASSWORD_FILE
+fi
 # The pinned official entrypoint reads POSTGRES_PASSWORD_FILE once as root,
 # unsets *_FILE, and retains its canonical initdb and gosu postgres handoff.
 # Never read it again after dropping to UID 999, which cannot open host 0600.

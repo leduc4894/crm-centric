@@ -7,6 +7,13 @@ fail() {
     exit 1
 }
 [[ $(id -u) != 0 && -z ${KC_DB_PASSWORD:-} && -z ${KC_BOOTSTRAP_ADMIN_PASSWORD:-} ]] || fail
+# This image is an explicit loopback-only local profile, with one canonical URL.
+KC_HOSTNAME=${KC_HOSTNAME:-http://localhost:8080}
+[[ "$KC_HOSTNAME" =~ ^http://localhost:([1-9][0-9]{0,4})$ ]] || fail
+[[ ${BASH_REMATCH[1]} -le 65535 ]] || fail
+[[ ${KC_DB_USERNAME:-keycloak} == keycloak ]] || fail
+[[ $# == 1 && $1 == start-dev || $# == 2 && $1 == start-dev && $2 == --import-realm ]] || fail
+export KC_HOSTNAME
 read_secret() {
     local file=$1
     [[ -f "$file" && ! -L "$file" && -r "$file" && -s "$file" ]] || return 1

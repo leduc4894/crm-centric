@@ -19,7 +19,7 @@ class SecretStateTests(unittest.TestCase):
     def test_generation_reuse_permissions_and_no_values_in_manifest(self):
         state = self.module.ensure_secret_state(self.path, 'crm-test', False)
         before = {k: p.read_bytes() for k, p in state.files.items()}
-        self.assertEqual(8, len(before))
+        self.assertEqual(9, len(before))
         self.assertEqual(0o700, self.path.stat().st_mode & 0o777)
         for p in [*state.files.values(), self.path / 'manifest.json']:
             self.assertEqual(0o600, p.stat().st_mode & 0o777)
@@ -27,10 +27,10 @@ class SecretStateTests(unittest.TestCase):
         self.assertTrue(all(before[k] == p.read_bytes() for k, p in state.files.items()), 'Secret changed during warm start.')
         manifest = (self.path / 'manifest.json').read_text()
         self.assertEqual(1, json.loads(manifest)['version'])
-        for key in ('crm_admin_password', 'crm_migrator_password', 'crm_app_password', 'idp_db_password', 'idp_admin_password'):
+        for key in ('crm_admin_password', 'crm_migrator_password', 'crm_app_password', 'idp_db_password', 'idp_db_admin_password', 'idp_admin_password'):
             self.assertGreaterEqual(len(before[key]), 40)
             self.assertNotIn(before[key].decode(), manifest)
-        self.assertEqual(5, len({before[k] for k in before if k.endswith('_password')}))
+        self.assertEqual(6, len({before[k] for k in before if k.endswith('_password')}))
 
     def test_existing_volume_missing_or_changed_state_fails_without_rewrite(self):
         with self.assertRaisesRegex(Exception, 'LOCAL_SECRET_STATE_MISMATCH'):

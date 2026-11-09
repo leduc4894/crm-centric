@@ -23,6 +23,8 @@
 !src/Platform.Migrator/*.csproj
 !src/Platform.Migrator/packages.lock.json
 !infra/
+!infra/keycloak/
+!infra/keycloak/crm-local-realm.json
 !infra/compose/
 !infra/compose/entrypoints/
 !infra/compose/entrypoints/*.sh
