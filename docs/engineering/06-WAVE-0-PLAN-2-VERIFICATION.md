@@ -354,3 +354,42 @@ No unresolved test failure or skipped prerequisite. Final self-review also made
 owned fixture cleanup remove its anonymous PostgreSQL volumes; no global prune
 was performed. The implementation is ready for independent review. Full Compose,
 clean-source export, outage/recovery and Wave 0/P0 acceptance remain open.
+
+### Task 5 review fix round 1 — absolute HTTP deadline
+
+Review of `44e1e7e` found that urllib's timeout was a socket inactivity timeout
+while reading HTTP status/headers. A peer could keep sending header bytes within
+that interval and exceed the promised total inspection deadline indefinitely.
+Real socket regression with a 0.2s budget reproduced status **0.726s** and headers
+**0.676s**; body reads were already bounded. Focused RED:
+`.venv/bin/python -m unittest discover -s tests/Local -p test_realm.py -v`:
+**two failing subcases across four test methods**, 1.740s.
+
+The synchronous transport now uses standard-library HTTP parsing with a private
+per-connection socket reader that applies the remaining absolute budget to every
+raw read, including status/header parsing, and to connect/send operations. It
+connects directly to the local profile's numeric IPv4 loopback address and keeps
+the canonical localhost Host header. It uses no proxy, redirect following,
+background request worker, global monkeypatch or signal handler. Response/socket
+ownership is closed synchronously on every exit. JSON/result/secret interfaces,
+metadata checks and all infrastructure configuration are unchanged.
+
+An intermediate implementation failed four assertions because HTTPConnection is
+not a context manager; explicit `contextlib.closing` corrected cleanup. The
+blocked test peer was terminated with its test process; this failed attempt is
+not GREEN. Final focused Python: **4 passed**, 0.664s. Final all-local command:
+`.venv/bin/python -m unittest discover -s tests/Local -v`: **11 passed**, 1.830s,
+including trickled status/header/body, prompt peer EOF after helper return,
+malformed HTTP, complete body and existing secret state checks.
+
+Actual Keycloak focused result and final syntax/diff result are below. The
+previous 70-test full non-Compose run is evidence for `44e1e7e`; the full suite
+was not repeated for this Python-only transport fix under the controller's
+verification scope. Captures remain mode0600 `/tmp/crm-task5-review1-*`.
+
+- `PATH=/tmp/crm-dotnet-10.0.403:$PATH DOTNET_ROOT=/tmp/crm-dotnet-10.0.403 dotnet test tests/Integration/Integration.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~KeycloakContainerTests`:
+  **5 passed, 0 failed/skipped**, 3m05s. Real public/admin metadata, grant drift,
+  warm restart, overridden canonical port and isolated DB identity remain valid.
+- Final `python3 -m py_compile scripts/local/realm.py tests/Local/test_realm.py`
+  and `git diff --check`: **PASS**. No unresolved failure. Separate fix commit
+  subject: `fix(local): enforce absolute realm inspection deadline`.

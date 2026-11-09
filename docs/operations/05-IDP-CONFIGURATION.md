@@ -37,7 +37,11 @@ timeout_seconds)` returns `RealmStatus(status, reason_token, correlation_id)`.
 Statuses: `ready` (reason null), `drift` (`LOCAL_REALM_DRIFT`), `unavailable`
 (`LOCAL_IDP_NOT_READY`). Every invocation has a fresh correlation ID. It uses only
 an explicit HTTP localhost port, disables proxy/redirect following, applies one
-finite total deadline and never writes tokens, repairs drift, or logs responses.
+finite total deadline across connect, sends, status, headers and body. Its
+synchronous socket reader closes every request before returning, including
+timeouts; it creates no background worker. It connects to numeric IPv4 loopback
+and preserves canonical localhost Host. It never writes tokens, repairs drift,
+or logs responses.
 Lifecycle callers must validate Docker project/port ownership before calling it.
 
 The bootstrap admin password is read from its owner-only 0600 file, and only sent

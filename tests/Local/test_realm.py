@@ -68,3 +68,60 @@ class RealmBoundaryTests(unittest.TestCase):
                     self.assertEqual('LOCAL_REALM_DRIFT', result.reason_token)
                 finally:
                     thread.join(timeout=2)
+
+    def test_absolute_deadline_closes_trickled_status_headers_and_body(self):
+        import socket
+        import socketserver
+        import threading
+        import time
+        for phase in ('status', 'headers', 'body'):
+            with self.subTest(phase=phase), tempfile.TemporaryDirectory() as directory:
+                finished = threading.Event()
+                class Peer(socketserver.BaseRequestHandler):
+                    def handle(self):
+                        try:
+                            request = b''
+                            while b'\r\n\r\n' not in request:
+                                block = self.request.recv(4096)
+                                if not block:
+                                    return
+                                request += block
+                            if phase == 'status':
+                                prefix, chunks, suffix = b'', [bytes([byte]) for byte in b'HTTP/1.1 200 OK\r\n'], b'Content-Length: 2\r\n\r\n{}'
+                            elif phase == 'headers':
+                                prefix, chunks, suffix = b'HTTP/1.1 200 OK\r\n', [b'X-Trickle: a\r\n'] * 16, b'Content-Length: 2\r\n\r\n{}'
+                            else:
+                                prefix, chunks, suffix = b'HTTP/1.1 200 OK\r\nContent-Length: 16\r\n\r\n', [b' '] * 16, b''
+                            self.request.sendall(prefix)
+                            self.request.settimeout(.04)
+                            for chunk in chunks:
+                                # An EOF must stop this peer shortly after helper return.
+                                try:
+                                    if self.request.recv(1, socket.MSG_PEEK) == b'':
+                                        return
+                                except TimeoutError:
+                                    pass
+                                self.request.sendall(chunk)
+                            self.request.sendall(suffix)
+                        except (BrokenPipeError, ConnectionResetError):
+                            pass
+                        finally:
+                            finished.set()
+                password = Path(directory) / 'password'
+                password.write_text('private-sentinel')
+                password.chmod(0o600)
+                with socketserver.TCPServer(('127.0.0.1', 0), Peer) as peer:
+                    peer.timeout = 1
+                    thread = threading.Thread(target=peer.handle_request)
+                    thread.start()
+                    try:
+                        started = time.monotonic()
+                        result = self.module.inspect_realm(f'http://localhost:{peer.server_address[1]}', self.module.AdminSecretFiles(password), .2)
+                        elapsed = time.monotonic() - started
+                        self.assertEqual('unavailable', result.status)
+                        self.assertEqual('LOCAL_IDP_NOT_READY', result.reason_token)
+                        self.assertLess(elapsed, .4, 'Trickled response exceeded the absolute deadline budget.')
+                        self.assertTrue(finished.wait(.15), 'The request socket remained active after helper return.')
+                    finally:
+                        thread.join(timeout=2)
+                        self.assertFalse(thread.is_alive(), 'Test peer did not finish.')

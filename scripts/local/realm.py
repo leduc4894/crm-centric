@@ -1,15 +1,16 @@
 """Trusted local realm inspection. Tokens stay in memory; no logging or writes."""
 import json
-from http.client import HTTPException
+from contextlib import closing
+from http.client import HTTPConnection, HTTPException
+import io
 import math
 import os
 from pathlib import Path
 import stat
+import socket
 import time
 from typing import NamedTuple
-from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urlsplit
-from urllib.request import build_opener, HTTPRedirectHandler, ProxyHandler, Request
 import uuid
 
 class AdminSecretFiles(NamedTuple):
@@ -24,9 +25,63 @@ class RealmStatus(NamedTuple):
 class _Drift(Exception):
     pass
 
-class _NoRedirect(HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        return None
+def _remaining(deadline):
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise TimeoutError()
+    return remaining
+
+class _DeadlineReader(io.RawIOBase):
+    """Bound every parser read, including partial status/header lines."""
+    def __init__(self, sock, deadline):
+        self.sock, self.deadline = sock, deadline
+        # Preserve socket.makefile reference ownership when HTTPConnection
+        # closes a connection before its response body has been consumed.
+        self.stream = sock.makefile('rb', buffering=0)
+
+    def readable(self):
+        return True
+
+    def readinto(self, buffer):
+        self.sock.settimeout(_remaining(self.deadline))
+        return self.stream.readinto(buffer)
+
+    def close(self):
+        try:
+            self.stream.close()
+        finally:
+            super().close()
+
+class _DeadlineSocket:
+    def __init__(self, sock, deadline):
+        self.sock, self.deadline = sock, deadline
+
+    def makefile(self, mode):
+        return io.BufferedReader(_DeadlineReader(self.sock, self.deadline))
+
+    def sendall(self, data):
+        self.sock.settimeout(_remaining(self.deadline))
+        self.sock.sendall(data)
+
+    def close(self):
+        self.sock.close()
+
+class _DeadlineConnection(HTTPConnection):
+    def __init__(self, port, deadline):
+        super().__init__('localhost', port, timeout=_remaining(deadline))
+        self.deadline = deadline
+
+    def connect(self):
+        # The local profile publishes on IPv4 loopback. Use the numeric address
+        # directly: no DNS/proxy worker can outlive this synchronous request.
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            sock.settimeout(_remaining(self.deadline))
+            sock.connect(('127.0.0.1', self.port))
+            self.sock = _DeadlineSocket(sock, self.deadline)
+        except BaseException:
+            sock.close()
+            raise
 
 def inspect_realm(public_base_url: str, admin_secret_files: AdminSecretFiles, timeout_seconds: float) -> RealmStatus:
     """Inspect canonical public metadata and actual persisted client configuration.
@@ -58,36 +113,32 @@ def inspect_realm(public_base_url: str, admin_secret_files: AdminSecretFiles, ti
             if not password or len(password) > 4096:
                 raise ValueError()
         deadline = time.monotonic() + timeout_seconds
-        opener = build_opener(ProxyHandler({}), _NoRedirect())
         def request(path, data=None, token=None, persisted=False):
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                raise TimeoutError()
-            headers = {'Accept': 'application/json'}
+            headers = {'Accept': 'application/json', 'Connection': 'close'}
             if token:
                 headers['Authorization'] = 'Bearer ' + token
-            req = Request(public_base_url + path, data=data, headers=headers)
-            try:
-                with opener.open(req, timeout=remaining) as response:
-                    # One total deadline even if a peer trickles response bytes.
+            if data is not None:
+                headers['Content-Type'] = 'application/x-www-form-urlencoded'
+            with closing(_DeadlineConnection(parsed.port, deadline)) as connection:
+                connection.request('POST' if data is not None else 'GET', path,
+                                   body=data, headers=headers)
+                with connection.getresponse() as response:
+                    _remaining(deadline)
+                    if persisted and response.status == 404:
+                        raise _Drift()
+                    if response.status != 200:
+                        raise ValueError()
                     body = bytearray()
-                    sock = response.fp.raw._sock
                     while not response.isclosed():
-                        remaining = deadline - time.monotonic()
-                        if remaining <= 0:
-                            raise TimeoutError()
-                        sock.settimeout(remaining)
+                        _remaining(deadline)
                         block = response.read1(65536)
                         if not block:
                             break
                         body.extend(block)
                         if len(body) > 1024 * 1024:
                             raise ValueError()
+                    _remaining(deadline)
                     return json.loads(body)
-            except HTTPError as error:
-                if persisted and error.code == 404:
-                    raise _Drift() from None
-                raise
         issuer = public_base_url + '/realms/crm-local'
         discovery = request('/realms/crm-local/.well-known/openid-configuration', persisted=True)
         if discovery.get('issuer') != issuer:
@@ -125,5 +176,5 @@ def inspect_realm(public_base_url: str, admin_secret_files: AdminSecretFiles, ti
         return result('ready')
     except _Drift:
         return result('drift', 'LOCAL_REALM_DRIFT')
-    except (OSError, URLError, HTTPException, ValueError, TypeError, KeyError, AttributeError):
+    except (OSError, HTTPException, ValueError, TypeError, KeyError, AttributeError):
         return result('unavailable', 'LOCAL_IDP_NOT_READY')

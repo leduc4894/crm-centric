@@ -448,3 +448,38 @@ parent `02d0962`; resolve its SHA from branch history. No other intended work is
 left uncommitted. Next: independent Task 5 review, then sequential Task 6 Compose/
 lifecycle implementation. Full Compose, clean-source startup, outage/recovery,
 production authentication and Wave 0/P0 acceptance remain open.
+
+### Task 5 review fix round 1 — absolute HTTP deadline
+
+Review of `44e1e7e` reproduced a transport deadline gap: trickled status/header
+bytes kept urllib's inactivity timeout alive beyond the total budget. A real
+socket test measured 0.726s status and 0.676s headers for a 0.2s budget; body was
+already bounded. No other Task 5 design/realm/database concern was identified.
+
+Completed source fix: private synchronous deadline-aware HTTPConnection/socket
+reader applies one remaining budget to connect, sends and every raw status/
+header/body read. It uses numeric IPv4 loopback without DNS/proxy workers,
+preserves canonical localhost Host, never follows redirects, and closes response/
+socket ownership before returning. No worker, monkeypatch or signal handler was
+introduced. Metadata/secret/result interfaces and public contracts are unchanged.
+Changed files: `scripts/local/realm.py`, `tests/Local/test_realm.py`, this handoff,
+verification evidence and the IdP guide. Branch remains the Plan 2 feature branch,
+base `44e1e7e`; separate fix commit subject is
+`fix(local): enforce absolute realm inspection deadline`.
+
+Actual verification: Python RED two failing trickle subcases across four methods;
+intermediate implementation four failures (missing HTTPConnection context-manager
+support), corrected with explicit closing. Final focused **4 passed**; final all
+Local **11 passed**, 1.830s. Actual Keycloak focused command
+`dotnet test tests/Integration/Integration.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~KeycloakContainerTests`:
+**5 passed, 0 failed/skipped**, 3m05s. SDK PATH/DOTNET_ROOT were exported as above.
+Python compilation and final whitespace checks: **PASS**.
+The prior full non-Compose **70 passed** is for `44e1e7e`; not rerun for this
+Python-only fix per controller scope. Private captures mode0600
+`/tmp/crm-task5-review1-*`; no credentials/raw responses reproduced here.
+
+No production/Compose/auth/P0 acceptance change. Implementation and targeted
+verification are complete for the fix; next is repeat independent review. The
+fix commit contains all five intended source/test/docs files; no other intended
+work remains uncommitted. No push/merge/deploy or new authorization. Roll back only this transport/test/docs fix
+if needed; IdP data, secret state and realm metadata are unaffected.
