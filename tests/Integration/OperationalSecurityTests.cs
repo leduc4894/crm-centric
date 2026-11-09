@@ -143,7 +143,7 @@ public sealed class OperationalSecurityTests
             using var json = JsonDocument.Parse(text);
             Assert.True(json.RootElement.GetProperty("reasonToken").GetString() == reason, "Diagnostic reason mismatch.");
             Assert.True(Guid.TryParseExact(json.RootElement.GetProperty("correlationId").GetString(), "N", out _), "Diagnostic correlation mismatch.");
-            Assert.True(json.RootElement.GetProperty("service").GetString() is "platform-api" or "platform-migrator", "Diagnostic service mismatch.");
+            Assert.True(json.RootElement.GetProperty("service").GetString() is "crm-api" or "crm-migrate", "Diagnostic service mismatch.");
             Assert.Equal("Error", json.RootElement.GetProperty("LogLevel").GetString());
         }
         catch { Assert.Fail("Invalid safe process diagnostic."); }

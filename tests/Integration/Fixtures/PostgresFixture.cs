@@ -13,7 +13,7 @@ public sealed class PostgresFixture(bool stableHostPort = false) : IAsyncLifetim
     private static PostgreSqlContainer CreateContainer(bool stableHostPort)
     {
         var builder = new PostgreSqlBuilder(
-            "postgres:18.6-bookworm@sha256:f1ea2a1a4fb7b68d4836be1fdcb8a6466a89b072158bf9d97663600538c294c5")
+            ContainerImages.Pins["POSTGRES_IMAGE"])
             .WithPassword(Guid.NewGuid().ToString("N"));
         if (stableHostPort)
         {

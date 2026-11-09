@@ -60,7 +60,7 @@ public sealed class StructuredLoggingTests
             var entry = Parse(result.StandardError);
             Assert.Equal("DATABASE_CONFIGURATION_INVALID", entry.GetProperty("reasonToken").GetString());
             Assert.True(Guid.TryParseExact(entry.GetProperty("correlationId").GetString(), "N", out _));
-            Assert.Equal(api ? "platform-api" : "platform-migrator", entry.GetProperty("service").GetString());
+            Assert.Equal(api ? "crm-api" : "crm-migrate", entry.GetProperty("service").GetString());
             Assert.Equal("configuration_failed", entry.GetProperty("eventName").GetString());
             AssertEnvelope(entry, "Error");
             AssertTrace(entry.GetProperty("traceId").GetString(), entry.GetProperty("spanId").GetString());
@@ -73,7 +73,7 @@ public sealed class StructuredLoggingTests
         Assert.True(string.IsNullOrWhiteSpace(migrated.StandardError), "Unexpected process stderr.");
         var success = Parse(migrated.StandardOutput);
         Assert.Equal("migrated", success.GetProperty("status").GetString());
-        Assert.Equal("platform-migrator", success.GetProperty("service").GetString());
+        Assert.Equal("crm-migrate", success.GetProperty("service").GetString());
         Assert.Equal("migration_completed", success.GetProperty("eventName").GetString());
         AssertEnvelope(success, "Information");
         AssertTrace(success.GetProperty("traceId").GetString(), success.GetProperty("spanId").GetString());
@@ -83,7 +83,7 @@ public sealed class StructuredLoggingTests
     {
         var entry = Assert.Single(result.Entries, entry => entry.GetProperty("Category").GetString() == "Platform.OperationalErrors");
         AssertEnvelope(entry, "Error");
-        Assert.Equal("platform-api", Field(entry, "service"));
+        Assert.Equal("crm-api", Field(entry, "service"));
         Assert.Equal("dependency_failed", Field(entry, "eventName"));
         Assert.Equal("INTERNAL_ERROR", Field(entry, "reasonToken"));
         var loggedCorrelationId = Field(entry, "correlationId");

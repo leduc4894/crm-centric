@@ -6,7 +6,7 @@ using Platform.Infrastructure.Persistence;
 using Platform.Infrastructure.Observability;
 
 var correlationId = Guid.NewGuid().ToString("N");
-using var activity = Activity.Current is null ? new Activity("platform-migrator.migration").SetIdFormat(ActivityIdFormat.W3C).Start() : null;
+using var activity = Activity.Current is null ? new Activity("crm-migrate.migration").SetIdFormat(ActivityIdFormat.W3C).Start() : null;
 DatabaseOptions configuration;
 var applicationRole = Environment.GetEnvironmentVariable("Database__ApplicationRole");
 try
@@ -16,7 +16,7 @@ try
 }
 catch
 {
-    ProcessDiagnostic.Write(Console.Error, "platform-migrator", "configuration_failed", correlationId,
+    ProcessDiagnostic.Write(Console.Error, "crm-migrate", "configuration_failed", correlationId,
         reasonToken: "DATABASE_CONFIGURATION_INVALID");
     return 1;
 }
@@ -32,12 +32,12 @@ try
     await using var context = new PlatformDbContext(options);
     await context.Database.MigrateAsync();
     await DatabaseRoleGrants.ApplyAsync(connection, applicationRole, CancellationToken.None);
-    ProcessDiagnostic.Write(Console.Out, "platform-migrator", "migration_completed", correlationId, status: "migrated");
+    ProcessDiagnostic.Write(Console.Out, "crm-migrate", "migration_completed", correlationId, status: "migrated");
     return 0;
 }
 catch
 {
-    ProcessDiagnostic.Write(Console.Error, "platform-migrator", "migration_failed", correlationId,
+    ProcessDiagnostic.Write(Console.Error, "crm-migrate", "migration_failed", correlationId,
         reasonToken: "DATABASE_MIGRATION_FAILED");
     return 1;
 }

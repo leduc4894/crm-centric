@@ -6,7 +6,7 @@ using Platform.Infrastructure.Observability;
 using System.Diagnostics;
 
 var builder = WebApplication.CreateBuilder(args);
-PlatformLogging.Configure(builder.Logging, "platform-api");
+PlatformLogging.Configure(builder.Logging, "crm-api");
 builder.Services.AddDbContext<PlatformDbContext>((services, options) =>
 {
     var configuration = services.GetRequiredService<IConfiguration>();
@@ -24,15 +24,15 @@ try
 }
 catch (ArgumentException)
 {
-    using var activity = Activity.Current is null ? new Activity("platform-api.configuration").SetIdFormat(ActivityIdFormat.W3C).Start() : null;
-    ProcessDiagnostic.Write(Console.Error, "platform-api", "configuration_failed", Guid.NewGuid().ToString("N"),
+    using var activity = Activity.Current is null ? new Activity("crm-api.configuration").SetIdFormat(ActivityIdFormat.W3C).Start() : null;
+    ProcessDiagnostic.Write(Console.Error, "crm-api", "configuration_failed", Guid.NewGuid().ToString("N"),
         reasonToken: "DATABASE_CONFIGURATION_INVALID");
     await app.DisposeAsync();
     return 1;
 }
 
-using (var activity = Activity.Current is null ? new Activity("platform-api.startup").SetIdFormat(ActivityIdFormat.W3C).Start() : null)
-using (PlatformLogging.BeginOperation(app.Logger, "platform-api", "startup", Guid.NewGuid().ToString("N")))
+using (var activity = Activity.Current is null ? new Activity("crm-api.startup").SetIdFormat(ActivityIdFormat.W3C).Start() : null)
+using (PlatformLogging.BeginOperation(app.Logger, "crm-api", "startup", Guid.NewGuid().ToString("N")))
     app.Logger.LogInformation("Application configured");
 
 app.UseOperationalErrors();

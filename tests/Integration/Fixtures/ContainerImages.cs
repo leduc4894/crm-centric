@@ -1,0 +1,83 @@
+using System.Diagnostics;
+using System.Text.Json;
+using Xunit;
+
+namespace Integration.Fixtures;
+
+// Captures all CLI output privately; failures expose operation/exit category only.
+public sealed class ContainerImages : IAsyncLifetime
+{
+    public static string Root { get; } = FindRoot();
+    public string Api { get; } = "crm-task3-api-" + Guid.NewGuid().ToString("N");
+    public string Migrator { get; } = "crm-task3-migrate-" + Guid.NewGuid().ToString("N");
+    public string Keycloak { get; } = "crm-task3-idp-" + Guid.NewGuid().ToString("N");
+    public string Postgres { get; } = "crm-task3-postgres-" + Guid.NewGuid().ToString("N");
+    public static Dictionary<string, string> Pins => File.ReadAllLines(Path.Combine(Root, "infra/compose/images.lock.env"))
+        .Where(line => line.Length > 0 && !line.StartsWith('#')).Select(line => line.Split('=', 2)).ToDictionary(parts => parts[0], parts => parts[1]);
+
+    public async Task InitializeAsync()
+    {
+        var duration = Stopwatch.StartNew();
+        foreach (var (target, image) in new[] { ("api", Api), ("migrator", Migrator) })
+            await Docker("build", "--file", "infra/docker/Platform.Dockerfile", "--target", target, "--build-arg", "DOTNET_SDK_IMAGE=" + Pins["DOTNET_SDK_IMAGE"], "--build-arg", "DOTNET_RUNTIME_IMAGE=" + Pins["DOTNET_RUNTIME_IMAGE"], "--tag", image, ".");
+        await Docker("build", "--file", "infra/docker/Postgres.Dockerfile", "--target", "runtime", "--build-arg", "POSTGRES_IMAGE=" + Pins["POSTGRES_IMAGE"], "--tag", Postgres, ".");
+        await Docker("build", "--file", "infra/docker/Keycloak.Dockerfile", "--target", "runtime", "--build-arg", "KEYCLOAK_IMAGE=" + Pins["KEYCLOAK_IMAGE"], "--tag", Keycloak, ".");
+        File.WriteAllText(Path.Combine(Path.GetTempPath(), "crm-task3-build-timing.json"), JsonSerializer.Serialize(new { cachedBuildSeconds = duration.Elapsed.TotalSeconds, images = 4 }));
+    }
+
+    public async Task DisposeAsync()
+    {
+        await Docker(false, "image", "rm", "--force", Api, Migrator, Keycloak, Postgres);
+    }
+
+    public static Task<Capture> Docker(params string[] args) => Docker(true, args);
+    public static async Task<Capture> Docker(bool requireSuccess, params string[] args)
+    {
+        var start = new ProcessStartInfo("docker") { WorkingDirectory = Root, RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
+        foreach (var arg in args) start.ArgumentList.Add(arg);
+        using var process = Process.Start(start)!;
+        var stdout = process.StandardOutput.ReadToEndAsync();
+        var stderr = process.StandardError.ReadToEndAsync();
+        using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(12));
+        try { await process.WaitForExitAsync(timeout.Token); }
+        catch (OperationCanceledException)
+        {
+            process.Kill(true);
+            await process.WaitForExitAsync();
+            throw new TimeoutException("Container operation exceeded test deadline.");
+        }
+        var result = new Capture(process.ExitCode, await stdout, await stderr);
+        if (requireSuccess && result.ExitCode != 0) SavePrivateCapture("failed-" + args[0], result.Output + result.Error);
+        if (requireSuccess) Assert.True(result.ExitCode == 0, "Container operation failed: " + args[0] + " exit " + result.ExitCode);
+        return result;
+    }
+
+    public static void SavePrivateCapture(string operation, string capture)
+    {
+        if (!OperatingSystem.IsLinux()) throw new PlatformNotSupportedException();
+        var directory = Path.Combine(Path.GetTempPath(), "crm-task3-capture-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        using var stream = new FileStream(Path.Combine(directory, operation + ".txt"), new FileStreamOptions
+        {
+            Mode = FileMode.CreateNew, Access = FileAccess.Write,
+            UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite
+        });
+        using var writer = new StreamWriter(stream);
+        writer.Write(capture);
+    }
+
+    public static async Task<JsonElement> Inspect(string name)
+    {
+        var capture = await Docker("inspect", name);
+        using var json = JsonDocument.Parse(capture.Output);
+        return json.RootElement[0].Clone();
+    }
+
+    private static string FindRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "CrmPlatform.sln"))) directory = directory.Parent;
+        return directory?.FullName ?? throw new InvalidOperationException("Repository root unavailable.");
+    }
+    public sealed record Capture(int ExitCode, string Output, string Error);
+}

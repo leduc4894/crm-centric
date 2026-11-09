@@ -23,7 +23,7 @@ Its envelope contains `Timestamp` (UTC with `Z`), `LogLevel`, `EventId`,
 `Category`, `Message`, `State`, and `Scopes`. Application operation scopes
 contain `service`, `eventName`, `correlationId`, and, when an Activity exists,
 `traceId`/`spanId`. Closed HTTP errors add `reasonToken` in structured `State`.
-Service names are `platform-api` and `platform-migrator`; current events are
+Service names are `crm-api` and `crm-migrate`; current events are
 `startup`, `configuration_failed`, `dependency_failed`, `migration_completed`,
 and `migration_failed`. No trace exporter or collector is configured yet.
 

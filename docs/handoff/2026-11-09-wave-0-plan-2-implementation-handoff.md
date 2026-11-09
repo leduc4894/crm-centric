@@ -7,7 +7,7 @@ and [design](../superpowers/specs/2026-11-09-wave-0-plan-2-local-stack-observabi
 in sequential SDD tasks. The user requested full Plan 2 SDD execution on a new
 branch, without a worktree. Current branch is
 `feat/wave-0-plan-2-local-stack-observability`; no worktree, push, merge or deploy
-was performed. This record covers Tasks 1 and 2; Task 2 awaits independent review.
+was performed. This record covers Tasks 1–3; Task 3 awaits independent review.
 
 ## Task 1 — structured diagnostics
 
@@ -158,3 +158,116 @@ dependency and documentation commit if needed. No known product blocker.
 Next: independent Task 2 review, then Task 3 must inspect production publish
 output to prove no fixture/test assembly is present. CRM OIDC authentication and
 Wave 0/P0 acceptance are not established by this fixture.
+
+## Task 3 — pinned runtime containers and file-secret adapters
+
+Current branch remains `feat/wave-0-plan-2-local-stack-observability`, based on
+approved Tasks 1/2 (`df91367`, `390ae97`). Task 3's commit subject is
+`build(platform): add pinned runtime containers and secret adapters`; this
+handoff is included in that commit. No worktree, push, merge or deploy was used.
+Task 2 review is complete; Task 3 awaits controller review. This section
+supersedes earlier next-step statements that still list Task 2 review as pending.
+
+Added a deny-by-default Docker context, locked multi-stage platform targets
+`api`/`migrator`, Keycloak/PostgreSQL runtime targets, public image lock and small
+file-secret/probe scripts. No package, migration, schema or public API changes.
+Existing host configuration bypasses the adapters and remains valid. Fixed the
+previously missed owned-log contract labels to exact `crm-api`/`crm-migrate`,
+with tests first; bootstrap's `crm-bootstrap` remains Task 4.
+
+Exact official image digests, source links, preflight failures, runtime tools,
+UID/ownership strategy, RED/GREEN attempts and limits are documented in
+[Plan 2 evidence](../engineering/06-WAVE-0-PLAN-2-VERIFICATION.md). Defaults:
+SDK 10.0.403-noble, ASP.NET 10.0.14-noble, PostgreSQL 18.6-bookworm,
+Keycloak 26.8.2. SDK matches `global.json`. Bash and timeout are native to each
+pinned image; no external native executable was copied.
+
+Task 4/5/6 contracts and decisions:
+
+- Platform and Keycloak `LOCAL_UID`/`LOCAL_GID` are public build args, numeric and
+  nonzero, default 1000:1000. Task 6 must pass actual non-root host owner IDs;
+  state files must be owned by that UID. Root-host state requires explicit
+  non-root provisioning or a safe failure. Runtime checks enforce 0600 and
+  owner match, with host state directory 0700. No chmod 0644 permission repair.
+- API only mounts the application connection file. Migrator only mounts its
+  connection file. `PLATFORM_CONNECTION_FILE` defaults to
+  `/run/secrets/platform_connection`; the file is mapped to private process
+  `ConnectionStrings__Platform`. Plaintext connection environment plus file is
+  rejected, as are arbitrary extra container argv. **Task 4 may explicitly allow
+  only its fixed migrator `--local-bootstrap` mode and map bootstrap's own admin/
+  credential files; do not restore general .NET configuration argv passthrough.**
+  Controller agreed this repair while Task 3 was in progress.
+- PostgreSQL's wrapper validates `POSTGRES_PASSWORD_FILE`, then retains native
+  official file loading, initdb and root-to-postgres 999:999 handoff. The native
+  reader already handled host 0600 correctly in baseline; no duplicated reader
+  was added. Use `LOCAL_DATABASE_SERVICE=crm-db|idp-db` for adapter diagnostics.
+  A TCP readiness check is needed to avoid accepting initdb's temporary socket
+  server as the final published listener.
+- Keycloak uses `KC_DB_PASSWORD_FILE` and
+  `KC_BOOTSTRAP_ADMIN_PASSWORD_FILE`; defaults are
+  `/run/secrets/idp_db_password` and `/run/secrets/idp_admin_password`. It runs
+  UID/GID 1000:1000 in actual tests and can write its data directory. Selected
+  host IDs own the app tree at build time, including conf/data. Existing named
+  volumes with mismatched ownership require safe failure/operator reconciliation.
+  `KC_DB=postgres` must be fixed at runtime as well as build time: `start-dev`
+  otherwise selected the wrong driver despite the build's `--db=postgres`.
+  Health is enabled on management port 9000. Task 5 still owns realm/import/
+  canonical hostname configuration; no login or CRM authentication was added.
+- Probes only access the same container's loopback ports, total timeout 4s,
+  Docker health timeout 5s. API checks live and ready on 8080; Keycloak management
+  ready on 9000. No health response payload is printed.
+
+Changed files: `.dockerignore`; three Dockerfiles under `infra/docker/`;
+`infra/compose/images.lock.env`; five shell adapters/probes under
+`infra/compose/entrypoints/`; `ContainerImages.cs`, `ContainerRuntimeTests.cs`,
+`PostgresFixture.cs`; API/migrator owned service labels; corresponding structured/
+security assertions; operations logging docs; Plan 2 evidence and this handoff.
+No uncommitted work from another task was present at Task 3 start.
+
+Actual verification so far:
+
+- Minimal buildable API/migrator baseline RED: **9 failed, 2 passed**, no skips.
+- Keycloak/PostgreSQL baseline: **1 failed, 1 passed**, no skips. Native PostgreSQL
+  secret handling was already correct and honestly recorded as baseline GREEN.
+- Root/invalid UID + missing PostgreSQL file RED: **3 failed**, none passed/skipped.
+- Combined focused GREEN: **17 passed**, no failures/skips, 2m04s.
+- Expanded `FullyQualifiedName~ContainerRuntimeTests` image/config/history/layer/
+  actual build-context audit: **12 passed**, no failures/skips, 2m23s.
+- Additional `Arguments_cannot_override_file_configuration` RED **2 failed**,
+  then GREEN **2 passed**, no skips, 1s each; the adapter now rejects extra argv.
+- `dotnet restore CrmPlatform.sln --locked-mode`: **PASS**.
+- `dotnet build CrmPlatform.sln -c Release --no-restore`: **PASS**, zero warnings/
+  errors; final rebuild/regression result is appended below.
+- `.venv/bin/python -m unittest discover -s tests/Contract -v`: **32 passed**,
+  3.041s.
+- `bash -n` on each of the five new shell scripts: **PASS**.
+- `git diff --check`: **PASS** before final handoff updates; repeated before commit.
+
+Tests use real built images and PostgreSQL/Testcontainers, verify runtime/PID 1
+UID, host0700/file0600/mounted0600, application-only API secrets, dependency
+isolation and probe deadline, Keycloak's actual PostgreSQL master realm table,
+no published SDK/source/test/fake issuer, and absent sentinel values in image
+config/history/decompressed layers, filtered context and captured runtime logs.
+Raw captures remain local under `/tmp/crm-task3-*`; failing capture helpers now
+create mode0700 directories and mode0600 files. The context sentinel test only
+removes files it created and fails safely if a developer's local target exists.
+
+Next: independent Task 3 review, then Task 4 bootstrap/secrets and Task 5 realm
+configuration, sequentially. Tasks 4–8 and full Compose/clean-export acceptance
+remain planned. No known product blocker. Roll back the Task 3 commit to remove
+these build/adapters and label repairs; no data/schema rollback is needed.
+
+Task 3 final verification, after the argv guard and capture/cleanup repairs:
+
+- Final `dotnet build CrmPlatform.sln -c Release --no-restore`: **PASS**, zero
+  warnings/errors, 3.20s.
+- `dotnet test CrmPlatform.sln -c Release --no-build --no-restore --filter 'Category!=Compose'`:
+  **52 passed, 0 failed/skipped**, 3m15s. This includes all 14 final container
+  cases, existing smoke tests and Task 1/2 regressions. SDK PATH/DOTNET_ROOT were
+  exported for child processes. Capture: `/tmp/crm-task3-regression.txt`.
+- Final `git diff --check`: **PASS**. All audit sentinel files were removed;
+  no source secret or test capture is staged. The four image tags and test
+  containers/networks were cleaned by fixture teardown.
+
+Task 3 is ready for independent review. No remaining Task 3 implementation work
+or known blocker; full Plan 2 and P0 acceptance remain open as described above.
