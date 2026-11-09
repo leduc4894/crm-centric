@@ -393,3 +393,69 @@ verification scope. Captures remain mode0600 `/tmp/crm-task5-review1-*`.
 - Final `python3 -m py_compile scripts/local/realm.py tests/Local/test_realm.py`
   and `git diff --check`: **PASS**. No unresolved failure. Separate fix commit
   subject: `fix(local): enforce absolute realm inspection deadline`.
+
+### Task 6 — six-service Compose lifecycle
+
+The public SDK-free `dev-up`, `dev-down` and `dev-smoke` commands now use the real
+pinned six-service stack. CRM and IdP have separate PostgreSQL volumes/networks;
+only API/Keycloak loopback ports are published. Up builds current source, removes
+the previous API and both one-shots, waits real DB health, explicitly recreates
+bootstrap/migration, then verifies API live/ready, container-local health and
+actual persisted IdP metadata. Developer down preserves data/secrets/realm with
+20s stop grace and a finite outer deadline. Smoke validates project/checkout,
+secret mount sources, exact port bindings and container-local probes before
+accepting host endpoints. Shared nonblocking OS locks serialize every action by
+local Docker endpoint/project across checkout/state paths.
+
+A separate owner-only `<state_dir>.stack.json` records public project/checkout/
+state identity, ports, secret filenames and pending/ready provisioning, surviving
+down. The Task4 secret manifest and function signature remain unchanged. Existing
+volumes require matching lifecycle metadata; metadata is atomically published,
+never replaces foreign/symlink state, and never substitutes for actual DB marker/
+ownership validation. No automatic reset, rotation or data migration was added.
+
+Initial real CLI RED was **4 failed/0 passed/skipped** against a compilable
+unimplemented baseline,652ms. First runtime attempt was **3 passed/1 failed**,5m14s:
+port preflight misclassified recently closed Docker listeners' TCP TIME_WAIT as
+an active conflict. A real socket RED reproduced it; reusable-address bind now
+allows restart while a live listener remains rejected. Separate down/up rerun
+passed **1/1**,2m26s. Smoke state-creation, metadata persistence/FIFO and symlink
+configuration error regressions also had behavioral RED/GREEN. One intervening
+focused run (**3 passed/1 failed**,5m11s) was superseded while the metadata contract
+was added: its old cold-up process lacked metadata and later smoke correctly
+rejected it. None of those failed attempts is counted as final GREEN.
+
+Fresh focused command after metadata implementation:
+`dotnet test tests/Integration/Integration.csproj -c Release --no-restore --filter 'Category=Compose&FullyQualifiedName~LocalStackTests'`:
+**4 passed,0 failed/skipped**,5m15s. It verifies SDK-free PATH, real successful
+one-shots and health, warm container recreation, exactly one history row,
+admin-only sentinel preservation, secret/realm/volume survival, actual app DDL/
+history DML denial and secret/network/storage boundaries. Fixture cleanup checks
+only random test-project labels and exact image tags, including exited one-shots,
+and deletes its owned secret directory plus sibling metadata. Developer lifecycle
+has no destructive test cleanup.
+
+Final harness: .NET SDK10.0.403 at `/tmp/crm-dotnet-10.0.403`; Python3.12.3;
+Docker29.9.3/Compose5.7.0; uid/gid1000; 7941MiB RAM, no swap. All upstream pins are
+unchanged from Tasks3/5. Harness SDK PATH/DOTNET_ROOT is removed for commands under
+test. Captures `/tmp/crm-task6-*.txt` are owner-only and are not reproduced here.
+Build and startup durations are emitted separately by the CLI; default build900s,
+startup180s, finite positive overrides <=3600s. No credential/token/raw capture is
+included in this record.
+
+- Locked solution restore: PASS.
+- Final solution build: PASS,0 warnings/errors,4.52s.
+- Python local suite: **19 passed**,4.661s.
+- Contract suite: **32 passed**,1.940s.
+- Python compilation, all entrypoint/wrapper Bash syntax: PASS.
+- Resolved Compose configuration: PASS,six services/two networks/two volumes,
+  only loopback application listeners; separate from real runtime evidence.
+- `dotnet test CrmPlatform.sln -c Release --no-build --no-restore --filter 'Category=Compose'`:
+  **4 passed,0 failed/skipped**,7m14s,exit0. Full real runtime; no static substitute.
+- `dotnet test CrmPlatform.sln -c Release --no-build --no-restore --filter 'Category!=Compose'`:
+  **70 passed,0 failed/skipped**,8m28s,exit0. No unresolved failure or skipped prerequisite.
+- Final Python compilation, all Bash syntax and `git diff --check`: PASS.
+
+Task7 failure/leak/outage/concurrency gates and Task8 clean-source export remain
+planned. No remote DemoModule E2E, tenant isolation, production login, restore
+readiness or Wave0/P0 completion is claimed.

@@ -483,3 +483,57 @@ verification are complete for the fix; next is repeat independent review. The
 fix commit contains all five intended source/test/docs files; no other intended
 work remains uncommitted. No push/merge/deploy or new authorization. Roll back only this transport/test/docs fix
 if needed; IdP data, secret state and realm metadata are unaffected.
+
+## Task 6 — Compose lifecycle (verified, ready for review)
+
+Objective: implement Task6 of the approved [plan](../superpowers/plans/2026-11-09-wave-0-plan-2-local-stack-observability.md)
+and [design](../superpowers/specs/2026-11-09-wave-0-plan-2-local-stack-observability-design.md),
+following reviewed Tasks1–5 at baseline `369ca5e`. Existing user authorization is
+full Plan2 execution on the feature branch without a worktree; no new approval,
+push, merge or deployment. One coding agent; no subagents used for this task.
+
+Added `compose.yaml`, `scripts/dev-{up,down,smoke}.sh`, `scripts/local_stack.py`,
+`scripts/local/compose.py`, `ComposeFixture.cs`, four real Compose happy tests,
+Python lifecycle tests and [local operations guide](../operations/04-LOCAL-DEVELOPMENT.md).
+Updated verification record and this handoff. Branch remains
+`feat/wave-0-plan-2-local-stack-observability`; Task6 changes are included in this commit under subject
+`feat(local): orchestrate reproducible Compose startup and shutdown`, parent
+`369ca5e`; resolve its SHA from branch history. No intended Task6 work remains
+uncommitted after this commit. Public contracts, production DB schema and locks
+are unchanged. No automatic state/volume reset was performed.
+
+Six-service/two-DB topology has separate networks/storage, exact secret grants,
+actual UID/GID builds and loopback-only application ports. Every up builds current
+source, removes old API/one-shots, reruns bootstrap/migration and verifies real
+health plus realm. All actions use the same nonblocking OS lock by local Docker
+endpoint/project outside checkout/state paths. Down has 20s grace/finite outer
+bound and retains volumes, realm and credentials. Smoke validates actual ownership
+and probes existing containers/endpoints; it never starts a host API.
+
+A separate 0600 sibling `<LOCAL_STACK_STATE_DIR>.stack.json` retains version,
+project, canonical checkout/state, ports, exact secret filenames and pending/ready
+provisioning. It is checked under lock on all actions, including after down;
+existing volumes require it. The original Task4 secret manifest/schema remains
+unchanged. Metadata never replaces actual Docker/DB marker validation. Owned
+atomic writes reject symlinks, foreign files and nonregular metadata without
+blocking. State within the checkout must remain below `.local/` so both credential
+and sibling files are ignored/excluded from Docker context. No host-only manifest
+is treated as evidence that a volume is empty.
+
+Fresh focused Compose GREEN: **4 passed,0 failed/skipped**,5m15s. Local Python
+**19 passed**,4.661s; contracts **32 passed**,1.940s; locked restore PASS; solution
+build PASS,0 warnings/errors,4.52s; Python compilation, Bash syntax and resolved
+Compose config PASS. Initial behavioral RED4/4, actual TIME_WAIT down/up failure
+(3passed/1failed), metadata-change superseded attempt (3passed/1failed), and all
+regression RED/GREEN results are retained in the private task report. Do not count
+failed/superseded attempts as final GREEN.
+
+Final all-current Compose solution command (`--filter 'Category=Compose'`)
+passed **4 tests,0 failed/skipped**,7m14s,exit0. Final non-Compose solution command
+(`--filter 'Category!=Compose'`) passed **70 tests,0 failed/skipped**,8m28s,exit0.
+Final Python compilation, Bash syntax and diff checks PASS. No unresolved failure
+or skipped prerequisite remains. Captures are owner-only `/tmp/crm-task6-*.txt`; detailed
+report `.superpowers/sdd/2026-11-09-wave-0-plan-2-local-stack-observability/task-6-report.md`.
+No credentials/raw captures are included. No external blocker. Next: independent Task6 review, then Task7 failure gates. Task7 failure gates/Task8 clean export, remote acceptance
+and Wave0/P0 remain OPEN. Rollback is revert lifecycle/docs; retained volumes and
+credentials require no data rollback.

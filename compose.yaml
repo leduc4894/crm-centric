@@ -1,0 +1,123 @@
+services:
+  crm-db:
+    image: ${LOCAL_STACK_PROJECT}-postgres
+    build:
+      context: .
+      dockerfile: infra/docker/Postgres.Dockerfile
+      args:
+        POSTGRES_IMAGE: ${POSTGRES_IMAGE}
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: postgres
+      POSTGRES_PASSWORD_FILE: /run/secrets/crm_admin_password
+    secrets: [crm_admin_password]
+    volumes: [crm-data:/var/lib/postgresql]
+    networks: [crm]
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U postgres -d postgres]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  crm-bootstrap:
+    image: ${LOCAL_STACK_PROJECT}-migrator
+    build: &migrator-build
+      context: .
+      dockerfile: infra/docker/Platform.Dockerfile
+      target: migrator
+      args: &platform-args
+        DOTNET_SDK_IMAGE: ${DOTNET_SDK_IMAGE}
+        DOTNET_RUNTIME_IMAGE: ${DOTNET_RUNTIME_IMAGE}
+        LOCAL_UID: ${LOCAL_UID}
+        LOCAL_GID: ${LOCAL_GID}
+    command: [--local-bootstrap]
+    environment:
+      LocalBootstrap__DatabaseName: crm
+      LocalBootstrap__ProjectId: ${LOCAL_STACK_PROJECT}
+    secrets: [crm_admin_connection, crm_migrator_password, crm_app_password]
+    networks: [crm]
+    depends_on:
+      crm-db: {condition: service_healthy}
+  crm-migrate:
+    image: ${LOCAL_STACK_PROJECT}-migrator
+    build: *migrator-build
+    environment:
+      Database__ApplicationRole: crm_app
+    secrets:
+      - source: crm_migrator_connection
+        target: platform_connection
+    networks: [crm]
+    depends_on:
+      crm-bootstrap: {condition: service_completed_successfully}
+  crm-api:
+    image: ${LOCAL_STACK_PROJECT}-api
+    build:
+      context: .
+      dockerfile: infra/docker/Platform.Dockerfile
+      target: api
+      args: *platform-args
+    environment:
+      ASPNETCORE_URLS: http://+:8080
+    secrets:
+      - source: crm_app_connection
+        target: platform_connection
+    ports: ["127.0.0.1:${LOCAL_API_PORT}:8080"]
+    networks: [crm]
+    depends_on:
+      crm-migrate: {condition: service_completed_successfully}
+  idp-db:
+    image: ${LOCAL_STACK_PROJECT}-postgres
+    build:
+      context: .
+      dockerfile: infra/docker/Postgres.Dockerfile
+      args:
+        POSTGRES_IMAGE: ${POSTGRES_IMAGE}
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: postgres
+      POSTGRES_PASSWORD_FILE: /run/secrets/idp_db_admin_password
+      LOCAL_DATABASE_SERVICE: idp-db
+      LOCAL_IDP_DB_PASSWORD_FILE: /run/secrets/idp_db_password
+    secrets: [idp_db_admin_password, idp_db_password]
+    volumes: [idp-data:/var/lib/postgresql]
+    networks: [idp]
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U postgres -d postgres]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  keycloak:
+    image: ${LOCAL_STACK_PROJECT}-keycloak
+    build:
+      context: .
+      dockerfile: infra/docker/Keycloak.Dockerfile
+      args:
+        KEYCLOAK_IMAGE: ${KEYCLOAK_IMAGE}
+        LOCAL_UID: ${LOCAL_UID}
+        LOCAL_GID: ${LOCAL_GID}
+    command: [start-dev, --import-realm]
+    environment:
+      KC_HOSTNAME: http://localhost:${LOCAL_IDP_PORT}
+      KC_DB_URL: jdbc:postgresql://idp-db:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_BOOTSTRAP_ADMIN_USERNAME: local-admin
+    secrets: [idp_db_password, idp_admin_password]
+    ports: ["127.0.0.1:${LOCAL_IDP_PORT}:8080"]
+    networks: [idp]
+    depends_on:
+      idp-db: {condition: service_healthy}
+networks:
+  crm: {}
+  idp: {}
+volumes:
+  crm-data: {}
+  idp-data: {}
+secrets:
+  crm_admin_password: {file: '${LOCAL_STACK_STATE_DIR}/crm_admin_password'}
+  crm_migrator_password: {file: '${LOCAL_STACK_STATE_DIR}/crm_migrator_password'}
+  crm_app_password: {file: '${LOCAL_STACK_STATE_DIR}/crm_app_password'}
+  crm_admin_connection: {file: '${LOCAL_STACK_STATE_DIR}/crm_admin_connection'}
+  crm_migrator_connection: {file: '${LOCAL_STACK_STATE_DIR}/crm_migrator_connection'}
+  crm_app_connection: {file: '${LOCAL_STACK_STATE_DIR}/crm_app_connection'}
+  idp_db_admin_password: {file: '${LOCAL_STACK_STATE_DIR}/idp_db_admin_password'}
+  idp_db_password: {file: '${LOCAL_STACK_STATE_DIR}/idp_db_password'}
+  idp_admin_password: {file: '${LOCAL_STACK_STATE_DIR}/idp_admin_password'}
