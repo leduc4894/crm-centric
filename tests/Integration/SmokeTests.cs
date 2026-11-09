@@ -42,6 +42,8 @@ public sealed class SmokeTests
                 }
             }
             catch (OperationCanceledException) { }
+            // Stop can race the next Accept call after cancellation is requested.
+            catch (InvalidOperationException) when (stop.IsCancellationRequested) { }
         });
         if (!foreignListener) listener.Stop();
         var fakeDotnet = Path.Combine(directory, "dotnet");
