@@ -1,7 +1,7 @@
 # Wave 0 Plan 3 — specification handoff
 
 ## Objective and authorization
-User reports Plan 2 complete and requests the Plan 3 spec. Scope is documentation only: frontend foundation and contract toolchain, following the previously agreed four-plan Wave 0 split. No implementation, dependency installation, generation, builds, push or deployment authorized by this spec request.
+User reports Plan 2 complete and requests the Plan 3 spec. User subsequently requested the implementation plan. Scope remains documentation only: frontend foundation and contract toolchain, following the previously agreed four-plan Wave 0 split. No implementation, dependency installation, generation, builds, push or deployment authorized by this spec request.
 
 ## Verified starting point
 - Branch `main`, initial HEAD `3af03d0`, clean working tree.
@@ -11,6 +11,7 @@ User reports Plan 2 complete and requests the Plan 3 spec. Scope is documentatio
 
 ## Proposed output and decisions
 - [Plan 3 spec](../superpowers/specs/2026-11-10-wave-0-plan-3-frontend-contract-toolchain-design.md).
+- [Implementation plan](../superpowers/plans/2026-11-10-wave-0-plan-3-frontend-contract-toolchain.md): seven sequential tasks, W0P3-01 through W0P3-12 mapped to evidence.
 - Proposed frontend runs via host Node/npm separately from SDK-free backend Compose; generated operations client calls existing health API through tightly scoped dev proxy. No login/business screens or API changes.
 - TS/C# clients for both canonical OpenAPI files, reproducibility, local packaging and independent consumer wire/header tests. Stable generators require actual full-contract compatibility proof before selection.
 - Trusted Git base for local breaking/security/SDK-surface detection; conservative standalone JSON Schema review-required gate. CI and publication remain Plan4/later scope.
@@ -23,6 +24,10 @@ User reports Plan 2 complete and requests the Plan 3 spec. Scope is documentatio
 - Official OpenAPI Generator, oasdiff and Vite sources referenced in spec; no exact current release/version claims inferred. Builder verifies versions and behavior during implementation.
 
 ## Next steps
-1. Present reviewed spec for user review; no builder-review blocker remains.
-2. After user requests it, write implementation plan using writing-plans skill; no application coding from draft alone.
+1. User reviews the implementation plan and requests execution; sequential SDD is recommended.
+2. No application coding, package installation or generation from the plan alone.
 3. Keep Wave0/P0, login/tenant/business/remote DemoModule/DR and remote CI gates OPEN.
+
+## Planning update
+
+Plan authored with writing-plans and self-reviewed against spec. No Plan 3 runtime tests executed. Local documentation commit subject: `docs: plan Wave 0 Plan 3 frontend and contract toolchain`; resolve SHA from git history. No push.
