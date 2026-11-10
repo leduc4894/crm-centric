@@ -58,4 +58,12 @@ Review remediation in this task: the closed SDK-toolchain error path dropped `sd
 
 Known limitations: the gate proves public-surface compatibility and baseline-consumer compilation only, not runtime behaviour or release governance; the TypeScript comparison is conservative about additions that add a required member; the new comparison tooling under `tools/contracts/surface/` is only protected against candidate edits from the next commit onwards because it does not exist in base `817948f`.
 
+## Task 4 review fix round 1 (pending scoped review)
+
+Independent review of `6c7b801` returned no Critical finding and three Important findings, all fixed in a separate follow-up commit. The TypeScript comparator now has a closed error envelope (reason token plus correlation ID, no raw stack trace) and the gate distinguishes a candidate that declares no public surface (`SDK_SURFACE_INCOMPATIBLE`) from a tool failure (`SDK_TOOLCHAIN_REVIEW_REQUIRED`). The tautological generator-only case was renamed and tightened to assert the exact reason it can actually reach; generator-only break detection stays covered by the real-generator cases. The policy/waiver scan now covers `tools/contracts/`, `scripts/contracts/`, `docs/contracts/` and the repository root, including untracked files, without matching ordinary names such as `.gitignore`; editing `toolchain.json` or `generate.py` remains outside the policy-review path. A failed .NET baseline-consumer build is now separated into a genuine compile break and a restore/infrastructure failure. The bootstrap path now has a regression asserting one pinned configuration for both sides.
+
+Changed files: `scripts/contracts/compatibility.py`, `scripts/contracts/sdk_surface.py`, `tools/contracts/surface/compare-typescript.cjs`, `tests/Contract/test_compatibility.py`, `tests/Contract/test_sdk_surface.py`, `docs/engineering/07-WAVE-0-PLAN-3-VERIFICATION.md` and this handoff. The canonical contracts were not modified.
+
+Fix-round verification: `.venv/bin/python -m unittest tests.Contract.test_compatibility -v` exited 0 with 39 tests in 753.902s; the scanner suite together with the four policy-scan cases exited 0 with 10 tests in 35.480s; `python3 scripts/contracts/compatibility.py --base-ref 817948f` exited 0 with `CONTRACT_COMPATIBLE` in 2m35.527s. The full `tests/Contract` suite result for this fix round is recorded in the verification document and the SDD task report.
+
 Task 5–7, frontend/browser tests, exact-SHA clean export, Wave 0/P0 and remote acceptance remain open. No merge, push or deploy authorized.

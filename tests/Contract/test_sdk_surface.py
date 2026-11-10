@@ -54,6 +54,20 @@ class TypeScriptSurfaceTests(unittest.TestCase):
             self.assertEqual(report['error'], 'SDK_SURFACE_UNAVAILABLE')
             self.assertTrue(report['correlationId'])
 
+    def test_empty_declaration_file_reports_reason_and_correlation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory) / 'base.d.ts'
+            candidate = Path(directory) / 'candidate.d.ts'
+            base.write_text('export interface Thing { id: string }\n')
+            candidate.write_text('')
+            proc = subprocess.run(['node', str(ROOT / 'tools/contracts/surface/compare-typescript.cjs'), str(base), str(candidate)], cwd=ROOT, capture_output=True, text=True)
+            self.assertNotEqual(proc.returncode, 0)
+            self.assertEqual(proc.stderr, '', 'a closed error path must not print a raw stack trace')
+            report = json.loads(proc.stdout)
+            self.assertFalse(report['compatible'])
+            self.assertEqual(report['error'], 'SDK_SURFACE_UNAVAILABLE')
+            self.assertTrue(report['correlationId'])
+
 class DotnetSurfaceTests(unittest.TestCase):
     def test_additive_members_pass_but_removed_or_changed_members_fail(self):
         with tempfile.TemporaryDirectory() as directory:

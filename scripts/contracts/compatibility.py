@@ -17,6 +17,10 @@ sys.path.insert(0, str(ROOT))
 
 METHODS = {'get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace'}
 POLICY = ROOT / 'tools/contracts/oasdiff.json'
+POLICY_ROOTS = ('tools/contracts/', 'scripts/contracts/', 'docs/contracts/')
+POLICY_WORDS = {'waive', 'waiver', 'waivers', 'policy', 'policies', 'exception', 'exceptions',
+                'suppress', 'suppressed', 'suppression', 'suppressions', 'ignore', 'ignored',
+                'allow', 'allowed', 'allowlist', 'allowlists', 'deny', 'denylist', 'oasdiff'}
 
 class GateError(Exception):
     pass
@@ -34,6 +38,28 @@ def git(repo, *args):
 def sha(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
+def is_policy(path):
+    """Policy-like names may not appear or change without an explicit review."""
+    return bool(POLICY_WORDS & set(re.split(r'[^a-z0-9]+', Path(path).name.lower())))
+
+def is_policy_path(path):
+    return path.startswith(POLICY_ROOTS) or '/' not in path
+
+def current_policy_files(repo):
+    """Policy-like files present in the worktree, including untracked ones."""
+    paths = set()
+    for path in repo.glob('*'):
+        if path.is_file() and not path.is_symlink():
+            paths.add(path.relative_to(repo).as_posix())
+    for root in POLICY_ROOTS:
+        directory = repo / root.rstrip('/')
+        if not directory.is_dir():
+            continue
+        for path in directory.rglob('*'):
+            if path.is_file() and not path.is_symlink():
+                paths.add(path.relative_to(repo).as_posix())
+    return {path for path in paths if is_policy_path(path) and is_policy(path)}
+
 def check_baseline_configuration(repo, base):
     """Reject incomplete baseline toolchains and unreviewed policy changes."""
     paths = set(git(repo, 'ls-tree', '-r', '--name-only', base, '--', 'tools/contracts', 'scripts/contracts', 'sdks').decode().splitlines())
@@ -47,16 +73,12 @@ def check_baseline_configuration(repo, base):
             raise GateError('SDK_TOOLCHAIN_REVIEW_REQUIRED')
         if any(not (repo / p).is_file() for p in required):
             raise GateError('SDK_TOOLCHAIN_REVIEW_REQUIRED')
-    def is_policy(path):
-        name = Path(path).name.lower()
-        return 'waiver' in name or 'policy' in name or name == 'oasdiff.json'
-    base_policy = {p for p in paths if p.startswith('tools/contracts/') and is_policy(p)}
-    directory = repo / 'tools/contracts'
-    current_policy = {p.relative_to(repo).as_posix() for p in directory.rglob('*') if p.is_file() and is_policy(p)} if directory.exists() else set()
+    base_policy = {p for p in git(repo, 'ls-tree', '-r', '--name-only', base).decode().splitlines() if is_policy_path(p) and is_policy(p)}
+    current_policy = current_policy_files(repo)
     base_surface_policy = {p for p in paths if p.startswith('tools/contracts/surface/') or p == 'scripts/contracts/sdk_surface.py'}
     if base_surface_policy:
         base_policy |= base_surface_policy
-        current_policy |= {p.relative_to(repo).as_posix() for p in (directory / 'surface').rglob('*') if p.is_file()} if (directory / 'surface').is_dir() else set()
+        current_policy |= {p.relative_to(repo).as_posix() for p in (repo / 'tools/contracts/surface').rglob('*') if p.is_file()} if (repo / 'tools/contracts/surface').is_dir() else set()
         if (repo / 'scripts/contracts/sdk_surface.py').is_file():
             current_policy.add('scripts/contracts/sdk_surface.py')
     if base_policy != current_policy or any(git(repo, 'show', f'{base}:{p}') != (repo / p).read_bytes() for p in base_policy):

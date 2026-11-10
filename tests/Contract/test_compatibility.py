@@ -362,7 +362,7 @@ class CompatibilityTests(unittest.TestCase):
         self.assertNotEqual(status, 0)
         self.assertEqual(report['reason'], 'CONTRACT_POLICY_REVIEW_REQUIRED')
 
-    def test_generator_only_change_cannot_silently_pass(self):
+    def test_unusable_baseline_generator_fails_closed(self):
         files = {
             'tools/contracts/toolchain.json': '{"generator":"v1"}',
             'scripts/contracts/generate.py': '# base generator\n',
@@ -379,7 +379,8 @@ class CompatibilityTests(unittest.TestCase):
         (self.repo / 'scripts/contracts/generate.py').write_text('# incompatible candidate generator\n')
         status, report = self.gate()
         self.assertNotEqual(status, 0)
-        self.assertIn(report['reason'], ('SDK_TOOLCHAIN_REVIEW_REQUIRED', 'SDK_SURFACE_INCOMPATIBLE'))
+        self.assertEqual(report['reason'], 'SDK_TOOLCHAIN_REVIEW_REQUIRED')
+        self.assertEqual(report['sdkBaseline'], 'historical-toolchain')
 
     def test_operation_id_rename_is_sdk_surface_incompatible(self):
         value = copy.deepcopy(self.base)
@@ -463,6 +464,47 @@ class CompatibilityTests(unittest.TestCase):
         status, report = self.gate()
         self.assertNotEqual(status, 0)
         self.assertEqual(report['reason'], 'CONTRACT_POLICY_REVIEW_REQUIRED')
+
+    def test_policy_like_files_in_every_reviewed_location_are_reviewed(self):
+        for relative in ('scripts/contracts/waivers.json', 'waivers.json', 'docs/contracts/waivers.json', 'tools/contracts/exceptions.json'):
+            with self.subTest(path=relative):
+                path = self.repo / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text('{"ignoreAll":true}\n')
+                try:
+                    status, report = self.gate()
+                    self.assertNotEqual(status, 0)
+                    self.assertEqual(report['reason'], 'CONTRACT_POLICY_REVIEW_REQUIRED')
+                finally:
+                    path.unlink()
+
+    def test_bootstrap_baseline_uses_one_pinned_configuration_for_both_sides(self):
+        status, report = self.gate()
+        self.assertEqual(status, 0, report['reason'])
+        self.assertEqual(report['sdkBaseline'], 'bootstrap-no-released-consumer')
+        self.assertEqual(report['sdkToolchain']['base'], report['sdkToolchain']['current'])
+        self.assertFalse(report['sdkToolchainChanged'])
+
+    def test_generator_only_removal_of_every_declaration_is_surface_incompatible(self):
+        for directory in ('scripts/contracts', 'tools/contracts'):
+            shutil.copytree(ROOT / directory, self.repo / directory, dirs_exist_ok=True, ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
+        for name in ('package.json', 'package-lock.json', '.npmrc', '.node-version', 'global.json'):
+            shutil.copyfile(ROOT / name, self.repo / name)
+        sdk = self.repo / 'sdks/typescript/crm/provenance.json'
+        sdk.parent.mkdir(parents=True)
+        sdk.write_text('{}')
+        self.git('add', '.')
+        self.git('commit', '-qm', 'real generator baseline')
+        generator = self.repo / 'scripts/contracts/generate.py'
+        source = generator.read_text()
+        needle = "(ts / 'index.ts').write_text(\""
+        start = source.index(needle)
+        end = source.index('")', start)
+        generator.write_text(source[:start] + "(ts / 'index.ts').write_text('')" + source[end + 2:])
+        status, report = self.gate()
+        self.assertNotEqual(status, 0)
+        self.assertEqual(report['reason'], 'SDK_SURFACE_INCOMPATIBLE')
+        self.assertTrue(report['sdkToolchainChanged'])
 
     def test_sdk_present_but_toolchain_missing_is_not_bootstrap(self):
         sdk = self.repo / 'sdks/typescript/crm/provenance.json'

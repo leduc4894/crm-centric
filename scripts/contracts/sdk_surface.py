@@ -36,6 +36,25 @@ def prepare(root, source, contracts, git, base=None):
     return root
 
 
+def scan_typescript(scanner, base, candidate, cwd):
+    """Return True when the candidate surface stays compatible with the base surface."""
+    try:
+        proc = subprocess.run(['node', str(scanner), str(base), str(candidate)], cwd=cwd,
+                              stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=300)
+    except (OSError, subprocess.SubprocessError):
+        raise RuntimeError('SDK_TOOLCHAIN_REVIEW_REQUIRED') from None
+    try:
+        report = json.loads(proc.stdout)
+    except (ValueError, TypeError):
+        raise RuntimeError('SDK_TOOLCHAIN_REVIEW_REQUIRED') from None
+    if proc.returncode == 0:
+        return bool(report.get('compatible'))
+    if report.get('cause') == 'no-declarations':
+        # The candidate declares no public surface at all: a genuine break, not a tool failure.
+        return False
+    raise RuntimeError('SDK_TOOLCHAIN_REVIEW_REQUIRED') from None
+
+
 def compare(base_root, candidate_root, current_source, work, has_base_toolchain, report):
     package = current_source / '.local/plan3-tools/corvus.json.cli.5.8.8.nupkg'
     if not package.is_file():
@@ -56,11 +75,7 @@ def compare(base_root, candidate_root, current_source, work, has_base_toolchain,
         for filename in ('schema.d.ts', 'index.ts'):
             old = base_root / 'sdks/typescript' / client / filename
             new = candidate_root / 'sdks/typescript' / client / filename
-            try:
-                result = json.loads(run(['node', str(scanner), str(old), str(new)], current_source))
-            except (ValueError, TypeError):
-                raise RuntimeError('SDK_TOOLCHAIN_REVIEW_REQUIRED') from None
-            if not result.get('compatible'):
+            if not scan_typescript(scanner, old, new, current_source):
                 return False
     config = json.loads((candidate_root / 'tools/contracts/toolchain.json').read_text())
     base_config = json.loads((base_root / 'tools/contracts/toolchain.json').read_text())
@@ -114,13 +129,24 @@ def compare(base_root, candidate_root, current_source, work, has_base_toolchain,
       dotnet /work/scanner/out/Surface.dll "/work/old/out/$name/$name.dll" "/work/new/out/$name/$name.dll"
     done
     if [ -f /work/cs-consumer/Consumer.csproj ]; then
-      if dotnet build /work/cs-consumer/Consumer.csproj >/dev/null; then echo '{"consumer":true}'; else echo '{"consumer":false}'; fi
+      if dotnet build /work/cs-consumer/Consumer.csproj > /work/cs-consumer/build.log 2>&1; then echo '{"consumer":true}';
+      elif grep -q 'error CS' /work/cs-consumer/build.log; then echo '{"consumer":false,"kind":"compile"}';
+      else echo '{"consumer":false,"kind":"tool"}'; fi
     fi'''
     output = container(image, command)
     try:
         results = [json.loads(line) for line in output.decode().splitlines() if line.startswith('{')]
         if len(results) != (3 if has_base_toolchain else 2):
             raise ValueError()
-        return all(item.get('compatible', item.get('consumer', False)) for item in results)
     except (ValueError, KeyError, TypeError):
         raise RuntimeError('SDK_TOOLCHAIN_REVIEW_REQUIRED') from None
+    if not all(item.get('compatible', False) for item in results[:2]):
+        return False
+    if has_base_toolchain:
+        consumer = results[2]
+        if consumer.get('consumer'):
+            return True
+        if consumer.get('kind') == 'compile':
+            return False
+        raise RuntimeError('SDK_TOOLCHAIN_REVIEW_REQUIRED') from None
+    return True
