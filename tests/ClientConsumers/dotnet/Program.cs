@@ -17,7 +17,8 @@ static HttpResponseMessage Reply(int status, string body, bool etag = false) {
     return result;
 }
 var handler = new CaptureHandler();
-using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.invalid") };
+using var opCapture = new Platform.Operations.Client.ResponseMetadataHandler(handler);
+using var http = new HttpClient(opCapture) { BaseAddress = new Uri("https://example.invalid") };
 await using var transport = new HttpClientTransport(http);
 await using var op = new Platform.Operations.Client.ApiDefaultClient(transport);
 foreach (int status in new[] {200, 500, 503}) {
@@ -26,7 +27,10 @@ foreach (int status in new[] {200, 500, 503}) {
         Check(!request.Headers.Contains("Authorization") && !request.Headers.Contains("X-Tenant-Id") && !request.Headers.Contains("Cookie"));
         return Task.FromResult(Reply(status, status == 200 ? "{\"status\":\"ready\"}" : Problem(status)));
     };
-    await using var response = await op.GetHealthReadyAsync();
+    var captured = await opCapture.CaptureAsync(() => op.GetHealthReadyAsync());
+    await using var response = captured.Response;
+    Check(captured.ContentType == (status == 200 ? "application/json" : "application/problem+json"));
+    Check(captured.Headers["X-Correlation-Id"].Single() == correlation);
     Check(response.StatusCode == status && response.XCorrelationIdHeader.ToString().Contains(correlation));
     if (status == 200) Check(response.OkBody.ToString().Contains("ready"));
     else {
@@ -34,7 +38,8 @@ foreach (int status in new[] {200, 500, 503}) {
         Check(JsonNode.Parse(body)!["reasonToken"]!.GetValue<string>() == $"TEST_{status}");
     }
 }
-using var businessHttp = new HttpClient(handler, disposeHandler: false) { BaseAddress = new Uri("https://example.invalid") };
+using var businessCapture = new Crm.Client.ResponseMetadataHandler(handler);
+using var businessHttp = new HttpClient(businessCapture, disposeHandler: false) { BaseAddress = new Uri("https://example.invalid") };
 businessHttp.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", "synthetic-secret-sentinel-not-a-credential");
 await using var businessTransport = new HttpClientTransport(businessHttp);
 await using var business = new Crm.Client.ApiDefaultClient(businessTransport);
@@ -53,11 +58,14 @@ foreach (int status in new[] {412, 428}) {
     handler.Respond = async (request, _) => {
         Check(request.Headers.GetValues("If-Match").Single() == "\"v1\"");
         var json = JsonNode.Parse(await request.Content!.ReadAsStringAsync())!;
-        Check(json["email"] is null && !json.AsObject().ContainsKey("tenant_id"));
+        Check(json.AsObject().ContainsKey("email") && json["email"] is null && !json.AsObject().ContainsKey("tenant_id"));
         return Reply(status, Problem(status));
     };
-    using var body = ParsedJsonDocument<Crm.Client.Models.UpdateContact>.Parse("{\"email\":null}");
-    await using var result = await business.UpdateContactAsync(id, id, "\"v1\"", body.RootElement);
+    using var body = ParsedJsonDocument<Crm.Client.Models.UpdateContact>.Parse(Environment.GetEnvironmentVariable("SDK_TEST_OMIT_EMAIL") == "1" ? "{\"phone\":null}" : "{\"email\":null}");
+    var captured = await businessCapture.CaptureAsync(() => business.UpdateContactAsync(id, id, "\"v1\"", body.RootElement));
+    await using var result = captured.Response;
+    Check(captured.ContentType == "application/problem+json");
+    Check(captured.Headers["X-Correlation-Id"].Single() == correlation);
     Check(result.StatusCode == status && handler.Calls == before + 1);
     var detail = JsonNode.Parse(status == 412 ? result.Status412Body.ToString() : result.Status428Body.ToString())!;
     Check(detail["reasonToken"]!.GetValue<string>() == $"TEST_{status}" && detail["correlationId"]!.GetValue<string>() == correlation);

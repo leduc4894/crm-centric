@@ -32,3 +32,9 @@ The TypeScript captured-fetch and .NET `HttpMessageHandler` fixtures verify read
 - `PATH=<Node-24.22.2>/bin:$PATH LD_LIBRARY_PATH=/tmp/plan3-libs .venv/bin/python -m unittest discover -s tests/Contract -v`: exit 0, 42 tests in 148.030 seconds. This includes the isolated package consumer run. The environment-specific library path is needed only on this host.
 - A separate `bash tests/ClientConsumers/run.sh` run passed the TypeScript and .NET HTTP probes, package boundary audit, and repeated normalized NuGet locked restore; this preceded the final added .NET rule HTTP assertion, which was exercised in the 42-test run above.
 - No real business endpoint, remote CI, browser or P0 acceptance claim follows from these synthetic fixtures. Task 2 still requires independent SDD review.
+
+### Task 2 review remediation (pending scoped review)
+
+Each C# SDK package now includes a versioned `ResponseMetadataHandler` facade that wraps its existing HTTP transport: install the handler in the `HttpClient` pipeline and call `CaptureAsync(() => generatedClient.OperationAsync(...))`. It returns the generated response alongside HTTP status, media type and response/content headers without changing DTOs. The source template lives under `tools/contracts/facades/`; generation copies it into each package and includes it in the configuration provenance hash. The package consumer checks actual `application/problem+json` for health 500/503 and HTTP `X-Correlation-Id` for 412/428. An explicit omitted-email mutation now fails, as does a deliberate bearer mismatch without emitting the synthetic sentinel.
+
+Review-fix verification: `.venv/bin/python -m unittest discover -s tests/Contract -v` with the pinned Node 24.22.2 and this host's libatomic workaround exited 0: 42 tests in 143.261 seconds, including regenerated SDK checks and both independently packed consumers with locked restore. Scoped review remains required.

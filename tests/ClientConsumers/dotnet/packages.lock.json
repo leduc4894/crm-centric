@@ -6,7 +6,7 @@
         "type": "Direct",
         "requested": "[1.0.0, 1.0.0]",
         "resolved": "1.0.0",
-        "contentHash": "aeLzJZE9XdFAT+YVj/5cXxXozP6mvLM3WWM90dbhRQ/Xg5q6KtH7+jn7J1Dp3YAWvcB38ng47U4yMHM9qgB/4w==",
+        "contentHash": "SvfjYF1ClYtdW1S5L3JiaZW5p1mWWFHweJA/XRQxIaeUFAuy9fOZECD/pWZ4TzYGLHCPfXKzidUhtLrmJHo21w==",
         "dependencies": {
           "Corvus.Text.Json": "[5.8.8]",
           "Corvus.Text.Json.OpenApi.HttpTransport": "[5.8.8]"
@@ -16,7 +16,7 @@
         "type": "Direct",
         "requested": "[1.0.0, 1.0.0]",
         "resolved": "1.0.0",
-        "contentHash": "Kz/8NHdrYAVmz6BBawT5cF5hHmXsa1JAlzOzF8TUBI+2m+J02SfmiKIhlvoorWymec3wQycnYOPoTUDowkIrdw==",
+        "contentHash": "zv5v5JRFep7f/Y39Bs3Fv53q3rCYor4sT3x331DxxJOtYf8gPqwf3k1U0Ui9e+/7EEpZm+aKgeWJ0DRzRKJHqw==",
         "dependencies": {
           "Corvus.Text.Json": "[5.8.8]",
           "Corvus.Text.Json.OpenApi.HttpTransport": "[5.8.8]"

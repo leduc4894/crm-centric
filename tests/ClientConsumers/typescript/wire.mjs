@@ -30,7 +30,7 @@ const business = crm('https://example.invalid');
 business.use({onRequest({request}) { request.headers.set('Authorization', `Bearer ${sentinel}`); return request; }});
 handler = request => {
   assert.equal(request.headers.get('X-Tenant-Id'), id);
-  assert.equal(request.headers.get('Authorization'), `Bearer ${sentinel}`);
+  if (request.headers.get('Authorization') !== (process.env.SDK_TEST_WRONG_BEARER === '1' ? 'Bearer deliberately-wrong' : `Bearer ${sentinel}`)) throw new Error('SDK_AUTH_ASSERTION_FAILED');
   assert.equal(new URL(request.url).searchParams.get('cursor'), 'a+b/=?');
   assert.equal(new URL(request.url).searchParams.get('tagId'), id);
   assert.equal(new URL(request.url).searchParams.get('updatedSince'), '2026-01-01T00:00:00Z');

@@ -52,7 +52,7 @@ def generate(output_root):
             raise RuntimeError('SDK_TOOLCHAIN_UNAVAILABLE')
     input_files = [CONTRACTS / f'{name}.openapi.yaml' for name, _, _ in CLIENTS]
     inputs = {path: ref_files(path, CONTRACTS) for path in input_files}
-    config_hash = hashlib.sha256(b''.join(p.read_bytes() for p in (TOOLCHAIN, ROOT / 'package.json', ROOT / 'package-lock.json', ROOT / '.npmrc', Path(__file__), ROOT / 'scripts/contracts/check.py', *(ROOT / 'tools/contracts/locks' / f'{namespace}.json' for _, _, namespace in CLIENTS)))).hexdigest()
+    config_hash = hashlib.sha256(b''.join(p.read_bytes() for p in (TOOLCHAIN, ROOT / 'package.json', ROOT / 'package-lock.json', ROOT / '.npmrc', Path(__file__), ROOT / 'scripts/contracts/check.py', ROOT / 'tools/contracts/facades/ResponseMetadataHandler.cs', *(ROOT / 'tools/contracts/locks' / f'{namespace}.json' for _, _, namespace in CLIENTS)))).hexdigest()
     with tempfile.TemporaryDirectory(prefix='crm-sdk-') as temporary:
         temp = Path(temporary)
         ts_tool = temp / 'ts-tool'
@@ -91,6 +91,8 @@ def generate(output_root):
             lock.write_text(json.dumps(lock_data, indent=2, sort_keys=True) + '\n')
             (cs / f'{namespace}.csproj').write_text('<Project Sdk="Microsoft.NET.Sdk">\n  <PropertyGroup><TargetFramework>net10.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings><AllowUnsafeBlocks>true</AllowUnsafeBlocks><RestorePackagesWithLockFile>true</RestorePackagesWithLockFile></PropertyGroup>\n  <ItemGroup><PackageReference Include="Corvus.Text.Json" Version="[5.8.8]" /><PackageReference Include="Corvus.Text.Json.OpenApi.HttpTransport" Version="[5.8.8]" /></ItemGroup>\n</Project>\n')
             shutil.copyfile(ROOT / 'tools/contracts/locks' / f'{namespace}.json', cs / 'packages.lock.json')
+            facade = (ROOT / 'tools/contracts/facades/ResponseMetadataHandler.cs').read_text()
+            (cs / 'ResponseMetadataHandler.cs').write_text(facade.replace('__NAMESPACE__', namespace))
             contract = CONTRACTS / f'{name}.openapi.yaml'
             provenance = {'contractSha256': digest(contract), 'inputHashes': {p.relative_to(CONTRACTS.resolve()).as_posix(): digest(p) for p in inputs[contract]}, 'configurationSha256': config_hash, 'corvusPackageSha256': config['corvusPackageSha256'], 'openapiTypescript': config['openapiTypescript']}
             for directory in (ts, cs):
