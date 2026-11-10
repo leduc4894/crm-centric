@@ -50,19 +50,21 @@ def main():
     import json
     import tempfile
     import uuid
-    import yaml
     import zipfile
-    from scripts.contracts.generate import ROOT, generate
+    ROOT = Path(__file__).resolve().parents[2]
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--output-root', type=Path, default=ROOT)
     args = parser.parse_args()
     reason = None
     try:
+        from scripts.contracts.generate import generate
         with tempfile.TemporaryDirectory(prefix='crm-sdk-check-') as temporary:
             generate(Path(temporary))
             reason = check_generated_tree(args.output_root / 'sdks', Path(temporary) / 'sdks')
-    except (OSError, ValueError, RuntimeError, RecursionError, zipfile.BadZipFile, yaml.YAMLError) as error:
+    except (ImportError, KeyError, TypeError):
+        reason = 'SDK_TOOLCHAIN_UNAVAILABLE'
+    except (OSError, ValueError, RuntimeError, RecursionError, zipfile.BadZipFile) as error:
         reason = str(error) if type(error) is RuntimeError else 'SDK_CHECK_ERROR'
     print(json.dumps({'reason': reason or 'SDK_GENERATED_CURRENT', 'correlationId': str(uuid.uuid4())}))
     return 1 if reason else 0
@@ -70,24 +72,24 @@ def main():
 
 
 
-def check_ref_files(path, root):
-    """Follow local references only inside the canonical contract directory."""
+def ref_files(path, root):
+    """Return the validated transitive local input closure for a document."""
     import yaml
     root = Path(root).resolve()
     pending, seen = [Path(path)], set()
     while pending:
         current = pending.pop().resolve()
         if not current.is_relative_to(root) or not current.is_file():
-            return 'CONTRACT_NONLOCAL_REF'
+            raise RuntimeError('CONTRACT_NONLOCAL_REF')
         if current in seen:
             continue
         seen.add(current)
         try:
             document = yaml.safe_load(current.read_text())
         except (OSError, UnicodeError, yaml.YAMLError):
-            return 'CONTRACT_NONLOCAL_REF'
+            raise RuntimeError('CONTRACT_NONLOCAL_REF') from None
         if check_local_refs(document):
-            return 'CONTRACT_NONLOCAL_REF'
+            raise RuntimeError('CONTRACT_NONLOCAL_REF')
         def collect(value):
             if isinstance(value, dict):
                 for key, item in value.items():
@@ -98,6 +100,14 @@ def check_ref_files(path, root):
                 for item in value:
                     collect(item)
         collect(document)
+    return sorted(seen)
+
+
+def check_ref_files(path, root):
+    try:
+        ref_files(path, root)
+    except RuntimeError as error:
+        return str(error)
     return None
 
 

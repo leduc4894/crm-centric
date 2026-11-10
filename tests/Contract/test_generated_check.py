@@ -116,6 +116,80 @@ class GeneratedGateIntegrationTests(unittest.TestCase):
             self.assertEqual(tree_hash(clone), before)
 
 
+    def test_changed_referenced_file_updates_provenance(self):
+        root = Path(__file__).resolve().parents[2]
+        with tempfile.TemporaryDirectory() as tmp:
+            clone = Path(tmp) / 'clone'
+            clone.mkdir()
+            for name in ('package.json', 'package-lock.json', '.npmrc'):
+                shutil.copyfile(root / name, clone / name)
+            for directory in ('scripts/contracts', 'docs/contracts', 'tools/contracts'):
+                shutil.copytree(root / directory, clone / directory, ignore=shutil.ignore_patterns('__pycache__'))
+            tool = clone / '.local/plan3-tools'
+            tool.mkdir(parents=True)
+            shutil.copyfile(root / '.local/plan3-tools/corvus.json.cli.5.8.8.nupkg', tool / 'corvus.json.cli.5.8.8.nupkg')
+            contract = clone / 'docs/contracts/platform-operations.openapi.yaml'
+            contract.write_text(contract.read_text() + "\nx-provenance-test:\n  $ref: ./fixture.yaml#/Thing\n")
+            fixture = clone / 'docs/contracts/fixture.yaml'
+            fixture.write_text('Thing:\n  $ref: ./leaf.yaml#/Thing\n')
+            leaf = clone / 'docs/contracts/leaf.yaml'
+            leaf.write_text('Thing:\n  type: string\n')
+            snapshots = []
+            for i in range(2):
+                if i:
+                    leaf.write_text('Thing:\n  type: integer\n')
+                out = Path(tmp) / f'out{i}'
+                result = subprocess.run([sys.executable, str(clone / 'scripts/contracts/generate.py'), '--output-root', str(out)], capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, 'fixture generation must succeed')
+                ts = json.loads((out / 'sdks/typescript/operations/provenance.json').read_text())
+                cs = json.loads((out / 'sdks/dotnet/Platform.Operations.Client/provenance.json').read_text())
+                self.assertEqual(ts['inputHashes'], cs['inputHashes'])
+                snapshots.append(ts)
+            self.assertIn('inputHashes', snapshots[0])
+            self.assertIn('fixture.yaml', snapshots[0]['inputHashes'])
+            self.assertIn('leaf.yaml', snapshots[0]['inputHashes'])
+            self.assertNotEqual(snapshots[0]['inputHashes']['leaf.yaml'], snapshots[1]['inputHashes']['leaf.yaml'])
+            self.assertEqual(snapshots[0]['inputHashes']['fixture.yaml'], snapshots[1]['inputHashes']['fixture.yaml'])
+            self.assertEqual(snapshots[0]['inputHashes']['platform-operations.openapi.yaml'], snapshots[1]['inputHashes']['platform-operations.openapi.yaml'])
+
+
+class SafeToolFailuresTests(unittest.TestCase):
+    def test_missing_python_dependencies_are_safe_json(self):
+        root = Path(__file__).resolve().parents[2]
+        for name in ('generate.py', 'check.py'):
+            with self.subTest(name=name):
+                result = subprocess.run([sys.executable, '-S', str(root / 'scripts/contracts' / name)], capture_output=True, text=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertTrue(result.stdout, 'expected structured JSON output')
+                payload = json.loads(result.stdout)
+                self.assertEqual(payload['reason'], 'SDK_TOOLCHAIN_UNAVAILABLE')
+                self.assertTrue(payload['correlationId'])
+                self.assertEqual(result.stderr, '')
+
+    def test_missing_toolchain_config_key_is_safe_json(self):
+        root = Path(__file__).resolve().parents[2]
+        with tempfile.TemporaryDirectory() as tmp:
+            clone = Path(tmp)
+            for directory in ('scripts/contracts', 'tools/contracts'):
+                shutil.copytree(root / directory, clone / directory, ignore=shutil.ignore_patterns('__pycache__'))
+            config = clone / 'tools/contracts/toolchain.json'
+            data = json.loads(config.read_text())
+            del data['corvusPackageSha256']
+            config.write_text(json.dumps(data))
+            package = clone / '.local/plan3-tools/corvus.json.cli.5.8.8.nupkg'
+            package.parent.mkdir(parents=True)
+            package.write_bytes(b'x')
+            for name in ('generate.py', 'check.py'):
+                with self.subTest(name=name):
+                    result = subprocess.run([sys.executable, str(clone / 'scripts/contracts' / name)], capture_output=True, text=True)
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertTrue(result.stdout, 'expected structured JSON output')
+                    payload = json.loads(result.stdout)
+                    self.assertEqual(payload['reason'], 'SDK_TOOLCHAIN_UNAVAILABLE')
+                    self.assertTrue(payload['correlationId'])
+                    self.assertEqual(result.stderr, '')
+
+
 class LocalReferenceTests(unittest.TestCase):
     def test_local_file_refs_cannot_escape_or_hide_remote_refs(self):
         from scripts.contracts.check import check_ref_files

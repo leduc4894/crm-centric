@@ -14,11 +14,10 @@ import tempfile
 import uuid
 import zipfile
 
-import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
-from scripts.contracts.check import check_ref_files
+from scripts.contracts.check import ref_files
 
 TOOLCHAIN = ROOT / 'tools/contracts/toolchain.json'
 CONTRACTS = ROOT / 'docs/contracts'
@@ -39,6 +38,10 @@ def run(command, *, cwd=None, reason='SDK_GENERATION_UNSUPPORTED'):
 
 
 def generate(output_root):
+    try:
+        import yaml
+    except ImportError:
+        raise RuntimeError('SDK_TOOLCHAIN_UNAVAILABLE') from None
     config = json.loads(TOOLCHAIN.read_text())
     package = ROOT / '.local/plan3-tools/corvus.json.cli.5.8.8.nupkg'
     if not package.is_file() or digest(package) != config['corvusPackageSha256']:
@@ -48,9 +51,7 @@ def generate(output_root):
         if actual.returncode or actual.stdout.strip() != expected:
             raise RuntimeError('SDK_TOOLCHAIN_UNAVAILABLE')
     input_files = [CONTRACTS / f'{name}.openapi.yaml' for name, _, _ in CLIENTS]
-    for path in input_files:
-        if check_ref_files(path, CONTRACTS):
-            raise RuntimeError('CONTRACT_NONLOCAL_REF')
+    inputs = {path: ref_files(path, CONTRACTS) for path in input_files}
     config_hash = hashlib.sha256(b''.join(p.read_bytes() for p in (TOOLCHAIN, ROOT / 'package.json', ROOT / 'package-lock.json', ROOT / '.npmrc', Path(__file__), ROOT / 'scripts/contracts/check.py', *(ROOT / 'tools/contracts/locks' / f'{namespace}.json' for _, _, namespace in CLIENTS)))).hexdigest()
     with tempfile.TemporaryDirectory(prefix='crm-sdk-') as temporary:
         temp = Path(temporary)
@@ -90,7 +91,8 @@ def generate(output_root):
             lock.write_text(json.dumps(lock_data, indent=2, sort_keys=True) + '\n')
             (cs / f'{namespace}.csproj').write_text('<Project Sdk="Microsoft.NET.Sdk">\n  <PropertyGroup><TargetFramework>net10.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings><AllowUnsafeBlocks>true</AllowUnsafeBlocks><RestorePackagesWithLockFile>true</RestorePackagesWithLockFile></PropertyGroup>\n  <ItemGroup><PackageReference Include="Corvus.Text.Json" Version="[5.8.8]" /><PackageReference Include="Corvus.Text.Json.OpenApi.HttpTransport" Version="[5.8.8]" /></ItemGroup>\n</Project>\n')
             shutil.copyfile(ROOT / 'tools/contracts/locks' / f'{namespace}.json', cs / 'packages.lock.json')
-            provenance = {'contractSha256': digest(CONTRACTS / f'{name}.openapi.yaml'), 'configurationSha256': config_hash, 'corvusPackageSha256': config['corvusPackageSha256'], 'openapiTypescript': config['openapiTypescript']}
+            contract = CONTRACTS / f'{name}.openapi.yaml'
+            provenance = {'contractSha256': digest(contract), 'inputHashes': {p.relative_to(CONTRACTS.resolve()).as_posix(): digest(p) for p in inputs[contract]}, 'configurationSha256': config_hash, 'corvusPackageSha256': config['corvusPackageSha256'], 'openapiTypescript': config['openapiTypescript']}
             for directory in (ts, cs):
                 (directory / 'provenance.json').write_text(json.dumps(provenance, sort_keys=True, indent=2) + '\n')
         destination = Path(output_root).resolve() / 'sdks'
@@ -115,7 +117,10 @@ def main():
     args = parser.parse_args()
     try:
         generate(args.output_root)
-    except (OSError, ValueError, RuntimeError, RecursionError, yaml.YAMLError, zipfile.BadZipFile) as error:
+    except (ImportError, KeyError, TypeError):
+        print(json.dumps({'reason': 'SDK_TOOLCHAIN_UNAVAILABLE', 'correlationId': str(uuid.uuid4())}))
+        return 1
+    except (OSError, ValueError, RuntimeError, RecursionError, zipfile.BadZipFile) as error:
         reason = str(error) if type(error) is RuntimeError else 'SDK_GENERATION_ERROR'
         print(json.dumps({'reason': reason, 'correlationId': str(uuid.uuid4())}))
         return 1
