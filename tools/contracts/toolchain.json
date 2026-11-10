@@ -1,0 +1,9 @@
+{
+  "corvusCli": "5.8.8",
+  "corvusPackageSha256": "b023226e7cffe4b58578ed51c460424cfadfbfe4b223abae020b6e5960a68051",
+  "dotnetImage": "mcr.microsoft.com/dotnet/sdk:10.0.403-noble@sha256:212fe4cb74627d5adf9817a4088906ae3edff1bd853bb27565d4b46731efe61e",
+  "node": "24.22.2",
+  "npm": "11.19.1",
+  "openapiTypescript": "7.13.0",
+  "openapiFetch": "0.17.0"
+}

@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net10.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings><AllowUnsafeBlocks>true</AllowUnsafeBlocks><RestorePackagesWithLockFile>true</RestorePackagesWithLockFile></PropertyGroup>
+  <ItemGroup><PackageReference Include="Corvus.Text.Json" Version="[5.8.8]" /><PackageReference Include="Corvus.Text.Json.OpenApi.HttpTransport" Version="[5.8.8]" /></ItemGroup>
+</Project>
