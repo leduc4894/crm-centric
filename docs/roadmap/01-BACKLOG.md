@@ -9,9 +9,11 @@ SDK-free Compose clean-source startup, structured JSON logs + Activity trace IDs
 fake OIDC test issuer và Keycloak riêng. Xem [Plan 2 evidence](../engineering/06-WAVE-0-PLAN-2-VERIFICATION.md).
 Production IdP configuration đã document, chưa deployed/auth-verified. Local Plan 2
 final review Approved (0 Critical/Important); [review và optional follow-ups](../superpowers/reviews/2026-11-10-wave-0-plan-2-final-review.md).
-**Exit còn OPEN:** frontend toolchain/build, generated SDK compilation/breaking-diff gate,
-application/security/container CI và remote CI run. Contract schema/sample CI definition
-có trong `.github/workflows/contracts.yml`; local checks không đóng Wave 0/P0.
+**Đã kiểm chứng local (Plan 3):** frontend toolchain/build (React/Vite workspace, typecheck/lint/test/build),
+generated TS/C# SDK compile + đóng gói + consumer độc lập, và breaking/security/schema gate tại base Git
+với aggregate fail-closed. Xem [Plan 3 evidence](../engineering/07-WAVE-0-PLAN-3-VERIFICATION.md).
+**Exit còn OPEN:** application/security/container CI, remote CI run và toàn bộ Wave 0/P0 runtime.
+Contract schema/sample CI definition có trong `.github/workflows/contracts.yml`; local checks không đóng Wave 0/P0.
 
 ## Wave 1 — Identity + Tenancy
 - OIDC login, organizations/tenants, membership, RBAC, RLS and audit.

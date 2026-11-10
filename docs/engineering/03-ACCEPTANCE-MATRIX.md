@@ -28,9 +28,13 @@
   Local Plan 2 final review Approved (0 Critical/Important);
   [review và scope rulings](../superpowers/reviews/2026-11-10-wave-0-plan-2-final-review.md).
   Không đồng nghĩa Wave 0/P0 hoàn tất.
-- OPEN: React build, generated TS/C# SDK compile, automated baseline breaking-diff detector,
-  dependency/secret/container CI scans và CI remote run. Runtime sentinel audits đã pass local;
-  không thay thế CI scanner gate.
+- Plan 3 local toolchain evidence (Wave 0): React/Vite workspace có typecheck/lint/test/build,
+  bốn generated TS/C# SDK compile và đóng gói, consumer độc lập không phụ thuộc CRM server,
+  breaking/security/schema gate tại base Git, aggregate gate fail-closed và negative cases.
+  [W0P3-01→12 mapping và commands/counts](07-WAVE-0-PLAN-3-VERIFICATION.md).
+  Đây là bằng chứng local của toolchain, không phải runtime acceptance.
+- OPEN: dependency/secret/container CI scans, remote CI run, và toàn bộ RT-* runtime bên dưới.
+  Runtime sentinel audits đã pass local; không thay thế CI scanner gate.
 - Plan 1 không đóng RT-* ở trên: OIDC/tenant/business/remote E2E/restore vẫn OPEN; database outage/recovery không phải DR drill.
 - Chưa có consumer production; fixtures không thay compatibility proof cho released consumer. SDK compilation và breaking diff phải pin/gate trước release đầu.
 

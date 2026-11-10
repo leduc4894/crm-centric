@@ -19,10 +19,27 @@
 - CloudEvent extension metadata được phép nhưng không quyết định tenant/grants. Snapshot pinned schemas; không fetch arbitrary remote refs khi ingest/evaluate.
 - JSON Schema không chứng minh DNS/IP/authz/publisher trust, descriptor ID uniqueness/scope subset/node quota hay transactional durability. Runtime gates ở acceptance matrix.
 
+## Route hiện có và spec trước runtime
+- **Route đã triển khai (runtime thật):** backend chỉ phục vụ anonymous `GET /health/live` và
+  `GET /health/ready`; đây là toàn bộ nội dung runtime của `platform-operations.openapi.yaml`.
+- **Spec trước runtime (chưa có endpoint):** `crm-api.openapi.yaml` và toàn bộ business/event/
+  automation schema là thiết kế đã ký hiệu; không có route, không có dữ liệu, không có
+  authorization runtime tương ứng. Generated SDK từ các spec này là **client contract**, không
+  phải bằng chứng endpoint đã tồn tại.
+- **Toolchain (Wave 0 Plan 3, local):** `python3 scripts/contracts/generate.py` sinh bốn client
+  TS/C#, `python3 scripts/contracts/check.py` kiểm tra read-only, `python3
+  scripts/contracts/compatibility.py --base-ref <ref>` chạy breaking/security/schema gate tại
+  base Git, và `bash scripts/check-plan3.sh --base-ref <ref>` gom các bước trên. Tất cả chạy
+  local, dùng tool đã pin; không publish package, không upload contract, không CI remote.
+- **Vẫn OPEN:** runtime security/reliability (tenant isolation, DR/restore), remote DemoModule
+  E2E, remote CI và toàn bộ Wave 0/P0 theo `../engineering/03-ACCEPTANCE-MATRIX.md`.
+
 ## Chạy kiểm chứng
 Python 3.15.2; tạo venv, cài `requirements-contracts.lock`, chạy `python -m unittest discover -s tests/Contract -v`. Windows `.venv/Scripts/python.exe`, Linux/macOS `.venv/bin/python`. Đây là contract tooling, không phải runtime CRM.
 
-Generated SDK compile, automated breaking diff và runtime security/reliability vẫn OPEN theo `../engineering/03-ACCEPTANCE-MATRIX.md`.
+Frontend/toolchain của Plan 3: `npm ci` ở root với Node đã pin, `npm run typecheck|lint|test|build -w apps/crm-web`,
+`bash tests/ClientConsumers/run.sh` cho consumer đóng gói, và `bash scripts/check-plan3.sh --base-ref <ref>`
+là aggregate gate fail-closed. Chi tiết bằng chứng: `../engineering/07-WAVE-0-PLAN-3-VERIFICATION.md`.
 
 ## End-to-end example
 Remote DemoModule sends `demo.activity.created.v1`, mapped to contact by explicit link, engine matches rule, add tag and invokes `demo.echo.v1`. Retry safe. No CRM Core modifications.

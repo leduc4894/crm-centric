@@ -1,5 +1,5 @@
 # CRM-Centric Extensible Platform — Bộ tài liệu CRM MVP v1.0
-**Ngày cập nhật:** 2026-11-10 · **Ngôn ngữ:** Tiếng Việt · **Trạng thái:** Backend và Compose local chạy được; Wave 0/P0 còn mở.
+**Ngày cập nhật:** 2026-11-10 · **Ngôn ngữ:** Tiếng Việt · **Trạng thái:** Backend, Compose local và frontend/toolchain contract chạy được; Wave 0/P0 còn mở.
 
 ## Tầm nhìn
 - Website Blog/SEO là hệ thống độc lập; tích hợp lead-form/webhook/API khi cần.
@@ -106,6 +106,41 @@ Up có thể retry idempotent sau khi sửa nguyên nhân. Grants sau migration 
 có thể lỗi khi history đã commit: sửa provisioning rồi retry Up. Production dùng
 reviewed forward-fix; không tự Down/drop. Down→Up chỉ được kiểm chứng trong DB
 disposable, giữ object ngoài migration; đây không phải restore/DR drill.
+
+## Frontend và contract toolchain (Wave 0 Plan 3)
+
+Root repo là npm workspace; Node **24.22.2** và npm **11.19.1** được pin (`.node-version`,
+`package.json`), lockfile commit. `npm ci` ở root cài toàn workspace từ lockfile.
+
+```bash
+npm ci
+npm run typecheck -w apps/crm-web
+npm run lint -w apps/crm-web
+npm run test -w apps/crm-web
+npm run build -w apps/crm-web
+npm run dev -w apps/crm-web            # http://localhost:5173, strict port
+```
+
+Dev server chỉ proxy đúng hai path vận hành `/health/live` và `/health/ready` tới
+`http://127.0.0.1:${LOCAL_API_PORT:-5080}`; không proxy IdP/admin/business API, không wildcard
+CORS, không nạp biến môi trường vào browser bundle.
+
+Contract toolchain (Python, offline, tool đã pin):
+
+```bash
+python3 scripts/contracts/generate.py                                  # 4 client TS/C#
+python3 scripts/contracts/check.py                                     # read-only, không mutate workspace
+python3 scripts/contracts/compatibility.py --base-ref <trusted-ref>    # breaking/security/schema gate
+bash scripts/check-plan3.sh --base-ref <trusted-ref>                   # aggregate gate, fail closed
+bash scripts/check-plan3.sh --base-ref <trusted-ref> --with-browser    # kèm browser suite + local stack
+```
+
+`--base-ref` là bắt buộc và phải trỏ tới Git object đã có trong clone cục bộ; gate không fetch,
+không reset, không rebaseline. Không có publish package, không upload contract, không CI remote.
+
+Giới hạn: business API trong `docs/contracts/crm-api.openapi.yaml` vẫn là spec trước runtime;
+generated SDK là client contract, không phải bằng chứng endpoint đã tồn tại. Bằng chứng chi tiết:
+[Plan 3 verification](docs/engineering/07-WAVE-0-PLAN-3-VERIFICATION.md).
 
 ## Phân loại
 - **P0 / MVP:** identity federation, tenancy, CRM contact/tags, registry, API contract, outbox + webhook, event trigger→condition→action tối thiểu, DemoModule.

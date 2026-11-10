@@ -6,17 +6,33 @@ Implement [Plan 3](../superpowers/plans/2026-11-10-wave-0-plan-3-frontend-contra
 
 ## Current state
 
-Branch `feat/wave-0-plan-3-frontend-contract-toolchain`, base `5257abf`. Task 1 source and verification are being prepared for the plan's Task 1 commit; consult `git log`/`git status` for the current commit and any uncommitted work. Task 1 still requires the SDD read-only task review and any required fixes before it can be marked complete. Tasks 2–7 have not been implemented.
+Branch `feat/wave-0-plan-3-frontend-contract-toolchain`, base `5257abf`. Tasks 1–7 are
+implemented and committed; the last commit of this branch carries the aggregate gate and the
+evidence. The detailed per-task history is below, newest last. The generator selection,
+pinned artifacts, prerequisites, coverage and current evidence are in [Plan 3
+verification](../engineering/07-WAVE-0-PLAN-3-VERIFICATION.md). Corvus.Json.Cli 5.8.8 supplies
+C# generated clients; openapi-typescript 7.13.0 plus openapi-fetch 0.17.0 supplies typed TS
+clients. No canonical contract was changed, and `compose.yaml`, `scripts/local/`, `infra/`
+and the Keycloak realm configuration are byte-identical to the branch base.
 
-The generator selection, pinned artifacts, prerequisites, coverage and current evidence are in [Plan 3 verification](../engineering/07-WAVE-0-PLAN-3-VERIFICATION.md). Corvus.Json.Cli 5.8.8 supplies C# generated clients; openapi-typescript 7.13.0 plus openapi-fetch 0.17.0 supplies typed TS clients. Generated C# and TypeScript SDKs, provenance, lockfiles, generation/check entrypoints and Task 1 tests are in the pending changes. No canonical contract was changed.
-
-Completed verification before handoff: pinned `npm ci` passed; both C# outputs built with locked restore and zero compiler warnings/errors; both TS packages built and strict rule fixture compiled; C# rule and TS HTTP boundary fixtures passed; a canonical validator accepted valid remote rule and rejected a missing action installation; a staged clean index export passed the generated-check. Focused tests observed RED then GREEN for tree/ref tampering, safe reference resolution, no bytecode mutation on check, and checkout-stable newlines. Final `.venv/bin/python -m unittest discover -s tests/Contract -v` passed 38 tests (69.850 s); `python3 scripts/contracts/check.py` returned `SDK_GENERATED_CURRENT`. Consult the verification document and SDD task report for exact evidence; do not infer Task 1 review or later tasks from these checks.
+The aggregate gate `bash scripts/check-plan3.sh --base-ref <ref>` is the public entrypoint
+that runs the whole slice: locked install, generated check, SDK build/pack/consumers,
+compatibility gate, frontend typecheck/lint/test/build/leak scan and an opt-in browser
+suite. It fails closed, requires an explicit base ref, never fetches or mutates Git, and
+proves that no step changed a tracked file. `tests/Plan3/negative-cases.sh` covers its
+fail-closed paths and `tests/Plan3/clean-export.sh` runs it inside an exact-SHA clean
+export.
 
 ## Remaining work
 
-1. Review Task 1 against its brief, fix any material findings with regression tests, and verify the generated SDKs and provenance from the commit.
-2. Complete Task 2 independent packaged consumer and wire tests, then Tasks 3–7 in order. Task 3/4 compatibility and security gates, Task 5/6 frontend and browser behavior, and Task 7 aggregate/clean export are not complete.
-3. Record updated evidence and handoff at the end of subsequent work. The operations health routes are implemented in the existing backend; the business OpenAPI is pre-runtime. Remote DemoModule E2E, tenant isolation, outage/recovery, restore drills, full Wave 0/P0 acceptance and remote CI remain open.
+1. The read-only whole-branch review is performed by the controller after this task. Any
+   finding must be fixed with regression tests, and the exact-SHA evidence must be refreshed
+   if the source changes.
+2. Wave 0/P0 acceptance is **OPEN**: CRM login and tenant authorization, remote DemoModule
+   end-to-end, tenant isolation, outage/recovery and restore drills, application, security
+   and container CI scans, and remote CI. The operational health routes are implemented in
+   the existing backend; the business OpenAPI is pre-runtime. No merge, push or deploy is
+   authorized.
 
 ## Task 1 review fixes
 
@@ -230,3 +246,70 @@ stack-provenance check for a missing `docker` binary.
 
 Task 7, the exact-SHA clean export, Wave 0/P0 and remote acceptance remain open. No merge, push or
 deploy is authorized.
+
+## Task 7 — aggregate gate, clean exact-SHA export and evidence (pending scoped review)
+
+Task 6 passed scoped review. Task 7 adds the aggregate gate that drives the Plan 3 public
+entrypoints, the fail-closed negative-case harness, the exact-SHA clean export and the
+evidence for the whole slice.
+
+**The aggregate gate.** `scripts/check-plan3.sh --base-ref <ref> [--with-browser]` runs
+locked install → generated check → SDK build/pack/consumers → compatibility gate → frontend
+typecheck/lint/test/build/leak scan → browser suite, and stops at the first failing step
+with a non-zero exit and a reason token. `--base-ref` is required and has no default; the
+browser suite is opt-in and a skipped step is recorded in the summary as `not run`. The
+script never fetches, resets, rebases or rebaselines Git, and it proves that no step
+changed a tracked file by comparing a digest over every tracked path of `HEAD` before and
+after the run. A mismatch fails the run with `PLAN3_SOURCE_MUTATED`.
+
+**The harnesses.** `tests/Plan3/negative-cases.sh --base-ref <ref>` applies one fault per
+case to a sandbox copy of the checkout that has a read-only Git object context, and asserts
+that the gate stops with `SDK_GENERATED_MISMATCH`, `CONTRACT_BASE_UNAVAILABLE` and
+`CONTRACT_POLICY_REVIEW_REQUIRED` respectively and never reports a compatible verdict.
+`tests/Plan3/clean-export.sh --sha <sha> --base-ref <ref> [--target <dir>] [--with-browser]`
+exports an exact commit with `git archive`, gives the export a read-only Git object context
+through `objects/info/alternates`, copies in the pinned local tool artifacts that are not
+committed, and runs the aggregate inside the export.
+
+**Verification.** The contract suite passed 87 tests in 1064.566 s and the Local Python
+suite 20 tests in 4.544 s; the .NET non-Compose suite passed 70 tests in 6 m 48 s. The
+negative harness passed 3 of 3 cases in 3 m 14 s. The clean exact-SHA export of the tested
+commit `0695cc2c1f196aa9148f993c8d001bb743741ac1` against base
+`408ded6b01f1373dfaff92a663f2f80347475f55` passed the aggregate with all ten steps,
+including the browser smoke against the test-owned stack `crm-local-2ee20ecbdd57`, and the
+tracked-file digest was unchanged during the run. Exact commands, counts, versions, digests
+and the W0P3-01→12 mapping are in the Plan 3 verification document.
+
+**Operations routes implemented, business spec pre-runtime.** The backend serves only the
+anonymous operational routes `GET /health/live` and `GET /health/ready`; those are the
+implemented routes. `docs/contracts/crm-api.openapi.yaml` and the business, event and
+automation schemas remain a pre-runtime specification. The generated SDKs are client
+contracts compiled and gated locally; they are not evidence that a business endpoint
+exists, and nothing was published.
+
+**Plan 2 evidence that was reused, not re-run.** Plan 2's Compose-category suite (14 cases)
+was not re-run in this task. Plan 3 changed no backend source, no container configuration
+and no stack lifecycle: `git diff --stat 5257abf..HEAD -- src/ compose.yaml scripts/local/
+infra/` is empty. Plan 2's recorded Compose evidence therefore stays valid as exact-SHA
+historical evidence for the unchanged runtime and is not presented as a run of this task.
+The .NET non-Compose suite, the Local Python suite and the contract suite were executed
+fresh here.
+
+**Changed files.** `scripts/check-plan3.sh` (new), `tests/Plan3/negative-cases.sh` (new),
+`tests/Plan3/clean-export.sh` (new), `docs/engineering/07-WAVE-0-PLAN-3-VERIFICATION.md`,
+`docs/handoff/2026-11-10-wave-0-plan-3-implementation-handoff.md`, `README.md`,
+`docs/contracts/README.md`, `docs/engineering/03-ACCEPTANCE-MATRIX.md`,
+`docs/roadmap/01-BACKLOG.md`, the Plan 3 plan checkboxes and the design spec status. The
+canonical contracts under `docs/contracts/`, `compose.yaml`, `scripts/local/` and the
+Keycloak realm configuration were not modified.
+
+**Known limitations.** Every result is local: there is no remote CI run, no branch
+protection evidence and no published package. The browser needs the Chromium shared
+libraries, which this host does not install; they are provided through `LD_LIBRARY_PATH`
+and are a local prerequisite, not a repository step. The .local tool artifacts are not
+committed, so a clean export needs them copied in; the tooling verifies their digests.
+
+**Still open.** The read-only whole-branch review is performed by the controller after this
+task; this task only leaves the branch reviewable. Wave 0/P0 acceptance, remote DemoModule
+end-to-end, tenant isolation, outage/recovery and restore drills and remote CI remain
+**OPEN** and are not claimed here. No merge, push or deploy is authorized.
