@@ -273,3 +273,88 @@ callback or the remote-module end-to-end flow; the readiness state covers the da
 schema only. The client correlation identifier falls back to a non-cryptographic source when
 `crypto.randomUUID` is unavailable. The Problem boundary ignores unknown properties.
 
+### Task 6 fix round 1 — enforced deadline, stack provenance, markup scan and correlation fallback (review pending)
+
+The independent review of `fecac28` returned no Critical issue and four findings that are about
+enforcement rather than about the behaviour of the implementation: the value of the five second
+deadline was asserted by no test, the stack-provenance check of the browser smoke test did not
+identify the container of the stack, the two DOM-level safety checks read the visible text only,
+and one closed error path carried a reason token but no correlation identifier. All four are closed
+in this round.
+
+**I-1 — the deadline value is now enforced.** `apps/crm-web/src/health/healthClient.test.ts` pins
+the literal with `expect(HEALTH_DEADLINE_MS).toBe(5_000)`, and the browser suite now measures the
+elapsed time until the deadline fires: the timeout test asserts an elapsed time greater than four
+seconds and smaller than nine seconds, so a deadline that is too short and a deadline that is too
+long both fail. The unit test proves it: with `HEALTH_DEADLINE_MS` temporarily re-valued to `500`
+the suite failed with `AssertionError: expected 500 to be 5000` (1 failed, 53 passed); the constant
+was restored to `5_000` afterwards.
+
+**I-2 — the smoke test identifies the API container of the stack.** The check no longer looks at the
+published ports of every container. `apps/crm-web/tests/e2e/stackProvenance.ts` resolves the
+compose project of the checkout the same way `scripts/local/compose.py` does — the explicit
+`LOCAL_STACK_PROJECT` or `crm-local-` plus the first twelve hexadecimal characters of the SHA-256
+of the resolved checkout path — and then reads the container of the API service with the compose
+labels `com.docker.compose.project` and `com.docker.compose.service=crm-api`. The selection
+additionally requires the compose container name `<project>-crm-api-<index>`. A foreign container
+that publishes the same port is therefore never the stack. The unit test
+`apps/crm-web/tests/e2e/stackProvenance.test.ts` covers the rejection of a foreign container, of
+the API container of another compose project and of an empty container list, and the selection of
+the container of the stack. RED evidence: with the pre-fix selection the three rejection cases
+failed (`expected { name: 'crm-foreign-impostor', …(1) } to be null`). The live impersonation
+experiment confirmed it: with the stack stopped and a foreign container
+`crm-foreign-impostor` publishing `127.0.0.1:5080->5432/tcp`, the pre-fix port substring check
+still matched (`docker ps --format '{{.Ports}}'` contains `127.0.0.1:5080->`) while the new check
+returned no container of the stack. The experiment and the temporary container were removed
+afterwards.
+
+**M-1 — the safety checks read the rendered markup.** The leak scan now scans `page.content()` and
+the markup of the application root instead of the visible text, and the browser test asserts on the
+markup of the application root and on the whole document. RED evidence: with the raw problem
+payload rendered into a `title` attribute of the status region, the previous text-only scan
+reported `no sentinel, secret, credential or local metadata leak` and exited 0, while the new scan
+reported ten findings by name (`browser:document: syntheticToken`, `browser:application:
+syntheticToken`, …) and exited 1. The patch was reverted afterwards.
+
+**M-2 — every closed error path carries a correlation identifier.** The `unavailable` variant now
+always carries a client correlation identifier. When the server sent a usable correlation
+identifier it is shown as `Server correlation:`; when the server correlation identifier is
+malformed, the client correlation identifier is shown instead, so a server identifier is never
+fabricated and every closed path carries a reason token and a correlation. The adapter test and the
+component test cover the malformed server correlation identifier.
+
+**M-3 — the OS-library prerequisite is documented.** `apps/crm-web/README.md` and
+`docs/operations/04-LOCAL-DEVELOPMENT.md` now state that a bare Linux host also needs the shared
+libraries of Chromium, for example with `npx playwright install-deps chromium`, that this needs a
+package manager with administrative rights, and that extracting the libraries into a temporary
+directory and pointing `LD_LIBRARY_PATH` at it is an equivalent local workaround. The step is a local
+prerequisite of the browser only and was not added to the build, the test scripts or any
+continuous integration path of the repository; no machine-specific path is part of the code or the
+configuration.
+
+Fix-round verification, with `PATH=<Node-24.22.2>/bin:$PATH`:
+
+- `npm run test -w apps/crm-web`: exit 0 with 54 passed of 54 tests in 5 test files (7.11 s). The
+  suite now contains the file `apps/crm-web/tests/e2e/stackProvenance.test.ts` with seven cases;
+  the Vitest include pattern was extended to `tests/**/*.test.ts` and the Playwright `testMatch`
+  was narrowed to `**/*.spec.ts` so that the two runners never claim the same file.
+- `npm run typecheck -w apps/crm-web`: exit 0 (12.41 s). `npm run lint -w apps/crm-web`: exit 0
+  (2.36 s). `npm run build -w apps/crm-web`: exit 0 (1.24 s).
+- `npm run test:e2e -w apps/crm-web`: exit 0 with 4 passed (9.1 s) against the running stack
+  `crm-local-91859983f1e0`; the container of the stack is
+  `crm-local-91859983f1e0-crm-api-1` with the labels `com.docker.compose.project=crm-local-91859983f1e0`
+  and `com.docker.compose.service=crm-api`, publishing `127.0.0.1:5080->8080/tcp`.
+- `npm run scan:leaks -w apps/crm-web`: exit 0 with
+  `leak scan: no sentinel, secret, credential or local metadata leak in 5 artifact file(s),
+  3 browser console message(s) or the process log`.
+- The root `package.json` and `package-lock.json` did not change in this round, so the SDK
+  configuration hash is unchanged; `python3 scripts/contracts/check.py` still returned
+  `SDK_GENERATED_CURRENT` and no provenance file was touched.
+- The stack was stopped again with `bash scripts/dev-down.sh` (`stack_stopped`), no container
+  remained and nothing listened on 5080, 5173 or 8080.
+
+**Still deferred by instruction.** `main.tsx` renders `<StrictMode>`, so the development page issues
+two readiness requests while the production page issues one; the "no persistence" test covers the
+adapter and not the rendered component; and the message of the stack-provenance check does not
+distinguish a missing `docker` binary from a stopped stack.
+

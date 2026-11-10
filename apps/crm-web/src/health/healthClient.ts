@@ -33,7 +33,7 @@ export type HealthResult =
       readonly httpStatus: number;
       readonly reasonToken: string;
       readonly serverCorrelationId: string | null;
-      readonly clientCorrelationId: null;
+      readonly clientCorrelationId: string;
     }
   | {
       readonly kind: 'timeout';
@@ -133,7 +133,9 @@ export async function checkHealth(signal: AbortSignal): Promise<HealthResult> {
  * Maps a Problem response to an unavailable result.
  *
  * The Problem boundary is validated before anything is exposed: a body that does not match the
- * canonical shape is a contract violation, not a server failure.
+ * canonical shape is a contract violation, not a server failure. A server correlation identifier is
+ * only exposed when the server sent a usable one; the client correlation identifier of the closed
+ * path is always present, so every closed error path carries a reason token and a correlation.
  */
 function classifyProblem(error: unknown, response: Response): HealthResult {
   const problem = validateProblem(error);
@@ -148,7 +150,7 @@ function classifyProblem(error: unknown, response: Response): HealthResult {
     serverCorrelationId:
       displayableCorrelationId(problem.correlationId) ??
       (header === null ? null : displayableCorrelationId(header)),
-    clientCorrelationId: null
+    clientCorrelationId: createClientCorrelationId()
   };
 }
 

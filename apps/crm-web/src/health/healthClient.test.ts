@@ -24,6 +24,10 @@ afterEach(() => {
 });
 
 describe('checkHealth', () => {
+  it('bounds the whole check by the five second deadline of the contract', () => {
+    expect(HEALTH_DEADLINE_MS).toBe(5_000);
+  });
+
   it('calls the readiness endpoint on the browser origin and never the API host directly', async () => {
     await checkHealth(new AbortController().signal);
 
@@ -68,7 +72,7 @@ describe('checkHealth', () => {
       httpStatus: 503,
       reasonToken: 'DATABASE_SCHEMA_NOT_READY',
       serverCorrelationId: '0HNE5Q1J2K3L4',
-      clientCorrelationId: null
+      clientCorrelationId: expect.stringMatching(/^web-[0-9a-f]{12}$/)
     });
   });
 
@@ -94,6 +98,7 @@ describe('checkHealth', () => {
     }
     expect(result.serverCorrelationId).toBeNull();
     expect(result.reasonToken).toBe('DATABASE_UNAVAILABLE');
+    expect(result.clientCorrelationId).toMatch(/^web-[0-9a-f]{12}$/);
   });
 
   it('classifies a Problem without a valid reason token as an invalid contract', async () => {

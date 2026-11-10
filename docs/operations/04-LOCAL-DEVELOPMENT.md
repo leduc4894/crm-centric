@@ -162,15 +162,22 @@ committed:
 npx playwright install chromium
 ```
 
-It needs the local stack, because one of its four tests goes through the development proxy to the
-real API and PostgreSQL and fails loudly when the stack is not running:
+On a bare Linux host the browser also needs its shared libraries (GTK, ATK, X11, GBM, ALSA and
+friends). Install them with the distribution packages of your distribution, for example with
+`npx playwright install-deps chromium`, which needs a package manager with administrative rights.
+That step is a local prerequisite of the browser only: it is not part of the build, the test
+scripts or any continuous integration path of this repository. Extracting the same libraries into a
+temporary directory and pointing `LD_LIBRARY_PATH` at it is an equivalent local workaround.
+
+The browser suite needs the local stack, because one of its four tests goes through the development
+proxy to the real API and PostgreSQL and fails loudly when the stack is not running:
 
 ```bash
 npm run test:e2e -w apps/crm-web
 ```
 
 The leak scan proves that no secret, credential, sentinel or `.local/` metadata reaches the build
-artifacts, the source maps, the browser console or the process log:
+artifacts, the source maps, the browser console, the rendered markup or the process log:
 
 ```bash
 npm run scan:leaks -w apps/crm-web

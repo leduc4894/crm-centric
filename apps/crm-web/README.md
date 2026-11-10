@@ -22,6 +22,18 @@ prerequisite and is never committed:
 npx playwright install chromium
 ```
 
+On a bare Linux host the browser also needs its shared libraries (GTK, ATK, X11, GBM, ALSA and
+friends). Install them with the distribution packages of your distribution:
+
+```bash
+npx playwright install-deps chromium
+```
+
+`npx playwright install-deps` needs a package manager with administrative rights; it is a local
+prerequisite of the browser and is **not** part of the build, the test scripts or any continuous
+integration path of this repository. Extracting the same libraries into a temporary directory and
+pointing `LD_LIBRARY_PATH` at it is an equivalent local workaround.
+
 `@playwright/test` 1.65.0 pins the browser build; the resolved build of this repository is
 `chromium-1254` (Chrome for Testing 158.0.8127.18), which `npx playwright install --dry-run
 chromium` prints. The version is fixed by the committed `package-lock.json`.
@@ -114,13 +126,16 @@ The result is a discriminated union:
 | State | Reason token | Correlation |
 | --- | --- | --- |
 | ready | — | — |
-| unavailable | the server reason token of a valid Problem | the server correlation, only when it is valid |
+| unavailable | the server reason token of a valid Problem | the server correlation when it is valid, otherwise a client correlation (`web-…`) |
 | timeout | `WEB_REQUEST_TIMEOUT` | a client correlation (`web-…`) |
 | network | `WEB_NETWORK_ERROR` | a client correlation (`web-…`) |
 | invalid | `WEB_CONTRACT_INVALID` | a client correlation (`web-…`) |
 
-Only the three local classification codes exist. A transport failure never carries a server reason
-or a server correlation, and a malformed server correlation identifier is not displayed. The
+Only the three local classification codes exist. Every closed error path carries a reason token and
+a correlation identifier: a server correlation identifier is only ever shown when the server sent a
+usable one, and a malformed server correlation identifier is not displayed. A transport failure
+never carries a server reason or a server correlation, and a client correlation identifier is
+prefixed with `web-` so that it can never be read as a server one. The
 rendered output contains the safe message, the reason token and the correlation identifier only:
 never the response body, the problem title or detail, a stack trace, the request URL, a query
 string or a token.
@@ -162,8 +177,15 @@ browser tests: an intercepted 503 Problem, an intercepted timeout, an intercepte
 script injection attempt, and one smoke test that goes through the development proxy to the **real
 API and PostgreSQL** of the local stack. The smoke test reads the upstream responses directly,
 compares them byte for byte with the response the browser received, requires the API's own
-correlation identifier and `no-store` cache control, and requires the container of the local stack
-to publish the API port. It fails loudly when the stack is not running.
+correlation identifier and `no-store` cache control, and requires the **API container of the
+compose project of this checkout** — identified by its compose project and service labels and by
+its compose container name — to publish the API port. A foreign container that publishes the same
+port is not the stack and never satisfies that check. The test fails loudly when the stack is not
+running.
+
+The timeout test measures the elapsed time until the deadline fires: a deadline that is too short
+and a deadline that is too long both fail the suite, and the unit suite pins the deadline value
+itself.
 
 The local stack must therefore be up before the browser suite runs:
 
@@ -182,8 +204,10 @@ npm run scan:leaks -w apps/crm-web
 The scan builds the bundle with source maps, drives the real application against a stub API that
 answers with synthetic sentinel values, and then proves that no sentinel, secret, credential or
 `.local/` metadata appears in the build artifacts, the source maps, the browser console, the
-rendered document or the process output of the development server. A finding is reported by name
-only; the payload is never printed.
+**rendered markup** of the document and the application root, or the process output of the
+development server. The rendered markup is scanned and not only the visible text, so a payload
+that reaches an attribute is caught as well. A finding is reported by name only; the payload is
+never printed.
 
 ## Static build
 

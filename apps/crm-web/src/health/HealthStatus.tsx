@@ -33,7 +33,7 @@ function describe(result: HealthResult): HealthDescription {
         message: `The platform API is unavailable (${result.reasonToken}).`,
         correlation:
           result.serverCorrelationId === null
-            ? null
+            ? `Client correlation: ${result.clientCorrelationId}`
             : `Server correlation: ${result.serverCorrelationId}`
       };
     case 'timeout':

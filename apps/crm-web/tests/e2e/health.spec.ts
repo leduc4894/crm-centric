@@ -1,5 +1,9 @@
-import { execFileSync } from 'node:child_process';
 import { expect, test, type APIRequestContext, type APIResponse } from '@playwright/test';
+import {
+  readStackApiContainer,
+  repositoryRoot,
+  resolveStackProject
+} from './stackProvenance.ts';
 
 const READINESS_PATH = '/health/ready';
 const LIVENESS_PATH = '/health/live';
@@ -17,18 +21,6 @@ async function readStack(request: APIRequestContext, path: string): Promise<APIR
   } catch (error) {
     throw new Error(
       `the local stack is not running on ${UPSTREAM_ORIGIN}; start it with bash scripts/dev-up.sh`,
-      { cause: error }
-    );
-  }
-}
-
-/** Lists the host ports the running containers publish. */
-function publishedStackPorts(): string {
-  try {
-    return execFileSync('docker', ['ps', '--format', '{{.Ports}}'], { encoding: 'utf8' });
-  } catch (error) {
-    throw new Error(
-      'the local stack must be running in Docker; start it with bash scripts/dev-up.sh',
       { cause: error }
     );
   }
@@ -69,9 +61,17 @@ test.describe('the operational health states', () => {
         .catch(() => undefined);
     });
 
+    const startedAt = Date.now();
     await page.goto('/');
-
     await expect(page.getByRole('status')).toContainText('WEB_REQUEST_TIMEOUT', { timeout: 15_000 });
+    const elapsed = Date.now() - startedAt;
+
+    // The deadline is five seconds: a deadline that is too short and a deadline that is too long
+    // both have to fail this test.
+    expect(elapsed, 'the deadline must not fire before the five second deadline').toBeGreaterThan(
+      4_000
+    );
+    expect(elapsed, 'the deadline must fire within the five second deadline').toBeLessThan(9_000);
     await expect(page.getByRole('status')).not.toContainText('Server correlation:');
     gate.open();
   });
@@ -96,11 +96,15 @@ test.describe('the operational health states', () => {
     await page.goto('/');
     await expect(page.getByRole('status')).toContainText('DATABASE_UNAVAILABLE');
 
-    const text = await page.locator('body').innerText();
-    expect(text).not.toContain(sentinel);
-    expect(text).not.toContain('<img');
-    expect(text).not.toContain('onerror');
-    expect(text).not.toContain('/srv/app/index.js');
+    // The rendered markup is scanned, not only the visible text: a payload that reaches an
+    // attribute must be caught as well.
+    const documentHtml = await page.content();
+    const applicationHtml = await page.locator('#root').innerHTML();
+    expect(documentHtml).not.toContain(sentinel);
+    expect(applicationHtml).not.toContain('<img');
+    expect(applicationHtml).not.toContain('onerror');
+    expect(applicationHtml).not.toContain('/srv/app/index.js');
+    expect(applicationHtml).not.toContain('/health/ready');
     expect(await page.locator('img').count()).toBe(0);
     expect(await page.evaluate(() => (window as unknown as { __xss?: unknown }).__xss)).toBeUndefined();
   });
@@ -127,8 +131,16 @@ test.describe('the real local stack', () => {
     );
     expect(upstreamReady.headers()['cache-control']).toContain('no-store');
 
-    // The listener on the API port belongs to the stack and not to a foreign service.
-    expect(publishedStackPorts(), 'the local stack must publish the API port').toContain(
+    // The listener on the API port belongs to the stack: the API container of the compose project
+    // of this checkout has to publish the port. A foreign container that publishes the same port
+    // is not the stack and never satisfies this check.
+    const project = resolveStackProject(repositoryRoot());
+    const container = readStackApiContainer(project);
+    expect(
+      container,
+      `the local stack must run its own API container of the compose project ${project}`
+    ).not.toBeNull();
+    expect(container?.ports ?? '', 'the API container of the stack must publish the API port').toContain(
       `127.0.0.1:${API_PORT}->`
     );
 

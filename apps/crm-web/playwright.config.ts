@@ -15,6 +15,7 @@ const repositoryRoot = fileURLToPath(new URL('../..', import.meta.url));
  */
 export default defineConfig({
   testDir: './tests/e2e',
+  testMatch: '**/*.spec.ts',
   fullyParallel: false,
   workers: 1,
   forbidOnly: true,

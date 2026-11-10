@@ -89,7 +89,8 @@ describe('HealthStatus', () => {
     render(<HealthStatus />);
 
     expect(await screen.findByText(/DATABASE_UNAVAILABLE/)).toBeTruthy();
-    expect(screen.queryByText(/correlation:/i)).toBeNull();
+    expect(screen.queryByText(/Server correlation:/)).toBeNull();
+    expect(screen.getByText(/Client correlation: web-[0-9a-f]{12}/)).toBeTruthy();
   });
 
   it('shows a local network classification without a server correlation', async () => {

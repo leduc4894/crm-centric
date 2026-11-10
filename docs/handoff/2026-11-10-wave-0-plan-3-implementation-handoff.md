@@ -167,3 +167,66 @@ directory for the run and nothing was added to the repository.
 
 Task 7, the exact-SHA clean export, Wave 0/P0 and remote acceptance remain open. No merge, push or
 deploy is authorized.
+## Task 6 fix round 1 — enforced deadline, stack provenance, markup scan and correlation fallback (pending scoped review)
+
+The independent review of `fecac28` found the implementation correct but four requirements that
+were not enforced by the suite. This round closes them without changing the behaviour of the
+application.
+
+**I-1 — the five second deadline is enforced.** The unit suite pins the literal
+(`expect(HEALTH_DEADLINE_MS).toBe(5_000)`) and the browser timeout test measures the elapsed time
+until the deadline fires and requires it to be greater than four and smaller than nine seconds, so
+a too short and a too long deadline both fail. RED evidence: with the constant temporarily
+re-valued to `500` the suite failed with `expected 500 to be 5000` (1 failed, 53 passed); the
+constant was restored afterwards.
+
+**I-2 — the smoke test identifies the container of the stack.** The new
+`apps/crm-web/tests/e2e/stackProvenance.ts` resolves the compose project of the checkout the same
+way `scripts/local/compose.py` does and reads the API container through the compose labels
+`com.docker.compose.project` and `com.docker.compose.service=crm-api`, additionally requiring the
+compose container name `<project>-crm-api-<index>`. A foreign container that publishes the API port
+is rejected. The new unit file `apps/crm-web/tests/e2e/stackProvenance.test.ts` covers the
+rejection cases; RED evidence: with the pre-fix selection three cases failed. A live impersonation
+experiment with a foreign container publishing `127.0.0.1:5080->5432/tcp` confirmed that the
+pre-fix port substring matched while the new check rejects it. The Vitest include pattern was
+extended to `tests/**/*.test.ts` and the Playwright `testMatch` narrowed to `**/*.spec.ts`, so the
+two runners never claim the same file.
+
+**M-1 — the safety checks read the rendered markup.** The leak scan scans `page.content()` and the
+markup of the application root, the browser test asserts on the same. RED evidence: with the raw
+payload in a `title` attribute the previous text-only scan exited 0, the new scan reported ten
+findings by name and exited 1.
+
+**M-2 — every closed error path carries a correlation identifier.** The `unavailable` variant now
+always carries a client correlation identifier; a valid server correlation identifier is still shown
+as `Server correlation:` and a malformed one is never displayed, so no server identifier is
+fabricated.
+
+**M-3 — the OS-library prerequisite is documented** in `apps/crm-web/README.md` and
+`docs/operations/04-LOCAL-DEVELOPMENT.md`, including `npx playwright install-deps chromium` and the
+equivalent `LD_LIBRARY_PATH` workaround. It is a local prerequisite of the browser only and was not
+added to the build, the test scripts or any continuous integration path.
+
+Changed files: `apps/crm-web/src/health/healthClient.ts`,
+`apps/crm-web/src/health/healthClient.test.ts`, `apps/crm-web/src/health/HealthStatus.tsx`,
+`apps/crm-web/src/health/HealthStatus.test.tsx`, `apps/crm-web/tests/e2e/health.spec.ts`,
+`apps/crm-web/tests/e2e/stackProvenance.ts`, `apps/crm-web/tests/e2e/stackProvenance.test.ts`,
+`apps/crm-web/playwright.config.ts`, `apps/crm-web/vitest.config.ts`,
+`apps/crm-web/scripts/leakScan.mjs`, `apps/crm-web/README.md`,
+`docs/operations/04-LOCAL-DEVELOPMENT.md`, the Plan 3 verification document and this handoff. The
+root manifest and lockfile did not change, so the SDK provenance was not regenerated and
+`python3 scripts/contracts/check.py` still returns `SDK_GENERATED_CURRENT`.
+
+Fix-round verification: `npm run test -w apps/crm-web` exited 0 with 54 passed of 54 tests in 5
+test files (7.11 s); `npm run typecheck -w apps/crm-web` exited 0 (12.41 s); `npm run lint -w
+apps/crm-web` exited 0 (2.36 s); `npm run build -w apps/crm-web` exited 0 (1.24 s);
+`npm run test:e2e -w apps/crm-web` exited 0 with 4 passed (9.1 s) against the running stack;
+`npm run scan:leaks -w apps/crm-web` exited 0. The stack was stopped again and nothing listened on
+5080, 5173 or 8080.
+
+Still deferred by instruction: the `StrictMode` double request in development, the "no persistence"
+test that covers the adapter but not the rendered component, and the message of the
+stack-provenance check for a missing `docker` binary.
+
+Task 7, the exact-SHA clean export, Wave 0/P0 and remote acceptance remain open. No merge, push or
+deploy is authorized.

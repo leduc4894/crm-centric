@@ -162,8 +162,10 @@ async function scanBrowserAndProcess() {
       consoleMessages.push(error.message);
     });
     await page.goto(`${origin}/`, { waitUntil: 'networkidle' });
-    const documentText = await page.locator('body').innerText();
-    scanText(documentText, 'browser:document');
+    // The rendered markup is scanned, not only the visible text: a payload that reaches an
+    // attribute has to be caught as well.
+    scanText(await page.content(), 'browser:document');
+    scanText(await page.locator('#root').innerHTML(), 'browser:application');
     for (const message of consoleMessages) {
       scanText(message, 'browser:console');
     }
