@@ -1,0 +1,9 @@
+{
+  "version": "1.37.0",
+  "archive": "oasdiff_1.37.0_linux_amd64.tar.gz",
+  "archiveSha256": "eac87307d31d08c36800c58a409c247f1c5db37fbb72e2544402f22a87cbca3c",
+  "binarySha256": "401389ac23e81bc844093c88ae1e283fbf80ef719f400cbeb19cd36d15957971",
+  "binaryPath": ".local/plan3-tools/oasdiff-1.37.0/oasdiff",
+  "breakOn": "WARN",
+  "dockerImage": "mcr.microsoft.com/dotnet/sdk:10.0.403-noble@sha256:212fe4cb74627d5adf9817a4088906ae3edff1bd853bb27565d4b46731efe61e"
+}

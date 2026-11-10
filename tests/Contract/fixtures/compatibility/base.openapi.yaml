@@ -1,0 +1,49 @@
+openapi: 3.0.3
+info:
+  title: Test API
+  version: 1.0.0
+security:
+  - bearer: []
+paths:
+  /things:
+    get:
+      operationId: listThings
+      x-required-scopes: [things.read]
+      responses:
+        '200':
+          description: success
+          headers:
+            ETag:
+              schema: {type: string}
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id]
+                properties:
+                  id: {type: string}
+                  status: {type: string, enum: [one, two]}
+                  comment: {type: string, nullable: true}
+    patch:
+      operationId: patchThing
+      x-required-scopes: [things.write]
+      parameters:
+        - in: header
+          name: If-Match
+          required: true
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: {type: string}
+      responses:
+        '200': {description: updated}
+        '412': {description: failed}
+components:
+  securitySchemes:
+    bearer: {type: http, scheme: bearer}
+    webhookSignature: {type: apiKey, in: header, name: X-Event-Signature}
