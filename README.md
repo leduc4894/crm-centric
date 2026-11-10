@@ -45,7 +45,8 @@ cho exact source SHA, clean archive runtime, versions/digests và giới hạn.
 Structured JSON logs/Activity correlation và fake OIDC test fixture đã kiểm chứng;
 CRM login/tenant authorization, frontend, SDK generation/breaking diff, application CI,
 remote DemoModule và restore drills vẫn OPEN. Production IdP guide chỉ là cấu hình
-đề xuất, chưa deployed/authentication-verified. Final whole-branch review còn pending.
+đề xuất, chưa deployed/authentication-verified. Local Plan 2 đã được final review Approved (0 Critical/Important); Wave 0/P0 vẫn OPEN.
+Chi tiết và optional follow-ups: [final review](docs/superpowers/reviews/2026-11-10-wave-0-plan-2-final-review.md).
 
 ## Backend foundation (Linux)
 Prerequisites: SDK **10.0.403** (global.json), Bash, curl, GNU timeout, Python 3,

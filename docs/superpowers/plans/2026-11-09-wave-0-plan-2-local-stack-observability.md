@@ -11,7 +11,9 @@
 **Spec:** `docs/superpowers/specs/2026-11-09-wave-0-plan-2-local-stack-observability-design.md`. User đã phê duyệt triển khai trên feature branch/no-worktree; Tasks 1–7 đã implement/review.
 Task 8 evidence tại [verification](../../engineering/06-WAVE-0-PLAN-2-VERIFICATION.md).
 Checkbox ghi steps đã thực hiện, gồm RED failures lịch sử; không có nghĩa mọi baseline
-đã pass. Task 8 final whole-branch review/commit gate còn mở tới controller review.
+đã pass. Task 8 và final whole-branch review đã hoàn tất: Approved, 0 Critical/Important;
+[full review, controller rulings và optional follow-ups](../reviews/2026-11-10-wave-0-plan-2-final-review.md).
+Local Plan 2 complete; Wave 0/P0 OPEN. Giữ branch, không merge/push/deploy.
 
 ## Global Constraints
 
@@ -218,7 +220,7 @@ Assert.True(allCapturedOutputsExcludeSentinels, "Sensitive diagnostic category d
 - [x] Commit source candidate, export chính xác SHA qua `git archive` sang thư mục mới (không git worktree). Không copy secret/volume/bin/obj/caller env. Chạy `bash scripts/dev-up.sh` với fresh project/state/volumes và không host dotnet, rồi `dev-smoke` và `dev-down`. Evidence API200/Keycloak/discovery/JWKS/ownership, retained volumes/secrets, pinned image digests và start timings. Image cache được reuse phải ghi rõ; không claim fresh image pull nếu chỉ dùng cache. Cleanup test-owned volumes ngoài dev-down chỉ trong disposable fixture, ghi rõ không phải hành vi người dùng.
 - [x] Map W0P2-01→12 tới named tests/commands/artifacts: 01 Tasks3/6/8; 02 Tasks3/4/6; 03 Tasks4/6/7; 04 Tasks4/5/6/7; 05–06 Task7; 07 Task1; 08 Tasks1/3/4/5/7; 09 Task2/3; 10 Task5/7; 11 Task6/7; 12 Task8. Ghi SHA, versions/digests, Docker/Compose minimum đã test, RAM/resources, build/pull/start duration và actual pass/fail. Không thay runtime bằng config/schema validation.
 - [x] Cập nhật README và backlog stale scaffold/cold-start theo evidence; remaining frontend/SDK/diff/CI Wave0 OPEN, OIDC/tenant/business/remote DemoModule/DR OPEN. Viết production IdP config rõ là hướng dẫn, chưa deployed/auth-verified.
-- [ ] Read-only review whole branch theo AGENTS/spec; findings có regression/verification tương ứng. Nếu source/script thay đổi, cập nhật exact source/export evidence cho bản cuối, không dùng hash/script cũ làm proof. Handoff ghi user approvals, branch/commits/uncommitted work, rulings, tests và bước tiếp theo. Commit `docs(local): record Plan 2 verification and handoff`; không merge/push/deploy.
+- [x] Read-only review whole branch theo AGENTS/spec; findings có regression/verification tương ứng. Nếu source/script thay đổi, cập nhật exact source/export evidence cho bản cuối, không dùng hash/script cũ làm proof. Handoff ghi user approvals, branch/commits/uncommitted work, rulings, tests và bước tiếp theo. Commit `docs(local): record Plan 2 verification and handoff`; không merge/push/deploy.
 
 ## Self-review và coverage
 

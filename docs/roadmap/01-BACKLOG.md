@@ -7,7 +7,8 @@
 **Đã kiểm chứng local:** .NET scaffold/locked build, PostgreSQL migration/least privilege,
 SDK-free Compose clean-source startup, structured JSON logs + Activity trace IDs,
 fake OIDC test issuer và Keycloak riêng. Xem [Plan 2 evidence](../engineering/06-WAVE-0-PLAN-2-VERIFICATION.md).
-Production IdP configuration đã document, chưa deployed/auth-verified; final branch review pending.
+Production IdP configuration đã document, chưa deployed/auth-verified. Local Plan 2
+final review Approved (0 Critical/Important); [review và optional follow-ups](../superpowers/reviews/2026-11-10-wave-0-plan-2-final-review.md).
 **Exit còn OPEN:** frontend toolchain/build, generated SDK compilation/breaking-diff gate,
 application/security/container CI và remote CI run. Contract schema/sample CI definition
 có trong `.github/workflows/contracts.yml`; local checks không đóng Wave 0/P0.

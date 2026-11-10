@@ -1,11 +1,13 @@
 # Wave 0 Plan 2 — verification evidence
 
-Plan 2 runtime/evidence tasks are implemented and locally verified through Task 8;
-final whole-branch review is pending. This record includes container/bootstrap,
+Local Plan 2 is complete: runtime/evidence tasks through Task 8 and final review
+Approved, zero Critical/Important findings, with controller scope adjudication. This record includes container/bootstrap,
 Compose lifecycle/failure/recovery, realm drift and exact-SHA SDK-free archive
 startup. Remote DemoModule, concurrent event duplicates, tenant isolation and
 restore acceptance are not established by these local checks. Earlier task entries
-retain historical pending/results context; the Task 8 section records current status.
+retain historical pending/results context; Task 8 and the closure section record
+current status. Full [review/rulings](../superpowers/reviews/2026-11-10-wave-0-plan-2-final-review.md)
+preserve optional follow-ups and every accepted scope exclusion.
 
 ## Toolchain and verified upstream images (2026-11-09)
 
@@ -550,8 +552,9 @@ open. This evidence does not claim production authentication or Wave0/P0 complet
 
 ## Task 8 — clean-source evidence (2026-11-10)
 
-Tasks 1–7 have completed their task reviews. Task 8 evidence/docs are ready for
-review; the final read-only whole-branch review is still pending. This closes no
+Tasks 1–8 and the final read-only whole-branch review are Approved. The controller
+accepted all enumerated exclusions and retained the optional Minor follow-ups.
+Local Plan 2 is complete. This closes no
 Wave 0/P0 business, remote-module or DR gate. Only documentation changes after
 source candidate **`34342cbb4f77458560759d6d644925ab1cecf702`**; the later documentation
 commit is not the archived runtime SHA. No source, script, pin, lockfile, contract
@@ -684,7 +687,7 @@ result and command/mapping summary.
 
 All rows below refer to the exact source and actual suite evidence above plus the
 named prior task results in this record. They establish local Plan 2 behavior;
-final whole-branch review is pending.
+final whole-branch review and controller adjudication are complete.
 
 | Gate | Named executable tests / commands | Evidence artifact |
 | --- | --- | --- |
@@ -707,3 +710,27 @@ business runtime, remote DemoModule, concurrent event consumption, durable
 outage/recovery and restore/DR acceptance in later waves. Local database recovery
 and down/up are not those remote/DR drills. Production guide is configuration
 only; no production deployment or authentication verification occurred.
+
+
+## Final review and documentation closure (2026-11-10)
+
+The independent `/root/final_review` review (gpt-6-astra, high) Approved head
+`d55a30b586bf90919d4598d88b3b3facda082c71`, zero Critical/Important findings.
+The [verbatim review and complete controller ledger](../superpowers/reviews/2026-11-10-wave-0-plan-2-final-review.md)
+retain every declined-to-judge scope line and controller adjudication. The two
+optional Minor items are same-`kid`/tampered-signature precision and sequential
+repeated/post-disposal fake-issuer tests. Readable-0600 foreign-owner actual-image
+coverage remains optional under the documented DAC rationale. No source fix was
+requested or made.
+
+IdP warm credentials/health/realm validation is delivered; a general warm IdP
+privilege/ownership-drift auditor is not. CRM warm credential/ACL checks remain
+explicit. No excluded-profile, production-authentication or P0 pass is inferred.
+
+The separate closure commit changes Markdown only and preserves runtime/test
+source `34342cbb4f77458560759d6d644925ab1cecf702`. Fresh whitespace and source-equality
+checks cover this documentation closure. The recorded final 14/70 suites and exact
+archive up/smoke/down are reused, not rerun or relabeled as closure executions.
+Local Plan 2 is complete; Wave 0/P0 gates listed above remain OPEN. Branch/workspace
+are kept under the existing no-integration decision; no merge, push, deploy or
+scratch deletion occurred.

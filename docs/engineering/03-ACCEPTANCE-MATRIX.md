@@ -25,7 +25,9 @@
 - Plan 2 local runtime evidence: SDK-free exact-SHA clean archive up/smoke/down, pinned images,
   isolated Keycloak, safe JSON/Activity, fake OIDC, real Compose failure/recovery/secret/lock tests.
   [W0P2-01→12 mapping và commands/counts](06-WAVE-0-PLAN-2-VERIFICATION.md#task-8--clean-source-evidence-2026-11-10).
-  Final whole-branch review pending; không đồng nghĩa Wave 0/P0 hoàn tất.
+  Local Plan 2 final review Approved (0 Critical/Important);
+  [review và scope rulings](../superpowers/reviews/2026-11-10-wave-0-plan-2-final-review.md).
+  Không đồng nghĩa Wave 0/P0 hoàn tất.
 - OPEN: React build, generated TS/C# SDK compile, automated baseline breaking-diff detector,
   dependency/secret/container CI scans và CI remote run. Runtime sentinel audits đã pass local;
   không thay thế CI scanner gate.

@@ -2,7 +2,8 @@
 
 Ngày spec: 2026-11-09. Cập nhật trạng thái: 2026-11-10. User đã phê duyệt implementation
 trên feature branch/no-worktree. Tasks 1–7 đã implement và review; Task 8 ghi clean-source
-runtime/evidence. Final whole-branch review còn pending. Xem [verification](../../engineering/06-WAVE-0-PLAN-2-VERIFICATION.md).
+runtime/evidence. Local Plan 2 final review Approved (0 Critical/Important), controller đã
+chấp nhận mọi scope exclusion; [review/rulings](../reviews/2026-11-10-wave-0-plan-2-final-review.md). Xem [verification](../../engineering/06-WAVE-0-PLAN-2-VERIFICATION.md).
 Không đóng Wave 0/P0, không push/merge/deploy. Baseline khảo sát: Plan 1 đã merge/push,
 `main` tại `e624514`.
 
@@ -174,7 +175,7 @@ Builder chọn exact supported versions/digests, safe bootstrap implementation (
 
 Builder review chỉ đọc ngày 2026-11-09 đã cho phép lập plan. Runtime evidence hiện có được ghi trong verification; các đoạn đề xuất và baseline bên trên giữ ngữ cảnh thiết kế.
 
-Implementation plan đã được duyệt và thực thi theo task; final whole-branch review còn pending. Không coi evidence local là production deployment/authentication hoặc P0 acceptance.
+Implementation plan đã thực thi và final review Approved; local Plan 2 complete, optional Minor follow-ups được giữ trong review. Không coi evidence local là production deployment/authentication hoặc P0 acceptance.
 
 ## Nguồn kỹ thuật đã tham khảo
 

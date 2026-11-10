@@ -27,7 +27,8 @@ runtime evidence: [Plan 1](05-WAVE-0-PLAN-1-VERIFICATION.md), [Plan 2](06-WAVE-0
 Keycloak realm/metadata đã kiểm chứng local; CRM authentication và production IdP
 chưa triển khai/verified. Layout trên vẫn có các thư mục dự kiến.
 Frontend build, generated SDKs/breaking-diff detector, full application/security/container
-CI và remote CI execution còn OPEN; final Plan 2 whole-branch review pending.
+CI và remote CI execution còn OPEN. Local Plan 2 đã final review Approved,
+0 Critical/Important; [review và controller rulings](../superpowers/reviews/2026-11-10-wave-0-plan-2-final-review.md).
 
 ## Frontend
 React + TypeScript strict, Vite, TanStack Router, TanStack Query, Tailwind CSS, shadcn/ui; forms with React Hook Form + Zod if adopted consistently; ESLint, formatter, typecheck, Vitest, Playwright; accessibility and localization-ready.

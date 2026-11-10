@@ -4,9 +4,10 @@
 
 Resume and finish Tasks 7–8 of the approved [plan](../superpowers/plans/2026-11-09-wave-0-plan-2-local-stack-observability.md) and [design](../superpowers/specs/2026-11-09-wave-0-plan-2-local-stack-observability-design.md), following Tasks 1–6 reviewed at `194028d`. User explicitly requested continuation on 2026-11-10 after the usage-limit interruption. Existing feature-branch/no-worktree execution authorization persists. No push, merge, deployment, external destructive action or new product scope. One coding agent, no subagents.
 
-Current status: Task 8 evidence/docs ready for task review; final whole-branch review
-pending. See the Task 8 continuation below for actual results and remaining gates.
-Earlier sections are chronological Task 7 history.
+Current status: local Plan 2 implementation, task reviews and final whole-branch
+review COMPLETE/Approved, 0 Critical/Important. Wave 0/P0 remain OPEN. See the final
+review closure below for controller adjudication, optional follow-ups and branch
+status. Earlier Task 7/8 sections preserve chronological execution history.
 
 ## Verified resume state
 
@@ -68,7 +69,7 @@ reverts the test/documentation commit; no application-data migration rollback is
 needed. Test cleanup removed only fixture-owned labeled resources. Task8 and
 remote/P0 acceptance remain open; no push, merge or deployment occurred.
 
-## Task 8 continuation — current handoff (2026-11-10)
+## Task 8 continuation — pre-final-review handoff (2026-11-10)
 
 This section supersedes earlier Task 8 pending statements above. Objective: finish
 approved Plan 2 clean-source runtime evidence, W0P2 mapping and status/docs updates,
@@ -135,8 +136,8 @@ Safe JSON proof `/tmp/crm-task8-j9iodt29/evidence.json`; private raw captures
 `/tmp/crm-task8-*` are not copied into committed docs.
 
 Branch remains the authorized feature branch. Source candidate is `34342cb`;
-this handoff is included in the following `docs(local): record Plan 2 verification and handoff`
-commit (resolve exact docs SHA with `git log -1`). No intended changes remain
+this Task 8 handoff was committed as `d55a30b586bf90919d4598d88b3b3facda082c71`,
+`docs(local): record Plan 2 verification and handoff`. No intended changes remain
 uncommitted after that commit; ignored control reports are outside tracked code.
 
 Task 8 evidence/docs implementation is complete and ready for task review. Final
@@ -150,3 +151,63 @@ Frontend/build, SDK generation/compilation/diff and application/security/contain
 CI/remote execution remain Wave0 OPEN. OIDC/tenant/business, remote DemoModule,
 concurrent event handling, durable outage/recovery and restore/DR gates remain P0
 OPEN. Production IdP guide is configuration only, not deployed/auth-verified.
+
+
+## Final review closure — current handoff (2026-11-10)
+
+This section supersedes all historical review-pending statements above. Local
+Plan 2 is COMPLETE, including Task 8 review and final whole-branch review. The
+independent `/root/final_review` (gpt-6-astra, high) Approved reviewed head
+`d55a30b586bf90919d4598d88b3b3facda082c71` against base
+`98710c307f8e8168bb01b5a085c7234928afc9df`, zero Critical/Important findings.
+Exact runtime/test source remains `34342cbb4f77458560759d6d644925ab1cecf702`.
+
+The complete review is preserved verbatim in
+[final review](../superpowers/reviews/2026-11-10-wave-0-plan-2-final-review.md), with
+controller adjudication and a verbatim snapshot of the entire SDD ledger,
+including every Ruling line and its recorded rationale/cost. The controller
+explicitly accepts every individually enumerated declined-to-judge line as future
+excluded scope, tested-profile limit, host/Docker trust boundary, limited local
+validation, optional coverage or justified evidence reuse; no broader acceptance
+claim is made. IdP warm checks credentials/health/realm metadata, not general
+privilege/ownership drift; CRM warm ACL/ownership validation remains explicit.
+
+Optional follow-ups, no closure source changes:
+
+- Same-`kid` wrong-key or tampered-signature negative with explicit rejection.
+- Sequential repeated awaited fake-issuer disposal and guarded post-disposal
+  signing/rotation exceptions.
+- Readable-0600 foreign-owner actual-image negative remains optional, under the
+  final review's ordinary non-root DAC/privilege rationale.
+
+No review finding requires a source fix or additional runtime gate. This separate
+closure updates only Markdown: README; engineering02/03/06; roadmap01; IdP guide05;
+Plan2 plan/spec; this handoff; new durable final review. Final checkbox and current
+status entries now close local Plan 2. Historical pending statements remain marked
+chronological. Fresh `git diff --check` and staged whitespace checks PASS;
+Markdown-only diff and runtime/test blob equality to `34342cb` PASS. No test suite,
+image build or stack was rerun for closure: the verified final Compose14/non-Compose70,
+fresh Task8 contracts32/local20/restore/build0warnings and exact archive lifecycle
+remain the recorded executions, under the unchanged-source ruling.
+
+User full-plan/new-branch/no-worktree authorization and no merge/push/deploy scope
+persist. The finishing-a-development-branch skill is applied with the already
+chosen keep-branch option, without another menu. This is the ordinary repository,
+not a linked worktree; `.git` is both git-dir and common-dir. Keep
+`feat/wave-0-plan-2-local-stack-observability` at `/home/leduc/crm-centric`.
+The approved review covers `d55a30b`; the subsequent
+`docs(local): close Plan 2 review and verification` commit is documentation-only.
+Its actual SHA is written to the ignored Task8 report after commit; this handoff
+belongs to that closure commit and does not attempt a committed self-hash.
+No intended tracked work remains uncommitted after closure. No scratch deletion
+was performed; controller handles cleanup after this durable evidence is secured.
+Rollback of closure reverts docs only, without touching source/data/credentials.
+
+Remaining work is outside this completed local Plan 2: frontend, SDK generation/
+compilation/diff, application/security/container CI and remote CI remain Wave0
+OPEN. OIDC/tenant/business runtime, remote DemoModule, concurrent event processing,
+durable outage/recovery and restore/DR remain P0 OPEN. Production IdP configuration
+is guidance, not deployed/authentication-verified. Next: controller records the
+closure SHA and retains the branch; take optional tests or subsequent vertical
+slices only with their own scope/verification. No external blocker or integration
+authorization is created by this handoff.
