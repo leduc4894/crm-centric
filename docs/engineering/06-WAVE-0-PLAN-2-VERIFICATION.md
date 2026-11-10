@@ -1,16 +1,18 @@
 # Wave 0 Plan 2 — verification evidence
 
-Plan 2 remains open. This record covers Task 3 container prerequisites and Task 4 bootstrap;
-full Compose lifecycle, clean-source startup, realm metadata/drift, recovery,
-remote DemoModule, concurrent duplicates, tenant isolation and restore gates are
-not established by these container tests.
+Plan 2 remains open. This record covers Tasks3–7, including container/bootstrap
+prerequisites, full local Compose lifecycle, realm drift and failure/recovery.
+Task8 clean-source archive startup is pending. Remote DemoModule, concurrent event
+duplicates, tenant isolation and restore acceptance are not established by these
+local checks.
 
 ## Toolchain and verified upstream images (2026-11-09)
 
 The host used Linux amd64, 7,941 MiB RAM, no swap, and approximately 67 GiB
 available disk after builds. Docker Engine **29.9.3**, Compose **v5.7.0** and
-host .NET SDK **10.0.403** were available. Compose itself has not yet been used
-for this task: the minimum tested full-stack Compose version remains pending.
+host .NET SDK **10.0.403** were available. Task3 used runtime containers directly;
+Tasks6–7 below verify the full stack with Compose **v5.7.0**. This is the tested
+version, not a claim that older Compose releases have passed the full stack.
 The host SDK is `/tmp/crm-dotnet-10.0.403`; export its directory on `PATH` and
 set `DOTNET_ROOT` when running tests that launch `dotnet` child processes.
 
@@ -481,3 +483,66 @@ was rejected; all valid service mounts passed. Python compilation/diff checks PA
 fixture cleanup left no running containers. Baseline full70/4 suites remain evidence
 for `007883b`; the narrow fix uses the controller-approved focused scope.
 Captures `/tmp/crm-task6-review1-*.txt` are0600; no raw output/credential is reproduced.
+
+### Task 7 — failure, isolation and secret gates (2026-11-10)
+
+Task 7 adds nine real Compose failure tests and one multi-stage runtime secret
+check, with test-fixture helpers only. Product source, six-service configuration,
+public contracts, migration schema and dependency pins are unchanged. Tests stop
+actual dependencies, reject unsafe warm bootstrap and a PostgreSQL-rejected
+migration, recover interrupted provisioning, reject missing/changed credentials,
+and detect persisted Keycloak client drift without resetting it. Same API ID is
+required through CRM/IdP outages. Foreign healthy HTTP endpoints cannot satisfy
+smoke and survive rejection. Two actual lifecycle commands contend for the shared
+project lock across state paths/copied checkout; killing the first releases it,
+and retry retains fixture data/history/secrets. Two simultaneous projects have
+disjoint containers/networks/mounts and data. Shutdown is checked with its owned
+API process unable to respond.
+
+Secret checks capture all services and CLI/config diagnostics in memory, requiring
+safe events while excluding generated passwords/connections and query/header/
+bearer/cookie sentinels. They exercise success, actual bad API authentication,
+bootstrap, migration and unreadable IdP startup credential failures. Container and
+image config/history plus actual published API/migrator/PostgreSQL/Keycloak layer
+exports are scanned; gzip blobs are decompressed. Exports use a private temporary
+directory and are deleted. No raw secret capture appears in assertion messages.
+
+Test-first baseline was **8 passed/1 failed/0 skipped,total9**,12m46s. IdP recovery
+had assumed immediate full realm readiness after database management health. A
+safe tagged rerun reproduced that exact phase; bounded actual full-smoke polling
+then passed **1/1**,1m35s. The first secret/stronger-lock run failed both fixture
+assumptions: generic Docker scalar JSON broke the diagnostic formatter; after CLI
+kill, one exact remaining prerequisite stage was assumed. Object/string guards
+fixed the formatter. Subsequent secret runtime/layer audit passed in4m26s; stronger
+lock synchronization revealed that warm DB container recreation disconnected its
+session blocker. A safe diagnostic rerun confirmed both facts. The final lock
+fixture holds actual dev-up in the normal bounded stop of an owned SIGSTOP API,
+then verifies busy rejection, process-kill release and data/history/credential
+retention. Focused proof passed **1/1**,1m37s. These are test-harness corrections;
+no fabricated product RED/GREEN or production defect fix is claimed.
+
+Source frozen after those focused passes. Harness SDK10.0.403 remains under
+`/tmp/crm-dotnet-10.0.403`; developer commands strip it. Docker29.9.3/Compose5.7.0,
+~8GiB RAM; one project at a time except the intentional parallel-project case.
+Image/build caches reused, not a fresh-pull claim. Commands and exact chronological
+attempts are in the local Task7 report; captures `/tmp/crm-task7-*.txt` are0600.
+
+- `dotnet restore CrmPlatform.sln --locked-mode`: PASS.
+- `dotnet build CrmPlatform.sln -c Release --no-restore`: PASS,0 warnings/errors,1.59s.
+- `.venv/bin/python -m unittest discover -s tests/Contract -v`: **32 passed**,1.802s.
+- `.venv/bin/python -m unittest discover -s tests/Local -v`: **20 passed**,5.023s.
+- Python compilation, all local Bash entrypoint syntax and whitespace checks: PASS.
+- `dotnet test CrmPlatform.sln -c Release --no-build --no-restore --filter 'Category=Compose' --logger 'console;verbosity=normal'`:
+  **14 passed,0 failed/skipped,total14**,23.3303min,exit0.
+- `dotnet test CrmPlatform.sln -c Release --no-build --no-restore --filter 'Category!=Compose' --logger 'console;verbosity=normal'`:
+  **70 passed,0 failed/skipped,total70**,7.0451min,exit0.
+- Final documentation whitespace check: PASS; frozen implementation unchanged.
+
+Task7 implementation and mandatory gates are complete, ready for independent
+review. The final commit's three source blobs must match the frozen SHA256 values
+in the [2026-11-10 handoff](../handoff/2026-11-10-wave-0-plan-2-implementation-handoff.md).
+These fresh gates may be reused for Task8 only when that source is identical;
+the exact-SHA clean archive startup/smoke/down remains mandatory.
+
+Task8 clean-source export and remote DemoModule/tenant/restore acceptance remain
+open. This evidence does not claim production authentication or Wave0/P0 completion.

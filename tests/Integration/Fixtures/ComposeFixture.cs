@@ -13,30 +13,106 @@ public sealed class ComposeFixture : IAsyncDisposable
     public string State { get; } = Path.Combine(Path.GetTempPath(), "crm-compose-" + Guid.NewGuid().ToString("N"));
     public int ApiPort { get; }
     public int IdpPort { get; }
-    public ComposeFixture()
+    public ComposeFixture(int? apiPort = null, int? idpPort = null)
     {
         using var api = new TcpListener(IPAddress.Loopback, 0);
         using var idp = new TcpListener(IPAddress.Loopback, 0);
         api.Start(); idp.Start();
-        ApiPort = ((IPEndPoint)api.LocalEndpoint).Port;
-        IdpPort = ((IPEndPoint)idp.LocalEndpoint).Port;
+        ApiPort = apiPort ?? ((IPEndPoint)api.LocalEndpoint).Port;
+        IdpPort = idpPort ?? ((IPEndPoint)idp.LocalEndpoint).Port;
     }
     public record Result(int ExitCode, string Output)
     {
         public string SafeDiagnostic => string.Join(", ", Output.Split('\n', StringSplitOptions.RemoveEmptyEntries).Select(line =>
-        { try { return JsonDocument.Parse(line).RootElement.TryGetProperty("reasonToken", out var token) ? token.GetString() : "status"; } catch (JsonException) { return "non-json diagnostic"; } }));
+        { try { using var json = JsonDocument.Parse(line); return json.RootElement.ValueKind == JsonValueKind.Object && json.RootElement.TryGetProperty("reasonToken", out var token) && token.ValueKind == JsonValueKind.String ? token.GetString() : "status"; } catch (JsonException) { return "non-json diagnostic"; } }));
     }
-    public static void Success(Result result) => Assert.True(result.ExitCode == 0, result.SafeDiagnostic);
+    public static void Success(Result result, string stage = "operation") => Assert.True(result.ExitCode == 0, stage + ": " + result.SafeDiagnostic);
     private static string FindRoot() { var d = new DirectoryInfo(AppContext.BaseDirectory); while (d is not null && !File.Exists(Path.Combine(d.FullName, "CrmPlatform.sln"))) d = d.Parent; return d?.FullName ?? throw new InvalidOperationException(); }
-    public async Task<Result> Command(string action)
+    public ProcessStartInfo CommandInfo(string action, string? state = null, string? root = null, int? startTimeout = null)
     {
-        var p = new ProcessStartInfo("/bin/bash") { WorkingDirectory = Root, RedirectStandardOutput = true, RedirectStandardError = true };
+        var p = new ProcessStartInfo("/bin/bash") { WorkingDirectory = root ?? Root, RedirectStandardOutput = true, RedirectStandardError = true };
         p.ArgumentList.Add("scripts/dev-" + action + ".sh");
         p.Environment["PATH"] = "/usr/local/bin:/usr/bin:/bin";
         p.Environment.Remove("DOTNET_ROOT");
-        p.Environment["LOCAL_STACK_PROJECT"] = Project; p.Environment["LOCAL_STACK_STATE_DIR"] = State;
+        p.Environment["LOCAL_STACK_PROJECT"] = Project; p.Environment["LOCAL_STACK_STATE_DIR"] = state ?? State;
         p.Environment["LOCAL_API_PORT"] = ApiPort.ToString(); p.Environment["LOCAL_IDP_PORT"] = IdpPort.ToString();
-        return await Run(p, 1200);
+        if (startTimeout is not null) p.Environment["LOCAL_START_TIMEOUT_SECONDS"] = startTimeout.ToString();
+        return p;
+    }
+    public List<string> Captured { get; } = [];
+    public async Task<Result> Command(string action, string? state = null, string? root = null, int? startTimeout = null)
+    {
+        var result = await Run(CommandInfo(action, state, root, startTimeout), 1200);
+        Captured.Add(result.Output);
+        return result;
+    }
+    public async Task<Result> Compose(params string[] arguments)
+    {
+        var p = CommandInfo("up"); p.FileName = "docker"; p.ArgumentList.Clear();
+        foreach (var line in File.ReadAllLines(Path.Combine(Root, "infra/compose/images.lock.env")).Where(l => l.Length > 0 && !l.StartsWith('#')))
+        { var parts = line.Split('=', 2); p.Environment[parts[0]] = parts[1]; }
+        p.Environment["LOCAL_UID"] = (await Run(new ProcessStartInfo("id", "-u") { RedirectStandardOutput = true, RedirectStandardError = true }, 5)).Output.Trim();
+        p.Environment["LOCAL_GID"] = (await Run(new ProcessStartInfo("id", "-g") { RedirectStandardOutput = true, RedirectStandardError = true }, 5)).Output.Trim();
+        foreach (var arg in new[] { "compose", "--project-name", Project, "--file", Path.Combine(Root, "compose.yaml") }.Concat(arguments)) p.ArgumentList.Add(arg);
+        var result = await Run(p, 120); Captured.Add(result.Output); return result;
+    }
+    public async Task<string> Logs()
+    {
+        var logs = new List<string>();
+        foreach (var service in new[] { "crm-db", "crm-bootstrap", "crm-migrate", "crm-api", "idp-db", "keycloak" })
+        {
+            var ids = await Docker("ps", "-aq", "--filter", "label=com.docker.compose.project=" + Project, "--filter", "label=com.docker.compose.service=" + service);
+            foreach (var id in ids.Output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+            { var result = await Docker("logs", id); Assert.Equal(0, result.ExitCode); logs.Add(result.Output); }
+        }
+        return string.Join("\n", logs);
+    }
+    public static void Failure(Result result, params string[] tokens)
+    {
+        Assert.NotEqual(0, result.ExitCode);
+        var lines = result.Output.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        using var json = JsonDocument.Parse(lines.Last());
+        Assert.Contains(json.RootElement.GetProperty("reasonToken").GetString(), tokens);
+        Assert.True(Guid.TryParseExact(json.RootElement.GetProperty("correlationId").GetString(), "N", out _), "Safe correlation missing.");
+    }
+    public async Task Health(System.Net.HttpStatusCode ready)
+    {
+        using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(6) };
+        using var liveResponse = await client.GetAsync($"http://127.0.0.1:{ApiPort}/health/live");
+        Assert.Equal(HttpStatusCode.OK, liveResponse.StatusCode);
+        var clock = Stopwatch.StartNew();
+        using var response = await client.GetAsync($"http://127.0.0.1:{ApiPort}/health/ready");
+        Assert.Equal(ready, response.StatusCode);
+        if (ready == HttpStatusCode.ServiceUnavailable)
+        {
+            Assert.True(clock.Elapsed < TimeSpan.FromSeconds(5), "Readiness exceeded its budget.");
+            using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            var correlation = response.Headers.GetValues("X-Correlation-Id").Single();
+            Assert.Equal(correlation, body.RootElement.GetProperty("correlationId").GetString());
+            Assert.Contains(correlation, await Logs());
+        }
+    }
+    public async Task WaitSmoke()
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(180);
+        while ((deadline - DateTime.UtcNow).TotalSeconds > 1)
+        {
+            var result = await Command("smoke", startTimeout: Math.Max(1, (int)(deadline - DateTime.UtcNow).TotalSeconds));
+            if (result.ExitCode == 0) return;
+            Failure(result, "LOCAL_IDP_NOT_READY");
+            await Task.Delay(500);
+        }
+        Assert.Fail("Full IdP readiness did not recover within the 180-second deadline.");
+    }
+    public async Task WaitHealthy(string service)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(90);
+        while (DateTime.UtcNow < deadline)
+        {
+            if ((await Inspect(service)).GetProperty("State").GetProperty("Health").GetProperty("Status").GetString() == "healthy") return;
+            await Task.Delay(300);
+        }
+        Assert.Fail("Dependency did not recover within deadline.");
     }
     public static async Task<Result> Docker(params string[] arguments)
     {
@@ -65,6 +141,18 @@ public sealed class ComposeFixture : IAsyncDisposable
     {
         var r = await Docker("exec", await Container(service), "psql", "-U", role, "-d", database, "-At", "-v", "ON_ERROR_STOP=1", "-c", sql);
         Assert.True(r.ExitCode == 0, "SQL inspection failed."); return r.Output.Trim();
+    }
+    public async Task SqlInput(string sql)
+    {
+        var info = new ProcessStartInfo("docker") { RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true };
+        foreach (var argument in new[] { "exec", "-i", await Container("crm-db"), "psql", "-U", "postgres", "-d", "crm", "-v", "ON_ERROR_STOP=1" }) info.ArgumentList.Add(argument);
+        using var process = Process.Start(info)!;
+        var output = process.StandardOutput.ReadToEndAsync(); var error = process.StandardError.ReadToEndAsync();
+        await process.StandardInput.WriteAsync(sql); process.StandardInput.Close();
+        try { await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(20)); }
+        catch { process.Kill(true); throw; }
+        Captured.Add(await output + await error);
+        Assert.True(process.ExitCode == 0, "Private SQL operation failed.");
     }
     public async Task Ready()
     {
