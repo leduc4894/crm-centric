@@ -101,3 +101,69 @@ The frontend developer workflow is now in `docs/operations/04-LOCAL-DEVELOPMENT.
 Deferred by instruction and still open: `WEB_HEALTH_UNAVAILABLE` as a fourth unlisted local code, the missing 5 second deadline and transport-failure classification, the missing success-body validation, `changeOrigin: false` forwarding the browser `Host` header to the upstream, the weak assertions, the strict-port test binding the real 5173, and the declared `@crm-centric/operations-client` dependency never being the imported artifact. The `Host` header still reaches the upstream — the live stub logged `host: localhost:5173` — which is the current `changeOrigin: false` behaviour and is unchanged in this round.
 
 Task 6, Task 7, the browser tests, the exact-SHA clean export, Wave 0/P0 and remote acceptance remain open. No merge, push or deploy authorized.
+## Task 6 — health UI, cancellation and browser behaviour (pending scoped review)
+
+Task 5 fix round 1 is committed. Task 6 adds the operational health UI, the health adapter with its
+deadline and classification, the browser end-to-end suite and the leak scan, and it closes the
+findings that the Task 5 review carried forward.
+
+**The adapter and the UI.** `apps/crm-web/src/health/healthClient.ts` now exposes
+`checkHealth(signal: AbortSignal): Promise<HealthResult>` over the generated operations client. The
+result is discriminated by `kind` over `ready`, `unavailable`, `timeout`, `network` and `invalid`.
+The local classification codes are exactly `WEB_REQUEST_TIMEOUT`, `WEB_NETWORK_ERROR` and
+`WEB_CONTRACT_INVALID`; the fourth code `WEB_HEALTH_UNAVAILABLE` is gone. One deadline of five
+seconds covers the request and the body read. The success body is accepted only as
+`{"status":"ready"}`; a Problem is accepted only when it matches the canonical schema, and a
+malformed server correlation identifier is never displayed. A server correlation identifier is
+carried only by the `unavailable` variant; the local paths carry a client correlation identifier
+with the `web-` prefix, so a network error can never show a server reason or correlation.
+
+`apps/crm-web/src/health/HealthStatus.tsx` shows the readiness state and a `Check again` action,
+announces the state through `role="status"` with `aria-live="polite"`, never polls, cancels the
+pending request on a repeated check and on unmount, and ignores a stale response. Nothing is
+written to browser storage, a service worker or a cookie.
+
+**The carried-forward findings.** The credential strip now happens on the incoming request, before
+the proxy copies the headers to the outgoing request, so it applies to every proxied request; the
+proxy request hook alone was bypassable by a request with `Expect: 100-continue`, which a browser
+cannot send. The strict-port test binds an ephemeral port and closes the dev server it starts, so
+it no longer collides with the browser suite. The declared `@crm-centric/operations-client`
+dependency and its resolution to the generated source are documented in `apps/crm-web/README.md`.
+
+**Changed files.** `apps/crm-web/src/health/` (the adapter, its test, the UI, its test and the
+test-only fetch stub), `apps/crm-web/src/App.tsx`, `apps/crm-web/config/healthProxy.ts`,
+`apps/crm-web/config/devServer.ts`, `apps/crm-web/config/devServer.test.ts`,
+`apps/crm-web/playwright.config.ts`, `apps/crm-web/tests/e2e/health.spec.ts`,
+`apps/crm-web/scripts/leakScan.mjs`, `apps/crm-web/package.json`, `apps/crm-web/tsconfig.json`,
+`apps/crm-web/eslint.config.js`, `apps/crm-web/.gitignore`, `apps/crm-web/README.md`,
+`package.json`, `package-lock.json`, the four `sdks/*/provenance.json` files,
+`docs/operations/04-LOCAL-DEVELOPMENT.md` and this Plan 3 verification and handoff document. The
+canonical contracts, `compose.yaml`, `scripts/local/` and the Keycloak realm were not modified.
+
+**Dependencies.** `@playwright/test` 1.65.0, `jsdom` 31.0.0, `@testing-library/react` 16.3.3,
+`@testing-library/dom` 10.4.2 and `@testing-library/user-event` 14.6.9, all pinned exactly. The
+root manifest and lockfile changed, so `python3 scripts/contracts/generate.py` was re-run and the
+regenerated `sdks/*/provenance.json` files are part of this change; only the
+`configurationSha256` line differs in each of them.
+
+**Task 6 verification.** RED was `npm run test -w apps/crm-web` exiting 1 with 13 failed and 32
+passed of 45 tests — all behavioural, no compile error and no missing prerequisite. GREEN is exit 0
+with 46 passed tests in 4 test files. Typecheck, lint and build exit 0.
+`npm run test:e2e -w apps/crm-web` exits 0 with 4 passed browser tests, including one smoke test
+through the development proxy to the real API and PostgreSQL of the local stack, which fails
+loudly when the stack is not running. The browser is `chromium-1254` (Chrome for Testing
+158.0.8127.18) from `cdn.playwright.dev`, pinned by the lockfile and not committed. The leak scan
+exits 0 and was proven not to be vacuous. `python3 scripts/contracts/generate.py` exited 0 with
+`SDK_GENERATED` and `python3 scripts/contracts/check.py` exited 0 with `SDK_GENERATED_CURRENT`. The
+local stack was stopped again and no listener was left on 5080, 5173 or 8080.
+
+**Known limitations.** The browser smoke proves the same-origin path to the real local stack on this
+host; it does not prove production hosting, remote CI, tenant or user readiness, business
+endpoints or the identity provider callback. The readiness state covers the database and the schema
+only. The client correlation identifier falls back to a non-cryptographic source when
+`crypto.randomUUID` is unavailable, and the Problem boundary ignores unknown properties. The
+browser needs system libraries this host does not install; they were extracted into a temporary
+directory for the run and nothing was added to the repository.
+
+Task 7, the exact-SHA clean export, Wave 0/P0 and remote acceptance remain open. No merge, push or
+deploy is authorized.

@@ -4,6 +4,7 @@ import { workspaceAliases } from './aliases.ts';
 import {
   assertExactProxyPaths,
   buildProxyOptions,
+  credentialStripPlugin,
   DEV_SERVER_HOST,
   DEV_SERVER_PORT,
   HEALTH_PROXY_PATHS,
@@ -23,7 +24,7 @@ export function createWebConfig(env: NodeJS.ProcessEnv = process.env): UserConfi
   assertExactProxyPaths(HEALTH_PROXY_PATHS);
 
   return {
-    plugins: [react()],
+    plugins: [react(), credentialStripPlugin()],
     resolve: {
       alias: workspaceAliases
     },

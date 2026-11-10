@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { ProxyOptions } from 'vite';
+import type { Plugin, ProxyOptions } from 'vite';
 
 /** Only these two operational paths may leave the browser through the dev proxy. */
 export const HEALTH_PROXY_PATHS = ['/health/live', '/health/ready'] as const;
@@ -165,6 +165,34 @@ export function buildProxyOptions(target: ProxyTarget): Record<string, ProxyOpti
           }
         });
       }
+    }
+  };
+}
+
+/**
+ * Removes the credential-bearing headers from every request the proxy forwards.
+ *
+ * The removal happens on the incoming request, before the proxy copies the request headers to the
+ * outgoing request, so the credentials are never part of that copy. The proxy's own request hook
+ * cannot be the only mechanism: Vite emits that hook only when the outgoing request carries no
+ * `Expect` header, so a request with `Expect: 100-continue` would keep its credentials.
+ *
+ * A browser cannot send `Expect`, so the browser threat model was never affected; the control is
+ * nevertheless applied to every proxied request.
+ */
+export function credentialStripPlugin(): Plugin {
+  const matcher = new RegExp(HEALTH_PROXY_MATCHER);
+  return {
+    name: 'crm-centric:strip-proxy-credentials',
+    configureServer(server) {
+      server.middlewares.use((request, _response, next) => {
+        if (matcher.test(request.url ?? '')) {
+          for (const header of STRIPPED_PROXY_HEADERS) {
+            delete request.headers[header];
+          }
+        }
+        next();
+      });
     }
   };
 }

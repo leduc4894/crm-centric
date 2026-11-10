@@ -1,1 +1,4 @@
 dist/
+.leak-scan-build/
+test-results/
+playwright-report/

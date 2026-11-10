@@ -13,7 +13,9 @@
     "build": "npm run build --workspace @crm-centric/crm-web",
     "typecheck": "npm run typecheck --workspace @crm-centric/crm-web",
     "lint": "npm run lint --workspace @crm-centric/crm-web",
-    "test": "npm run test --workspace @crm-centric/crm-web"
+    "test": "npm run test --workspace @crm-centric/crm-web",
+    "test:e2e": "npm run test:e2e --workspace @crm-centric/crm-web",
+    "scan:leaks": "npm run scan:leaks --workspace @crm-centric/crm-web"
   },
   "devDependencies": { "openapi-typescript": "7.13.0", "typescript": "5.9.3" },
   "dependencies": { "openapi-fetch": "0.17.0" }

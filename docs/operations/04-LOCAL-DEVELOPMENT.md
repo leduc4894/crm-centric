@@ -110,6 +110,7 @@ answers on the configured port.
 | --- | --- |
 | Node.js | `24.22.2` (`.node-version`, enforced by `engine-strict=true`) |
 | npm | `11.19.1` (`packageManager` in the root `package.json`) |
+| Chromium (browser tests only) | `chromium-1254`, Chrome for Testing `158.0.8127.18`, pinned by `@playwright/test` `1.65.0` |
 
 Install from the repository root, because the root lockfile covers the whole workspace:
 
@@ -132,7 +133,18 @@ literals `127.0.0.1` and `::1`, and a malformed or non-loopback target fails at 
 reason token and a correlation ID before any server starts.
 
 The proxy removes `authorization`, `cookie` and `x-tenant-id` before forwarding, so the
-operational endpoints stay anonymous even once the browser holds a session.
+operational endpoints stay anonymous even once the browser holds a session. The removal happens on
+the incoming request, before the proxy copies the request headers to the outgoing request. The
+proxy's own request hook is not the only mechanism, because Vite emits that hook only when the
+outgoing request carries no `Expect` header; a browser cannot send `Expect`, so the browser threat
+model was never affected.
+
+The home page shows the operational readiness state of the platform and a `Check again` action. One
+check runs when the page mounts and one more per explicit retry; the page never polls. Every check
+has a total deadline of five seconds including the body read and is classified as ready,
+unavailable, `WEB_REQUEST_TIMEOUT`, `WEB_NETWORK_ERROR` or `WEB_CONTRACT_INVALID`. The state is
+announced through an `aria-live` region, and the page renders the reason token and the correlation
+identifier only — never the response body, a stack trace, the request URL or a token.
 
 Verify the frontend:
 
@@ -141,6 +153,27 @@ npm run typecheck -w apps/crm-web
 npm run lint -w apps/crm-web
 npm run test -w apps/crm-web
 npm run build -w apps/crm-web
+```
+
+The browser suite needs the pinned Chromium build, which is a local prerequisite and is never
+committed:
+
+```bash
+npx playwright install chromium
+```
+
+It needs the local stack, because one of its four tests goes through the development proxy to the
+real API and PostgreSQL and fails loudly when the stack is not running:
+
+```bash
+npm run test:e2e -w apps/crm-web
+```
+
+The leak scan proves that no secret, credential, sentinel or `.local/` metadata reaches the build
+artifacts, the source maps, the browser console or the process log:
+
+```bash
+npm run scan:leaks -w apps/crm-web
 ```
 
 `npm run build -w apps/crm-web` writes the static assets to `apps/crm-web/dist`.

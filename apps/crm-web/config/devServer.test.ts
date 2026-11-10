@@ -1,5 +1,6 @@
 import {
   createServer as createHttpServer,
+  request as httpRequest,
   type IncomingHttpHeaders,
   type Server as HttpServer
 } from 'node:http';
@@ -163,6 +164,42 @@ describe('the dev server proxy', () => {
     expect(first?.headers['x-correlation-id']).toBe('test-correlation-1');
   });
 
+  it('never relays a credential-bearing header when the request carries an Expect header', async () => {
+    devServer = await startDevServer({ LOCAL_API_PORT: String(stubApi.port) }, 0);
+    const origin = devServerOrigin(devServer);
+
+    await new Promise<void>((resolve, reject) => {
+      const request = httpRequest(
+        {
+          host: '127.0.0.1',
+          port: new URL(origin).port,
+          path: '/health/live',
+          method: 'GET',
+          headers: {
+            expect: '100-continue',
+            authorization: 'Bearer secret-token',
+            cookie: 'session=abc123',
+            'x-tenant-id': '11111111-1111-1111-1111-111111111111'
+          }
+        },
+        (response) => {
+          response.resume();
+          response.on('end', () => {
+            resolve();
+          });
+        }
+      );
+      request.on('error', reject);
+      request.end();
+    });
+
+    expect(stubApi.received.map((request) => request.url)).toEqual(['/health/live']);
+    const upstream = stubApi.received[0];
+    expect(upstream?.headers.authorization).toBeUndefined();
+    expect(upstream?.headers.cookie).toBeUndefined();
+    expect(upstream?.headers['x-tenant-id']).toBeUndefined();
+  });
+
   it('never answers with a wildcard CORS origin', async () => {
     devServer = await startDevServer({ LOCAL_API_PORT: String(stubApi.port) }, 0);
     const origin = devServerOrigin(devServer);
@@ -194,11 +231,23 @@ describe('the dev server port', () => {
     });
     await new Promise<void>((resolve, reject) => {
       foreignListener?.once('error', reject);
-      foreignListener?.listen(DEV_SERVER_PORT, DEV_SERVER_HOST, resolve);
+      foreignListener?.listen(0, DEV_SERVER_HOST, resolve);
+    });
+    const address = foreignListener.address();
+    if (address === null || typeof address === 'string') {
+      throw new Error('the foreign listener did not bind to a TCP port');
+    }
+
+    const config = createWebConfig({});
+    const server = await createServer({
+      ...config,
+      server: { ...config.server, port: address.port }
     });
 
-    const server = await createServer(createWebConfig({}));
-
-    await expect(server.listen()).rejects.toThrow(/already in use/i);
+    try {
+      await expect(server.listen()).rejects.toThrow(/already in use/i);
+    } finally {
+      await server.close();
+    }
   });
 });

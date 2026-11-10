@@ -5,7 +5,7 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['dist/**', 'coverage/**']
+    ignores: ['dist/**', 'coverage/**', 'test-results/**', 'playwright-report/**']
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
@@ -22,6 +22,16 @@ export default tseslint.config(
     },
     rules: {
       ...reactHooks.configs.flat['recommended-latest'].rules
+    }
+  },
+  {
+    files: ['**/*.mjs'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'module',
+      globals: {
+        ...globals.node
+      }
     }
   }
 );

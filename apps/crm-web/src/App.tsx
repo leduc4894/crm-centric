@@ -1,9 +1,10 @@
+import { HealthStatus } from './health/HealthStatus.tsx';
+
 /**
  * Application shell.
  *
- * Task 5 delivers the platform shell only: the heading and the minimal navigation. The operational
- * connection status, the retry action and the health states are delivered by the health UI slice
- * and are deliberately not implemented here.
+ * The shell provides the heading and the minimal navigation. The operational connection status,
+ * the retry action and the health states are delivered by the health UI slice.
  */
 export function App() {
   return (
@@ -19,7 +20,7 @@ export function App() {
         </ul>
       </nav>
       <main>
-        <p>The platform shell is available. Operational health states are not part of this slice.</p>
+        <HealthStatus />
       </main>
     </>
   );

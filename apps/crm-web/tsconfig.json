@@ -23,5 +23,5 @@
       "@crm-centric/operations-client": ["../../sdks/typescript/operations/index.ts"]
     }
   },
-  "include": ["src"]
+  "include": ["src", "tests", "playwright.config.ts"]
 }

@@ -150,3 +150,126 @@ Fix-round verification, with `PATH=<Node-24.22.2>/bin:$PATH LD_LIBRARY_PATH=/tmp
 The frontend developer workflow is now documented in `docs/operations/04-LOCAL-DEVELOPMENT.md` as well as in `apps/crm-web/README.md`: the pinned Node and npm, the root `npm ci`, `npm run dev -w apps/crm-web`, the strict port, the two-path proxy allowlist, the credential stripping, the verification commands, the static build and preview limitations, and the provenance regeneration requirement.
 
 
+### Task 6 — health UI, cancellation and browser behaviour (review pending)
+
+Task 6 delivers the operational health UI, the health adapter with its deadline and
+classification, the browser end-to-end suite and the leak scan. The Task 5 review findings that
+were carried forward are closed in this round: the fourth local classification code is gone, the
+5 second deadline includes the body read, transport failures are classified, the success body is
+validated, the credential strip no longer depends on the proxy request hook, the strict-port test
+no longer binds the real port 5173 and the declared operations-client dependency is documented.
+
+**The adapter.** `checkHealth(signal: AbortSignal): Promise<HealthResult>` replaces the previous
+`createHealthClient` surface. `HealthResult` is discriminated by `kind` over `ready`, `unavailable`,
+`timeout`, `network` and `invalid`. The local classification codes are exactly
+`WEB_REQUEST_TIMEOUT`, `WEB_NETWORK_ERROR` and `WEB_CONTRACT_INVALID`; the fourth code
+`WEB_HEALTH_UNAVAILABLE` of Task 5 no longer exists. The whole check, including the body read, is
+bound by one deadline of `HEALTH_DEADLINE_MS = 5000`, implemented with an internal
+`AbortController` that aborts the pending body. A timeout, a transport failure and a contract
+violation are closed local paths and carry a client correlation identifier with the `web-` prefix;
+a server correlation identifier is carried only by the `unavailable` variant and only when it
+matches a conservative display pattern. A malformed server correlation identifier is not displayed
+and no server reason or correlation is ever fabricated for a network error.
+
+**The contract boundary.** The success body is accepted only as the documented payload
+`{"status":"ready"}`; `{"status":"degraded"}`, a non-JSON body and any other shape are
+`WEB_CONTRACT_INVALID`. A Problem response is accepted only when `type`, `title`, `status`,
+`reasonToken` and `correlationId` match the canonical schema and their length bounds; the reason
+token pattern is the contract pattern `^[A-Z][A-Z0-9_]+$`. Unknown properties of a Problem are
+ignored because nothing of the payload is rendered. The rendered output contains the safe message,
+the reason token and the correlation identifier only: never the response body, the problem title
+or detail, a stack trace, the request URL, a query string or a token.
+
+**The UI.** The home page shows the readiness state of the platform and a `Check again` action. The
+state is announced through `role="status"` with `aria-live="polite"`. One check runs when the page
+mounts and one more per explicit retry; there is no polling and no automatic retry. A repeated
+check cancels the pending request, an unmount cancels it as well, and a stale response never
+overwrites the state of a newer check. Nothing is written to browser storage, a service worker or a
+cookie.
+
+**The proxy credential strip (F-1).** The strip now happens on the incoming request, before the
+proxy copies the request headers to the outgoing request, so it applies to every proxied request.
+The proxy request hook is not the only mechanism any more: Vite emits that hook only when the
+outgoing request carries no `Expect` header, and a request with `Expect: 100-continue` bypassed the
+strip entirely. The browser threat model was never affected, because `Expect` is a forbidden header
+name for a browser; the control is nevertheless applied to every proxied request now. The
+regression test `never relays a credential-bearing header when the request carries an Expect header`
+fails without the fix with `expected 'Bearer secret-token' to be undefined`.
+
+**The strict-port test (M-7).** The test binds an ephemeral port on the same host instead of the
+real port 5173 and closes the dev server it starts, so it no longer collides with the browser
+suite and no longer leaks a server handle.
+
+**The declared dependency (M-9).** `apps/crm-web/README.md` documents that
+`@crm-centric/operations-client@0.1.0` is declared but resolved to the generated source
+`sdks/typescript/operations/index.ts` by the Vite alias, the TypeScript path mapping and the Vitest
+alias; the package's compiled `dist/` output is an uncommitted build artifact. The Playwright suite
+runs against the bundle that the dev server built with the same alias.
+
+Task 6 verification on this branch, with `PATH=<Node-24.22.2>/bin:$PATH`:
+
+- RED: `npm run test -w apps/crm-web` exited 1 with 13 failed and 32 passed of 45 tests in 4 test
+  files (30.47 s). Every failure was behavioural: the adapter had no deadline, no transport
+  classification, no success-body validation and no Problem validation, and the UI showed no local
+  classification and no server correlation. No failure was a missing module or a compile error.
+- GREEN: `npm run test -w apps/crm-web` exited 0 with 46 passed of 46 tests in 4 test files
+  (6.40 s). The suite covers the loading-to-ready transition, the `aria-live` region, the keyboard
+  retry, the 503 Problem, the forged correlation identifier, the network error, the invalid body,
+  the hung-body timeout, the unmount cancellation, the repeated check, the stale response race and
+  the absence of raw HTML, stack, token and URL in the rendered output.
+- `npm run typecheck -w apps/crm-web`: exit 0 (11.53 s). `npm run lint -w apps/crm-web`: exit 0
+  (2.47 s). `npm run build -w apps/crm-web`: exit 0 (0.75 s), `dist/index.html` 0.32 kB and
+  `dist/assets/index-Brv62YHM.js` 230.71 kB (72.53 kB gzip).
+- Browser suite: `npm run test:e2e -w apps/crm-web` exited 0 with 4 passed (9.2 s). The four tests
+  are an intercepted 503 Problem, an intercepted timeout, an intercepted payload with a script
+  injection attempt and one smoke test through the development proxy to the real stack.
+- Browser version: `@playwright/test` 1.65.0 resolves `chromium-1254`, Chrome for Testing
+  158.0.8127.18. The binary was downloaded from `cdn.playwright.dev` into
+  `~/.cache/ms-playwright` and is not committed; the version is pinned by the committed lockfile.
+- The real stack: `bash scripts/dev-up.sh` reported `stack_ready` for the project
+  `crm-local-91859983f1e0` with the API on `http://localhost:5080`. The API answered
+  `GET /health/live` with 200 and `{"status":"live"}` and `GET /health/ready` with 200 and
+  `{"status":"ready"}`, both with `X-Correlation-Id` of 32 lower-case hexadecimal characters and
+  `Cache-Control: no-store`. `docker ps` listed
+  `crm-local-91859983f1e0-crm-api-1|127.0.0.1:5080->8080/tcp`, which is what the smoke test
+  requires to prove that the listener on the API port belongs to the stack and not to a foreign
+  service. The smoke test asserts the request method and host, the response status, the response
+  correlation identifier, and that the body the browser received is byte-identical to the body the
+  upstream returned directly.
+- The smoke test fails loudly without the stack: with `LOCAL_API_PORT=5099` it failed with
+  `the local stack is not running on http://127.0.0.1:5099; start it with bash scripts/dev-up.sh`
+  and the cause `connect ECONNREFUSED 127.0.0.1:5099`.
+- Leak scan: `npm run scan:leaks -w apps/crm-web` exited 0 with
+  `leak scan: no sentinel, secret, credential or local metadata leak in 5 artifact file(s),
+  3 browser console message(s) or the process log`. The scan builds the bundle with source maps in
+  a temporary directory inside the application, drives the real application against a stub API that
+  answers with synthetic sentinel values, and scans the artifacts, the source maps, the browser
+  console, the rendered document and the process output of the development server. The scan was
+  proven not to be vacuous: with the raw problem payload rendered into the document it reported
+  `browser:document: .local/stack` and exited 1. A finding is reported by name only.
+- Provenance: `python3 scripts/contracts/generate.py` exited 0 with `SDK_GENERATED`. The four
+  `sdks/*/provenance.json` files changed by one line each, the `configurationSha256` from
+  `952c7006539d9acc353db083811ae6e2e36129c2d1637190e81427e95a16af27` to
+  `b312a75eb102568ebc030f75aac09d038a0876c8c88c2b1fa442aaa89bbfc757`, because the root manifest and
+  lockfile are inputs of that hash. No generated client code, schema, contract or lock changed.
+  `python3 scripts/contracts/check.py` exited 0 with `SDK_GENERATED_CURRENT`.
+- The stack was stopped again with `bash scripts/dev-down.sh` (`stack_stopped`), no container of the
+  project remained and nothing listened on 5080, 5173 or 8080.
+
+**Host prerequisites, not committed.** The browser needs system libraries that this host does not
+install: `libatk-1.0.so.0`, `libatk-bridge-2.0.so.0`, `libatspi.so.0`, `libasound.so.2`,
+`libgbm.so.1`, `libXcomposite.so.1`, `libXdamage.so.1`, `libXfixes.so.3`, `libXrandr.so.2`,
+`libXi.so.6`, `libXrender.so.1`, `libavahi-client.so.3`, `libavahi-common.so.3`, `libharfbuzz.so.0`,
+`libpixman-1.so.0`, `libthai.so.0`, `libxcb-render.so.0` and `libxcb-shm.so.0`. They were extracted
+from the Ubuntu 24.04 packages into a temporary directory and are used through `LD_LIBRARY_PATH`;
+nothing outside `apps/crm-web/` was added to the repository and no system package manager step was
+added to the repository. The host also needs `LD_LIBRARY_PATH=/tmp/plan3-libs` for `libatomic`,
+which the generated clients already required.
+
+**Limitations of this slice.** The browser smoke proves the same-origin path through the
+development proxy to the real API and PostgreSQL of the local stack on this host. It does not prove
+production hosting, remote CI, tenant or user readiness, business endpoints, the identity provider
+callback or the remote-module end-to-end flow; the readiness state covers the database and the
+schema only. The client correlation identifier falls back to a non-cryptographic source when
+`crypto.randomUUID` is unavailable. The Problem boundary ignores unknown properties.
+

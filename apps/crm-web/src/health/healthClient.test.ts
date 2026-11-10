@@ -1,56 +1,41 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createHealthClient } from './healthClient.ts';
+import { HEALTH_DEADLINE_MS, LOCAL_REASON_TOKEN, checkHealth } from './healthClient.ts';
+import {
+  hungBodyResponse,
+  installFetchStub,
+  jsonResponse,
+  problemResponse,
+  type FetchStub
+} from './testing/fetchStub.ts';
 
 const ORIGINAL_FETCH = globalThis.fetch;
 
-interface CapturedRequest {
-  readonly request: Request;
-}
-
-function jsonResponse(body: unknown, init: { status?: number; headers?: Record<string, string> } = {}): Response {
-  return new Response(JSON.stringify(body), {
-    status: init.status ?? 200,
-    headers: { 'content-type': 'application/json', ...(init.headers ?? {}) }
-  });
-}
-
-let captured: CapturedRequest[] = [];
-let respond: (request: Request) => Response = () => jsonResponse({ status: 'live' });
+let stub: FetchStub;
 
 beforeEach(() => {
-  captured = [];
-  respond = () => jsonResponse({ status: 'live' });
-  globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
-    const request = input instanceof Request ? input : new Request(input);
-    captured.push({ request });
-    return respond(request);
-  }) as unknown as typeof globalThis.fetch;
+  stub = installFetchStub();
   vi.stubGlobal('location', { origin: 'http://localhost:5173' });
 });
 
 afterEach(() => {
   globalThis.fetch = ORIGINAL_FETCH;
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
-describe('createHealthClient', () => {
-  it('calls the dev server origin and never the API host directly', async () => {
-    const client = createHealthClient();
+describe('checkHealth', () => {
+  it('calls the readiness endpoint on the browser origin and never the API host directly', async () => {
+    await checkHealth(new AbortController().signal);
 
-    await client.checkLive();
-
-    expect(captured).toHaveLength(1);
-    expect(captured[0]?.request.url).toBe('http://localhost:5173/health/live');
-    expect(captured[0]?.request.method).toBe('GET');
+    expect(stub.requests).toHaveLength(1);
+    expect(stub.requests[0]?.url).toBe('http://localhost:5173/health/ready');
+    expect(stub.requests[0]?.method).toBe('GET');
   });
 
-  it('adds no authorization, cookie or tenant header', async () => {
-    const client = createHealthClient();
+  it('adds no authorization, cookie or tenant header and omits credentials', async () => {
+    await checkHealth(new AbortController().signal);
 
-    await client.checkReady();
-
-    const request = captured[0]?.request;
-    expect(request).toBeDefined();
+    const request = stub.requests[0];
     expect(request?.headers.get('authorization')).toBeNull();
     expect(request?.headers.get('cookie')).toBeNull();
     expect(request?.headers.get('x-tenant-id')).toBeNull();
@@ -58,93 +43,145 @@ describe('createHealthClient', () => {
     expect(request?.credentials).toBe('omit');
   });
 
-  it('reports liveness', async () => {
-    respond = () => jsonResponse({ status: 'live' });
-    const client = createHealthClient();
+  it('reports readiness for the documented readiness payload', async () => {
+    stub.respondWith(() => jsonResponse({ status: 'ready' }));
 
-    await expect(client.checkLive()).resolves.toEqual({ kind: 'live', status: 'live' });
-  });
-
-  it('reports readiness', async () => {
-    respond = () => jsonResponse({ status: 'ready' });
-    const client = createHealthClient();
-
-    await expect(client.checkReady()).resolves.toEqual({ kind: 'ready', status: 'ready' });
+    await expect(checkHealth(new AbortController().signal)).resolves.toEqual({ kind: 'ready' });
   });
 
   it('maps a 503 Problem to an unavailable result with the server reason token and correlation id', async () => {
-    respond = () =>
-      jsonResponse(
+    stub.respondWith(() =>
+      problemResponse(
         {
           type: 'urn:crm:problem:database-schema-not-ready',
-          title: 'Database schema is not ready',
+          title: 'Dependency unavailable',
           status: 503,
           reasonToken: 'DATABASE_SCHEMA_NOT_READY',
           correlationId: '0HNE5Q1J2K3L4'
         },
         { status: 503, headers: { 'x-correlation-id': '0HNE5Q1J2K3L4' } }
-      );
-    const client = createHealthClient();
+      )
+    );
 
-    await expect(client.checkReady()).resolves.toEqual({
+    await expect(checkHealth(new AbortController().signal)).resolves.toEqual({
       kind: 'unavailable',
       httpStatus: 503,
       reasonToken: 'DATABASE_SCHEMA_NOT_READY',
-      correlationId: '0HNE5Q1J2K3L4'
+      serverCorrelationId: '0HNE5Q1J2K3L4',
+      clientCorrelationId: null
     });
   });
 
   it('does not trust a malformed server correlation id', async () => {
-    respond = () =>
-      jsonResponse(
+    stub.respondWith(() =>
+      problemResponse(
         {
           type: 'urn:crm:problem:database-unavailable',
-          title: 'Database is unavailable',
+          title: 'Dependency unavailable',
           status: 503,
           reasonToken: 'DATABASE_UNAVAILABLE',
           correlationId: 'not a valid correlation id'
         },
         { status: 503, headers: { 'x-correlation-id': 'not a valid correlation id' } }
-      );
-    const client = createHealthClient();
+      )
+    );
 
-    const result = await client.checkReady();
+    const result = await checkHealth(new AbortController().signal);
 
     expect(result.kind).toBe('unavailable');
     if (result.kind !== 'unavailable') {
       throw new Error('expected an unavailable result');
     }
-    expect(result.correlationId).toBeNull();
+    expect(result.serverCorrelationId).toBeNull();
     expect(result.reasonToken).toBe('DATABASE_UNAVAILABLE');
   });
 
-  it('falls back to a local classification when the server sends no reason token', async () => {
-    respond = () => jsonResponse({ status: 503 }, { status: 503 });
-    const client = createHealthClient();
+  it('classifies a Problem without a valid reason token as an invalid contract', async () => {
+    stub.respondWith(() => problemResponse({ status: 503 }, { status: 503 }));
 
-    const result = await client.checkLive();
+    const result = await checkHealth(new AbortController().signal);
 
-    expect(result.kind).toBe('unavailable');
-    if (result.kind !== 'unavailable') {
-      throw new Error('expected an unavailable result');
+    expect(result.kind).toBe('invalid');
+    if (result.kind !== 'invalid') {
+      throw new Error('expected an invalid result');
     }
-    expect(result.reasonToken).toMatch(/^WEB_[A-Z0-9_]+$/);
-    expect(result.correlationId).toBeNull();
+    expect(result.reasonToken).toBe(LOCAL_REASON_TOKEN.invalid);
+    expect(result.serverCorrelationId).toBeNull();
+    expect(result.clientCorrelationId).toMatch(/^web-[0-9a-f]{12}$/);
   });
 
-  it('propagates the abort signal to the request', async () => {
+  it('classifies a success payload that is not the documented shape as an invalid contract', async () => {
+    stub.respondWith(() => jsonResponse({ status: 'degraded' }));
+
+    const result = await checkHealth(new AbortController().signal);
+
+    expect(result.kind).toBe('invalid');
+    if (result.kind !== 'invalid') {
+      throw new Error('expected an invalid result');
+    }
+    expect(result.reasonToken).toBe(LOCAL_REASON_TOKEN.invalid);
+  });
+
+  it('classifies a success body that is not JSON as an invalid contract', async () => {
+    stub.respondWith(
+      () =>
+        new Response('<html>not json</html>', {
+          status: 200,
+          headers: { 'content-type': 'application/json' }
+        })
+    );
+
+    const result = await checkHealth(new AbortController().signal);
+
+    expect(result.kind).toBe('invalid');
+    if (result.kind !== 'invalid') {
+      throw new Error('expected an invalid result');
+    }
+    expect(result.reasonToken).toBe(LOCAL_REASON_TOKEN.invalid);
+  });
+
+  it('classifies a transport failure as a network error without a server correlation', async () => {
+    stub.respondWith(() => {
+      throw new TypeError('Failed to fetch');
+    });
+
+    const result = await checkHealth(new AbortController().signal);
+
+    expect(result.kind).toBe('network');
+    if (result.kind !== 'network') {
+      throw new Error('expected a network result');
+    }
+    expect(result.reasonToken).toBe(LOCAL_REASON_TOKEN.network);
+    expect(result.serverCorrelationId).toBeNull();
+    expect(result.clientCorrelationId).toMatch(/^web-[0-9a-f]{12}$/);
+  });
+
+  it('aborts a pending body when the deadline expires', async () => {
+    vi.useFakeTimers();
+    stub.respondWith((request) => hungBodyResponse(request.signal));
+
+    const pending = checkHealth(new AbortController().signal);
+    await vi.advanceTimersByTimeAsync(HEALTH_DEADLINE_MS);
+    const result = await pending;
+
+    expect(result.kind).toBe('timeout');
+    if (result.kind !== 'timeout') {
+      throw new Error('expected a timeout result');
+    }
+    expect(result.reasonToken).toBe(LOCAL_REASON_TOKEN.timeout);
+    expect(result.serverCorrelationId).toBeNull();
+    expect(stub.requests[0]?.signal?.aborted).toBe(true);
+  });
+
+  it('rejects when the caller cancels the request', async () => {
+    stub.respondWith((request) => hungBodyResponse(request.signal));
+
     const controller = new AbortController();
-    const client = createHealthClient();
-
-    const pending = client.checkLive(controller.signal);
-    await vi.waitFor(() => expect(captured).toHaveLength(1));
-    const request = captured[0]?.request;
-    expect(request?.signal.aborted).toBe(false);
-
+    const pending = checkHealth(controller.signal);
     controller.abort();
-    await pending.catch(() => undefined);
 
-    expect(request?.signal.aborted).toBe(true);
+    await expect(pending).rejects.toBeDefined();
+    expect(stub.requests[0]?.signal?.aborted).toBe(true);
   });
 
   it('persists no health, token or contact data in browser storage', async () => {
@@ -153,9 +190,7 @@ describe('createHealthClient', () => {
     vi.stubGlobal('localStorage', { setItem: localStorageWrite, getItem: vi.fn(), removeItem: vi.fn() });
     vi.stubGlobal('sessionStorage', { setItem: sessionStorageWrite, getItem: vi.fn(), removeItem: vi.fn() });
 
-    const client = createHealthClient();
-    await client.checkLive();
-    await client.checkReady();
+    await checkHealth(new AbortController().signal);
 
     expect(localStorageWrite).not.toHaveBeenCalled();
     expect(sessionStorageWrite).not.toHaveBeenCalled();
