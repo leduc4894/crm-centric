@@ -116,4 +116,37 @@ The workspace root changes the root manifest and lockfile, which Task 1's genera
 
 Limitations of this slice: the proxy allowlist and the startup validation are proven against a loopback stub API, not against the running backend; the dev server was exercised manually and by Vitest, but no browser end-to-end test exists yet. The adapter does not classify transport failures, impose the 5 second deadline, manage stale-response races or render health states; those belong to the health UI slice. `vite preview` serves static assets only and is not a production reverse proxy.
 
+### Task 5 fix round 1 — credential stripping and matcher escaping (review pending)
+
+The independent review of `ffcc7ae` raised one blocking Important finding and one recommended finding, both in the proxy boundary.
+
+**I-1 — the dev proxy relayed the browser's credential headers to the upstream API.** http-proxy copies the incoming request headers into the outgoing request (`outgoing.headers = { ...req.headers }`) and deletes `authorization` only when `options.auth` is set, which the health proxy does not set. A loopback stub therefore received `authorization: Bearer …`, `cookie: session=…` and `x-tenant-id: …` from the browser. The operational endpoints are anonymous by contract, so relaying them would hand a browser session or a tenant selection to the API host the moment the browser holds credentials.
+
+The fix removes the credential-bearing headers at the proxy boundary, in the proxy's own request hook, so it applies to every proxied request:
+
+- `apps/crm-web/config/healthProxy.ts` adds `STRIPPED_PROXY_HEADERS = ['authorization', 'cookie', 'x-tenant-id']` and a `configure` hook on the proxy options that removes them in the `proxyReq` event.
+- `authorization` is the `bearerAuth` scheme of the CRM API contract; `cookie` is the browser session; `x-tenant-id` is the canonical tenant context header of the CRM API (`docs/contracts/crm-api.openapi.yaml`, the `TenantContext` parameter). No invented tenant header name was added.
+- The list is deliberately small. `Accept`, `Content-Type` and `X-Correlation-Id` are legitimate request headers and are forwarded unchanged, and the regression test asserts that they still arrive.
+
+**M-4 — the proxy matcher was only incidentally regex-safe.** The matcher was built by joining the allowlist paths with `|`, so a future path such as `/health/live.v2` would have produced a matcher that also accepted `/health/liveXv2`. `buildProxyMatcher` now escapes every regular-expression metacharacter of every path, so the "the allowlist and the matcher cannot drift apart" guarantee is structural rather than incidental.
+
+Covering tests:
+
+- `apps/crm-web/config/devServer.test.ts` — `never relays a credential-bearing header to the upstream API`: the real Vite dev server plus a real loopback stub API. The stub now records the headers it received. The request carries `authorization`, `cookie` and `x-tenant-id`; the assertions require the upstream to have received none of them, and to have received `accept` and `x-correlation-id`.
+- `apps/crm-web/config/healthProxy.test.ts` — `does not let a regex metacharacter in an allowlist path widen the matcher`: five metacharacter cases (`.`, `+`, `(`, `)`, `|`, `$`), each required to match only itself and never a widened variant; plus `keeps the allowlist paths as literal alternatives`.
+
+Fix-round verification, with `PATH=<Node-24.22.2>/bin:$PATH LD_LIBRARY_PATH=/tmp/plan3-libs`:
+
+- RED: `npm run test -w apps/crm-web` exited 1 with 2 failed and 28 passed of 30 tests. The I-1 failure was `expected 'Bearer secret-token' to be undefined`, that is the upstream stub received the credential header. The M-4 failure was `/health/live.v2 must not widen to /health/liveXv2: expected true to be false`. Both were behavioural; neither was a compile error.
+- GREEN: `npm run test -w apps/crm-web` exited 0 with 30 passed tests in 3 test files (1.54 s).
+- `npm run typecheck -w apps/crm-web`: exit 0. `npm run lint -w apps/crm-web`: exit 0.
+- Live re-verification after the fix, with a loopback stub on `127.0.0.1:5080` and `npm run dev -w apps/crm-web` serving `http://localhost:5173/`: `GET /health/live` carrying `Authorization`, `Cookie`, `X-Tenant-Id`, `Accept` and `X-Correlation-Id` returned 200 and the stub logged `authorization: null, cookie: null, x-tenant-id: null, accept: application/json, x-correlation-id: live-correlation-1`. `GET /health/ready` returned 200 and reached the stub. `GET /api/contacts` and `GET /admin/tenants` returned the dev server's own response and never reached the stub.
+- `python3 scripts/contracts/check.py`: exit 0, `SDK_GENERATED_CURRENT`. This round changed no root manifest or lockfile, so the SDK provenance was not regenerated and `git diff ffcc7ae --stat -- docs/contracts sdks/` is empty.
+
+**Binding requirement for later slices.** The root `package.json` and the root `package-lock.json` are inputs to the SDK generator's configuration hash, and `scripts/contracts/check.py` compares the `sdks/` tree byte for byte. Therefore **after any change to the root manifest or lockfile, `python3 scripts/contracts/generate.py` must be re-run and the regenerated `sdks/*/provenance.json` committed, or the generated check reports `SDK_GENERATED_MISMATCH`.** Task 6 adds a browser test runner and will change the lockfile, so it will hit exactly this. The requirement is recorded in `apps/crm-web/README.md` and in `docs/operations/04-LOCAL-DEVELOPMENT.md`, the developer-facing guide.
+
+**Deferred by instruction and still open.** `WEB_HEALTH_UNAVAILABLE` as a fourth unlisted local code, the missing 5 second deadline and transport-failure classification, the missing success-body validation, `changeOrigin: false` forwarding the browser `Host` header to the upstream, the weak assertions, the strict-port test binding the real 5173, and the declared `@crm-centric/operations-client` dependency never being the imported artifact. The `Host` header still reaches the upstream: the live stub logged `host: localhost:5173`, which is the current `changeOrigin: false` behaviour and is unchanged in this round.
+
+The frontend developer workflow is now documented in `docs/operations/04-LOCAL-DEVELOPMENT.md` as well as in `apps/crm-web/README.md`: the pinned Node and npm, the root `npm ci`, `npm run dev -w apps/crm-web`, the strict port, the two-path proxy allowlist, the credential stripping, the verification commands, the static build and preview limitations, and the provenance regeneration requirement.
+
 

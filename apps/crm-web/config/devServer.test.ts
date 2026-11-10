@@ -1,19 +1,28 @@
-import { createServer as createHttpServer, type Server as HttpServer } from 'node:http';
+import {
+  createServer as createHttpServer,
+  type IncomingHttpHeaders,
+  type Server as HttpServer
+} from 'node:http';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { createServer, type ViteDevServer } from 'vite';
 import { createWebConfig } from './devServer';
 import { DEV_SERVER_HOST, DEV_SERVER_PORT } from './healthProxy';
 
+interface StubApiRequest {
+  readonly url: string;
+  readonly headers: IncomingHttpHeaders;
+}
+
 interface StubApi {
   readonly server: HttpServer;
   readonly port: number;
-  readonly receivedPaths: string[];
+  readonly received: StubApiRequest[];
 }
 
 async function startStubApi(): Promise<StubApi> {
-  const receivedPaths: string[] = [];
+  const received: StubApiRequest[] = [];
   const server = createHttpServer((request, response) => {
-    receivedPaths.push(request.url ?? '');
+    received.push({ url: request.url ?? '', headers: request.headers });
     response.writeHead(200, { 'content-type': 'application/json' });
     response.end(JSON.stringify({ stub: 'loopback-api' }));
   });
@@ -28,7 +37,7 @@ async function startStubApi(): Promise<StubApi> {
     throw new Error('the stub API did not bind to a TCP port');
   }
 
-  return { server, port: address.port, receivedPaths };
+  return { server, port: address.port, received };
 }
 
 async function startDevServer(env: NodeJS.ProcessEnv, port: number): Promise<ViteDevServer> {
@@ -93,7 +102,7 @@ describe('the dev server proxy', () => {
   afterEach(async () => {
     await devServer?.close();
     devServer = undefined;
-    stubApi.receivedPaths.length = 0;
+    stubApi.received.length = 0;
   });
 
   it('proxies the two operational health paths to the loopback API', async () => {
@@ -106,7 +115,7 @@ describe('the dev server proxy', () => {
     expect(live.status).toBe(200);
     expect(ready.status).toBe(200);
     expect(await live.json()).toEqual({ stub: 'loopback-api' });
-    expect(stubApi.receivedPaths).toEqual(['/health/live', '/health/ready']);
+    expect(stubApi.received.map((request) => request.url)).toEqual(['/health/live', '/health/ready']);
   });
 
   it('does not proxy any path outside the allowlist', async () => {
@@ -118,7 +127,40 @@ describe('the dev server proxy', () => {
       expect(response.status, `${path} must not be served by the proxy`).toBe(404);
     }
 
-    expect(stubApi.receivedPaths).toEqual([]);
+    expect(stubApi.received).toEqual([]);
+  });
+
+  it('never relays a credential-bearing header to the upstream API', async () => {
+    devServer = await startDevServer({ LOCAL_API_PORT: String(stubApi.port) }, 0);
+    const origin = devServerOrigin(devServer);
+
+    await fetch(`${origin}/health/live`, {
+      headers: {
+        authorization: 'Bearer secret-token',
+        cookie: 'session=abc123',
+        'x-tenant-id': '11111111-1111-1111-1111-111111111111',
+        accept: 'application/json',
+        'x-correlation-id': 'test-correlation-1'
+      }
+    });
+    await fetch(`${origin}/health/ready`, {
+      headers: {
+        authorization: 'Bearer secret-token',
+        cookie: 'session=abc123',
+        'x-tenant-id': '11111111-1111-1111-1111-111111111111'
+      }
+    });
+
+    expect(stubApi.received.map((request) => request.url)).toEqual(['/health/live', '/health/ready']);
+    for (const upstream of stubApi.received) {
+      expect(upstream.headers.authorization).toBeUndefined();
+      expect(upstream.headers.cookie).toBeUndefined();
+      expect(upstream.headers['x-tenant-id']).toBeUndefined();
+    }
+
+    const first = stubApi.received[0];
+    expect(first?.headers.accept).toBe('application/json');
+    expect(first?.headers['x-correlation-id']).toBe('test-correlation-1');
   });
 
   it('never answers with a wildcard CORS origin', async () => {

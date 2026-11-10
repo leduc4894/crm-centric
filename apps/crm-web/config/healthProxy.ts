@@ -5,12 +5,39 @@ import type { ProxyOptions } from 'vite';
 export const HEALTH_PROXY_PATHS = ['/health/live', '/health/ready'] as const;
 
 /**
+ * Credential-bearing headers that must never cross the browser-to-proxy boundary.
+ *
+ * The operational health endpoints are anonymous by contract, so relaying these would hand a
+ * browser session or a tenant selection to the API. `authorization` carries the `bearerAuth`
+ * scheme, `cookie` carries the browser session and `x-tenant-id` is the canonical tenant context
+ * header of the CRM API (`docs/contracts/crm-api.openapi.yaml`).
+ */
+export const STRIPPED_PROXY_HEADERS = ['authorization', 'cookie', 'x-tenant-id'] as const;
+
+const REGEX_METACHARACTERS = /[.*+?^${}()|[\]\\]/g;
+
+/** Escapes a literal allowlist path so it cannot widen the proxy matcher. */
+function escapeRegExp(value: string): string {
+  return value.replace(REGEX_METACHARACTERS, '\\$&');
+}
+
+/**
+ * Builds the regular-expression proxy context matcher for an allowlist.
+ *
+ * Every path is escaped, so a path that contains a regular-expression metacharacter matches only
+ * itself and can never widen the allowlist.
+ */
+export function buildProxyMatcher(paths: readonly string[]): string {
+  return `^(${paths.map(escapeRegExp).join('|')})(\\?.*)?$`;
+}
+
+/**
  * Regular expression source Vite compiles into the proxy context matcher.
  *
  * The matcher is derived from the allowlist so the two can never drift apart. A trailing query
  * string is accepted because Vite matches the context against the request URL including it.
  */
-export const HEALTH_PROXY_MATCHER = `^(${HEALTH_PROXY_PATHS.join('|')})(\\?.*)?$`;
+export const HEALTH_PROXY_MATCHER = buildProxyMatcher(HEALTH_PROXY_PATHS);
 
 export const DEFAULT_LOCAL_API_HOST = '127.0.0.1';
 export const DEFAULT_LOCAL_API_PORT = 5080;
@@ -119,12 +146,25 @@ export function assertExactProxyPaths(paths: readonly string[]): void {
   }
 }
 
-/** Builds the Vite proxy options for the operational health endpoints only. */
+/**
+ * Builds the Vite proxy options for the operational health endpoints only.
+ *
+ * The proxy forwards the browser request headers by default, so the credential-bearing headers are
+ * removed at the proxy boundary before the upstream request is sent. The operational endpoints are
+ * anonymous by contract and must stay anonymous even once the browser holds a session.
+ */
 export function buildProxyOptions(target: ProxyTarget): Record<string, ProxyOptions> {
   return {
     [HEALTH_PROXY_MATCHER]: {
       target: target.origin,
-      changeOrigin: false
+      changeOrigin: false,
+      configure: (proxy) => {
+        proxy.on('proxyReq', (proxyReq) => {
+          for (const header of STRIPPED_PROXY_HEADERS) {
+            proxyReq.removeHeader(header);
+          }
+        });
+      }
     }
   };
 }

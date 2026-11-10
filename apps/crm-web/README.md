@@ -24,6 +24,10 @@ Install from the repository root so the workspace lockfile stays authoritative:
 npm ci
 ```
 
+The backend stack is started separately; see
+[the local development guide](../../docs/operations/04-LOCAL-DEVELOPMENT.md). The frontend never
+starts or stops the developer stack.
+
 ## Develop
 
 ```bash
@@ -59,6 +63,36 @@ The dev server proxies exactly two paths to the loopback API:
 Every other path, including the identity provider, the admin API and the business API, is served by
 the dev server itself and is never forwarded. The allowlist is validated at startup and a wildcard
 CORS origin is never configured.
+
+### Credential stripping at the proxy boundary
+
+The operational endpoints are anonymous by contract, so the proxy removes the credential-bearing
+headers before the upstream request is sent. The stripped list is explicit and small:
+
+| Header | Reason |
+| --- | --- |
+| `authorization` | The `bearerAuth` scheme of the CRM API contract |
+| `cookie` | The browser session, which must never reach the API host |
+| `x-tenant-id` | The canonical tenant context header of the CRM API contract |
+
+`Accept`, `Content-Type` and `X-Correlation-Id` are legitimate request headers and are forwarded
+unchanged. The `Host` header is still the browser host (`localhost:5173`) because the proxy keeps
+`changeOrigin: false`; that behaviour is tracked separately and is not changed here.
+
+### Changing dependencies or the workspace root
+
+Every dependency is pinned to an exact version. After **any** change to the repository-root
+`package.json` or `package-lock.json`, the generated SDK provenance must be regenerated, because
+both files are inputs to the SDK generator's configuration hash:
+
+```bash
+python3 scripts/contracts/generate.py
+python3 scripts/contracts/check.py    # must print SDK_GENERATED_CURRENT
+git add sdks/*/provenance.json
+```
+
+Without this the byte-for-byte generated check reports `SDK_GENERATED_MISMATCH`. The same applies
+to any later slice that adds a dependency, for example a browser test runner.
 
 ## Verify
 

@@ -99,3 +99,64 @@ python3 -m unittest discover -s tests/Local -v
 Compose fixtures use random project names, separate state/ports, and remove only
 their own labeled resources. These local checks do not close Wave 0/P0 or establish
 CRM login, tenant authorization, remote-module E2E or restore readiness.
+
+## Frontend application
+
+The web application is a separate npm workspace (`apps/crm-web`) and runs on the host, not in
+Docker. It needs its own pinned Node and npm, and the local stack must already be up so the API
+answers on the configured port.
+
+| Requirement | Version |
+| --- | --- |
+| Node.js | `24.22.2` (`.node-version`, enforced by `engine-strict=true`) |
+| npm | `11.19.1` (`packageManager` in the root `package.json`) |
+
+Install from the repository root, because the root lockfile covers the whole workspace:
+
+```bash
+npm ci
+```
+
+Start the dev server after the stack is ready:
+
+```bash
+npm run dev -w apps/crm-web
+```
+
+The dev server binds `http://localhost:5173` with a strict port: if the port is occupied it fails
+with `Port 5173 is already in use` and does not select another port. It proxies exactly two paths,
+`/health/live` and `/health/ready`, to `http://127.0.0.1:${LOCAL_API_PORT:-5080}`. The identity
+provider, the admin API and the business API are never proxied, and no wildcard CORS origin is
+configured. `LOCAL_API_PORT` overrides the API port; `LOCAL_API_HOST` is restricted to the loopback
+literals `127.0.0.1` and `::1`, and a malformed or non-loopback target fails at startup with a
+reason token and a correlation ID before any server starts.
+
+The proxy removes `authorization`, `cookie` and `x-tenant-id` before forwarding, so the
+operational endpoints stay anonymous even once the browser holds a session.
+
+Verify the frontend:
+
+```bash
+npm run typecheck -w apps/crm-web
+npm run lint -w apps/crm-web
+npm run test -w apps/crm-web
+npm run build -w apps/crm-web
+```
+
+`npm run build -w apps/crm-web` writes the static assets to `apps/crm-web/dist`.
+`npm run preview -w apps/crm-web` serves those assets only: it is not a production reverse proxy
+and does not proxy any API path.
+
+After any change to the repository-root `package.json` or `package-lock.json` — for example adding
+a dependency — regenerate the SDK provenance and commit it, otherwise the generated check reports
+`SDK_GENERATED_MISMATCH`:
+
+```bash
+python3 scripts/contracts/generate.py
+python3 scripts/contracts/check.py    # must print SDK_GENERATED_CURRENT
+git add sdks/*/provenance.json
+```
+
+The frontend details are in [`apps/crm-web/README.md`](../../apps/crm-web/README.md) and the
+verification record is in
+[the Plan 3 verification document](../engineering/07-WAVE-0-PLAN-3-VERIFICATION.md).

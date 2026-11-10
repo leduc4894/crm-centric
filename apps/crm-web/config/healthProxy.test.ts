@@ -5,6 +5,7 @@ import {
   HEALTH_PROXY_PATHS,
   ProxyConfigurationError,
   assertExactProxyPaths,
+  buildProxyMatcher,
   buildProxyOptions,
   resolveProxyTarget
 } from './healthProxy.ts';
@@ -88,6 +89,35 @@ describe('assertExactProxyPaths', () => {
         ProxyConfigurationError
       );
     }
+  });
+});
+
+describe('buildProxyMatcher', () => {
+  it('does not let a regex metacharacter in an allowlist path widen the matcher', () => {
+    const cases: readonly (readonly [string, string])[] = [
+      ['/health/live.v2', '/health/liveXv2'],
+      ['/health/live+v2', '/health/livev2'],
+      ['/health/live(2)', '/health/live2'],
+      ['/health/live|ready', '/health/liveready'],
+      ['/health/live$', '/health/live']
+    ];
+
+    for (const [path, widened] of cases) {
+      const matcher = new RegExp(buildProxyMatcher([path]));
+
+      expect(matcher.test(path), `${path} must match itself`).toBe(true);
+      expect(matcher.test(widened), `${path} must not widen to ${widened}`).toBe(false);
+    }
+  });
+
+  it('keeps the allowlist paths as literal alternatives', () => {
+    const matcher = new RegExp(buildProxyMatcher(HEALTH_PROXY_PATHS));
+
+    expect(matcher.test('/health/live')).toBe(true);
+    expect(matcher.test('/health/ready')).toBe(true);
+    expect(matcher.test('/health/live?probe=1')).toBe(true);
+    expect(matcher.test('/health/live/extra')).toBe(false);
+    expect(matcher.test('/api/contacts')).toBe(false);
   });
 });
 
