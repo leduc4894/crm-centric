@@ -7,9 +7,12 @@ Implement [Plan 3](../superpowers/plans/2026-11-10-wave-0-plan-3-frontend-contra
 ## Current state
 
 Branch `feat/wave-0-plan-3-frontend-contract-toolchain`, base `5257abf`. Tasks 1–7 are
-implemented and committed; the last commit of this branch carries the aggregate gate and the
-evidence. The detailed per-task history is below, newest last. The generator selection,
-pinned artifacts, prerequisites, coverage and current evidence are in [Plan 3
+implemented and committed. HEAD is `ac69dc78c06e54497b83dd5599dbab8d60544f98`
+(`fix(contracts): harden the Plan 3 aggregate reporting and teardown`, the fix round of the
+independent review of Task 7); the documentation of that round follows it in one commit.
+The working tree carries only the intended documentation changes of the round, no
+uncommitted source work. The detailed per-task history is below, newest last. The generator
+selection, pinned artifacts, prerequisites, coverage and current evidence are in [Plan 3
 verification](../engineering/07-WAVE-0-PLAN-3-VERIFICATION.md). Corvus.Json.Cli 5.8.8 supplies
 C# generated clients; openapi-typescript 7.13.0 plus openapi-fetch 0.17.0 supplies typed TS
 clients. No canonical contract was changed, and `compose.yaml`, `scripts/local/`, `infra/`
@@ -313,3 +316,55 @@ committed, so a clean export needs them copied in; the tooling verifies their di
 task; this task only leaves the branch reviewable. Wave 0/P0 acceptance, remote DemoModule
 end-to-end, tenant isolation, outage/recovery and restore drills and remote CI remain
 **OPEN** and are not claimed here. No merge, push or deploy is authorized.
+
+## Task 7 fix round 1 — aggregate reporting, error envelope and teardown (pending scoped review)
+
+The independent review of Task 7 returned 0 Critical, 3 Important and 9 Minor findings.
+This round closes the three blocking findings and the documentation corrections in the commit
+`fix(contracts): harden the Plan 3 aggregate reporting and teardown`. The commits
+`0695cc2` and `422e049` are unchanged.
+
+**Branch and state.** Branch `feat/wave-0-plan-3-frontend-contract-toolchain`. The fix is
+commit `ac69dc78c06e54497b83dd5599dbab8d60544f98`; the documentation of this round is the
+commit that follows it. The working tree contains only the intended documentation changes
+of this round and no uncommitted source work. No merge, push or deploy is authorized.
+
+**What changed in the code.** The aggregate now iterates over all ten steps, so a step that
+did not run because an earlier step failed is recorded as `not run: an earlier step failed`
+in the step table and in the command list. Every closed error path of the aggregate itself
+carries a reason token and the correlation identifier of the run: `PLAN3_ARGUMENT_INVALID`,
+`PLAN3_PREREQUISITE_MISSING`, `PLAN3_TOOLCHAIN_MISMATCH`, `PLAN3_STACK_START_FAILED`,
+`PLAN3_STACK_TEARDOWN_FAILED`, `PLAN3_SOURCE_MUTATED` and a failing step. A `dev-down.sh`
+that fails now fails the browser step instead of being reduced to a warning, and an `EXIT`,
+`INT` or `TERM` trap stops a stack that the run started, so an interrupted run cannot
+orphan it. The source digest covers untracked files next to the tracked ones and warns when
+it falls back to a reduced scope. The echoed step output is defensively redacted. The clean
+export refuses a target directory that is not empty or that is protected, and it prints the
+digest of the oasdiff executable next to the Corvus.Json.Cli package.
+
+**Coverage.** `tests/Plan3/aggregate-reporting.sh` is the new regression harness: the
+argument and toolchain error envelopes, the "not run" accounting of all ten steps, a
+failing stack teardown, an interrupted run and the export target guard. It was observed
+RED against the reviewed aggregate (5 of 6 failed; the interrupt case was vacuous at first
+and was corrected to reset the SIGINT disposition and to assert that the run was really
+interrupted) and GREEN after the fix (6 of 6).
+
+**Verification.** The negative-case harness passed 3 of 3 cases, the reporting harness
+passed 6 of 6 cases, the clean exact-SHA export of the fix commit against base
+`408ded6b01f1373dfaff92a663f2f80347475f55` passed the aggregate with all ten steps,
+including the browser smoke against a test-owned stack, and the tracked and untracked file
+digest was unchanged during the run. The contract suite and the Local Python suite were
+executed again on this commit. Exact commands, counts and durations are in the Plan 3
+verification document.
+
+**Known limitations.** The aggregate trusts the driven tools for the deeper property that
+no secret is emitted; it only redacts the common secret shapes in the echoed output. The
+browser needs the Chromium shared libraries, which this host does not install; they are
+provided through `LD_LIBRARY_PATH` and are a local prerequisite, not a repository step. The
+local tool artifacts are not committed and are copied into every sandbox and export; the
+tooling verifies their digests.
+
+**Still open.** The read-only whole-branch review is performed by the controller after this
+round; the plan keeps the annotation that it has not run. Wave 0/P0 acceptance, remote
+DemoModule end-to-end, tenant isolation, outage/recovery and restore drills and remote CI
+remain **OPEN** and are not claimed here.

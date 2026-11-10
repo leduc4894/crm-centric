@@ -10,6 +10,12 @@
 
 **Spec:** `docs/superpowers/specs/2026-11-10-wave-0-plan-3-frontend-contract-toolchain-design.md`.
 
+> **Checkbox status:** the boxes record the implementation state of this branch, not the
+> review outcome. Every box of Tasks 1–7 is ticked because the corresponding implementation,
+> tests and evidence are committed; the read-only task reviews are controller activities and
+> are tracked in the handoff. The Task 7 box keeps its annotation: the read-only
+> whole-branch review has not run yet and the controller runs it after the last fix round.
+
 ## Global Constraints
 
 - Canonical inputs: `docs/contracts/crm-api.openapi.yaml`, `docs/contracts/platform-operations.openapi.yaml`; không sửa contract để generator pass.
@@ -52,10 +58,10 @@ Public entrypoints: `python3 scripts/contracts/generate.py`, `python3 scripts/co
 
 **Interfaces:** `generate.py --output-root <dir>` tạo cả bốn outputs từ canonical inputs; default output là declared SDK roots. `check.py` generate trong temp, so full tree với committed outputs và provenance; không mutate workspace. Input hashes, tool digest và config hash được lưu trong output metadata.
 
-- [ ] Kiểm tra Node/npm/.NET/Docker và official stable generator candidates. Bootstrap test harness/locks tối thiểu; ghi prerequisites riêng, không coi thiếu package là RED.
-- [ ] Viết `test_generated_check_rejects_missing_edited_extra_and_nonlocal_refs`: bắt đầu bằng generated fixture hợp lệ, sửa/xóa/thêm file hoặc remote `$ref`; assert nonzero safe reason, workspace hashes không đổi. Chạy test: RED do gate stub thiếu behavior.
-- [ ] Generate toàn bộ business + operations sang TS/C# với candidate stable templates; build bốn outputs. Chứng minh AutomationRule valid built-in/remote variants giữ wire fields/const/nullable; invalid combinations do canonical schema validator reject. Nếu template mất valid wire representation, trả `SDK_GENERATION_UNSUPPORTED`; không downgrade contract hoặc dùng `any` toàn cục.
-- [ ] Implement generator/config/provenance và read-only check; chạy hai lần tại thư mục khác, so normalized output và input/tool/config hashes; focused tests GREEN. Existing contract suite pass. Commit `build(sdk): generate deterministic clients from canonical contracts`.
+- [x] Kiểm tra Node/npm/.NET/Docker và official stable generator candidates. Bootstrap test harness/locks tối thiểu; ghi prerequisites riêng, không coi thiếu package là RED.
+- [x] Viết `test_generated_check_rejects_missing_edited_extra_and_nonlocal_refs`: bắt đầu bằng generated fixture hợp lệ, sửa/xóa/thêm file hoặc remote `$ref`; assert nonzero safe reason, workspace hashes không đổi. Chạy test: RED do gate stub thiếu behavior.
+- [x] Generate toàn bộ business + operations sang TS/C# với candidate stable templates; build bốn outputs. Chứng minh AutomationRule valid built-in/remote variants giữ wire fields/const/nullable; invalid combinations do canonical schema validator reject. Nếu template mất valid wire representation, trả `SDK_GENERATION_UNSUPPORTED`; không downgrade contract hoặc dùng `any` toàn cục.
+- [x] Implement generator/config/provenance và read-only check; chạy hai lần tại thư mục khác, so normalized output và input/tool/config hashes; focused tests GREEN. Existing contract suite pass. Commit `build(sdk): generate deterministic clients from canonical contracts`.
 
 ## Task 2: Package consumers và wire semantics
 
@@ -63,10 +69,10 @@ Public entrypoints: `python3 scripts/contracts/generate.py`, `python3 scripts/co
 
 **Interfaces:** local `npm pack` tạo `.tgz`; `dotnet pack` tạo `.nupkg`. Consumer temporary projects chỉ cài artifact từ local path/feed; HTTP stub/captured fetch và `HttpMessageHandler` mô phỏng public wire, không reference server projects. Facades chỉ bổ sung status/header/cancellation; không viết lại DTOs.
 
-- [ ] Viết consumer assertions cho cả hai languages: health 200/500/503, Problem/reason/correlation; ETag response và `If-Match` mutation, 412/428 không retry; required/nullable/additionalProperties, cursor encoding, UUID/date/numeric và AutomationRule valid variants.
-- [ ] Thêm negative assertions: business token/tenant không xuất hiện trên operations request; `tenant_id` không tự đưa vào body; cancellation được truyền; captured outputs không in synthetic sentinel token. Schema validator riêng reject invalid DSL; không claim SDK runtime validation đầy đủ.
-- [ ] Chạy packaged consumer suite: RED khi thiếu package/header/error behavior. Implement package metadata và adapter tối thiểu; không sửa generated files thủ công.
-- [ ] Pack/install/build từ directory sạch, inspect dependencies/assemblies không có Platform.Api/Infrastructure hoặc web imports; focused suite GREEN. Commit `test(sdk): verify independent packages and wire semantics`.
+- [x] Viết consumer assertions cho cả hai languages: health 200/500/503, Problem/reason/correlation; ETag response và `If-Match` mutation, 412/428 không retry; required/nullable/additionalProperties, cursor encoding, UUID/date/numeric và AutomationRule valid variants.
+- [x] Thêm negative assertions: business token/tenant không xuất hiện trên operations request; `tenant_id` không tự đưa vào body; cancellation được truyền; captured outputs không in synthetic sentinel token. Schema validator riêng reject invalid DSL; không claim SDK runtime validation đầy đủ.
+- [x] Chạy packaged consumer suite: RED khi thiếu package/header/error behavior. Implement package metadata và adapter tối thiểu; không sửa generated files thủ công.
+- [x] Pack/install/build từ directory sạch, inspect dependencies/assemblies không có Platform.Api/Infrastructure hoặc web imports; focused suite GREEN. Commit `test(sdk): verify independent packages and wire semantics`.
 
 ## Task 3: OpenAPI, security và JSON Schema compatibility gate
 
@@ -74,11 +80,11 @@ Public entrypoints: `python3 scripts/contracts/generate.py`, `python3 scripts/co
 
 **Interfaces:** `compatibility.py --base-ref <ref>` resolve merge-base của ref với HEAD; default `origin/main`. Đọc base contracts từ Git object, compare union base/current paths; no fetch/reset. Output classification + base SHA/input hashes + reason/correlation; non-compatible/error exit nonzero.
 
-- [ ] Viết valid-base mutations: unchanged/description-only và additive-safe pass; removed operation/response/property, required request field, narrowed enum/type/nullable và ETag/If-Match changes fail đúng classification.
-- [ ] Viết security mutations: effective root/operation security, `x-required-scopes`, bearer scheme và `webhookSignature` header/location; xóa/đổi phải fail `security-review-required`, kể cả wire tool coi compatible. Reordered scope/object keys không false-positive.
-- [ ] Viết schema/input negatives: changed existing validation keyword → `SCHEMA_COMPATIBILITY_REVIEW_REQUIRED`; title/description/comment-only pass; removed/renamed schema, malformed/unsupported spec và missing base fail. Candidate config/waiver không thể ẩn input baseline.
-- [ ] Chạy actual pinned diff tool trên fixtures: RED với wrapper stub; implement discovery, local ref validation, severity mapping và security/schema checks. Không tải remote `$ref` hoặc báo compatible khi tool lỗi.
-- [ ] Focused suite GREEN; existing contract/HMAC tests pass. Ghi rõ JSON Schema gate là conservative review detector, không semantic proof. Commit `feat(contracts): add local compatibility and security gates`.
+- [x] Viết valid-base mutations: unchanged/description-only và additive-safe pass; removed operation/response/property, required request field, narrowed enum/type/nullable và ETag/If-Match changes fail đúng classification.
+- [x] Viết security mutations: effective root/operation security, `x-required-scopes`, bearer scheme và `webhookSignature` header/location; xóa/đổi phải fail `security-review-required`, kể cả wire tool coi compatible. Reordered scope/object keys không false-positive.
+- [x] Viết schema/input negatives: changed existing validation keyword → `SCHEMA_COMPATIBILITY_REVIEW_REQUIRED`; title/description/comment-only pass; removed/renamed schema, malformed/unsupported spec và missing base fail. Candidate config/waiver không thể ẩn input baseline.
+- [x] Chạy actual pinned diff tool trên fixtures: RED với wrapper stub; implement discovery, local ref validation, severity mapping và security/schema checks. Không tải remote `$ref` hoặc báo compatible khi tool lỗi.
+- [x] Focused suite GREEN; existing contract/HMAC tests pass. Ghi rõ JSON Schema gate là conservative review detector, không semantic proof. Commit `feat(contracts): add local compatibility and security gates`.
 
 ## Task 4: Baseline SDK surface và toolchain changes
 
@@ -86,10 +92,10 @@ Public entrypoints: `python3 scripts/contracts/generate.py`, `python3 scripts/co
 
 **Interfaces:** Khi base đã có generator/config/lock, generate base bằng **base toolchain** và candidate bằng current toolchain; compare exported declarations/.NET public API + compile baseline consumer. Bootstrap đầu khi base chưa có SDK dùng cùng selected pinned config cho cả hai và ghi rõ chưa có released consumer.
 
-- [ ] Viết `test_additive_exports_pass_but_existing_signature_break_fails`: additive operation/unreferenced model compatible pass; rename/remove operationId/type/member hoặc incompatible signature/nullability fail `SDK-surface-incompatible`.
-- [ ] Viết `test_generator_only_break_is_not_hidden`, `test_missing_base_toolchain_fails_closed`, `test_policy_or_waiver_edit_cannot_rebaseline`: unchanged HTTP contract nhưng generator/config tạo incompatible API phải fail; missing toolchain/policy chưa chứng minh được báo `SDK_TOOLCHAIN_REVIEW_REQUIRED`/`CONTRACT_POLICY_REVIEW_REQUIRED`.
-- [ ] Chạy focused tests RED; implement pinned public-surface comparison và baseline consumer compilation. Không auto-rebaseline hoặc nhận waiver trong current worktree như approval.
-- [ ] Focused tests GREEN, rerun Task 3 fixtures và Task 2 consumers; commit `feat(contracts): verify baseline SDK surface and toolchain drift`.
+- [x] Viết `test_additive_exports_pass_but_existing_signature_break_fails`: additive operation/unreferenced model compatible pass; rename/remove operationId/type/member hoặc incompatible signature/nullability fail `SDK-surface-incompatible`.
+- [x] Viết `test_generator_only_break_is_not_hidden`, `test_missing_base_toolchain_fails_closed`, `test_policy_or_waiver_edit_cannot_rebaseline`: unchanged HTTP contract nhưng generator/config tạo incompatible API phải fail; missing toolchain/policy chưa chứng minh được báo `SDK_TOOLCHAIN_REVIEW_REQUIRED`/`CONTRACT_POLICY_REVIEW_REQUIRED`.
+- [x] Chạy focused tests RED; implement pinned public-surface comparison và baseline consumer compilation. Không auto-rebaseline hoặc nhận waiver trong current worktree như approval.
+- [x] Focused tests GREEN, rerun Task 3 fixtures và Task 2 consumers; commit `feat(contracts): verify baseline SDK surface and toolchain drift`.
 
 ## Task 5: Frontend workspace và same-origin proxy
 
@@ -97,9 +103,9 @@ Public entrypoints: `python3 scripts/contracts/generate.py`, `python3 scripts/co
 
 **Interfaces:** `npm run dev -w apps/crm-web` bind localhost:5173 strict; Vite proxy chỉ exact health paths tới `127.0.0.1:${LOCAL_API_PORT:-5080}`. `HealthClient` dùng generated operations package, không import CRM server code. Static build không claim production proxy.
 
-- [ ] Viết tests cho valid/default port, malformed/non-loopback target, foreign listener on 5173 và path ngoài allowlist; assert fail an toàn, không auto-select port/CORS wildcard.
-- [ ] Chạy tests RED; implement strict Node/npm workspace, React/TS strict, minimal navigation/heading và Vite allowlist. Không load toàn environment vào browser bundle.
-- [ ] `npm ci`, frontend typecheck/lint/build và focused proxy tests GREEN; validate root Compose/Keycloak config không đổi. Commit `feat(web): add pinned frontend and restricted local proxy`.
+- [x] Viết tests cho valid/default port, malformed/non-loopback target, foreign listener on 5173 và path ngoài allowlist; assert fail an toàn, không auto-select port/CORS wildcard.
+- [x] Chạy tests RED; implement strict Node/npm workspace, React/TS strict, minimal navigation/heading và Vite allowlist. Không load toàn environment vào browser bundle.
+- [x] `npm ci`, frontend typecheck/lint/build và focused proxy tests GREEN; validate root Compose/Keycloak config không đổi. Commit `feat(web): add pinned frontend and restricted local proxy`.
 
 ## Task 6: Health UI, cancellation và browser behavior
 
@@ -107,10 +113,10 @@ Public entrypoints: `python3 scripts/contracts/generate.py`, `python3 scripts/co
 
 **Interfaces:** `checkHealth(signal: AbortSignal): Promise<HealthResult>` dùng operations client; discriminated result ready/unavailable/timeout/network/invalid. Tổng deadline 5s gồm body; server correlation chỉ khi hợp lệ; local codes `WEB_REQUEST_TIMEOUT`, `WEB_NETWORK_ERROR`, `WEB_CONTRACT_INVALID`.
 
-- [ ] Viết Vitest cases: loading→ready, 503 Problem, network/invalid body, hung body timeout, refresh/unmount cancellation và stale response race. Assert `aria-live`, keyboard retry, không render raw HTML/stack/token/query. Test controlled server reason/correlation và forged invalid correlation.
-- [ ] Chạy tests RED; implement adapter + UI tối thiểu, React escaping, no persisted health/auth data, no retry/poll vô hạn. Không bịa server correlation khi network lỗi.
-- [ ] Viết Playwright tests intercepted 503/timeout/XSS và ít nhất một smoke đi qua dev proxy tới API/PostgreSQL thật của stack test-owned. Assert actual request/response, không screenshot-only; foreign service/port không được masquerade thành stack.
-- [ ] Vitest, Playwright và build GREEN; scan bundle/sourcemaps/browser/process logs bằng synthetic sentinels, không dump payload khi fail. Commit `feat(web): display safe operational readiness`.
+- [x] Viết Vitest cases: loading→ready, 503 Problem, network/invalid body, hung body timeout, refresh/unmount cancellation và stale response race. Assert `aria-live`, keyboard retry, không render raw HTML/stack/token/query. Test controlled server reason/correlation và forged invalid correlation.
+- [x] Chạy tests RED; implement adapter + UI tối thiểu, React escaping, no persisted health/auth data, no retry/poll vô hạn. Không bịa server correlation khi network lỗi.
+- [x] Viết Playwright tests intercepted 503/timeout/XSS và ít nhất một smoke đi qua dev proxy tới API/PostgreSQL thật của stack test-owned. Assert actual request/response, không screenshot-only; foreign service/port không được masquerade thành stack.
+- [x] Vitest, Playwright và build GREEN; scan bundle/sourcemaps/browser/process logs bằng synthetic sentinels, không dump payload khi fail. Commit `feat(web): display safe operational readiness`.
 
 ## Task 7: Aggregate checks, clean export và evidence
 

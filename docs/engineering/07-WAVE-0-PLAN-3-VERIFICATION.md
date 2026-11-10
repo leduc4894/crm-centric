@@ -380,9 +380,18 @@ bash scripts/check-plan3.sh --base-ref <ref> [--with-browser]
   and never fetches a remote ref.
 - `--with-browser` opts in to the browser suite. The suite needs the local Docker stack, so
   the script starts the stack, runs the stack smoke, runs the browser suite and stops the
-  stack again. Without the flag the step is recorded in the summary as `not run`; it is
-  never silently skipped, and a step that is not run because an earlier step failed is
-  recorded as `not run: an earlier step failed`.
+  stack again. A teardown that fails fails the step with `PLAN3_STACK_TEARDOWN_FAILED`; the
+  run never reports success while the stack is still up. Without the flag the step is
+  recorded in the summary as `not run`; it is never silently skipped.
+- The summary always accounts for **all ten steps**. A step that did not run because an
+  earlier step failed is recorded as `not run: an earlier step failed`, in the step table and
+  in the command list, so an operator can tell which gates never ran.
+- Every closed error path of the aggregate itself produces a reason token and the
+  correlation identifier of the run: `PLAN3_ARGUMENT_INVALID`, `PLAN3_PREREQUISITE_MISSING`,
+  `PLAN3_TOOLCHAIN_MISMATCH`, `PLAN3_STACK_START_FAILED`, `PLAN3_STACK_TEARDOWN_FAILED`,
+  `PLAN3_SOURCE_MUTATED` and a failing step. The identifier is a UUID generated once per
+  run and printed in the header, so the report of a run and the report of its failure carry
+  the same identifier.
 - Prerequisites are checked before the first step: `node` must be the version in
   `.node-version` (24.22.2) and `docker` and `python3` must exist. A missing or mismatched
   prerequisite fails closed with `PLAN3_PREREQUISITE_MISSING` or `PLAN3_TOOLCHAIN_MISMATCH`
@@ -390,10 +399,18 @@ bash scripts/check-plan3.sh --base-ref <ref> [--with-browser]
 - The script never fetches, resets, rebases or rebaselines Git. It has no `git fetch`,
   `git reset`, `git checkout`, `git rebase`, `git commit` or `git pull` anywhere.
 - The script never modifies a tracked file. Before and after the run it computes a digest
-  over every tracked path of `HEAD` (content hash, symlink target or a `missing` marker) and
-  compares the two. A difference fails the run with `PLAN3_SOURCE_MUTATED`. The digest is
-  the aggregate's own proof that no step changed the lockfile, the generated SDKs, the
-  canonical contracts or the toolchain inputs.
+  over every tracked path of `HEAD` **and over every untracked, non-ignored file** (content
+  hash, symlink target or a `missing` marker) and compares the two. A difference fails the
+  run with `PLAN3_SOURCE_MUTATED`. The digest is the aggregate's own proof that no step
+  changed the lockfile, the generated SDKs, the canonical contracts or the toolchain inputs.
+  If the tracked list cannot be read from Git, the digest falls back to a reduced scope and
+  the run says so with an explicit warning instead of pretending to be complete.
+- An `EXIT`, `INT` or `TERM` trap stops a local stack that this run started, so an
+  interrupted run cannot orphan the stack.
+- The echoed step output is passed through a defensive redaction of the common secret
+  shapes (bearer values, `Authorization` headers and the usual password, secret, token and
+  key assignments). The deeper property, that the driven tools never emit a secret, stays
+  theirs; the aggregate does not claim more than that.
 - The summary prints, per step, the step name, the command, the exit code, the duration in
   seconds and the reason token, followed by the source digest and the overall verdict.
 
@@ -448,7 +465,7 @@ negative cases: 3 of 3 failed
 ```
 
 GREEN, final script version, `bash tests/Plan3/negative-cases.sh --base-ref 408ded6`,
-3m14.154s wall clock, exit 0:
+3m16.863s wall clock, exit 0:
 
 ```
 case  tampered generated output
@@ -465,6 +482,66 @@ Each case fails for its own reason and not for an unrelated one: the tampered ca
 the generated check, the two base/policy cases stop at the compatibility gate, and none of
 them prints a compatible verdict.
 
+#### Aggregate reporting regressions
+
+`tests/Plan3/aggregate-reporting.sh --base-ref <ref>` covers the reporting, error-envelope
+and teardown behaviour of the aggregate itself. It uses the same sandbox with a read-only
+Git object context; where a case needs a cheap run, the driven tools that are not under
+test are replaced by stubs inside the sandbox.
+
+RED, against the aggregate of `0695cc2`, 6m16.697s wall clock, exit 1:
+
+```
+case  argument error carries a reason token and a correlation id
+FAIL  argument error
+      no correlation id in:
+  --base-ref <ref>   required; Git revision already present in the local clone
+  --with-browser     run the browser suite against the local Docker stack
+case  toolchain mismatch carries a reason token and a correlation id
+FAIL  toolchain mismatch
+      no correlation id in: plan3 aggregate: base ref 408ded6
+PLAN3_TOOLCHAIN_MISMATCH: node 26.13.0, expected 24.22.2
+case  steps after an early failure are recorded as not run
+FAIL  early failure
+      the step sdk-consumers is missing from the summary
+case  a failing stack teardown fails the run
+FAIL  teardown failure
+      the gate exited 0 although the teardown failed
+case  an interrupted run tears the stack down
+FAIL  interrupt
+      the stack teardown did not run after the interrupt (exit 130)
+case  the clean export refuses a target directory that is not empty
+FAIL  clean export target
+      the export accepted a non-empty target directory
+
+aggregate reporting cases: 5 of 6 failed
+```
+
+The interrupt case was vacuous in the first RED run: a background job inherits SIGINT as
+ignored, so the interrupt never reached the gate and the case passed for the wrong reason.
+The harness now resets the SIGINT disposition before the gate is executed and asserts that
+the run was actually interrupted, and the case fails for the right reason.
+
+GREEN, after the fix, `bash tests/Plan3/aggregate-reporting.sh --base-ref 408ded6`,
+1m14.035s wall clock, exit 0:
+
+```
+case  argument error carries a reason token and a correlation id
+ok    argument error (exit 2, PLAN3_ARGUMENT_INVALID, correlation id present)
+case  toolchain mismatch carries a reason token and a correlation id
+ok    toolchain mismatch (exit 1, PLAN3_TOOLCHAIN_MISMATCH, correlation id present)
+case  steps after an early failure are recorded as not run
+ok    early failure (all ten steps recorded, eight of them not run)
+case  a failing stack teardown fails the run
+ok    teardown failure (exit 1, PLAN3_STACK_TEARDOWN_FAILED, no PASS)
+case  an interrupted run tears the stack down
+ok    interrupt (exit 130, the stack teardown ran)
+case  the clean export refuses a target directory that is not empty
+ok    clean export target (exit 1, PLAN3_EXPORT_TARGET_INVALID, content kept)
+
+aggregate reporting cases: 6 of 6 passed
+```
+
 #### Suites executed on this branch
 
 All commands below were executed on this branch, with the pinned Node 24.22.2 and npm
@@ -477,8 +554,10 @@ The second library path is a local prerequisite of this host, not a repository s
 | Contract + tooling | `PATH=<Node-24.22.2>/bin:$PATH LD_LIBRARY_PATH=/tmp/plan3-libs .venv/bin/python -m unittest discover -s tests/Contract -v` | exit 0, **87 tests**, 1064.566 s, OK |
 | Local Python | `PATH=<Node-24.22.2>/bin:$PATH LD_LIBRARY_PATH=/tmp/plan3-libs .venv/bin/python -m unittest discover -s tests/Local -v` | exit 0, **20 tests**, 4.544 s, OK |
 | Backend, non-Compose | `DOTNET_ROOT=/tmp/crm-dotnet-10.0.403 dotnet restore CrmPlatform.sln --locked-mode` → `dotnet build CrmPlatform.sln -c Release --no-restore` → `dotnet test CrmPlatform.sln -c Release --no-build --no-restore --filter 'Category!=Compose'` | restore exit 0 (2.748 s); build exit 0, 0 warnings, 0 errors (10.64 s); test exit 0, **70 passed, 0 failed, 0 skipped**, 6 m 48 s |
-| Aggregate, working tree | `bash scripts/check-plan3.sh --base-ref 408ded6` | exit 0, 4m6.211s, nine steps exit 0, browser step recorded as `not run`, source digest unchanged |
-| Aggregate, clean export | `bash tests/Plan3/clean-export.sh --sha 0695cc2 --base-ref 408ded6 --with-browser` | exit 0, 5m24.955s, all ten steps exit 0 including the browser suite, source digest unchanged |
+| Negative cases | `bash tests/Plan3/negative-cases.sh --base-ref 408ded6` | exit 0, **3 of 3 cases**, 3m16.863s |
+| Aggregate reporting regressions | `bash tests/Plan3/aggregate-reporting.sh --base-ref 408ded6` | exit 0, **6 of 6 cases**, 1m14.035s |
+| Aggregate, working tree | `bash scripts/check-plan3.sh --base-ref 408ded6` | exit 0, 4m14.643s, nine steps exit 0, browser step recorded as `not run`, source digest unchanged |
+| Aggregate, clean export | `bash tests/Plan3/clean-export.sh --sha ac69dc7 --base-ref 408ded6 --with-browser` | exit 0, 5m52.296s, all ten steps exit 0 including the browser suite, source digest unchanged |
 
 **Reused as historical evidence, not re-run.** Plan 2's Compose-category suite (14 cases)
 was **not** re-run in this task. Plan 3 changed no backend source, no container
@@ -519,8 +598,8 @@ tooling itself before use.
 |---|---|---|---|---|
 | W0P3-01 | 5, 7 | `scripts/check-plan3.sh` steps `locked-install`, `frontend-typecheck`, `frontend-lint`, `frontend-test`, `frontend-build`; the source digest proves that `package.json`, `package-lock.json` and `.npmrc` are unchanged by the check | `npm ci` exit 0, 254 packages from the committed lockfile (warm cache); typecheck/lint/test/build exit 0; 54 Vitest tests in 5 files | no remote CI run; the Node/npm pins are enforced locally by the version guard, `engine-strict` and the aggregate prerequisite check |
 | W0P3-02 | 1 | `scripts/contracts/generate.py` output, `sdks/*/provenance.json`, the aggregate steps `generated-check` and `sdk-consumers` | `check.py` exit 0, `SDK_GENERATED_CURRENT`; all four TS/C# outputs build; Corvus.Json.Cli 5.8.8 | generated clients are local build artifacts, not published packages |
-| W0P3-03 | 1 | two generations into independent roots compared with `diff -qr`; `tests/Contract/test_generated_check.py`; the aggregate source digest; negative case 1 | `check.py` exit 0, 12–14 s per run; negative case 1 exits 1 with `SDK_GENERATED_MISMATCH` | the comparison is byte-level on the committed tree, not a semantic SDK equivalence proof |
-| W0P3-04 | 2 | `tests/ClientConsumers/run.sh`, `tests/ClientConsumers/audit.py`; the aggregate step `sdk-consumers` | exit 0, `PACKAGED_CONSUMERS_OK`, 69–81 s; `.tgz` and `.nupkg` installed from a local path/feed with locked restore | the consumers are temporary local projects; nothing is published to npm or NuGet |
+| W0P3-03 | 1 | two generations into independent roots compared with `diff -qr`; `tests/Contract/test_generated_check.py`; the aggregate source digest; negative case 1 | `check.py` exit 0 in 10 s (clean export `ac69dc7`), 11 s (working tree) and 11.110 s (direct); negative case 1 exits 1 with `SDK_GENERATED_MISMATCH` | the comparison is byte-level on the committed tree, not a semantic SDK equivalence proof |
+| W0P3-04 | 2 | `tests/ClientConsumers/run.sh`, `tests/ClientConsumers/audit.py`; the aggregate step `sdk-consumers` | exit 0, `PACKAGED_CONSUMERS_OK`, 66 s (clean export `ac69dc7`) and 68 s (working tree); `.tgz` and `.nupkg` installed from a local path/feed with locked restore | the consumers are temporary local projects; nothing is published to npm or NuGet |
 | W0P3-05 | 2 | TypeScript captured-fetch and .NET `HttpMessageHandler` fixtures in `tests/ClientConsumers/` | exit 0; 200/500/503, Problem/reason/correlation, ETag/If-Match, 412/428 without retry, cursor encoding, nullable body, cancellation, no implicit bearer or tenant | synthetic HTTP fixtures, not a released consumer and not a business endpoint |
 | W0P3-06 | 6 | `apps/crm-web/tests/e2e/health.spec.ts`; the aggregate step `browser-e2e` | 4 browser tests pass (9.2–9.3 s) against the real API and PostgreSQL of the local stack; `stack_ready` on `http://localhost:5080` | the stack is the local Compose stack on this host; no production hosting and no business/auth readiness |
 | W0P3-07 | 6 | `apps/crm-web/src/health/healthClient.test.ts`, `HealthStatus.test.tsx`, the browser timeout and XSS cases | deadline pinned to 5000 ms with an elapsed-time assertion; 54 Vitest tests and 4 browser tests exit 0 | the client correlation identifier falls back to a non-cryptographic source when `crypto.randomUUID` is missing |
@@ -528,7 +607,7 @@ tooling itself before use.
 | W0P3-09 | 3, 4 | `tests/Contract/test_compatibility.py` (39 cases) and `test_sdk_surface.py` (10 cases) with the real oasdiff 1.37.0 and the real generator; the aggregate step `compatibility` | the 87-test contract suite passes, 1064.566 s; `compatibility.py --base-ref 408ded6` exits 0 with `CONTRACT_COMPATIBLE`, `classification: compatible` | a structural diff and a public-surface comparison are not a runtime compatibility proof; the JSON Schema gate is a conservative review detector |
 | W0P3-10 | 1, 3, 4 | the compatibility gate resolves the base from a Git object and never fetches; negative cases 2 and 3 | base SHA `408ded6b01f1373dfaff92a663f2f80347475f55`; a missing revision exits 1 with `CONTRACT_BASE_UNAVAILABLE`; a policy or waiver edit exits 1 with `CONTRACT_POLICY_REVIEW_REQUIRED` | the trusted base is a local Git object; branch protection and approval governance are Plan 4 |
 | W0P3-11 | 2, 5, 6 | `npm run scan:leaks -w apps/crm-web`, `tests/ClientConsumers/audit.py`, the credential strip in `apps/crm-web/config/healthProxy.ts` | leak scan exit 0: no sentinel, secret, credential or local metadata leak in 5 artifact files, 3 browser console messages or the process log; package boundary audit exit 0 | a local scan with synthetic sentinels, not a CI secret scanner |
-| W0P3-12 | 7 | this section, the clean exact-SHA export of `0695cc2c1f196aa9148f993c8d001bb743741ac1` below, and the suite table above | the export passes the aggregate with all ten steps, including the browser smoke against the test-owned stack `crm-local-2ee20ecbdd57`; base SHA `408ded6b01f1373dfaff92a663f2f80347475f55` | local only: no remote CI, no Wave 0/P0 closure |
+| W0P3-12 | 7 | this section, the clean exact-SHA export of `ac69dc78c06e54497b83dd5599dbab8d60544f98` below, and the suite table above | the export passes the aggregate with all ten steps, including the browser smoke against the test-owned stack `crm-local-b02e9fd084e1`; base SHA `408ded6b01f1373dfaff92a663f2f80347475f55` | local only: no remote CI, no Wave 0/P0 closure |
 
 #### Clean exact-SHA export
 
@@ -544,24 +623,27 @@ tooling itself before use.
    local clone. The export can therefore resolve the trusted base revision without a fetch
    and cannot create or change any object.
 4. The pinned local tool artifacts that are not committed (the oasdiff binary and the
-   Corvus.Json.Cli package) are copied into the export and their SHA-256 is printed. The
-   tooling verifies the same digests itself, so a substituted artifact fails closed.
+   Corvus.Json.Cli package) are copied into the export and the SHA-256 of both is printed.
+   The tooling verifies the same digests itself, so a substituted artifact fails closed.
 5. The aggregate runs inside the export.
 
-Fresh versus cached: the export directory and its `node_modules` are fresh, the npm cache
-is warm, the Docker base images and the pinned .NET SDK image are cached, and the local
-tool artifacts are copied from the source checkout.
+Fresh versus cached: the export directory and its `node_modules` are fresh (254 packages
+from the committed lockfile). The Chromium shared libraries are **not** fresh and not part
+of the export: they are the extracted Ubuntu 24.04 packages of this host under
+`/tmp/plan3-browser-libs/usr/lib/x86_64-linux-gnu`, and they decide whether the browser
+step passes at all. The npm cache is warm, the Docker base images and the pinned .NET SDK
+image are cached, and the local tool artifacts are copied from the source checkout.
 
 **The aggregate run in the working tree**, `bash scripts/check-plan3.sh --base-ref 408ded6`,
-4m6.211s wall clock, exit 0. The browser step is not run and says so:
+4m14.643s wall clock, exit 0. The browser step is not run and says so:
 
 ```
 step                 exit     seconds   reason
 locked-install       0        5         -
-generated-check      0        10        SDK_GENERATED_CURRENT
-sdk-consumers        0        64        -
-compatibility        0        138       CONTRACT_COMPATIBLE
-frontend-typecheck   0        12        -
+generated-check      0        11        SDK_GENERATED_CURRENT
+sdk-consumers        0        68        -
+compatibility        0        142       CONTRACT_COMPATIBLE
+frontend-typecheck   0        11        -
 frontend-lint        0        2         -
 frontend-test        0        7         -
 frontend-build       0        1         -
@@ -579,7 +661,7 @@ commands:
   frontend-build       npm run build -w apps/crm-web
   frontend-leak-scan   npm run scan:leaks -w apps/crm-web
   browser-e2e          npm run test:e2e -w apps/crm-web
-source digest: cdad550d8764ddd7d764040e6a73c00b65b698d176ec2a8c5defb49a34c74f05
+source digest: 34d827656c2216f62e9f2ad31b5eea8a6af8a4615c264f7a808975c4ca79f18b
 source digest: unchanged during the run
 plan3 aggregate: PASS
 ```
@@ -588,26 +670,29 @@ The digest is a snapshot of the tree state of that run. The documentation-only c
 follows this run changes the tracked Markdown by design, so a later run reports a different
 digest value; the invariant that matters is the verdict, `unchanged during the run`.
 
-**The aggregate run in the clean export** of the tested SHA, with the browser suite,
-5m24.955s wall clock, exit 0:
+**The aggregate run in the clean export** of the tested SHA
+`ac69dc78c06e54497b83dd5599dbab8d60544f98`, with the browser suite,
+5m52.296s wall clock, exit 0:
 
 ```
-export sha: 0695cc2c1f196aa9148f993c8d001bb743741ac1
+export sha: ac69dc78c06e54497b83dd5599dbab8d60544f98
 base sha: 408ded6b01f1373dfaff92a663f2f80347475f55
-export directory: /tmp/plan3-export-0695cc2
+export directory: /tmp/plan3-export-ac69dc7
+correlation: b364f3c4-7415-498c-8c67-f38c86e3cb46
 local artifact: corvus.json.cli.5.8.8.nupkg b023226e7cffe4b58578ed51c460424cfadfbfe4b223abae020b6e5960a68051
+local artifact: oasdiff-1.37.0/oasdiff 401389ac23e81bc844093c88ae1e283fbf80ef719f400cbeb19cd36d15957971
 
 step                 exit     seconds   reason
 locked-install       0        4         -
 generated-check      0        10        SDK_GENERATED_CURRENT
-sdk-consumers        0        63        -
-compatibility        0        137       CONTRACT_COMPATIBLE
-frontend-typecheck   0        15        -
+sdk-consumers        0        66        -
+compatibility        0        143       CONTRACT_COMPATIBLE
+frontend-typecheck   0        17        -
 frontend-lint        0        3         -
-frontend-test        0        8         -
+frontend-test        0        9         -
 frontend-build       0        1         -
-frontend-leak-scan   0        2         -
-browser-e2e          0        76        -
+frontend-leak-scan   0        3         -
+browser-e2e          0        89        -
 
 commands:
   locked-install       npm ci --ignore-scripts --no-audit --no-fund
@@ -620,7 +705,7 @@ commands:
   frontend-build       npm run build -w apps/crm-web
   frontend-leak-scan   npm run scan:leaks -w apps/crm-web
   browser-e2e          bash scripts/dev-up.sh; bash scripts/dev-smoke.sh; npm run test:e2e -w apps/crm-web; bash scripts/dev-down.sh
-source digest: 18be0c2dd0effa9d40b3345272836bcdbbf03ddc032213f2f0152f22537bb609
+source digest: b189f5bf221de6c833d5886992e217ea182db4d46caac4ebe3559a126e81b903
 source digest: unchanged during the run
 plan3 aggregate: PASS
 clean export aggregate: exit 0
@@ -636,11 +721,11 @@ side with the base toolchain and the candidate side with the current toolchain, 
 toolchain drift stays visible in the report instead of being hidden.
 
 The browser step of the export ran against a **test-owned stack**: the compose project of the
-export is `crm-local-2ee20ecbdd57`, derived from the export path, and distinct from the
+export is `crm-local-b02e9fd084e1`, derived from the export path, and distinct from the
 project of the source checkout `crm-local-91859983f1e0`. The lifecycle events are in the
-run log: `build_completed` (1.58 s), `startup_completed` (59.528 s), `stack_ready` with
+run log: `build_completed` (2.12 s), `startup_completed` (72.205 s), `stack_ready` with
 `api: http://localhost:5080` and `issuer: http://localhost:8080/realms/crm-local`, then
-`stack_stopped`. The four browser tests pass in 9.3 s, including the smoke test that reads
+`stack_stopped`. The four browser tests pass in 9.9 s, including the smoke test that reads
 the readiness of the real API and PostgreSQL through the development proxy. After the run no
 container of the project remained and nothing listened on 5080, 5173 or 8080.
 
@@ -667,3 +752,63 @@ unchanged digest.
 - Wave 0/P0 acceptance, the remote DemoModule end-to-end flow, tenant isolation, the
   outage/recovery and restore drills and remote CI remain **OPEN**. A green aggregate is not
   a Wave 0 or P0 acceptance.
+
+### Fix round 1 — aggregate reporting, error envelope and teardown (review pending)
+
+The independent review of Task 7 (`0695cc2` and `422e049`) returned 0 Critical, 3 Important
+and 9 Minor findings. This round closes the three blocking findings and the documentation
+corrections. No canonical contract, container configuration, stack lifecycle or backend
+source changed.
+
+**I-1 — every step is accounted for.** The aggregate now iterates over the ten steps
+instead of stopping at the first failure. A step that did not run because an earlier step
+failed is recorded as `not run: an earlier step failed`, both in the step table and in the
+command list, so the summary always covers all ten steps and an operator can see which
+gates never ran.
+
+**I-2 — a correlation identifier on every closed error path.** The aggregate generates one
+UUID per run, prints it in the header, and prints it with the reason token of every closed
+path it owns: `PLAN3_ARGUMENT_INVALID`, `PLAN3_PREREQUISITE_MISSING`,
+`PLAN3_TOOLCHAIN_MISMATCH`, `PLAN3_STACK_START_FAILED`, `PLAN3_STACK_TEARDOWN_FAILED`,
+`PLAN3_SOURCE_MUTATED` and a failing step. The envelope is a safe JSON object with
+`reason`, `detail` and `correlationId`; no payload and no secret.
+
+**I-3 — a failed teardown fails the run.** A `dev-down.sh` that fails is no longer reduced
+to a warning: the browser step fails with `PLAN3_STACK_TEARDOWN_FAILED`, so the aggregate
+cannot report success while the stack is still up. An `EXIT`, `INT` or `TERM` trap stops a
+stack that this run started, so an interrupted run cannot orphan it.
+
+**The minor findings closed in the same pass.** The source digest now covers untracked,
+non-ignored files next to the tracked ones and warns explicitly when it has to fall back to
+a reduced scope (M-1, M-2). The clean export refuses a target directory that is not empty
+instead of deleting it, and refuses a protected directory (M-4). The echoed step output is
+passed through a defensive redaction of the common secret shapes, and the documentation now
+states that the deeper no-secret property belongs to the driven tools (M-8). The clean
+export prints the SHA-256 of the oasdiff executable next to the Corvus.Json.Cli package, so
+the claim in the documentation matches the output (M-3).
+
+**The documentation corrections.** The fresh-versus-cached list now names the extracted
+Chromium shared libraries and their path, which decide whether the browser step passes
+(M-5). The plan checkboxes of Tasks 1–6 are ticked, with a note that the boxes record the
+implementation state and that the read-only reviews are controller activities; the Task 7
+box keeps its annotation that the whole-branch review has not run (M-6). The handoff records
+the branch, the HEAD commit and the state of the working tree (M-7). The counts in the
+W0P3 mapping name the recorded runs instead of a range that no run produced (M-9).
+
+**The commands of this round and their real results.**
+
+| Command | Result |
+|---|---|
+| `bash tests/Plan3/aggregate-reporting.sh --base-ref 408ded6` | exit 0, **6 of 6 cases**, 1m14.035s |
+| `bash tests/Plan3/negative-cases.sh --base-ref 408ded6` | exit 0, **3 of 3 cases**, 3m16.863s |
+| `bash tests/Plan3/clean-export.sh --sha ac69dc7 --base-ref 408ded6 --with-browser` | exit 0, 5m52.296s, all ten steps exit 0, digest unchanged |
+| `bash scripts/check-plan3.sh --base-ref 408ded6` | exit 0, 4m14.643s, nine steps exit 0, browser step `not run`, digest unchanged |
+| `python3 scripts/contracts/check.py` | exit 0, `SDK_GENERATED_CURRENT`, 11.110s |
+| `.venv/bin/python -m unittest discover -s tests/Contract -v` | exit 0, **87 tests**, 1120.840s, OK |
+| `.venv/bin/python -m unittest discover -s tests/Local -v` | exit 0, **20 tests**, 5.380s, OK |
+
+The .NET non-Compose suite of 70 cases was **not** re-run in this round. Plan 3 changed no
+backend source, no container configuration and no stack lifecycle, so the round 1 result
+stands as the evidence for the unchanged runtime; it is not presented as a run of this
+round. After the export the stack was stopped, no container of the project remained and
+nothing listened on 5080, 5173 or 8080.
