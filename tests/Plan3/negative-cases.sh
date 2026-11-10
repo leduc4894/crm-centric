@@ -13,16 +13,41 @@
 # Usage: bash tests/Plan3/negative-cases.sh [--base-ref <ref>]
 set -uo pipefail
 
-root=$(cd "$(dirname "$0")/../.." && pwd)
+# The correlation identifier of this harness accompanies every closed error path.
+new_correlation() {
+  if [ -r /proc/sys/kernel/random/uuid ]; then
+    cat /proc/sys/kernel/random/uuid
+  elif command -v python3 >/dev/null 2>&1; then
+    python3 -c 'import uuid;print(uuid.uuid4())'
+  else
+    od -An -tx1 -N16 /dev/urandom 2>/dev/null | tr -d ' \n'
+  fi
+}
+correlation=$(new_correlation)
+
+# A closed error path of the harness: a reason token, a safe detail and the
+# correlation identifier of this run. No payload and no secret.
+closed_error() {
+  local reason="$1" detail="$2" code="$3"
+  printf '{"reason": "%s", "detail": "%s", "correlationId": "%s"}\n' \
+    "$reason" "$detail" "$correlation" >&2
+  exit "$code"
+}
+
+root=$(cd "$(dirname "$0")/../.." && pwd) ||
+  closed_error PLAN3_WORKSPACE_UNAVAILABLE "the checkout could not be located" 1
 base_ref="408ded6"
 while [ $# -gt 0 ]; do
   case "$1" in
-    --base-ref) base_ref="${2:-}"; shift 2 ;;
-    *) echo "unknown argument: $1" >&2; exit 2 ;;
+    --base-ref)
+      [ $# -ge 2 ] || closed_error PLAN3_ARGUMENT_INVALID "--base-ref requires a value" 2
+      base_ref="$2"; shift 2 ;;
+    *) closed_error PLAN3_ARGUMENT_INVALID "unknown argument: $1" 2 ;;
   esac
 done
 
-work=$(mktemp -d)
+work=$(mktemp -d) ||
+  closed_error PLAN3_TEMP_DIRECTORY_UNAVAILABLE "a temporary directory could not be created" 1
 trap 'rm -rf "$work"' EXIT
 
 failures=0
@@ -35,6 +60,34 @@ fail() {
   log "FAIL  $1"
   shift
   for line in "$@"; do log "      $line"; done
+}
+
+# The directory of the pinned oasdiff executable, taken from the policy that
+# the tooling verifies itself. The version is never hardcoded here, so a bump
+# of the pinned tool does not silently break the copy.
+pinned_oasdiff_directory() {
+  local relative candidate
+  relative=$(python3 - "$root/tools/contracts/oasdiff.json" <<'PY' 2>/dev/null
+import json
+import os
+import sys
+
+try:
+    policy = json.load(open(sys.argv[1]))
+except Exception:
+    sys.exit(1)
+print(os.path.dirname(policy.get('binaryPath', '')))
+PY
+)
+  case "$relative" in
+    */oasdiff-*) printf '%s\n' "${relative##*/}" ;;
+    *)
+      for candidate in "$root"/.local/plan3-tools/oasdiff-*; do
+        [ -d "$candidate" ] && { printf '%s\n' "${candidate##*/}"; return 0; }
+      done
+      printf 'oasdiff-missing\n'
+      ;;
+  esac
 }
 
 # Creates a sandbox copy of the checkout with a read-only Git object context.
@@ -61,7 +114,7 @@ make_sandbox() {
   printf '%s/objects\n' "$(git -C "$root" rev-parse --absolute-git-dir)" > "$dir/.git/objects/info/alternates"
   mkdir -p "$dir/.local/plan3-tools"
   cp "$root/.local/plan3-tools/corvus.json.cli.5.8.8.nupkg" "$dir/.local/plan3-tools/"
-  cp -R "$root/.local/plan3-tools/oasdiff-1.37.0" "$dir/.local/plan3-tools/"
+  cp -R "$root/.local/plan3-tools/$(pinned_oasdiff_directory)" "$dir/.local/plan3-tools/"
 }
 
 # Runs the aggregate gate in the sandbox and reports its exit code and output.
@@ -132,6 +185,6 @@ case_policy_change
 log ""
 if [ "$failures" -ne 0 ]; then
   log "negative cases: $failures of $cases failed"
-  exit 1
+  closed_error PLAN3_NEGATIVE_CASES_FAILED "$failures of $cases cases failed" 1
 fi
 log "negative cases: $cases of $cases passed"

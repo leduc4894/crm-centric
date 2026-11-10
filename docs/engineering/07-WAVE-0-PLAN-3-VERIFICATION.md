@@ -399,12 +399,18 @@ bash scripts/check-plan3.sh --base-ref <ref> [--with-browser]
 - The script never fetches, resets, rebases or rebaselines Git. It has no `git fetch`,
   `git reset`, `git checkout`, `git rebase`, `git commit` or `git pull` anywhere.
 - The script never modifies a tracked file. Before and after the run it computes a digest
-  over every tracked path of `HEAD` **and over every untracked, non-ignored file** (content
-  hash, symlink target or a `missing` marker) and compares the two. A difference fails the
+  over every tracked path of `HEAD`, **over every file of the Git index** (a file that is
+  staged but absent from `HEAD` belongs to neither the tracked list of `HEAD` nor the
+  untracked list) **and over every untracked, non-ignored file** (content hash, symlink
+  target or a `missing` marker) and compares the two. A difference fails the
   run with `PLAN3_SOURCE_MUTATED`. The digest is the aggregate's own proof that no step
   changed the lockfile, the generated SDKs, the canonical contracts or the toolchain inputs.
   If the tracked list cannot be read from Git, the digest falls back to a reduced scope and
   the run says so with an explicit warning instead of pretending to be complete.
+- The stack lifecycle is owned by the run from the first attempt to start it. The run
+  assumes the stack may be partially up while `dev-up.sh` is still running, so it calls
+  `dev-down.sh` after a **failed** start as well, and a teardown that fails on that path
+  fails the step with `PLAN3_STACK_TEARDOWN_FAILED` instead of being reduced to a warning.
 - An `EXIT`, `INT` or `TERM` trap stops a local stack that this run started, so an
   interrupted run cannot orphan the stack.
 - The echoed step output is passed through a defensive redaction of the common secret
@@ -541,6 +547,30 @@ ok    clean export target (exit 1, PLAN3_EXPORT_TARGET_INVALID, content kept)
 
 aggregate reporting cases: 6 of 6 passed
 ```
+
+#### The Plan 3 harnesses are not yet executed by an automated runner
+
+The three harnesses of this slice — `tests/Plan3/negative-cases.sh`,
+`tests/Plan3/aggregate-reporting.sh` and `tests/Plan3/clean-export.sh` — are **not**
+executed by `unittest discover -s tests/Contract`, by `npm test`, by any `package.json`
+script or by a continuous integration pipeline. The repository has no CI yet; CI is Plan 4.
+A regression that deletes or neuters one of these harnesses would therefore not fail any
+suite that runs today. This is the honest state of the slice, not a claim that the harnesses
+are covered.
+
+The exact commands a human must run, from the root of the checkout, with the pinned Node
+24.22.2 on the `PATH` and the Chromium shared libraries available to the browser suite:
+
+| Harness | Command | What it proves |
+|---|---|---|
+| fail-closed negative cases | `bash tests/Plan3/negative-cases.sh --base-ref 408ded6` | the gate stops with `SDK_GENERATED_MISMATCH`, `CONTRACT_BASE_UNAVAILABLE` and `CONTRACT_POLICY_REVIEW_REQUIRED` and never reports a compatible verdict |
+| aggregate reporting regressions | `bash tests/Plan3/aggregate-reporting.sh --base-ref 408ded6` | the error envelopes, the accounting of all ten steps, the teardown of a failed stack start, the interrupted run and the source-mutation guard |
+| clean exact-SHA export | `bash tests/Plan3/clean-export.sh --sha <sha> --base-ref <ref> [--with-browser]` | the exported commit passes the aggregate on its own, in a tree without local artifacts |
+
+The base revision must be a revision that the local clone already has; the harnesses never
+fetch. Plan 4 owns the wiring of these three commands into the continuous integration path.
+Until that happens they are run by hand, and their results are recorded in this document and
+in the handoff.
 
 #### Suites executed on this branch
 
@@ -812,3 +842,113 @@ backend source, no container configuration and no stack lifecycle, so the round 
 stands as the evidence for the unchanged runtime; it is not presented as a run of this
 round. After the export the stack was stopped, no container of the project remained and
 nothing listened on 5080, 5173 or 8080.
+
+### Fix round 2 — stack teardown on a failed start, complete error envelopes and the staged-file gap (review pending)
+
+The independent re-review of the fix round 1 (`ac69dc7` and `80de4d8`) confirmed that the
+three Important and the nine Minor findings of round 1 are closed, and returned **1
+Important regression and 4 Minor residuals** of its own. This round closes exactly those
+five items. No canonical contract, container configuration, stack lifecycle or backend
+source changed.
+
+**N-1 — a failed stack start orphaned the stack (regression of round 1).** Round 1 moved the
+`stack_started=1` assignment *after* the `dev-up.sh` call and deleted the `dev-down.sh` call
+of the failed-start branch, so a `dev-up.sh` that failed after the containers were up left
+`crm-db`, `idp-db`, `crm-api` and `keycloak` running with 5080, 5173 and 8080 bound — the
+run reported `PLAN3_STACK_START_FAILED` and exited 1, but the stack stayed up. The aggregate
+now sets `stack_started=1` **before** `dev-up.sh` is attempted, calls `dev-down.sh` after a
+failed start, and fails the step with `PLAN3_STACK_TEARDOWN_FAILED` when that teardown
+fails. A teardown failure on this path is a failure, never a warning, exactly like the
+teardown of a started stack.
+
+Covering test: `tests/Plan3/aggregate-reporting.sh`, case *a failed stack start tears the
+started stack down*. The sandbox `dev-up.sh` starts a long-lived process, records its PID
+and exits 1; the sandbox `dev-down.sh` stops that process and records that it ran. The case
+asserts the non-zero exit, the absence of `plan3 aggregate: PASS`, the reason token
+`PLAN3_STACK_START_FAILED`, that the teardown ran and that the started process is gone
+afterwards.
+
+**N-2 — closed error paths without a reason token and a correlation identifier.** The
+argument and base-revision errors of the clean export, the temporary-directory failure of
+the aggregate, the argument errors of both harnesses and the failure exit of the harnesses
+themselves now all emit a reason token **and** the correlation identifier of the run, in the
+same safe JSON envelope as the aggregate: `PLAN3_ARGUMENT_INVALID`,
+`CONTRACT_BASE_UNAVAILABLE`, `PLAN3_WORKSPACE_UNAVAILABLE`, `PLAN3_GIT_UNAVAILABLE`,
+`PLAN3_TEMP_DIRECTORY_UNAVAILABLE`, `PLAN3_EXPORT_TARGET_INVALID`,
+`PLAN3_EXPORT_ARCHIVE_FAILED`, `PLAN3_EXPORT_ARTIFACT_MISSING`,
+`PLAN3_REGRESSION_CASES_FAILED` and `PLAN3_NEGATIVE_CASES_FAILED`. The existing reason
+tokens keep their names and their exit codes; no token was renamed and no payload, secret
+or connection string was added.
+
+**N-3 — a staged file was invisible to the source digest.** The digest covered the tracked
+paths of `HEAD` and the untracked, non-ignored files. A file that is staged in the index
+but absent from `HEAD` belongs to neither list, so a step that rewrote it produced
+`source digest: unchanged` and `plan3 aggregate: PASS`. The digest now covers the files of
+the index (`git ls-files --cached`) next to the tracked paths of `HEAD` and the untracked
+files. A staged file that a step rewrites produces `PLAN3_SOURCE_MUTATED`, a non-zero exit
+and no `PASS`. A clean tree is unaffected: the index of a clean tree holds the tracked paths
+of `HEAD` and nothing else.
+
+**N-4 — the harnesses are wired to nothing.** `tests/Plan3/aggregate-reporting.sh`,
+`tests/Plan3/negative-cases.sh` and `tests/Plan3/clean-export.sh` are **not** executed by
+`unittest discover -s tests/Contract`, by any `package.json` script or by a CI pipeline:
+the repository has no CI yet, CI is Plan 4. A regression that deletes or neuters one of
+them would not fail any suite that runs today. The section *The Plan 3 harnesses are not yet
+executed by an automated runner* above names the exact command a human must run for each of
+them and assigns the wiring to Plan 4.
+
+**N-5 — wording and a hardcoded version.** The `PLAN3_SOURCE_MUTATED` detail now says
+"a step modified a tracked, staged or untracked file of the worktree", which is the real
+scope of the digest. The clean export no longer hardcodes `oasdiff-1.37.0`: it reads the
+pinned `binaryPath` from `tools/contracts/oasdiff.json` — the same policy the tooling
+verifies itself — and prints the digest of that executable. If the policy pins an
+executable that is not in the export, the export fails closed with
+`PLAN3_EXPORT_ARTIFACT_MISSING` instead of silently dropping the line. The two harnesses
+copy the pinned oasdiff directory out of the same policy instead of a hardcoded name.
+
+**RED before the fix.** The three new cases were run against the unchanged implementation of
+`80de4d8` and each failed for its own reason:
+
+```
+case  a failed stack start tears the started stack down
+FAIL  failed stack start
+      the stack process 1939459 is STILL RUNNING after the failed start
+case  a staged file that a step rewrites is detected
+FAIL  staged mutation
+      the gate exited 0 although a staged file was rewritten
+case  the harness argument errors carry a reason token and a correlation id
+FAIL  harness argument error
+      negative cases: the reason token PLAN3_ARGUMENT_INVALID is missing
+```
+
+**Mutation sensitivity.** The implementation was reverted to the state of `80de4d8` in a
+scratch copy of the checkout with its own Git history, the three new cases were kept, and
+all three failed again with the reasons above: the orphaned stack process
+(`the stack process 1944959 is STILL RUNNING after the failed start`), the fail-open digest
+(`the gate exited 0 although a staged file was rewritten`) and the missing reason token. The
+cases therefore test the behaviour, not the wording.
+
+**The commands of this round and their real results.**
+
+| Command | Result |
+|---|---|
+| `bash tests/Plan3/aggregate-reporting.sh --base-ref 408ded6` | exit 0, **9 of 9 cases**, 2m00.453s |
+| `bash tests/Plan3/negative-cases.sh --base-ref 408ded6` | exit 0, **3 of 3 cases**, 3m16.307s |
+| `python3 scripts/contracts/check.py` | exit 0, `SDK_GENERATED_CURRENT`, 10.250s |
+| `bash scripts/check-plan3.sh --base-ref` (no value) | exit 2, `PLAN3_ARGUMENT_INVALID`, correlation identifier present |
+| `bash scripts/check-plan3.sh --base-ref 408ded6` with Node 26.13.0 on the `PATH` | exit 1, `PLAN3_TOOLCHAIN_MISMATCH`, correlation identifier present |
+| `bash tests/Plan3/clean-export.sh --sha HEAD --base-ref 408ded6 --target <used dir>` | exit 1, `PLAN3_EXPORT_TARGET_INVALID`, correlation identifier present, the content of the target kept |
+
+The three new cases of the reporting harness in GREEN, after the fix:
+
+```
+ok    failed stack start (exit 1, PLAN3_STACK_START_FAILED, the stack process is gone)
+ok    staged mutation (exit 1, PLAN3_SOURCE_MUTATED, no PASS)
+ok    harness argument error (exit 2, PLAN3_ARGUMENT_INVALID, correlation id present)
+```
+
+The 87-case contract suite, the 70-case .NET non-Compose suite and the full clean export
+with the browser suite were **not** re-run in this round; the round 1 results stand as the
+evidence for the unchanged runtime and are not presented as a run of this round. The suites
+of this round cover the changed scripts only; the changed scripts are shell harnesses and
+the aggregate gate, which no Python or .NET suite executes.

@@ -34,9 +34,6 @@
 # Exit codes: 0 every step passed, 1 a step failed, 2 the arguments were invalid.
 set -uo pipefail
 
-root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd) || exit 1
-cd "$root" || exit 1
-
 # The correlation identifier of this run. It accompanies every closed error
 # path of the aggregate itself.
 new_correlation() {
@@ -50,15 +47,6 @@ new_correlation() {
 }
 correlation=$(new_correlation)
 
-usage() {
-  cat <<'EOF'
-Usage: bash scripts/check-plan3.sh --base-ref <ref> [--with-browser]
-
-  --base-ref <ref>   required; Git revision already present in the local clone
-  --with-browser     run the browser suite against the local Docker stack
-EOF
-}
-
 # A closed error path of the aggregate: a reason token, a safe detail and the
 # correlation identifier of this run. No payload, no secret.
 closed_error() {
@@ -66,6 +54,19 @@ closed_error() {
   printf '{"reason": "%s", "detail": "%s", "correlationId": "%s"}\n' \
     "$reason" "$detail" "$correlation" >&2
   exit "$code"
+}
+
+root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd) ||
+  closed_error PLAN3_WORKSPACE_UNAVAILABLE "the checkout could not be located" 1
+cd "$root" || closed_error PLAN3_WORKSPACE_UNAVAILABLE "the checkout could not be entered" 1
+
+usage() {
+  cat <<'EOF'
+Usage: bash scripts/check-plan3.sh --base-ref <ref> [--with-browser]
+
+  --base-ref <ref>   required; Git revision already present in the local clone
+  --with-browser     run the browser suite against the local Docker stack
+EOF
 }
 
 argument_error() {
@@ -103,7 +104,8 @@ while [ $# -gt 0 ]; do
 done
 [ -n "$base_ref" ] || argument_error "--base-ref is required"
 
-logs=$(mktemp -d) || exit 1
+logs=$(mktemp -d) ||
+  closed_error PLAN3_TEMP_DIRECTORY_UNAVAILABLE "a temporary directory could not be created" 1
 stack_started=0
 
 # The local stack is owned by this run. An interrupted run must not orphan it.
@@ -209,20 +211,28 @@ fallback_scope() {
   } | LC_ALL=C sort -u
 }
 
-# Digest of the tracked and untracked files of the worktree. Compared before
-# and after the run to prove that no step changed the source tree.
+# Digest of the tracked, the staged and the untracked files of the worktree.
+# Compared before and after the run to prove that no step changed the source
+# tree. A file that is staged in the index but absent from HEAD belongs to
+# the index list, not to the tracked list of HEAD and not to the untracked
+# list: without the index list it would be invisible to the digest.
 source_digest() {
-  local tracked untracked
+  local tracked indexed untracked
   tracked=$(git -C "$root" ls-tree -r --name-only HEAD -- 2>/dev/null)
   if [ -z "$tracked" ]; then
     printf 'plan3 aggregate: WARNING the source digest uses the reduced fallback scope\n' >&2
     tracked=$(fallback_scope)
   fi
+  if ! indexed=$(git -C "$root" ls-files --cached 2>/dev/null); then
+    printf 'plan3 aggregate: WARNING the files of the index are not covered by the source digest\n' >&2
+    indexed=""
+  fi
   if ! untracked=$(git -C "$root" ls-files --others --exclude-standard 2>/dev/null); then
     printf 'plan3 aggregate: WARNING untracked files are not covered by the source digest\n' >&2
     untracked=""
   fi
-  { printf '%s\n' "$tracked"; printf '%s\n' "$untracked"; } | LC_ALL=C sort -u |
+  { printf '%s\n' "$tracked"; printf '%s\n' "$indexed"; printf '%s\n' "$untracked"; } |
+    LC_ALL=C sort -u |
     while IFS= read -r file; do
       [ -n "$file" ] || continue
       path="$root/$file"
@@ -242,11 +252,21 @@ source_digest() {
 # step: a run must never report success while the stack is still up.
 browser_step() {
   local status=0
+  # The stack may be partially started when dev-up.sh fails, so the run owns
+  # the teardown from this point on: the flag is set before the start, never
+  # after it.
+  stack_started=1
   if ! bash scripts/dev-up.sh; then
     printf '{"reason": "PLAN3_STACK_START_FAILED", "detail": "the local stack did not start", "correlationId": "%s"}\n' "$correlation"
-    return 1
+    status=1
+    if ! bash scripts/dev-down.sh; then
+      printf '{"reason": "PLAN3_STACK_TEARDOWN_FAILED", "detail": "the stack that did not start cleanly was not stopped cleanly", "correlationId": "%s"}\n' "$correlation"
+      stack_started=1
+    else
+      stack_started=0
+    fi
+    return "$status"
   fi
-  stack_started=1
   bash scripts/dev-smoke.sh || status=$?
   npm run test:e2e -w apps/crm-web || status=$?
   if ! bash scripts/dev-down.sh; then
@@ -383,8 +403,8 @@ if [ -n "$failed_step" ]; then
   closed_error "$failed_reason" "step $failed_step failed" 1
 fi
 if [ "$mutated" -eq 1 ]; then
-  printf 'plan3 aggregate: FAIL (PLAN3_SOURCE_MUTATED: a step modified a tracked file)\n'
-  closed_error PLAN3_SOURCE_MUTATED "a step modified a tracked file" 1
+  printf 'plan3 aggregate: FAIL (PLAN3_SOURCE_MUTATED: a step modified a file of the worktree)\n'
+  closed_error PLAN3_SOURCE_MUTATED "a step modified a tracked, staged or untracked file of the worktree" 1
 fi
 printf 'plan3 aggregate: PASS\n'
 exit 0

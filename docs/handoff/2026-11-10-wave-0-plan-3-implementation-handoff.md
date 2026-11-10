@@ -368,3 +368,80 @@ tooling verifies their digests.
 round; the plan keeps the annotation that it has not run. Wave 0/P0 acceptance, remote
 DemoModule end-to-end, tenant isolation, outage/recovery and restore drills and remote CI
 remain **OPEN** and are not claimed here.
+
+## Task 7 fix round 2 — stack teardown on a failed start, complete error envelopes and the staged-file gap (pending scoped review)
+
+The independent re-review of the fix round 1 confirmed that the three Important and the
+nine Minor findings of round 1 are closed, and returned **1 Important regression and 4
+Minor residuals**. This round closes exactly those five items: **N-1** (a failed
+`dev-up.sh` orphaned the stack), **N-2** (closed error paths without a reason token and a
+correlation identifier), **N-3** (a file staged in the index but absent from `HEAD` was
+invisible to the source digest), **N-4** (the Plan 3 harnesses are wired to nothing) and
+**N-5** (the wording of `PLAN3_SOURCE_MUTATED` and a hardcoded oasdiff version). The
+commits `0695cc2`, `422e049`, `ac69dc7` and `80de4d8` are unchanged and byte-identical.
+
+**Branch and state.** Branch `feat/wave-0-plan-3-frontend-contract-toolchain`, base
+`5257abf`. The fix is the commit `fix(contracts): close the Plan 3 stack and reporting
+gaps`; the documentation of this round follows it. No merge, push, deploy, publication or
+database migration is authorized or performed.
+
+**What changed in the code.** The aggregate assumes the stack may be partially up while
+`dev-up.sh` runs: it sets `stack_started=1` before the start attempt, calls `dev-down.sh`
+after a **failed** start and fails the step with `PLAN3_STACK_TEARDOWN_FAILED` when that
+teardown fails. The source digest now covers the files of the Git index next to the tracked
+paths of `HEAD` and the untracked files, so a staged file that a step rewrites produces
+`PLAN3_SOURCE_MUTATED` instead of a green run. Every closed error path of
+`scripts/check-plan3.sh`, `tests/Plan3/clean-export.sh`, `tests/Plan3/aggregate-reporting.sh`
+and `tests/Plan3/negative-cases.sh` emits a reason token **and** the correlation identifier
+of the run. The clean export derives the pinned oasdiff executable from
+`tools/contracts/oasdiff.json` instead of a hardcoded version, so the digest line follows a
+version bump and cannot disappear silently.
+
+**Coverage.** `tests/Plan3/aggregate-reporting.sh` grew from six to nine cases: a failed
+stack start tears the started stack down, a staged file that a step rewrites is detected,
+and the argument errors of both harnesses carry a reason token and a correlation
+identifier. The three new cases were observed RED against the implementation of `80de4d8`
+and GREEN after the fix. The mutation sensitivity was proven in a scratch copy of the
+checkout with its own Git history: with the implementation reverted to `80de4d8` and the
+new cases kept, all three failed again — the orphaned stack process, the fail-open digest
+and the missing reason token.
+
+**The harnesses are not yet wired into any runner.** `tests/Plan3/aggregate-reporting.sh`,
+`tests/Plan3/negative-cases.sh` and `tests/Plan3/clean-export.sh` are not executed by
+`unittest discover -s tests/Contract`, by any `package.json` script or by a CI pipeline.
+The repository has no CI yet; **Plan 4 owns the wiring** of these three commands into the
+continuous integration path. Until then a human must run, from the root of the checkout:
+
+```
+bash tests/Plan3/negative-cases.sh --base-ref 408ded6
+bash tests/Plan3/aggregate-reporting.sh --base-ref 408ded6
+bash tests/Plan3/clean-export.sh --sha <sha> --base-ref <ref> [--with-browser]
+```
+
+The base revision must be a revision the local clone already has; the harnesses never
+fetch.
+
+**Verification.** The reporting harness passed 9 of 9 cases in 2m00.453s and the
+negative-case harness passed 3 of 3 cases in 3m16.307s, both with exit 0 and with the
+unchanged reason tokens. `python3 scripts/contracts/check.py` returned exit 0 with
+`SDK_GENERATED_CURRENT` and a correlation identifier. `bash scripts/check-plan3.sh
+--base-ref` without a value returned exit 2 with `PLAN3_ARGUMENT_INVALID` and a
+correlation identifier, the same script with Node 26.13.0 on the `PATH` returned exit 1
+with `PLAN3_TOOLCHAIN_MISMATCH` and a correlation identifier, and the clean export refused
+a non-empty target with `PLAN3_EXPORT_TARGET_INVALID`, a correlation identifier and the
+content of the target kept. Exact commands and durations are in the Plan 3 verification
+document.
+
+**Known limitations.** The 87-case contract suite, the 70-case .NET non-Compose suite and
+the full clean export with the browser suite were **not** re-run in this round; the round 1
+results stand as the evidence for the unchanged runtime and are not presented as a run of
+this round. The changed files are shell harnesses and the aggregate gate, which no Python
+or .NET suite executes. The browser suite still needs the Chromium shared libraries, which
+this host does not install; they are provided through `LD_LIBRARY_PATH`. The local tool
+artifacts are not committed and are copied into every sandbox and export; the tooling
+verifies their digests.
+
+**Still open.** The read-only whole-branch review is performed by the controller after this
+round; the plan keeps the annotation that it has not run. Wave 0/P0 acceptance, remote
+DemoModule end-to-end, tenant isolation, outage/recovery and restore drills and remote CI
+remain **OPEN** and are not claimed here.

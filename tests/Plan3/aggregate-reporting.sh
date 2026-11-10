@@ -11,7 +11,11 @@
 #        token and a correlation identifier;
 #   I-3  a failed stack teardown must fail the run, and an interrupted run must
 #        not orphan the local stack;
-#   M-4  the clean export must refuse a target directory that is not empty.
+#   M-4  the clean export must refuse a target directory that is not empty;
+#   N-1  a stack that fails to start must be torn down, never orphaned;
+#   N-2  every closed error path carries a reason token and a correlation id;
+#   N-3  a file that is staged in the index but absent from HEAD is covered by
+#        the source digest.
 #
 # The sandbox is a copy of the checkout with a read-only Git object context
 # (objects/info/alternates) so that a base revision resolves without a fetch.
@@ -20,18 +24,45 @@
 # Usage: bash tests/Plan3/aggregate-reporting.sh [--base-ref <ref>]
 set -uo pipefail
 
-root=$(cd "$(dirname "$0")/../.." && pwd)
+# The correlation identifier of this harness accompanies every closed error path.
+new_correlation() {
+  if [ -r /proc/sys/kernel/random/uuid ]; then
+    cat /proc/sys/kernel/random/uuid
+  elif command -v python3 >/dev/null 2>&1; then
+    python3 -c 'import uuid;print(uuid.uuid4())'
+  else
+    od -An -tx1 -N16 /dev/urandom 2>/dev/null | tr -d ' \n'
+  fi
+}
+correlation=$(new_correlation)
+
+# A closed error path of the harness: a reason token, a safe detail and the
+# correlation identifier of this run. No payload and no secret.
+closed_error() {
+  local reason="$1" detail="$2" code="$3"
+  printf '{"reason": "%s", "detail": "%s", "correlationId": "%s"}\n' \
+    "$reason" "$detail" "$correlation" >&2
+  exit "$code"
+}
+
+root=$(cd "$(dirname "$0")/../.." && pwd) ||
+  closed_error PLAN3_WORKSPACE_UNAVAILABLE "the checkout could not be located" 1
 base_ref="408ded6"
 only=""
 while [ $# -gt 0 ]; do
   case "$1" in
-    --base-ref) base_ref="${2:-}"; shift 2 ;;
-    --only) only="${2:-}"; shift 2 ;;
-    *) echo "unknown argument: $1" >&2; exit 2 ;;
+    --base-ref)
+      [ $# -ge 2 ] || closed_error PLAN3_ARGUMENT_INVALID "--base-ref requires a value" 2
+      base_ref="$2"; shift 2 ;;
+    --only)
+      [ $# -ge 2 ] || closed_error PLAN3_ARGUMENT_INVALID "--only requires a value" 2
+      only="$2"; shift 2 ;;
+    *) closed_error PLAN3_ARGUMENT_INVALID "unknown argument: $1" 2 ;;
   esac
 done
 
-work=$(mktemp -d)
+work=$(mktemp -d) ||
+  closed_error PLAN3_TEMP_DIRECTORY_UNAVAILABLE "a temporary directory could not be created" 1
 trap 'rm -rf "$work"' EXIT
 
 failures=0
@@ -52,6 +83,34 @@ fail() {
 }
 
 pass() { log "ok    $1"; }
+
+# The directory of the pinned oasdiff executable, taken from the policy that
+# the tooling verifies itself. The version is never hardcoded here, so a bump
+# of the pinned tool does not silently break the copy.
+pinned_oasdiff_directory() {
+  local relative candidate
+  relative=$(python3 - "$root/tools/contracts/oasdiff.json" <<'PY' 2>/dev/null
+import json
+import os
+import sys
+
+try:
+    policy = json.load(open(sys.argv[1]))
+except Exception:
+    sys.exit(1)
+print(os.path.dirname(policy.get('binaryPath', '')))
+PY
+)
+  case "$relative" in
+    */oasdiff-*) printf '%s\n' "${relative##*/}" ;;
+    *)
+      for candidate in "$root"/.local/plan3-tools/oasdiff-*; do
+        [ -d "$candidate" ] && { printf '%s\n' "${candidate##*/}"; return 0; }
+      done
+      printf 'oasdiff-missing\n'
+      ;;
+  esac
+}
 
 # Creates a sandbox copy of the checkout with a read-only Git object context.
 make_sandbox() {
@@ -77,7 +136,7 @@ make_sandbox() {
   printf '%s/objects\n' "$(git -C "$root" rev-parse --absolute-git-dir)" > "$dir/.git/objects/info/alternates"
   mkdir -p "$dir/.local/plan3-tools"
   cp "$root/.local/plan3-tools/corvus.json.cli.5.8.8.nupkg" "$dir/.local/plan3-tools/"
-  cp -R "$root/.local/plan3-tools/oasdiff-1.37.0" "$dir/.local/plan3-tools/"
+  cp -R "$root/.local/plan3-tools/$(pinned_oasdiff_directory)" "$dir/.local/plan3-tools/"
 }
 
 # Replaces the driven tools that are not under test with stubs, so that the
@@ -125,6 +184,29 @@ step_is_not_run() {
   printf '%s' "$gate_output" |
     grep -E "^$1[[:space:]]+not run[[:space:]]+-" |
     grep -q 'not run: an earlier step failed'
+}
+
+# A process that still runs. A zombie only waits to be reaped and is gone for
+# the purpose of this harness.
+process_is_running() {
+  local pid="$1" state
+  [ -n "$pid" ] || return 1
+  state=$(ps -o stat= -p "$pid" 2>/dev/null | tr -d ' ')
+  [ -n "$state" ] || return 1
+  case "$state" in
+    Z*) return 1 ;;
+  esac
+  return 0
+}
+
+# Waits until the process is gone, at most ten seconds.
+wait_until_gone() {
+  local pid="$1" waited=0
+  while process_is_running "$pid" && [ "$waited" -lt 100 ]; do
+    sleep 0.1
+    waited=$((waited + 1))
+  done
+  ! process_is_running "$pid"
 }
 
 case_argument_error() {
@@ -296,6 +378,134 @@ case_clean_export_refuses_a_used_target() {
   pass "clean export target (exit $status, PLAN3_EXPORT_TARGET_INVALID, content kept)"
 }
 
+case_failed_stack_start_tears_the_stack_down() {
+  log "case  a failed stack start tears the started stack down"
+  cases=$((cases + 1))
+  local dir="$work/stack-start-failure"
+  make_sandbox "$dir"
+  stub_driven_tools "$dir"
+  # The stub starts a long-lived process and then fails, like a dev-up.sh that
+  # breaks after the containers are up.
+  cat > "$dir/scripts/dev-up.sh" <<EOF
+#!/usr/bin/env bash
+sleep 300 &
+printf '%s' "\$!" > "$dir/.stack-pid"
+exit 1
+EOF
+  # The stub teardown stops that process and records that it ran.
+  cat > "$dir/scripts/dev-down.sh" <<EOF
+#!/usr/bin/env bash
+if [ -f "$dir/.stack-pid" ]; then
+  kill "\$(cat "$dir/.stack-pid")" 2>/dev/null
+fi
+touch "$dir/.teardown-marker"
+exit 0
+EOF
+  chmod +x "$dir/scripts/dev-up.sh" "$dir/scripts/dev-down.sh"
+  run_gate "$dir" --base-ref "$base_ref" --with-browser
+  if [ "$gate_status" -eq 0 ]; then
+    fail "failed stack start" "the gate exited 0 although the stack did not start"
+    return
+  fi
+  if printf '%s' "$gate_output" | grep -q 'plan3 aggregate: PASS'; then
+    fail "failed stack start" "the gate reported PASS although the stack did not start"
+    return
+  fi
+  if ! printf '%s' "$gate_output" | grep -q 'PLAN3_STACK_START_FAILED'; then
+    fail "failed stack start" "the reason token PLAN3_STACK_START_FAILED is missing"
+    return
+  fi
+  local stack_pid
+  stack_pid=$(cat "$dir/.stack-pid" 2>/dev/null)
+  if [ -z "$stack_pid" ]; then
+    fail "failed stack start" "the stub did not start a process"
+    return
+  fi
+  if ! wait_until_gone "$stack_pid"; then
+    fail "failed stack start" "the stack process $stack_pid is STILL RUNNING after the failed start"
+    return
+  fi
+  if [ ! -f "$dir/.teardown-marker" ]; then
+    fail "failed stack start" "the teardown did not run after the failed stack start"
+    return
+  fi
+  pass "failed stack start (exit $gate_status, PLAN3_STACK_START_FAILED, the stack process is gone)"
+}
+
+case_staged_file_mutation_is_detected() {
+  log "case  a staged file that a step rewrites is detected"
+  cases=$((cases + 1))
+  local dir="$work/staged-mutation"
+  make_sandbox "$dir"
+  stub_driven_tools "$dir"
+  # A file that is staged in the index but absent from HEAD: it is in neither
+  # the tracked list of HEAD nor in the untracked list.
+  printf 'probe\n' > "$dir/plan3-staged-probe.txt"
+  if ! git -C "$dir" add plan3-staged-probe.txt >/dev/null 2>&1; then
+    fail "staged mutation" "the probe file could not be staged in the sandbox"
+    return
+  fi
+  # A step rewrites the staged file while the run is in progress.
+  cat > "$dir/tests/ClientConsumers/run.sh" <<EOF
+#!/usr/bin/env bash
+printf 'rewritten by a step\n' >> "$dir/plan3-staged-probe.txt"
+exit 0
+EOF
+  chmod +x "$dir/tests/ClientConsumers/run.sh"
+  run_gate "$dir" --base-ref "$base_ref"
+  if [ "$gate_status" -eq 0 ]; then
+    fail "staged mutation" "the gate exited 0 although a staged file was rewritten"
+    return
+  fi
+  if printf '%s' "$gate_output" | grep -q 'plan3 aggregate: PASS'; then
+    fail "staged mutation" "the gate reported PASS although a staged file was rewritten"
+    return
+  fi
+  if ! printf '%s' "$gate_output" | grep -q 'PLAN3_SOURCE_MUTATED'; then
+    fail "staged mutation" "the reason token PLAN3_SOURCE_MUTATED is missing"
+    return
+  fi
+  pass "staged mutation (exit $gate_status, PLAN3_SOURCE_MUTATED, no PASS)"
+}
+
+case_harness_argument_envelopes() {
+  log "case  the harness argument errors carry a reason token and a correlation id"
+  cases=$((cases + 1))
+  local out="$work/harness-argument.out"
+  local status output
+  ( cd "$root" && bash "$root/tests/Plan3/negative-cases.sh" --not-a-real-argument ) > "$out" 2>&1
+  status=$?
+  output=$(cat "$out")
+  if [ "$status" -ne 2 ]; then
+    fail "harness argument error" "negative cases: expected exit 2, got $status"
+    return
+  fi
+  if ! printf '%s' "$output" | grep -q 'PLAN3_ARGUMENT_INVALID'; then
+    fail "harness argument error" "negative cases: the reason token PLAN3_ARGUMENT_INVALID is missing"
+    return
+  fi
+  if ! has_correlation "$output"; then
+    fail "harness argument error" "negative cases: no correlation id in: $(printf '%s' "$output" | tail -n 3)"
+    return
+  fi
+  ( cd "$root" && bash "$root/tests/Plan3/clean-export.sh" --sha ) > "$out" 2>&1
+  status=$?
+  output=$(cat "$out")
+  if [ "$status" -ne 2 ]; then
+    fail "harness argument error" "clean export: expected exit 2, got $status"
+    return
+  fi
+  if ! printf '%s' "$output" | grep -q 'PLAN3_ARGUMENT_INVALID'; then
+    fail "harness argument error" "clean export: the reason token PLAN3_ARGUMENT_INVALID is missing"
+    return
+  fi
+  if ! has_correlation "$output"; then
+    fail "harness argument error" "clean export: no correlation id in: $(printf '%s' "$output" | tail -n 3)"
+    return
+  fi
+  pass "harness argument error (exit 2, PLAN3_ARGUMENT_INVALID, correlation id present)"
+}
+
 run_case() {
   local name="$1"
   [ -z "$only" ] || [ "$only" = "$name" ] || return 0
@@ -308,10 +518,13 @@ run_case steps_after_failure_are_recorded
 run_case teardown_failure
 run_case interrupt_tears_the_stack_down
 run_case clean_export_refuses_a_used_target
+run_case failed_stack_start_tears_the_stack_down
+run_case staged_file_mutation_is_detected
+run_case harness_argument_envelopes
 
 log ""
 if [ "$failures" -ne 0 ]; then
   log "aggregate reporting cases: $failures of $cases failed"
-  exit 1
+  closed_error PLAN3_REGRESSION_CASES_FAILED "$failures of $cases cases failed" 1
 fi
 log "aggregate reporting cases: $cases of $cases passed"

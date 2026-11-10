@@ -18,9 +18,6 @@
 #        [--target <dir>] [--with-browser] [--keep]
 set -uo pipefail
 
-root=$(cd "$(dirname "$0")/../.." && pwd) || exit 1
-git_dir=$(git -C "$root" rev-parse --absolute-git-dir) || exit 1
-
 # The correlation identifier of this run accompanies every closed error path.
 new_correlation() {
   if [ -r /proc/sys/kernel/random/uuid ]; then
@@ -33,11 +30,19 @@ new_correlation() {
 }
 correlation=$(new_correlation)
 
+# A closed error path of the export: a reason token, a safe detail and the
+# correlation identifier of this run. No payload and no secret.
 closed_error() {
+  local reason="$1" detail="$2" code="${3:-1}"
   printf '{"reason": "%s", "detail": "%s", "correlationId": "%s"}\n' \
-    "$1" "$2" "$correlation" >&2
-  exit 1
+    "$reason" "$detail" "$correlation" >&2
+  exit "$code"
 }
+
+root=$(cd "$(dirname "$0")/../.." && pwd) ||
+  closed_error PLAN3_WORKSPACE_UNAVAILABLE "the checkout could not be located" 1
+git_dir=$(git -C "$root" rev-parse --absolute-git-dir) ||
+  closed_error PLAN3_GIT_UNAVAILABLE "the local clone could not be resolved" 1
 
 sha=""
 base_ref=""
@@ -59,9 +64,8 @@ EOF
 }
 
 argument_error() {
-  printf 'PLAN3_ARGUMENT_INVALID: %s\n' "$1" >&2
   usage >&2
-  exit 2
+  closed_error PLAN3_ARGUMENT_INVALID "$1" 2
 }
 
 while [ $# -gt 0 ]; do
@@ -82,8 +86,7 @@ done
 # clone. A missing object is a closed error path, never an empty baseline.
 for revision in "$sha" "$base_ref"; do
   if ! git -C "$root" cat-file -e "${revision}^{commit}" 2>/dev/null; then
-    printf 'CONTRACT_BASE_UNAVAILABLE: %s is not a commit in the local clone\n' "$revision" >&2
-    exit 1
+    closed_error CONTRACT_BASE_UNAVAILABLE "$revision is not a commit in the local clone" 1
   fi
 done
 sha=$(git -C "$root" rev-parse "${sha}^{commit}")
@@ -91,7 +94,8 @@ base_sha=$(git -C "$root" rev-parse "${base_ref}^{commit}")
 
 created_target=0
 if [ -z "$target" ]; then
-  target=$(mktemp -d "${TMPDIR:-/tmp}/plan3-export-XXXXXX") || exit 1
+  target=$(mktemp -d "${TMPDIR:-/tmp}/plan3-export-XXXXXX") ||
+    closed_error PLAN3_EXPORT_TARGET_INVALID "the export directory could not be created" 1
   created_target=1
 else
   # The target must be a directory that is empty or does not exist. A mistyped
@@ -120,7 +124,8 @@ cleanup() {
 }
 trap cleanup EXIT
 
-git -C "$root" archive --format=tar "$sha" | tar -x -C "$target" || exit 1
+git -C "$root" archive --format=tar "$sha" | tar -x -C "$target" ||
+  closed_error PLAN3_EXPORT_ARCHIVE_FAILED "the commit could not be exported" 1
 
 # Read-only Git object context: the export can resolve revisions that the local
 # clone already has, and it cannot create or change any object.
@@ -147,10 +152,46 @@ for artifact in "$target"/.local/plan3-tools/*; do
   printf 'local artifact: %s %s\n' "$(basename "$artifact")" \
     "$(sha256sum < "$artifact" | cut -d' ' -f1)"
 done
-oasdiff_binary="$target/.local/plan3-tools/oasdiff-1.37.0/oasdiff"
-if [ -f "$oasdiff_binary" ]; then
-  printf 'local artifact: %s %s\n' "oasdiff-1.37.0/oasdiff" \
-    "$(sha256sum < "$oasdiff_binary" | cut -d' ' -f1)"
+# The pinned oasdiff executable is located through the policy that the tooling
+# verifies itself, so a version bump follows the policy and this line cannot
+# disappear silently.
+oasdiff_policy="$target/tools/contracts/oasdiff.json"
+[ -f "$oasdiff_policy" ] || oasdiff_policy="$root/tools/contracts/oasdiff.json"
+oasdiff_relative=""
+if [ -f "$oasdiff_policy" ]; then
+  oasdiff_relative=$(python3 - "$oasdiff_policy" <<'PY' 2>/dev/null
+import json
+import sys
+
+try:
+    policy = json.load(open(sys.argv[1]))
+except Exception:
+    sys.exit(1)
+print(policy.get('binaryPath', ''))
+PY
+)
+fi
+if [ -n "$oasdiff_relative" ]; then
+  if [ ! -f "$target/$oasdiff_relative" ]; then
+    closed_error PLAN3_EXPORT_ARTIFACT_MISSING \
+      "the pinned oasdiff executable $oasdiff_relative is not in the export" 1
+  fi
+  printf 'local artifact: %s %s\n' "$oasdiff_relative" \
+    "$(sha256sum < "$target/$oasdiff_relative" | cut -d' ' -f1)"
+else
+  # No policy pins an oasdiff executable: the line stays visible with the
+  # discovered artifact instead of vanishing.
+  oasdiff_discovered=""
+  for candidate in "$target"/.local/plan3-tools/oasdiff-*/oasdiff; do
+    [ -f "$candidate" ] && { oasdiff_discovered="$candidate"; break; }
+  done
+  if [ -n "$oasdiff_discovered" ]; then
+    printf 'local artifact: %s %s\n' \
+      ".local/plan3-tools/$(basename "$(dirname "$oasdiff_discovered")")/oasdiff" \
+      "$(sha256sum < "$oasdiff_discovered" | cut -d' ' -f1)"
+  else
+    printf 'local artifact: oasdiff not pinned by this commit\n'
+  fi
 fi
 
 gate_args=(--base-ref "$base_ref")
