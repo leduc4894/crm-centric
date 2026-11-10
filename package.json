@@ -2,7 +2,19 @@
   "name": "crm-centric-toolchain",
   "private": true,
   "version": "0.0.0",
+  "packageManager": "npm@11.19.1",
   "engines": { "node": "24.22.2", "npm": "11.19.1" },
+  "workspaces": [
+    "apps/crm-web",
+    "sdks/typescript/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace @crm-centric/crm-web",
+    "build": "npm run build --workspace @crm-centric/crm-web",
+    "typecheck": "npm run typecheck --workspace @crm-centric/crm-web",
+    "lint": "npm run lint --workspace @crm-centric/crm-web",
+    "test": "npm run test --workspace @crm-centric/crm-web"
+  },
   "devDependencies": { "openapi-typescript": "7.13.0", "typescript": "5.9.3" },
   "dependencies": { "openapi-fetch": "0.17.0" }
 }
