@@ -21,6 +21,24 @@ set -uo pipefail
 root=$(cd "$(dirname "$0")/../.." && pwd) || exit 1
 git_dir=$(git -C "$root" rev-parse --absolute-git-dir) || exit 1
 
+# The correlation identifier of this run accompanies every closed error path.
+new_correlation() {
+  if [ -r /proc/sys/kernel/random/uuid ]; then
+    cat /proc/sys/kernel/random/uuid
+  elif command -v python3 >/dev/null 2>&1; then
+    python3 -c 'import uuid;print(uuid.uuid4())'
+  else
+    od -An -tx1 -N16 /dev/urandom 2>/dev/null | tr -d ' \n'
+  fi
+}
+correlation=$(new_correlation)
+
+closed_error() {
+  printf '{"reason": "%s", "detail": "%s", "correlationId": "%s"}\n' \
+    "$1" "$2" "$correlation" >&2
+  exit 1
+}
+
 sha=""
 base_ref=""
 target=""
@@ -76,8 +94,22 @@ if [ -z "$target" ]; then
   target=$(mktemp -d "${TMPDIR:-/tmp}/plan3-export-XXXXXX") || exit 1
   created_target=1
 else
-  rm -rf "$target"
-  mkdir -p "$target" || exit 1
+  # The target must be a directory that is empty or does not exist. A mistyped
+  # target must never delete an unrelated directory.
+  if [ -e "$target" ]; then
+    [ -d "$target" ] || closed_error PLAN3_EXPORT_TARGET_INVALID "the target is not a directory"
+    resolved=$(cd "$target" && pwd -P) || closed_error PLAN3_EXPORT_TARGET_INVALID "the target cannot be resolved"
+    case "$resolved" in
+      /|"$HOME"|"$root")
+        closed_error PLAN3_EXPORT_TARGET_INVALID "the target is a protected directory"
+        ;;
+    esac
+    if [ -n "$(ls -A "$target" 2>/dev/null)" ]; then
+      closed_error PLAN3_EXPORT_TARGET_INVALID "the target directory is not empty"
+    fi
+    rmdir "$target" 2>/dev/null || true
+  fi
+  mkdir -p "$target" || closed_error PLAN3_EXPORT_TARGET_INVALID "the target cannot be created"
   created_target=1
 fi
 
@@ -107,10 +139,19 @@ done
 printf 'export sha: %s\n' "$sha"
 printf 'base sha: %s\n' "$base_sha"
 printf 'export directory: %s\n' "$target"
+printf 'correlation: %s\n' "$correlation"
+# The digests of the pinned local tool artifacts that the tooling verifies
+# itself: the Corvus.Json.Cli package and the oasdiff executable.
 for artifact in "$target"/.local/plan3-tools/*; do
   [ -f "$artifact" ] || continue
-  printf 'local artifact: %s %s\n' "$(basename "$artifact")" "$(sha256sum < "$artifact" | cut -d' ' -f1)"
+  printf 'local artifact: %s %s\n' "$(basename "$artifact")" \
+    "$(sha256sum < "$artifact" | cut -d' ' -f1)"
 done
+oasdiff_binary="$target/.local/plan3-tools/oasdiff-1.37.0/oasdiff"
+if [ -f "$oasdiff_binary" ]; then
+  printf 'local artifact: %s %s\n' "oasdiff-1.37.0/oasdiff" \
+    "$(sha256sum < "$oasdiff_binary" | cut -d' ' -f1)"
+fi
 
 gate_args=(--base-ref "$base_ref")
 [ "$with_browser" -eq 1 ] && gate_args+=(--with-browser)

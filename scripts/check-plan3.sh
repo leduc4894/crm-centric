@@ -11,7 +11,10 @@
 # The script never fetches, resets, rebases or rebaselines Git and never
 # modifies a tracked file, the lockfile, the generated SDKs or the baseline.
 # Every step writes only to a temporary directory or to an ignored build output
-# directory; the tracked-file digest is compared before and after the run.
+# directory; the source digest is compared before and after the run.
+#
+# Every closed error path of this script produces a reason token and the
+# correlation identifier of the run.
 #
 # Usage:
 #   bash scripts/check-plan3.sh --base-ref <ref> [--with-browser]
@@ -24,14 +27,28 @@
 #                      closed with PLAN3_ARGUMENT_INVALID.
 #   --with-browser     Opt in to the browser suite. The suite needs the local
 #                      Docker stack, so the script starts it and stops it again.
-#                      Without the flag the step is recorded as "not run"; it is
-#                      never silently skipped.
+#                      A teardown that fails fails the step. Without the flag
+#                      the step is recorded as "not run"; it is never silently
+#                      skipped.
 #
 # Exit codes: 0 every step passed, 1 a step failed, 2 the arguments were invalid.
 set -uo pipefail
 
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd) || exit 1
 cd "$root" || exit 1
+
+# The correlation identifier of this run. It accompanies every closed error
+# path of the aggregate itself.
+new_correlation() {
+  if [ -r /proc/sys/kernel/random/uuid ]; then
+    cat /proc/sys/kernel/random/uuid
+  elif command -v python3 >/dev/null 2>&1; then
+    python3 -c 'import uuid;print(uuid.uuid4())'
+  else
+    od -An -tx1 -N16 /dev/urandom 2>/dev/null | tr -d ' \n'
+  fi
+}
+correlation=$(new_correlation)
 
 usage() {
   cat <<'EOF'
@@ -42,8 +59,18 @@ Usage: bash scripts/check-plan3.sh --base-ref <ref> [--with-browser]
 EOF
 }
 
+# A closed error path of the aggregate: a reason token, a safe detail and the
+# correlation identifier of this run. No payload, no secret.
+closed_error() {
+  local reason="$1" detail="$2" code="$3"
+  printf '{"reason": "%s", "detail": "%s", "correlationId": "%s"}\n' \
+    "$reason" "$detail" "$correlation" >&2
+  exit "$code"
+}
+
 argument_error() {
-  printf 'PLAN3_ARGUMENT_INVALID: %s\n' "$1" >&2
+  printf '{"reason": "PLAN3_ARGUMENT_INVALID", "detail": "%s", "correlationId": "%s"}\n' \
+    "$1" "$correlation" >&2
   usage >&2
   exit 2
 }
@@ -77,13 +104,53 @@ done
 [ -n "$base_ref" ] || argument_error "--base-ref is required"
 
 logs=$(mktemp -d) || exit 1
-trap 'rm -rf "$logs"' EXIT
+stack_started=0
+
+# The local stack is owned by this run. An interrupted run must not orphan it.
+cleanup() {
+  local status=$?
+  if [ "$stack_started" -eq 1 ]; then
+    printf 'plan3 aggregate: stopping the local stack of the interrupted run\n' >&2
+    bash scripts/dev-down.sh >/dev/null 2>&1 ||
+      printf 'plan3 aggregate: the local stack was not stopped cleanly\n' >&2
+  fi
+  rm -rf "$logs"
+  return "$status"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 step_names=()
 step_commands=()
 step_status=()
 step_seconds=()
 step_reasons=()
+
+# Every step of the aggregate, in order.
+ALL_STEPS="locked-install generated-check sdk-consumers compatibility frontend-typecheck frontend-lint frontend-test frontend-build frontend-leak-scan browser-e2e"
+
+step_command() {
+  case "$1" in
+    locked-install) printf 'npm ci --ignore-scripts --no-audit --no-fund' ;;
+    generated-check) printf 'python3 scripts/contracts/check.py' ;;
+    sdk-consumers) printf 'bash tests/ClientConsumers/run.sh' ;;
+    compatibility) printf 'python3 scripts/contracts/compatibility.py --base-ref %s' "$base_ref" ;;
+    frontend-typecheck) printf 'npm run typecheck -w apps/crm-web' ;;
+    frontend-lint) printf 'npm run lint -w apps/crm-web' ;;
+    frontend-test) printf 'npm run test -w apps/crm-web' ;;
+    frontend-build) printf 'npm run build -w apps/crm-web' ;;
+    frontend-leak-scan) printf 'npm run scan:leaks -w apps/crm-web' ;;
+    browser-e2e)
+      if [ "$with_browser" -eq 1 ]; then
+        printf 'bash scripts/dev-up.sh; bash scripts/dev-smoke.sh; npm run test:e2e -w apps/crm-web; bash scripts/dev-down.sh'
+      else
+        printf 'npm run test:e2e -w apps/crm-web'
+      fi
+      ;;
+    *) printf '' ;;
+  esac
+}
 
 # Reads the reason token out of a step log. The contract tooling prints a safe
 # JSON report on its last line; anything else falls back to the step default.
@@ -119,42 +186,76 @@ default_reason() {
   esac
 }
 
-# Digest of every tracked file in the worktree. Compared before and after the
-# run to prove that no step mutated the source tree.
-source_digest() {
+# Defensive redaction of the common secret shapes in the echoed step output.
+# The deeper property, that the driven tools never emit a secret, stays theirs.
+redact() {
+  sed -E \
+    -e 's/(Bearer)[[:space:]]+[A-Za-z0-9._~+/=-]{8,}/\1 [redacted]/g' \
+    -e 's/(Authorization:[[:space:]]*)[^[:space:]]+/\1[redacted]/gI' \
+    -e 's/((password|passwd|secret|client_secret|api_key|apikey|access_token|refresh_token|id_token|private_key|connection_string)[[:space:]]*[:=][[:space:]]*"?)[^",[:space:]]+/\1[redacted]/gI'
+}
+
+# The reduced scope of the source digest, used only when the tracked file list
+# cannot be read from Git.
+fallback_scope() {
   {
-    if git -C "$root" ls-tree -r --name-only HEAD -- >/dev/null 2>&1; then
-      git -C "$root" ls-tree -r --name-only HEAD -- | LC_ALL=C sort
-    else
-      find docs/contracts sdks tools/contracts scripts/contracts src -type f \
-        -not -path '*/bin/*' -not -path '*/obj/*' 2>/dev/null | LC_ALL=C sort
-    fi
-  } | while IFS= read -r file; do
-    path="$root/$file"
-    if [ -L "$path" ]; then
-      printf '%s link %s\n' "$file" "$(readlink "$path")"
-    elif [ -f "$path" ]; then
-      printf '%s ' "$file"
-      sha256sum < "$path" | cut -d' ' -f1
-    else
-      printf '%s missing\n' "$file"
-    fi
-  done | sha256sum | cut -d' ' -f1
+    for path in docs/contracts sdks tools/contracts scripts/contracts src; do
+      [ -d "$path" ] || continue
+      find "$path" -type f -not -path '*/bin/*' -not -path '*/obj/*' -print
+    done
+    for path in package.json package-lock.json .npmrc .node-version compose.yaml; do
+      [ -f "$path" ] && printf '%s\n' "$path"
+    done
+  } | LC_ALL=C sort -u
+}
+
+# Digest of the tracked and untracked files of the worktree. Compared before
+# and after the run to prove that no step changed the source tree.
+source_digest() {
+  local tracked untracked
+  tracked=$(git -C "$root" ls-tree -r --name-only HEAD -- 2>/dev/null)
+  if [ -z "$tracked" ]; then
+    printf 'plan3 aggregate: WARNING the source digest uses the reduced fallback scope\n' >&2
+    tracked=$(fallback_scope)
+  fi
+  if ! untracked=$(git -C "$root" ls-files --others --exclude-standard 2>/dev/null); then
+    printf 'plan3 aggregate: WARNING untracked files are not covered by the source digest\n' >&2
+    untracked=""
+  fi
+  { printf '%s\n' "$tracked"; printf '%s\n' "$untracked"; } | LC_ALL=C sort -u |
+    while IFS= read -r file; do
+      [ -n "$file" ] || continue
+      path="$root/$file"
+      if [ -L "$path" ]; then
+        printf '%s link %s\n' "$file" "$(readlink "$path")"
+      elif [ -f "$path" ]; then
+        printf '%s ' "$file"
+        sha256sum < "$path" | cut -d' ' -f1
+      else
+        printf '%s missing\n' "$file"
+      fi
+    done | sha256sum | cut -d' ' -f1
 }
 
 # The browser suite needs the local stack. The stack is started and stopped
-# here so that the run owns its lifecycle.
+# here so that the run owns its lifecycle. A teardown that fails fails the
+# step: a run must never report success while the stack is still up.
 browser_step() {
   local status=0
   if ! bash scripts/dev-up.sh; then
-    bash scripts/dev-down.sh ||
-      printf 'warning: the local stack was not stopped cleanly\n'
+    printf '{"reason": "PLAN3_STACK_START_FAILED", "detail": "the local stack did not start", "correlationId": "%s"}\n' "$correlation"
     return 1
   fi
+  stack_started=1
   bash scripts/dev-smoke.sh || status=$?
   npm run test:e2e -w apps/crm-web || status=$?
-  bash scripts/dev-down.sh ||
-    printf 'warning: the local stack was not stopped cleanly\n'
+  if ! bash scripts/dev-down.sh; then
+    printf '{"reason": "PLAN3_STACK_TEARDOWN_FAILED", "detail": "the local stack was not stopped cleanly", "correlationId": "%s"}\n' "$correlation"
+    stack_started=1
+    status=1
+  else
+    stack_started=0
+  fi
   return "$status"
 }
 
@@ -192,7 +293,7 @@ run_step() {
   step_seconds+=("$((end - start))")
   step_reasons+=("$reason")
   printf '\n===== %s: %s (exit %s, %ss) =====\n' "$name" "$command" "$status" "$((end - start))"
-  cat "$logs/$name.log"
+  redact < "$logs/$name.log"
   return "$status"
 }
 
@@ -206,66 +307,55 @@ record_not_run() {
 }
 
 printf 'plan3 aggregate: base ref %s\n' "$base_ref"
+printf 'plan3 aggregate: correlation %s\n' "$correlation"
 
 # Prerequisites. A missing or mismatched prerequisite fails closed instead of
 # producing a misleading step failure.
 prerequisite_failure=""
-command -v node >/dev/null 2>&1 || prerequisite_failure="PLAN3_PREREQUISITE_MISSING: node"
-if [ -z "$prerequisite_failure" ]; then
+prerequisite_detail=""
+if ! command -v node >/dev/null 2>&1; then
+  prerequisite_failure="PLAN3_PREREQUISITE_MISSING"
+  prerequisite_detail="node is not on the PATH"
+else
   expected_node=$(tr -d '[:space:]' < .node-version)
   actual_node=$(node --version 2>/dev/null | tr -d 'v[:space:]')
-  [ "$expected_node" = "$actual_node" ] ||
-    prerequisite_failure="PLAN3_TOOLCHAIN_MISMATCH: node $actual_node, expected $expected_node"
+  if [ "$expected_node" != "$actual_node" ]; then
+    prerequisite_failure="PLAN3_TOOLCHAIN_MISMATCH"
+    prerequisite_detail="node $actual_node, expected $expected_node"
+  fi
 fi
-if [ -z "$prerequisite_failure" ]; then
-  command -v docker >/dev/null 2>&1 ||
-    prerequisite_failure="PLAN3_PREREQUISITE_MISSING: docker"
+if [ -z "$prerequisite_failure" ] && ! command -v docker >/dev/null 2>&1; then
+  prerequisite_failure="PLAN3_PREREQUISITE_MISSING"
+  prerequisite_detail="docker is not on the PATH"
 fi
-if [ -z "$prerequisite_failure" ]; then
-  command -v python3 >/dev/null 2>&1 ||
-    prerequisite_failure="PLAN3_PREREQUISITE_MISSING: python3"
+if [ -z "$prerequisite_failure" ] && ! command -v python3 >/dev/null 2>&1; then
+  prerequisite_failure="PLAN3_PREREQUISITE_MISSING"
+  prerequisite_detail="python3 is not on the PATH"
 fi
 if [ -n "$prerequisite_failure" ]; then
-  printf '%s\n' "$prerequisite_failure" >&2
-  exit 1
+  closed_error "$prerequisite_failure" "$prerequisite_detail" 1
 fi
 
 digest_before=$(source_digest)
 
 failed_step=""
 failed_reason=""
-run_next() {
-  [ -z "$failed_step" ] || return 1
-  run_step "$1" "$2" || {
-    failed_step="$1"
+for name in $ALL_STEPS; do
+  command=$(step_command "$name")
+  if [ -n "$failed_step" ]; then
+    record_not_run "$name" "$command" "not run: an earlier step failed"
+    continue
+  fi
+  if [ "$name" = browser-e2e ] && [ "$with_browser" -eq 0 ]; then
+    record_not_run "$name" "$command" \
+      "not run: the browser suite needs the local Docker stack; pass --with-browser to run it"
+    continue
+  fi
+  run_step "$name" "$command" || {
+    failed_step="$name"
     failed_reason="${step_reasons[${#step_reasons[@]}-1]}"
   }
-}
-
-run_next locked-install "npm ci --ignore-scripts --no-audit --no-fund"
-run_next generated-check "python3 scripts/contracts/check.py"
-run_next sdk-consumers "bash tests/ClientConsumers/run.sh"
-run_next compatibility "python3 scripts/contracts/compatibility.py --base-ref $base_ref"
-run_next frontend-typecheck "npm run typecheck -w apps/crm-web"
-run_next frontend-lint "npm run lint -w apps/crm-web"
-run_next frontend-test "npm run test -w apps/crm-web"
-run_next frontend-build "npm run build -w apps/crm-web"
-run_next frontend-leak-scan "npm run scan:leaks -w apps/crm-web"
-
-if [ "$with_browser" -eq 1 ]; then
-  if [ -z "$failed_step" ]; then
-    run_next browser-e2e "bash scripts/dev-up.sh; bash scripts/dev-smoke.sh; npm run test:e2e -w apps/crm-web; bash scripts/dev-down.sh"
-  else
-    record_not_run browser-e2e "npm run test:e2e -w apps/crm-web" \
-      "not run: an earlier step failed"
-  fi
-elif [ -n "$failed_step" ]; then
-  record_not_run browser-e2e "npm run test:e2e -w apps/crm-web" \
-    "not run: an earlier step failed"
-else
-  record_not_run browser-e2e "npm run test:e2e -w apps/crm-web" \
-    "not run: the browser suite needs the local Docker stack; pass --with-browser to run it"
-fi
+done
 
 digest_after=$(source_digest)
 mutated=0
@@ -290,11 +380,11 @@ fi
 
 if [ -n "$failed_step" ]; then
   printf 'plan3 aggregate: FAIL at %s (%s)\n' "$failed_step" "$failed_reason"
-  exit 1
+  closed_error "$failed_reason" "step $failed_step failed" 1
 fi
 if [ "$mutated" -eq 1 ]; then
   printf 'plan3 aggregate: FAIL (PLAN3_SOURCE_MUTATED: a step modified a tracked file)\n'
-  exit 1
+  closed_error PLAN3_SOURCE_MUTATED "a step modified a tracked file" 1
 fi
 printf 'plan3 aggregate: PASS\n'
 exit 0
