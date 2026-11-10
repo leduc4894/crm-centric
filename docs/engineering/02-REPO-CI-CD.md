@@ -19,6 +19,16 @@ crm-platform/
   docs/
 ```
 
+## Hiện trạng kiểm chứng (2026-11-10)
+
+Backend scaffold/locked restore/build, real PostgreSQL integration, SDK-free Compose
+clean-source lifecycle, safe JSON logs/Activity và test-only fake issuer đã có local
+runtime evidence: [Plan 1](05-WAVE-0-PLAN-1-VERIFICATION.md), [Plan 2](06-WAVE-0-PLAN-2-VERIFICATION.md).
+Keycloak realm/metadata đã kiểm chứng local; CRM authentication và production IdP
+chưa triển khai/verified. Layout trên vẫn có các thư mục dự kiến.
+Frontend build, generated SDKs/breaking-diff detector, full application/security/container
+CI và remote CI execution còn OPEN; final Plan 2 whole-branch review pending.
+
 ## Frontend
 React + TypeScript strict, Vite, TanStack Router, TanStack Query, Tailwind CSS, shadcn/ui; forms with React Hook Form + Zod if adopted consistently; ESLint, formatter, typecheck, Vitest, Playwright; accessibility and localization-ready.
 

@@ -1,5 +1,5 @@
 # CRM-Centric Extensible Platform — Bộ tài liệu CRM MVP v1.0
-**Ngày chốt:** 2026-11-08 · **Ngôn ngữ:** Tiếng Việt · **Trạng thái:** Backend foundation chạy được; Wave 0/P0 còn mở.
+**Ngày cập nhật:** 2026-11-10 · **Ngôn ngữ:** Tiếng Việt · **Trạng thái:** Backend và Compose local chạy được; Wave 0/P0 còn mở.
 
 ## Tầm nhìn
 - Website Blog/SEO là hệ thống độc lập; tích hợp lead-form/webhook/API khi cần.
@@ -27,6 +27,26 @@ Breaking baseline: [ADR-018](docs/architecture/08-ADR-018-P0-CONTRACT-BASELINE.m
 
 Chi tiết thay đổi, kiểm chứng và giới hạn: [báo cáo baseline](docs/engineering/04-P0-BASELINE-VERIFICATION.md).
 
+## Local stack không cần host SDK (Linux)
+
+Với non-root UID/GID, Bash, Python 3, Docker Engine và Compose:
+
+```bash
+bash scripts/dev-up.sh
+bash scripts/dev-smoke.sh
+bash scripts/dev-down.sh
+```
+
+API: `http://localhost:5080`; Keycloak issuer:
+`http://localhost:8080/realms/crm-local`. Hai PostgreSQL riêng; credentials chỉ ở
+owner-only files. Down giữ volumes, secrets và realm. Xem [local guide](docs/operations/04-LOCAL-DEVELOPMENT.md),
+[IdP configuration](docs/operations/05-IDP-CONFIGURATION.md) và [Plan 2 evidence](docs/engineering/06-WAVE-0-PLAN-2-VERIFICATION.md)
+cho exact source SHA, clean archive runtime, versions/digests và giới hạn.
+Structured JSON logs/Activity correlation và fake OIDC test fixture đã kiểm chứng;
+CRM login/tenant authorization, frontend, SDK generation/breaking diff, application CI,
+remote DemoModule và restore drills vẫn OPEN. Production IdP guide chỉ là cấu hình
+đề xuất, chưa deployed/authentication-verified. Final whole-branch review còn pending.
+
 ## Backend foundation (Linux)
 Prerequisites: SDK **10.0.403** (global.json), Bash, curl, GNU timeout, Python 3,
 readable Linux `/proc` (including child socket/fd metadata), Docker cho integration tests, Python venv theo `requirements-contracts.lock`. PostgreSQL test
@@ -35,7 +55,8 @@ image và versions đầy đủ: [verification](docs/engineering/05-WAVE-0-PLAN-
 ```bash
 dotnet restore CrmPlatform.sln --locked-mode
 dotnet build CrmPlatform.sln -c Release --no-restore
-dotnet test CrmPlatform.sln -c Release --no-build --no-restore
+dotnet test CrmPlatform.sln -c Release --no-build --no-restore --filter 'Category!=Compose'
+dotnet test CrmPlatform.sln -c Release --no-build --no-restore --filter 'Category=Compose'
 .venv/bin/python -m unittest discover -s tests/Contract -v
 # Disposable DB/roles, process smoke, automatic container cleanup:
 dotnet test CrmPlatform.sln -c Release --no-build --no-restore --filter FullyQualifiedName~SmokeTests

@@ -82,6 +82,11 @@ compare the documented contract, and reconcile intentionally. A normal up/down
 must preserve the realm, users and database. Destructive disposable-local reset
 requires an explicit operator choice outside normal lifecycle commands.
 
+The clean-source run and named persisted-realm/drift tests are mapped under
+W0P2-10 in [Plan 2 evidence](../engineering/06-WAVE-0-PLAN-2-VERIFICATION.md).
+They verify local metadata and management inspection; browser/end-user login,
+CRM audience enforcement and production authentication remain OPEN.
+
 ## Production design checklist (guidance, not deployment evidence)
 
 - Use supported pinned Keycloak releases with HTTPS and a fixed public hostname.

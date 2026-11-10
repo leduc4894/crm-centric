@@ -1,6 +1,10 @@
 # Wave 0 — Plan 2: Local stack, IdP và observability nền tảng
 
-Ngày: 2026-11-09. Trạng thái: bản đề xuất để review; chưa phê duyệt implementation. Tiếp nối Plan 1 đã merge/push, `main` tại `e624514` lúc khảo sát.
+Ngày spec: 2026-11-09. Cập nhật trạng thái: 2026-11-10. User đã phê duyệt implementation
+trên feature branch/no-worktree. Tasks 1–7 đã implement và review; Task 8 ghi clean-source
+runtime/evidence. Final whole-branch review còn pending. Xem [verification](../../engineering/06-WAVE-0-PLAN-2-VERIFICATION.md).
+Không đóng Wave 0/P0, không push/merge/deploy. Baseline khảo sát: Plan 1 đã merge/push,
+`main` tại `e624514`.
 
 ## Mục tiêu và kết quả
 
@@ -15,7 +19,7 @@ Plan 1 đã có migrator riêng, least-privilege database identity, health endpo
 - `docs/architecture/03-IDENTITY-TENANCY-SECURITY.md`; `docs/operations/01-DEPLOYMENT-OBSERVABILITY.md`.
 - Plan 1 spec, implementation và evidence; `docs/handoff/2026-11-09-wave-0-plan-1-integration-handoff.md`.
 
-Runtime hiện chỉ có `/health/live`, `/health/ready`; API đọc connection string từ environment, không tự migrate; migrator preflight role boundary rồi Up/grant. Error responses có reasonToken/correlationId và lỗi đã được kiểm tra chống lộ secrets. Chưa có Dockerfile, Compose, Keycloak, fake issuer hay chuẩn JSON logs/trace dùng chung cho mọi process do repo sở hữu. Backlog còn một số mô tả scaffold chưa triển khai cần cập nhật khi có evidence, không coi mô tả cũ là hiện trạng mã.
+Hiện trạng tại thời điểm khảo sát trước Plan 2: runtime chỉ có `/health/live`, `/health/ready`; API đọc connection string từ environment, không tự migrate; migrator preflight role boundary rồi Up/grant. Error responses có reasonToken/correlationId và lỗi đã được kiểm tra chống lộ secrets. Chưa có Dockerfile, Compose, Keycloak, fake issuer hay chuẩn JSON logs/trace dùng chung cho mọi process do repo sở hữu. Backlog còn một số mô tả scaffold chưa triển khai cần cập nhật khi có evidence, không coi mô tả cũ là hiện trạng mã.
 
 ## Phạm vi và giới hạn
 
@@ -168,9 +172,9 @@ Realm import không phải backup; down/up không phải restore drill. Volume/s
 
 Builder chọn exact supported versions/digests, safe bootstrap implementation (SQL stdin/typed helper), health probe executable, secret UID mapping, JSON formatter/scopes và chi tiết fake issuer library theo ràng buộc trên; ghi lựa chọn và nguồn vào evidence. Không mở rộng sang Wave 1 hoặc thêm observability products nếu chưa có yêu cầu.
 
-Builder review chỉ đọc ngày 2026-11-09: không còn câu hỏi quan trọng cản trở lập implementation plan; chưa có runtime evidence cho Plan 2.
+Builder review chỉ đọc ngày 2026-11-09 đã cho phép lập plan. Runtime evidence hiện có được ghi trong verification; các đoạn đề xuất và baseline bên trên giữ ngữ cảnh thiết kế.
 
-Sau khi review/duyệt spec, dùng `superpowers:writing-plans` để chia task có test/verification cụ thể; chưa scaffold, cài dependencies, tạo Compose hoặc triển khai ứng dụng trong lượt viết spec.
+Implementation plan đã được duyệt và thực thi theo task; final whole-branch review còn pending. Không coi evidence local là production deployment/authentication hoặc P0 acceptance.
 
 ## Nguồn kỹ thuật đã tham khảo
 

@@ -2,7 +2,11 @@
 
 ## Objective and authorization
 
-Resume and finish Task 7 of the approved [plan](../superpowers/plans/2026-11-09-wave-0-plan-2-local-stack-observability.md) and [design](../superpowers/specs/2026-11-09-wave-0-plan-2-local-stack-observability-design.md), following Tasks 1–6 reviewed at `194028d`. User explicitly requested continuation on 2026-11-10 after the usage-limit interruption. Existing feature-branch/no-worktree execution authorization persists. No push, merge, deployment, external destructive action or new product scope. One coding agent, no subagents.
+Resume and finish Tasks 7–8 of the approved [plan](../superpowers/plans/2026-11-09-wave-0-plan-2-local-stack-observability.md) and [design](../superpowers/specs/2026-11-09-wave-0-plan-2-local-stack-observability-design.md), following Tasks 1–6 reviewed at `194028d`. User explicitly requested continuation on 2026-11-10 after the usage-limit interruption. Existing feature-branch/no-worktree execution authorization persists. No push, merge, deployment, external destructive action or new product scope. One coding agent, no subagents.
+
+Current status: Task 8 evidence/docs ready for task review; final whole-branch review
+pending. See the Task 8 continuation below for actual results and remaining gates.
+Earlier sections are chronological Task 7 history.
 
 ## Verified resume state
 
@@ -63,3 +67,86 @@ No public contract, schema, credential format or runtime source changed. Rollbac
 reverts the test/documentation commit; no application-data migration rollback is
 needed. Test cleanup removed only fixture-owned labeled resources. Task8 and
 remote/P0 acceptance remain open; no push, merge or deployment occurred.
+
+## Task 8 continuation — current handoff (2026-11-10)
+
+This section supersedes earlier Task 8 pending statements above. Objective: finish
+approved Plan 2 clean-source runtime evidence, W0P2 mapping and status/docs updates,
+without broadening scope. Parent controller confirmed Task 7 review APPROVED with
+no findings at `34342cbb4f77458560759d6d644925ab1cecf702`. Existing user authorization
+covers sequential full-plan execution on `feat/wave-0-plan-2-local-stack-observability`,
+no worktree, one coding agent, no subagents, no push/merge/deploy. No new permission
+requested or inferred from this handoff. Relevant [plan](../superpowers/plans/2026-11-09-wave-0-plan-2-local-stack-observability.md),
+[spec](../superpowers/specs/2026-11-09-wave-0-plan-2-local-stack-observability-design.md),
+[current evidence and mapping](../engineering/06-WAVE-0-PLAN-2-VERIFICATION.md#task-8--clean-source-evidence-2026-11-10).
+
+Verified starting branch/clean HEAD and all three committed/workspace frozen hashes.
+The controller expressly authorized reusing fresh Task 7 Compose14/non-Compose70
+final gates for unchanged source, rather than repeating the 23.3303/7.0451-minute
+suites for a docs-only task. Their actual final captures/counts were inspected.
+Those suites were NOT rerun by Task 8. No source/script/config/schema/pin/lockfile
+changed; the archive runtime source remains the exact SHA above, distinct from the
+later documentation commit.
+
+Completed fresh checks, 2026-11-10:
+
+- Harness SDK only: `PATH=/tmp/crm-dotnet-10.0.403:$PATH DOTNET_ROOT=/tmp/crm-dotnet-10.0.403`.
+  `dotnet restore CrmPlatform.sln --locked-mode`: PASS, exit0.
+  `dotnet build CrmPlatform.sln -c Release --no-restore`: PASS,0 warnings/errors,14.05s.
+- `.venv/bin/python -m unittest discover -s tests/Contract -v`: PASS32,2.171s.
+  `.venv/bin/python -m unittest discover -s tests/Local -v`: PASS20,8.066s.
+- `python3 -m py_compile scripts/local_stack.py scripts/local/*.py`: PASS.
+  Separate `bash -n` checks for all10 actual shell entrypoints: PASS.
+  Initial multi-argument `bash -n` checked only its first script; corrected
+  to enumerate each actual script/entrypoint separately, no code change needed.
+- Exact `git archive 34342cbb4f77458560759d6d644925ab1cecf702` tar SHA256
+  `5a689cecc39595eb75478c42a5fe2cdf3d31aaa7d47753375100d01f9ac4140c`.
+  Export `/tmp/crm-task8-j9iodt29/export`, not worktree, no .git/.venv/bin/obj/old
+  secret/data. Non-root1000:1000; new empty HOME/minimal environment; fixed
+  PATH `/usr/bin:/bin` has no dotnet, no SDK env inherited. Fresh project
+  `crm-t8-aa8bc71610`, fresh external state and two new volumes.
+- Actual `bash scripts/dev-up.sh`: PASS,exit0, cached build18.766s/start65.170s.
+  `bash scripts/dev-smoke.sh`: PASS,exit0,0.945s.
+  `bash scripts/dev-down.sh`: PASS,exit0,2.531s.
+  Independent API live/ready200, six exact-owned services, successful one-shots,
+  healthy four runtime services, loopback ports, distinct CRM/IdP networks,
+  exact readonly secret mounts, canonical discovery/JWKS200/public-only,
+  application/IdP UID1000,0700 directory/0600 files all confirmed.
+- Evidence harness initially miscounted nine total files; corrected to nine
+  credentials plus state manifest, then continued same successful runtime.
+  Not a product failure or second fresh-up claim; no source change.
+- Actual down preserved both named volumes, all credential bytes/state manifest
+  and sibling stack metadata unchanged, removed all project containers/networks.
+  AFTER retention proof, disposable-fixture cleanup removed only its2 volumes,
+  4 exact image tags and owned state/metadata; final labeled resources empty.
+  This cleanup is not developer dev-down behavior; no prune/developer resources.
+- Actual Linux amd64,7,941MiB RAM/no swap,65GiB free disk,Python3.12.3,
+  Docker29.9.3/Compose5.7.0. All four pinned cached refs inspected successfully.
+  Caches reused; no fresh-pull/minimum-supported-version/cold-download claim.
+
+Changed tracked files: README; engineering02 status,03 acceptance,06 verification;
+operations04 local guide,05 IdP guide; roadmap01 backlog; Plan2 spec and plan
+checkboxes; this current-day handoff. All changes documentation only. No public
+contract/schema diff or data migration; rollback reverts documentation commit,
+retaining runtime data/credentials. Final `git diff --check` and staged whitespace
+check PASS. Local ignored task report:
+`.superpowers/sdd/2026-11-09-wave-0-plan-2-local-stack-observability/task-8-report.md`.
+Safe JSON proof `/tmp/crm-task8-j9iodt29/evidence.json`; private raw captures
+`/tmp/crm-task8-*` are not copied into committed docs.
+
+Branch remains the authorized feature branch. Source candidate is `34342cb`;
+this handoff is included in the following `docs(local): record Plan 2 verification and handoff`
+commit (resolve exact docs SHA with `git log -1`). No intended changes remain
+uncommitted after that commit; ignored control reports are outside tracked code.
+
+Task 8 evidence/docs implementation is complete and ready for task review. Final
+read-only whole-branch review is controller-pending; its final plan checkbox stays
+OPEN. Deferred OIDC same-kid/disposal and foreign-owner runtime0600 minor concerns
+remain for that review, unchanged/outside Task 8. No blocking external dependency.
+Next: controller task review, then final read-only whole-branch review and any
+justified finding fix/covering regression. A runtime/source/script fix invalidates
+this unchanged-source reuse and requires renewed covering/export evidence.
+Frontend/build, SDK generation/compilation/diff and application/security/container
+CI/remote execution remain Wave0 OPEN. OIDC/tenant/business, remote DemoModule,
+concurrent event handling, durable outage/recovery and restore/DR gates remain P0
+OPEN. Production IdP guide is configuration only, not deployed/auth-verified.

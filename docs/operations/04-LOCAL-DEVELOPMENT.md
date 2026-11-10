@@ -20,6 +20,11 @@ Docker daemon. Build arguments map application/Keycloak runtime users to that
 account so owner-only secret mounts remain readable. Verified tool versions and
 actual test results are in [the verification record](../engineering/06-WAVE-0-PLAN-2-VERIFICATION.md).
 No additional SDK, PostgreSQL client or curl is required by these commands.
+The 2026-11-10 clean archive run used source `34342cbb4f77458560759d6d644925ab1cecf702`,
+UID/GID 1000:1000, fresh project/state/volumes and an empty HOME with only an
+explicit environment allowlist. Image caches were reused. Docker 29.9.3/Compose
+5.7.0 on Linux amd64 with 7,941 MiB RAM are tested versions, not supported-minimum
+claims. Exact timings and retention/fixture cleanup are in the verification record.
 
 Public environment settings:
 

@@ -4,7 +4,13 @@
 - ADR and module boundary baselines, repo scaffolding, compose local stack.
 - Install .NET 10/EF Core 10 and front-end toolchain versions; CI build/unit tests.
 - Fake OIDC provider for tests, production-ready IdP config documented.
-**Exit:** cold-start and CI reproducible, structured logs + trace IDs. Contract schema/sample gate có trong `.github/workflows/contracts.yml`; application scaffold, SDK generation/breaking diff gate và cold-start runtime vẫn chưa triển khai.
+**Đã kiểm chứng local:** .NET scaffold/locked build, PostgreSQL migration/least privilege,
+SDK-free Compose clean-source startup, structured JSON logs + Activity trace IDs,
+fake OIDC test issuer và Keycloak riêng. Xem [Plan 2 evidence](../engineering/06-WAVE-0-PLAN-2-VERIFICATION.md).
+Production IdP configuration đã document, chưa deployed/auth-verified; final branch review pending.
+**Exit còn OPEN:** frontend toolchain/build, generated SDK compilation/breaking-diff gate,
+application/security/container CI và remote CI run. Contract schema/sample CI definition
+có trong `.github/workflows/contracts.yml`; local checks không đóng Wave 0/P0.
 
 ## Wave 1 — Identity + Tenancy
 - OIDC login, organizations/tenants, membership, RBAC, RLS and audit.

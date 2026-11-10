@@ -1,10 +1,11 @@
 # Wave 0 Plan 2 — verification evidence
 
-Plan 2 remains open. This record covers Tasks3–7, including container/bootstrap
-prerequisites, full local Compose lifecycle, realm drift and failure/recovery.
-Task8 clean-source archive startup is pending. Remote DemoModule, concurrent event
-duplicates, tenant isolation and restore acceptance are not established by these
-local checks.
+Plan 2 runtime/evidence tasks are implemented and locally verified through Task 8;
+final whole-branch review is pending. This record includes container/bootstrap,
+Compose lifecycle/failure/recovery, realm drift and exact-SHA SDK-free archive
+startup. Remote DemoModule, concurrent event duplicates, tenant isolation and
+restore acceptance are not established by these local checks. Earlier task entries
+retain historical pending/results context; the Task 8 section records current status.
 
 ## Toolchain and verified upstream images (2026-11-09)
 
@@ -546,3 +547,163 @@ the exact-SHA clean archive startup/smoke/down remains mandatory.
 
 Task8 clean-source export and remote DemoModule/tenant/restore acceptance remain
 open. This evidence does not claim production authentication or Wave0/P0 completion.
+
+## Task 8 — clean-source evidence (2026-11-10)
+
+Tasks 1–7 have completed their task reviews. Task 8 evidence/docs are ready for
+review; the final read-only whole-branch review is still pending. This closes no
+Wave 0/P0 business, remote-module or DR gate. Only documentation changes after
+source candidate **`34342cbb4f77458560759d6d644925ab1cecf702`**; the later documentation
+commit is not the archived runtime SHA. No source, script, pin, lockfile, contract
+or schema change was made in Task 8.
+
+### Source identity and full-suite reuse
+
+Verified the candidate's committed Git blobs and workspace bytes against the
+frozen Task 7 hashes before reuse:
+
+| File | SHA256 |
+| --- | --- |
+| `tests/Integration/Fixtures/ComposeFixture.cs` | `424bafc52d8e7de1f1ffb0de39d8d3813e071211fa77474193a3c59c50a8856a` |
+| `tests/Integration/Compose/LocalStackFailureTests.cs` | `dc0c646d7770d09669954a605d82af0e9b0eacbcdd67ff27b8c9e2c3b0b7cecf` |
+| `tests/Integration/Compose/LocalStackSecretTests.cs` | `fc17658e62f2511d4f56ceecf10dace727ea93b3495996ea4842004e7e30b5f3` |
+
+The controller authorized reuse of the fresh 2026-11-10 frozen-source final gates
+for this docs-only task. The complete Task 7 captures were checked for their final
+success/counts; these two suites were **not rerun in Task 8**:
+
+| Exact command (Release, harness SDK environment below) | Recorded result for candidate source |
+| --- | --- |
+| `dotnet test CrmPlatform.sln -c Release --no-build --no-restore --filter 'Category=Compose' --logger 'console;verbosity=normal'` | PASS 14/14, 0 failed/skipped, 23.3303 min, exit 0 |
+| `dotnet test CrmPlatform.sln -c Release --no-build --no-restore --filter 'Category!=Compose' --logger 'console;verbosity=normal'` | PASS 70/70, 0 failed/skipped, 7.0451 min, exit 0 |
+
+Private original captures: `/tmp/crm-task7-final-compose.txt` and
+`/tmp/crm-task7-final-noncompose.txt`. These are real runtime gates, including all
+14 Compose facts; no config-only substitute. Reuse is valid only while runtime,
+scripts and tests remain identical to that candidate. A future source/script
+change requires covering checks and renewed exact-source export evidence.
+
+Fresh Task 8 commands on 2026-11-10:
+
+| Command | Actual result |
+| --- | --- |
+| `dotnet restore CrmPlatform.sln --locked-mode` | PASS, projects up to date, exit 0 |
+| `dotnet build CrmPlatform.sln -c Release --no-restore` | PASS, 0 warnings/errors, 14.05 s, exit 0 |
+| `.venv/bin/python -m unittest discover -s tests/Contract -v` | PASS 32, 2.171 s, exit 0 |
+| `.venv/bin/python -m unittest discover -s tests/Local -v` | PASS 20, 8.066 s, exit 0 |
+| `python3 -m py_compile scripts/local_stack.py scripts/local/*.py` | PASS, exit 0 |
+| `bash -n` separately for all four `scripts/*.sh` and six `infra/compose/entrypoints/*.sh` | PASS, 10 entrypoints, exit 0 |
+| `git diff --check` and final staged whitespace check | PASS, exit 0 |
+
+Harness only: `PATH=/tmp/crm-dotnet-10.0.403:$PATH`
+`DOTNET_ROOT=/tmp/crm-dotnet-10.0.403`, SDK 10.0.403, Python 3.12.3. The initial
+multi-argument `bash -n` invocation checked only its first script (other paths
+were arguments, not additional inputs); the separate enumeration above then
+checked every actual shell entrypoint. No source change was needed. Captures `/tmp/crm-task8-{restore,build,contracts,local}.txt`
+are private; no credential or raw vendor log is included here.
+
+### Exact archive runtime and retention
+
+Executed `git archive 34342cbb4f77458560759d6d644925ab1cecf702` to a new tar, then
+`tar -xf <archive> -C /tmp/crm-task8-j9iodt29/export`. This is an ordinary fresh
+directory, not a worktree. Tar SHA256:
+`5a689cecc39595eb75478c42a5fe2cdf3d31aaa7d47753375100d01f9ac4140c`.
+Initial exported tree contained no `.git`, `.venv`, `bin`, `obj`, `.local`, `.env`
+or copied secret/data directories. No caller environment was inherited.
+
+The three actual `bash scripts/dev-{up,smoke,down}.sh` commands ran from that
+export with a newly created empty HOME, fixed `PATH=/usr/bin:/bin`,
+`USER=leduc`, `LANG=C.UTF-8`, `PYTHONDONTWRITEBYTECODE=1`, and only four explicit
+public stack settings: project `crm-t8-aa8bc71610`, state
+`/tmp/crm-task8-j9iodt29/state`, API port 42263 and IdP port 53239.
+`DOTNET_ROOT` and SDK variables were unset; executable discovery confirmed no
+`dotnet` on PATH. Non-root host UID/GID **1000:1000** owns the export/state;
+state is outside the checkout. Preflight found no containers/volumes for this
+fresh random project. The normal CLI generated all credentials.
+
+| Runtime command | Actual result |
+| --- | --- |
+| `bash scripts/dev-up.sh` | PASS, exit 0; `build_completed` 18.766 s, `startup_completed` 65.170 s, then `stack_ready` |
+| `bash scripts/dev-smoke.sh` | PASS, exit 0, 0.945 s, `stack_ready` |
+| `bash scripts/dev-down.sh` | PASS, exit 0, 2.531 s, `stack_stopped` |
+
+Docker Engine **29.9.3**, Compose **5.7.0**, Linux amd64, **7,941 MiB RAM**, no swap,
+65 GiB free disk at preflight. These are the actual tested versions/resources;
+no older/minimum version or lower-resource support is inferred. Upstream image
+and build caches were reused. No new explicit pull or cold-download timing was
+measured; this is a fresh-source/state/volume run, **not a fresh-pull claim**.
+All four cached base references were independently inspected by their exact
+`tag@sha256` from the image table above; architecture amd64 and RepoDigests match.
+
+Independent HTTP and Docker inspect checks after up established:
+
+- Exactly six project/checkout/config-owned services; bootstrap and migration
+  exited 0, and both databases, API and Keycloak were running/healthy.
+- API live **200** and ready **200**; discovery **200** with exact issuer
+  `http://localhost:53239/realms/crm-local`; its advertised JWKS **200**, nonempty,
+  with no private RSA parameters. Full smoke also checked persisted realm/client
+  metadata through the trusted inspector.
+- API/Keycloak runtime user **1000:1000**; exact readonly credential source/target
+  bindings, disjoint CRM/IdP networks, only expected IPv4-loopback app ports.
+- State directory **0700**, nine credential files plus `manifest.json`, all
+  **0600** and owned by UID 1000; sibling stack metadata **0600**. Two distinct
+  project-labeled named volumes.
+
+The evidence harness initially counted nine total state files and stopped after
+successful up/HTTP/ownership checks. It was corrected to count **nine credential
+files plus the manifest**, then continued against the same running archive stack.
+This was a harness assertion error, not a product failure or a second fresh-up
+claim. No runtime source changed.
+
+After actual down: zero project containers/networks; both named volumes retained;
+all nine credential files, state manifest and sibling metadata byte-identical.
+Only after proving retention, the disposable fixture explicitly removed those
+two verified project-labeled volumes, four exact project image tags and its own
+state/metadata. This cleanup is **not dev-down behavior**. No prune or developer
+resource removal. Final project container/network/volume enumeration was empty.
+
+Built local image IDs (different from upstream registry manifest digests):
+
+| Target | Inspected image ID |
+| --- | --- |
+| API | `sha256:ef11a9b61389ed1d1fc0766aa473af91d42f0f03c1d5447145d0b15d0732a82b` |
+| Migrator/bootstrap | `sha256:631dac2e91aa8b43b53569f630ff44a52a173c0ac91e9fedd488a71dbfa504a6` |
+| PostgreSQL adapter | `sha256:a34992c9df436cb1de6be137877567cacb21be9a066812ac6c17955bcb457f1b` |
+| Keycloak adapter | `sha256:dc58c7ea784e920eed395dc75fe648d1d13f7b5f216fcb8793ef21653549e576` |
+
+Safe example: startup event correlation `ea1389b7904948ed9536727213428bef`;
+smoke `bd38121af060431a9ebc3fbef8a8372a`. No token/credential/HTTP body is stored
+in this report. Safe JSON summary and owner-only captures remain in
+`/tmp/crm-task8-j9iodt29/evidence.json` and `*.capture`; the export/tar are retained
+as disposable evidence without generated state. Local control report:
+`.superpowers/sdd/2026-11-09-wave-0-plan-2-local-stack-observability/task-8-report.md`
+(ignored, not a durable repository artifact); this tracked record is the durable
+result and command/mapping summary.
+
+### W0P2 acceptance mapping
+
+All rows below refer to the exact source and actual suite evidence above plus the
+named prior task results in this record. They establish local Plan 2 behavior;
+final whole-branch review is pending.
+
+| Gate | Named executable tests / commands | Evidence artifact |
+| --- | --- | --- |
+| W0P2-01 | `ContainerRuntimeTests.Api_uses_only_application_secret_as_nonroot`; `LocalStackTests.Cold_up_needs_no_host_sdk`; exact archive up/smoke and independent HTTP/inspect | Tasks 3/6 above; Task 8 runtime table |
+| W0P2-02 | `LocalBootstrapTests.Bootstrap_is_idempotent_and_restricted`; `ContainerRuntimeTests.Api_uses_only_application_secret_as_nonroot`; `LocalStackTests.Sql_and_secret_mount_boundaries_hold` | Tasks 3/4/6; final 14/70 gates |
+| W0P2-03 | `LocalBootstrapTests.Partial_bootstrap_retries_without_reset`; `LocalStackTests.Warm_up_revalidates_oneshots_and_preserves_data`; `LocalStackFailureTests.Bootstrap_and_migration_failure_block_new_api` | Tasks 4/6/7; final Compose capture |
+| W0P2-04 | `LocalStackTests.Down_up_keeps_secrets_volumes_and_realm`; `KeycloakContainerTests.Warm_start_preserves_realm_and_detects_drift`; `LocalStackFailureTests.Partial_init_retry_and_mismatched_secrets_are_safe`, `Realm_drift_is_not_overwritten`; secret-state Python tests | Tasks 4/5/6/7; final 14/70 and local 20 gates |
+| W0P2-05 | `LocalStackFailureTests.Crm_db_outage_recovers_same_api_instance` | Task 7; final Compose 14 |
+| W0P2-06 | `LocalStackFailureTests.Idp_outage_does_not_change_crm_readiness` | Task 7; final Compose 14 |
+| W0P2-07 | `StructuredLoggingTests.Error_json_has_http_correlation_and_real_activity`, `Forged_correlation_and_malformed_trace_are_safe`, `Query_headers_and_secret_sentinels_are_absent`, `Cli_result_shape_stays_compatible` | Task 1 commit `df91367`; final non-Compose 70 |
+| W0P2-08 | `StructuredLoggingTests.Query_headers_and_secret_sentinels_are_absent`; `ContainerRuntimeTests.Image_config_history_and_build_context_exclude_sentinels`; `LocalBootstrapTests.Adapter_bootstrap_reads_only_mounted_files_and_runs_real_cli`; `LocalStackSecretTests.Secrets_and_request_sentinels_are_absent_across_success_and_failure` | Tasks 1/3/4/5/7; final 14/70; actual image layers/config/history/log audits |
+| W0P2-09 | `FakeOidcIssuerTests.Discovery_and_jwks_match_bound_issuer`, `Token_signature_verifies_using_public_jwks`, `Rotation_keeps_or_retires_previous_kid`, `Fixture_publishes_no_private_key_or_credentials`; `ContainerRuntimeTests.Published_images_contain_no_sdk_source_or_fixture` | Task 2 commit `390ae97`, Task 3; final non-Compose 70 |
+| W0P2-10 | `KeycloakContainerTests.Cold_import_has_two_pkce_clients_and_canonical_discovery`, `Host_port_override_changes_discovery_consistently`, `Warm_start_preserves_realm_and_detects_drift`; `LocalStackFailureTests.Realm_drift_is_not_overwritten` | Tasks 5/7; final 14/70; [IdP guide](../operations/05-IDP-CONFIGURATION.md) |
+| W0P2-11 | `LocalStackFailureTests.Foreign_listener_cannot_supply_smoke_success`, `Concurrent_lifecycle_is_rejected_including_distinct_state_paths`, `Parallel_projects_do_not_share_resources`, `Shutdown_is_bounded` | Tasks 6/7; final Compose 14; actual CLI contention/process kill and owned-resource assertions |
+| W0P2-12 | Fresh restore/build/contracts/local/syntax/diff; source-verified reused full 14/70 suites; exact archive lifecycle | Task 8 commands above; current-day handoff |
+
+Remaining: frontend/build, SDK generation/compilation, automated breaking-diff and
+application/security/container CI/remote execution in Wave 0; CRM OIDC/tenant and
+business runtime, remote DemoModule, concurrent event consumption, durable
+outage/recovery and restore/DR acceptance in later waves. Local database recovery
+and down/up are not those remote/DR drills. Production guide is configuration
+only; no production deployment or authentication verification occurred.
