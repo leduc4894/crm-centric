@@ -249,3 +249,97 @@ class CompatibilityTests(unittest.TestCase):
             self.assertTrue(proc.stdout)
             self.assertEqual(json.loads(proc.stdout)['reason'], 'CONTRACT_TOOL_ERROR')
             self.assertFalse(proc.stderr)
+
+    def test_transitive_schema_ref_change_requires_review_and_hashes(self):
+        path = self.repo / 'docs/contracts/event.schema.json'
+        referenced = self.repo / 'docs/contracts/defs.json'
+        value = json.loads(path.read_text())
+        value['$ref'] = 'defs.json#/$defs/thing'
+        path.write_text(json.dumps(value))
+        referenced.write_text(json.dumps({'$defs': {'thing': {'type':'string'}}}))
+        self.git('add', '.')
+        self.git('commit', '-qm', 'schema reference')
+        status, initial = self.gate()
+        self.assertEqual(status, 0, initial['reason'])
+        referenced.write_text(json.dumps({'$defs': {'thing': {'type':'string', 'description':'document only'}}}))
+        status, documentation = self.gate()
+        self.assertEqual(status, 0, documentation['reason'])
+        referenced.write_text(json.dumps({'$defs': {'thing': {'type':'integer'}}}))
+        status, report = self.gate()
+        self.assertNotEqual(status, 0)
+        self.assertEqual(report['reason'], 'SCHEMA_COMPATIBILITY_REVIEW_REQUIRED')
+        key = 'docs/contracts/defs.json'
+        self.assertIn(key, report['inputHashes']['base'])
+        self.assertIn(key, report['inputHashes']['current'])
+        self.assertNotEqual(report['inputHashes']['base'][key], report['inputHashes']['current'][key])
+
+    def test_internal_path_item_ref_scope_change_requires_review(self):
+        value = copy.deepcopy(self.base)
+        value['openapi'] = '3.1.0'
+        value['components']['pathItems'] = {'Thing': value['paths']['/things']}
+        value['paths']['/things'] = {'$ref': '#/components/pathItems/Thing'}
+        self.save(value)
+        self.git('add', '.')
+        self.git('commit', '-qm', 'internal path item')
+        status, initial = self.gate()
+        self.assertEqual(status, 0, initial['reason'])
+        value['components']['pathItems']['Thing']['get']['x-required-scopes'] = ['different']
+        self.save(value)
+        status, report = self.gate()
+        self.assertNotEqual(status, 0)
+        self.assertEqual(report['reason'], 'SECURITY_REVIEW_REQUIRED')
+
+    def test_external_path_item_ref_fails_closed(self):
+        value = copy.deepcopy(self.base)
+        value['openapi'] = '3.1.0'
+        (self.repo / 'docs/contracts/path.yaml').write_text(yaml.safe_dump(value['paths']['/things']))
+        value['paths']['/things'] = {'$ref': 'path.yaml'}
+        self.save(value)
+        self.git('add', '.')
+        self.git('commit', '-qm', 'external path item')
+        status, report = self.gate()
+        self.assertNotEqual(status, 0)
+        self.assertEqual(report['reason'], 'CONTRACT_INPUT_INVALID')
+
+    def test_unsupported_openapi_version_rejected_even_unchanged(self):
+        for version in ('3.999.0', '3.1.999'):
+            with self.subTest(version=version):
+                value = copy.deepcopy(self.base)
+                value['openapi'] = version
+                self.save(value)
+                self.git('add', '.')
+                self.git('commit', '-qm', 'unsupported OpenAPI')
+                status, report = self.gate()
+                self.assertNotEqual(status, 0)
+                self.assertEqual(report['reason'], 'CONTRACT_INPUT_INVALID')
+
+    def test_all_schema_closures_are_hashed_when_one_changes(self):
+        root = self.repo / 'docs/contracts'
+        (root / 'z.schema.json').write_text(json.dumps({'$schema':'https://json-schema.org/draft/2020-12/schema', '$ref':'z-defs.json'}))
+        (root / 'z-defs.json').write_text(json.dumps({'type':'string'}))
+        self.git('add', '.')
+        self.git('commit', '-qm', 'second schema')
+        event = root / 'event.schema.json'
+        value = json.loads(event.read_text())
+        value['maxLength'] = 9
+        event.write_text(json.dumps(value))
+        status, report = self.gate()
+        self.assertNotEqual(status, 0)
+        self.assertEqual(report['reason'], 'SCHEMA_COMPATIBILITY_REVIEW_REQUIRED')
+        self.assertIn('docs/contracts/z-defs.json', report['inputHashes']['base'])
+        self.assertIn('docs/contracts/z-defs.json', report['inputHashes']['current'])
+
+    def test_nested_path_item_ref_siblings_fail_closed(self):
+        value = copy.deepcopy(self.base)
+        value['openapi'] = '3.1.0'
+        value['components']['pathItems'] = {
+            'Real': value['paths']['/things'],
+            'Alias': {'$ref': '#/components/pathItems/Real', 'get': {'responses': {'200': {'description': 'override'}}}},
+        }
+        value['paths']['/things'] = {'$ref': '#/components/pathItems/Alias'}
+        self.save(value)
+        self.git('add', '.')
+        self.git('commit', '-qm', 'ambiguous path reference')
+        status, report = self.gate()
+        self.assertNotEqual(status, 0)
+        self.assertEqual(report['reason'], 'CONTRACT_INPUT_INVALID')

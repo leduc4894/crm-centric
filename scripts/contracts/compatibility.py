@@ -5,6 +5,7 @@ sys.dont_write_bytecode = True
 import argparse
 import hashlib
 import json
+import re
 import shutil
 from pathlib import Path
 import subprocess
@@ -65,7 +66,7 @@ def resolve_internal(doc, item):
     seen = set()
     while isinstance(item, dict) and '$ref' in item:
         ref = item['$ref']
-        if not isinstance(ref, str) or not ref.startswith('#/') or ref in seen:
+        if len(item) != 1 or not isinstance(ref, str) or not ref.startswith('#/') or ref in seen:
             raise GateError('CONTRACT_INPUT_INVALID')
         seen.add(ref)
         item = doc
@@ -81,7 +82,12 @@ def security_projection(doc):
     result = {'webhookSignature': normalize_security(schemes.get('webhookSignature'))}
     for path, path_item in doc.get('paths', {}).items():
         if not isinstance(path_item, dict):
-            continue
+            raise GateError('CONTRACT_INPUT_INVALID')
+        if '$ref' in path_item and len(path_item) != 1:
+            raise GateError('CONTRACT_INPUT_INVALID')
+        path_item = resolve_internal(doc, path_item)
+        if not isinstance(path_item, dict):
+            raise GateError('CONTRACT_INPUT_INVALID')
         for method, operation in path_item.items():
             if method not in METHODS or not isinstance(operation, dict):
                 continue
@@ -124,10 +130,12 @@ def schema_narrowed(old, new):
 
 def response_removed(base, current):
     for path, path_item in base.get('paths', {}).items():
+        path_item = resolve_internal(base, path_item)
         for method, operation in path_item.items():
             if method not in METHODS or not isinstance(operation, dict):
                 continue
-            target = current.get('paths', {}).get(path, {}).get(method, {})
+            current_path = resolve_internal(current, current.get('paths', {}).get(path, {}))
+            target = current_path.get(method, {})
             if not isinstance(target, dict):
                 continue
             responses = operation.get('responses', {})
@@ -196,24 +204,48 @@ def run(base_ref, repo, context):
             result['reason'] = 'SCHEMA_COMPATIBILITY_REVIEW_REQUIRED'
             return result
         try:
+            schema_requires_review = False
             for path in sorted(schemas):
                 new = json.loads((newroot / path).read_text())
                 if not isinstance(new, dict) or new.get('$schema') != 'https://json-schema.org/draft/2020-12/schema':
                     raise GateError('CONTRACT_INPUT_INVALID')
                 Draft202012Validator.check_schema(new)
-                ref_files(newroot / path, snapshot)
+                new_refs = ref_files(newroot / path, snapshot)
+                new_closure = {p.relative_to(newroot).as_posix(): sha(p) for p in new_refs}
+                hashes['current'].update(new_closure)
                 if path not in base_inputs:
-                    result['reason'] = 'SCHEMA_COMPATIBILITY_REVIEW_REQUIRED'
-                    return result
+                    schema_requires_review = True
+                    continue
                 if path in base_inputs:
                     old = json.loads((oldroot / path).read_text())
                     if not isinstance(old, dict) or old.get('$schema') != 'https://json-schema.org/draft/2020-12/schema':
                         raise GateError('CONTRACT_INPUT_INVALID')
                     Draft202012Validator.check_schema(old)
-                    ref_files(oldroot / path, oldroot / 'docs/contracts')
+                    old_refs = ref_files(oldroot / path, oldroot / 'docs/contracts')
+                    old_closure = {p.relative_to(oldroot).as_posix(): sha(p) for p in old_refs}
+                    hashes['base'].update(old_closure)
+                    old_closure.pop(path, None)
+                    new_closure.pop(path, None)
+                    if old_closure.keys() != new_closure.keys():
+                        schema_requires_review = True
+                    for dependency in old_closure.keys() & new_closure.keys():
+                        if old_closure[dependency] == new_closure[dependency]:
+                            continue
+                        old_doc = yaml.safe_load((oldroot / dependency).read_text())
+                        new_doc = yaml.safe_load((newroot / dependency).read_text())
+                        try:
+                            Draft202012Validator.check_schema(old_doc)
+                            Draft202012Validator.check_schema(new_doc)
+                        except SchemaError:
+                            schema_requires_review = True
+                            continue
+                        if schema_contents(old_doc) != schema_contents(new_doc):
+                            schema_requires_review = True
                     if schema_contents(old) != schema_contents(new):
-                        result['reason'] = 'SCHEMA_COMPATIBILITY_REVIEW_REQUIRED'
-                        return result
+                        schema_requires_review = True
+            if schema_requires_review:
+                result['reason'] = 'SCHEMA_COMPATIBILITY_REVIEW_REQUIRED'
+                return result
             old_docs, new_docs = {}, {}
             for path in sorted(openapis):
                 oldpath, newpath = oldroot / path, newroot / path
@@ -223,7 +255,7 @@ def run(base_ref, repo, context):
                 new_docs[path] = yaml.safe_load(newpath.read_text())
                 if not isinstance(old_docs[path], dict) or not isinstance(new_docs[path], dict):
                     raise GateError('CONTRACT_INPUT_INVALID')
-                if old_docs[path].get('openapi', '').split('.')[0] != '3' or new_docs[path].get('openapi', '').split('.')[0] != '3':
+                if any(not isinstance(doc.get('openapi'), str) or not re.fullmatch(r'3\.(?:0\.[0-4]|1\.[0-2])', doc['openapi']) for doc in (old_docs[path], new_docs[path])):
                     raise GateError('CONTRACT_INPUT_INVALID')
         except (SchemaError, yaml.YAMLError, ValueError, TypeError, OSError, RuntimeError):
             raise GateError('CONTRACT_INPUT_INVALID') from None
