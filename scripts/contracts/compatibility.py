@@ -34,6 +34,34 @@ def git(repo, *args):
 def sha(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
+def check_baseline_configuration(repo, base):
+    """Reject incomplete baseline toolchains and unreviewed policy changes."""
+    paths = set(git(repo, 'ls-tree', '-r', '--name-only', base, '--', 'tools/contracts', 'scripts/contracts', 'sdks').decode().splitlines())
+    marker = 'tools/contracts/toolchain.json'
+    if marker not in paths and (any(p.startswith('sdks/') for p in paths) or 'scripts/contracts/generate.py' in paths):
+        raise GateError('SDK_TOOLCHAIN_REVIEW_REQUIRED')
+    if marker in paths:
+        required = {marker, 'scripts/contracts/generate.py', 'scripts/contracts/check.py', 'package.json', 'package-lock.json', '.npmrc'}
+        all_paths = set(git(repo, 'ls-tree', '-r', '--name-only', base).decode().splitlines())
+        if not required <= all_paths or not any(path.startswith('sdks/') for path in all_paths):
+            raise GateError('SDK_TOOLCHAIN_REVIEW_REQUIRED')
+        if any(not (repo / p).is_file() for p in required):
+            raise GateError('SDK_TOOLCHAIN_REVIEW_REQUIRED')
+    def is_policy(path):
+        name = Path(path).name.lower()
+        return 'waiver' in name or 'policy' in name or name == 'oasdiff.json'
+    base_policy = {p for p in paths if p.startswith('tools/contracts/') and is_policy(p)}
+    directory = repo / 'tools/contracts'
+    current_policy = {p.relative_to(repo).as_posix() for p in directory.rglob('*') if p.is_file() and is_policy(p)} if directory.exists() else set()
+    base_surface_policy = {p for p in paths if p.startswith('tools/contracts/surface/') or p == 'scripts/contracts/sdk_surface.py'}
+    if base_surface_policy:
+        base_policy |= base_surface_policy
+        current_policy |= {p.relative_to(repo).as_posix() for p in (directory / 'surface').rglob('*') if p.is_file()} if (directory / 'surface').is_dir() else set()
+        if (repo / 'scripts/contracts/sdk_surface.py').is_file():
+            current_policy.add('scripts/contracts/sdk_surface.py')
+    if base_policy != current_policy or any(git(repo, 'show', f'{base}:{p}') != (repo / p).read_bytes() for p in base_policy):
+        raise GateError('CONTRACT_POLICY_REVIEW_REQUIRED')
+
 def schema_contents(value):
     if not isinstance(value, dict):
         return value
@@ -160,6 +188,7 @@ def run(base_ref, repo, context):
     except (UnicodeError, ValueError):
         raise GateError('CONTRACT_BASE_UNAVAILABLE') from None
     context['baseSha'] = base
+    check_baseline_configuration(repo, base)
     current_root = repo / 'docs/contracts'
     required = {'docs/contracts/crm-api.openapi.yaml', 'docs/contracts/platform-operations.openapi.yaml'}
     if not required <= set(paths) or not all((repo / p).is_file() for p in required):
@@ -279,6 +308,22 @@ def run(base_ref, repo, context):
         if any(response_removed(old_docs[p], new_docs[p]) for p in openapis):
             result['reason'] = 'CONTRACT_BREAKING'
             return result
+        from scripts.contracts import sdk_surface
+        workspace = Path(tmp) / 'surface'
+        workspace.mkdir()
+        has_base_toolchain = bool(git(repo, 'ls-tree', '-r', '--name-only', base, '--', 'tools/contracts/toolchain.json').strip())
+        source = repo if (repo / 'tools/contracts/toolchain.json').is_file() else ROOT
+        result['sdkBaseline'] = 'historical-toolchain' if has_base_toolchain else 'bootstrap-no-released-consumer'
+        try:
+            old_sdk = sdk_surface.prepare(workspace / 'old', repo if has_base_toolchain else source, oldroot / 'docs/contracts', git, base if has_base_toolchain else None)
+            new_sdk = sdk_surface.prepare(workspace / 'new', source, snapshot, git)
+            if not sdk_surface.compare(old_sdk, new_sdk, ROOT, workspace, has_base_toolchain, result):
+                result['reason'] = 'SDK_SURFACE_INCOMPATIBLE'
+                return result
+        except (RuntimeError, OSError, ValueError, KeyError, TypeError):
+            # Keep the baseline kind and toolchain evidence on the closed error path.
+            context.update(result)
+            raise GateError('SDK_TOOLCHAIN_REVIEW_REQUIRED') from None
         result['reason'] = 'CONTRACT_COMPATIBLE'
         return result
 
@@ -295,7 +340,7 @@ def main():
     except (OSError, ImportError, KeyError, TypeError, ValueError, RecursionError):
         report = {**context, 'reason': 'CONTRACT_TOOL_ERROR'}
     report['correlationId'] = str(uuid.uuid4())
-    classifications = {'CONTRACT_COMPATIBLE': 'compatible', 'CONTRACT_BREAKING': 'breaking', 'SECURITY_REVIEW_REQUIRED': 'security-review-required', 'SCHEMA_COMPATIBILITY_REVIEW_REQUIRED': 'schema-review-required', 'CONTRACT_POLICY_REVIEW_REQUIRED': 'policy-review-required'}
+    classifications = {'CONTRACT_COMPATIBLE': 'compatible', 'CONTRACT_BREAKING': 'breaking', 'SECURITY_REVIEW_REQUIRED': 'security-review-required', 'SCHEMA_COMPATIBILITY_REVIEW_REQUIRED': 'schema-review-required', 'CONTRACT_POLICY_REVIEW_REQUIRED': 'policy-review-required', 'SDK_TOOLCHAIN_REVIEW_REQUIRED': 'toolchain-review-required', 'SDK_SURFACE_INCOMPATIBLE': 'SDK-surface-incompatible'}
     report['classification'] = classifications.get(report['reason'], 'tool-or-input-error')
     print(json.dumps(report, sort_keys=True))
     return 0 if report['reason'] == 'CONTRACT_COMPATIBLE' else 1

@@ -40,7 +40,7 @@ class CompatibilityTests(unittest.TestCase):
         (self.repo / 'docs/contracts/platform-operations.openapi.yaml').write_text(yaml.safe_dump(value, sort_keys=False))
 
     def gate(self, ref='HEAD'):
-        p = subprocess.run(['python3', str(CLI), '--base-ref', ref], cwd=self.repo, capture_output=True, text=True, timeout=30)
+        p = subprocess.run(['python3', str(CLI), '--base-ref', ref], cwd=self.repo, capture_output=True, text=True, timeout=600)
         try:
             report = json.loads(p.stdout)
         except ValueError:
@@ -343,3 +343,133 @@ class CompatibilityTests(unittest.TestCase):
         status, report = self.gate()
         self.assertNotEqual(status, 0)
         self.assertEqual(report['reason'], 'CONTRACT_INPUT_INVALID')
+
+    def test_missing_base_toolchain_fails_closed(self):
+        toolchain = self.repo / 'tools/contracts/toolchain.json'
+        toolchain.parent.mkdir(parents=True)
+        toolchain.write_text('{}\n')
+        self.git('add', '.')
+        self.git('commit', '-qm', 'incomplete baseline toolchain')
+        status, report = self.gate()
+        self.assertNotEqual(status, 0)
+        self.assertEqual(report['reason'], 'SDK_TOOLCHAIN_REVIEW_REQUIRED')
+
+    def test_policy_or_waiver_edit_cannot_rebaseline(self):
+        policy = self.repo / 'tools/contracts/waivers.json'
+        policy.parent.mkdir(parents=True)
+        policy.write_text('{"ignoreAll":true}\n')
+        status, report = self.gate()
+        self.assertNotEqual(status, 0)
+        self.assertEqual(report['reason'], 'CONTRACT_POLICY_REVIEW_REQUIRED')
+
+    def test_generator_only_change_cannot_silently_pass(self):
+        files = {
+            'tools/contracts/toolchain.json': '{"generator":"v1"}',
+            'scripts/contracts/generate.py': '# base generator\n',
+            'scripts/contracts/check.py': '# base checker\n',
+            'package.json': '{}', 'package-lock.json': '{}', '.npmrc': '',
+            'sdks/typescript/crm/provenance.json': '{}',
+        }
+        for name, contents in files.items():
+            path = self.repo / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(contents)
+        self.git('add', '.')
+        self.git('commit', '-qm', 'complete toolchain baseline')
+        (self.repo / 'scripts/contracts/generate.py').write_text('# incompatible candidate generator\n')
+        status, report = self.gate()
+        self.assertNotEqual(status, 0)
+        self.assertIn(report['reason'], ('SDK_TOOLCHAIN_REVIEW_REQUIRED', 'SDK_SURFACE_INCOMPATIBLE'))
+
+    def test_operation_id_rename_is_sdk_surface_incompatible(self):
+        value = copy.deepcopy(self.base)
+        value['paths']['/things']['get']['operationId'] = 'renamedListThings'
+        self.save(value)
+        status, report = self.gate()
+        self.assertNotEqual(status, 0)
+        self.assertEqual(report['reason'], 'SDK_SURFACE_INCOMPATIBLE')
+        self.assertFalse(report['sdkToolchainChanged'])
+
+    def test_generator_only_break_is_not_hidden(self):
+        for directory in ('scripts/contracts', 'tools/contracts'):
+            shutil.copytree(ROOT / directory, self.repo / directory, dirs_exist_ok=True, ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
+        for name in ('package.json', 'package-lock.json', '.npmrc', '.node-version', 'global.json'):
+            shutil.copyfile(ROOT / name, self.repo / name)
+        sdk = self.repo / 'sdks/typescript/crm/provenance.json'
+        sdk.parent.mkdir(parents=True)
+        sdk.write_text('{}')
+        self.git('add', '.')
+        self.git('commit', '-qm', 'real generator baseline')
+        generator = self.repo / 'scripts/contracts/generate.py'
+        source = generator.read_text()
+        self.assertIn('export function createApiClient(', source)
+        generator.write_text(source.replace('export function createApiClient(', 'export function renamedClient('))
+        status, report = self.gate()
+        self.assertNotEqual(status, 0)
+        self.assertEqual(report['reason'], 'SDK_SURFACE_INCOMPATIBLE')
+        self.assertTrue(report['sdkToolchainChanged'])
+
+    def test_baseline_consumer_compile_failure_is_incompatible(self):
+        for directory in ('scripts/contracts', 'tools/contracts'):
+            shutil.copytree(ROOT / directory, self.repo / directory, dirs_exist_ok=True, ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
+        for name in ('package.json', 'package-lock.json', '.npmrc', '.node-version', 'global.json'):
+            shutil.copyfile(ROOT / name, self.repo / name)
+        sdk = self.repo / 'sdks/typescript/crm/provenance.json'
+        sdk.parent.mkdir(parents=True)
+        sdk.write_text('{}')
+        types = self.repo / 'tests/ClientConsumers/typescript/types.ts'
+        types.parent.mkdir(parents=True)
+        types.write_text("import { removedEntryPoint } from '@crm-centric/crm-client'; void removedEntryPoint;\n")
+        cs = self.repo / 'tests/ClientConsumers/dotnet/Program.cs'
+        cs.parent.mkdir(parents=True)
+        cs.write_text('System.Console.WriteLine("fixture");\n')
+        self.git('add', '.')
+        self.git('commit', '-qm', 'historical consumer')
+        status, report = self.gate()
+        self.assertNotEqual(status, 0)
+        self.assertEqual(report['reason'], 'SDK_SURFACE_INCOMPATIBLE')
+        self.assertEqual(report['sdkBaseline'], 'historical-toolchain')
+
+    def test_missing_historical_consumer_artifacts_fail_closed(self):
+        for directory in ('scripts/contracts', 'tools/contracts'):
+            shutil.copytree(ROOT / directory, self.repo / directory, dirs_exist_ok=True, ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
+        for name in ('package.json', 'package-lock.json', '.npmrc', '.node-version', 'global.json'):
+            shutil.copyfile(ROOT / name, self.repo / name)
+        sdk = self.repo / 'sdks/typescript/crm/provenance.json'
+        sdk.parent.mkdir(parents=True)
+        sdk.write_text('{}')
+        self.git('add', '.')
+        self.git('commit', '-qm', 'toolchain baseline without consumer artifacts')
+        status, report = self.gate()
+        self.assertNotEqual(status, 0)
+        self.assertEqual(report['reason'], 'SDK_TOOLCHAIN_REVIEW_REQUIRED')
+        self.assertEqual(report['sdkBaseline'], 'historical-toolchain')
+
+    def test_existing_surface_policy_change_cannot_rebaseline(self):
+        policy = self.repo / 'tools/contracts/surface/policy.json'
+        policy.parent.mkdir(parents=True)
+        policy.write_text('{"allowBreaking":false}\n')
+        self.git('add', '.')
+        self.git('commit', '-qm', 'existing surface policy')
+        policy.write_text('{"allowBreaking":true}\n')
+        status, report = self.gate()
+        self.assertNotEqual(status, 0)
+        self.assertEqual(report['reason'], 'CONTRACT_POLICY_REVIEW_REQUIRED')
+
+    def test_candidate_new_policy_file_cannot_rebaseline(self):
+        policy = self.repo / 'tools/contracts/compatibility-policy.json'
+        policy.parent.mkdir(parents=True)
+        policy.write_text('{"skipSdkSurface":true}\n')
+        status, report = self.gate()
+        self.assertNotEqual(status, 0)
+        self.assertEqual(report['reason'], 'CONTRACT_POLICY_REVIEW_REQUIRED')
+
+    def test_sdk_present_but_toolchain_missing_is_not_bootstrap(self):
+        sdk = self.repo / 'sdks/typescript/crm/provenance.json'
+        sdk.parent.mkdir(parents=True)
+        sdk.write_text('{}')
+        self.git('add', '.')
+        self.git('commit', '-qm', 'SDK without toolchain')
+        status, report = self.gate()
+        self.assertNotEqual(status, 0)
+        self.assertEqual(report['reason'], 'SDK_TOOLCHAIN_REVIEW_REQUIRED')
