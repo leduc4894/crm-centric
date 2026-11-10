@@ -938,6 +938,8 @@ cases therefore test the behaviour, not the wording.
 | `bash scripts/check-plan3.sh --base-ref` (no value) | exit 2, `PLAN3_ARGUMENT_INVALID`, correlation identifier present |
 | `bash scripts/check-plan3.sh --base-ref 408ded6` with Node 26.13.0 on the `PATH` | exit 1, `PLAN3_TOOLCHAIN_MISMATCH`, correlation identifier present |
 | `bash tests/Plan3/clean-export.sh --sha HEAD --base-ref 408ded6 --target <used dir>` | exit 1, `PLAN3_EXPORT_TARGET_INVALID`, correlation identifier present, the content of the target kept |
+| `bash scripts/check-plan3.sh --base-ref 408ded6` (working tree of `97fcc45`) | exit 0, 4m42.963s, nine steps exit 0, browser step `not run`, digest unchanged |
+| `bash tests/Plan3/clean-export.sh --sha 97fcc45 --base-ref 408ded6 --with-browser` | exit 0, 5m24.639s, all ten steps exit 0, digest unchanged, the browser suite ran against the test-owned stack `crm-local-4dceaa358742` |
 
 The three new cases of the reporting harness in GREEN, after the fix:
 
@@ -947,8 +949,17 @@ ok    staged mutation (exit 1, PLAN3_SOURCE_MUTATED, no PASS)
 ok    harness argument error (exit 2, PLAN3_ARGUMENT_INVALID, correlation id present)
 ```
 
-The 87-case contract suite, the 70-case .NET non-Compose suite and the full clean export
-with the browser suite were **not** re-run in this round; the round 1 results stand as the
-evidence for the unchanged runtime and are not presented as a run of this round. The suites
-of this round cover the changed scripts only; the changed scripts are shell harnesses and
-the aggregate gate, which no Python or .NET suite executes.
+The clean export printed the pinned oasdiff executable of the policy instead of a hardcoded
+name: `local artifact: .local/plan3-tools/oasdiff-1.37.0/oasdiff
+401389ac23e81bc844093c88ae1e283fbf80ef719f400cbeb19cd36d15957971`. The aggregate in the
+working tree reported `source digest: unchanged during the run` with the index of a real
+checkout in place, which is the proof that the widened digest does not fire spuriously.
+
+The 87-case contract suite and the 70-case .NET non-Compose suite were **not** re-run in
+this round. Plan 3 changed no backend source, no container configuration and no stack
+lifecycle, so the round 1 results stand as the evidence for the unchanged runtime; they
+are not presented as a run of this round. The changed files are shell harnesses and the
+aggregate gate, which no Python or .NET suite executes; the aggregate, the clean export and
+the two harnesses of this round are the coverage of the change. After the export the stack
+was stopped, no container of the project remained and nothing listened on 5080, 5173 or
+8080.

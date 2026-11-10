@@ -381,9 +381,13 @@ invisible to the source digest), **N-4** (the Plan 3 harnesses are wired to noth
 commits `0695cc2`, `422e049`, `ac69dc7` and `80de4d8` are unchanged and byte-identical.
 
 **Branch and state.** Branch `feat/wave-0-plan-3-frontend-contract-toolchain`, base
-`5257abf`. The fix is the commit `fix(contracts): close the Plan 3 stack and reporting
-gaps`; the documentation of this round follows it. No merge, push, deploy, publication or
-database migration is authorized or performed.
+`5257abf`. The fix is the commit
+`97fcc450e4cdbd08ca6fe0d75ef969cbd1b17e9b` — `fix(contracts): close the Plan 3 stack and
+reporting gaps`; the documentation of this round is the commit that follows it. The
+commits `0695cc2`, `422e049`, `ac69dc7` and `80de4d8` are unchanged and byte-identical. The
+working tree contains only the intended documentation changes of this round and no
+uncommitted source work. No merge, push, deploy, publication or database migration is
+authorized or performed.
 
 **What changed in the code.** The aggregate assumes the stack may be partially up while
 `dev-up.sh` runs: it sets `stack_started=1` before the start attempt, calls `dev-down.sh`
@@ -429,17 +433,25 @@ unchanged reason tokens. `python3 scripts/contracts/check.py` returned exit 0 wi
 correlation identifier, the same script with Node 26.13.0 on the `PATH` returned exit 1
 with `PLAN3_TOOLCHAIN_MISMATCH` and a correlation identifier, and the clean export refused
 a non-empty target with `PLAN3_EXPORT_TARGET_INVALID`, a correlation identifier and the
-content of the target kept. Exact commands and durations are in the Plan 3 verification
-document.
+content of the target kept. The aggregate in the working tree of the fix commit
+`97fcc450e4cdbd08ca6fe0d75ef969cbd1b17e9b` passed in 4m42.963s with nine steps at exit 0,
+the browser step recorded as `not run` and `source digest: unchanged during the run` — the
+proof that the widened digest does not fire spuriously on a checkout with a real index. The
+clean exact-SHA export of that commit against base
+`408ded6b01f1373dfaff92a663f2f80347475f55` passed the aggregate with all ten steps,
+including the browser smoke against the test-owned stack `crm-local-4dceaa358742`, in
+5m24.639s with the digest unchanged; it printed the pinned oasdiff executable of the
+policy, `local artifact: .local/plan3-tools/oasdiff-1.37.0/oasdiff
+401389ac23e81bc844093c88ae1e283fbf80ef719f400cbeb19cd36d15957971`. Exact commands and
+durations are in the Plan 3 verification document.
 
-**Known limitations.** The 87-case contract suite, the 70-case .NET non-Compose suite and
-the full clean export with the browser suite were **not** re-run in this round; the round 1
-results stand as the evidence for the unchanged runtime and are not presented as a run of
-this round. The changed files are shell harnesses and the aggregate gate, which no Python
-or .NET suite executes. The browser suite still needs the Chromium shared libraries, which
-this host does not install; they are provided through `LD_LIBRARY_PATH`. The local tool
-artifacts are not committed and are copied into every sandbox and export; the tooling
-verifies their digests.
+**Known limitations.** The 87-case contract suite and the 70-case .NET non-Compose suite
+were **not** re-run in this round; the round 1 results stand as the evidence for the
+unchanged runtime and are not presented as a run of this round. The changed files are shell
+harnesses and the aggregate gate, which no Python or .NET suite executes. The browser suite
+still needs the Chromium shared libraries, which this host does not install; they are
+provided through `LD_LIBRARY_PATH`. The local tool artifacts are not committed and are
+copied into every sandbox and export; the tooling verifies their digests.
 
 **Still open.** The read-only whole-branch review is performed by the controller after this
 round; the plan keeps the annotation that it has not run. Wave 0/P0 acceptance, remote
