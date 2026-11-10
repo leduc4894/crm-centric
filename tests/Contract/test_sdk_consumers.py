@@ -1,0 +1,18 @@
+"""Exercise SDKs through installed local packages and a captured HTTP boundary."""
+import os
+import pathlib
+import subprocess
+import unittest
+
+ROOT = pathlib.Path(__file__).resolve().parents[2]
+
+class PackagedConsumers(unittest.TestCase):
+    def test_independent_packaged_consumers(self):
+        result = subprocess.run(['bash', str(ROOT / 'tests/ClientConsumers/run.sh')], cwd=ROOT,
+                                capture_output=True, text=True, env=os.environ.copy())
+        self.assertEqual(result.returncode, 0, 'Packaged consumer verification failed (output suppressed to protect diagnostics).')
+        self.assertIn('PACKAGED_CONSUMERS_OK', result.stdout)
+        self.assertNotIn('synthetic-secret-sentinel-not-a-credential', result.stdout + result.stderr)
+
+if __name__ == '__main__':
+    unittest.main()
