@@ -7,11 +7,13 @@ Implement [Plan 3](../superpowers/plans/2026-11-10-wave-0-plan-3-frontend-contra
 ## Current state
 
 Branch `feat/wave-0-plan-3-frontend-contract-toolchain`, base `5257abf`. Tasks 1–7 are
-implemented and committed. The fix round 4 of the independent review of Task 7 is the
-commit `fix(contracts): correct the Plan 3 teardown wording and handoff state`; its SHA is
-recorded by the commit that follows it, because a commit cannot carry its own SHA.
-The working tree carries only the intended changes of the round, no
-uncommitted source work. The detailed per-task history is below, newest last. The generator
+implemented and committed. The recorded HEAD SHA is
+`cc5df3c7205af2f8be544142c86bf7240b7c4cea`
+(`fix(contracts): correct the Plan 3 teardown wording and handoff state`), the commit that
+carries the fix round 4 of the independent review of Task 7. The commit on top of it
+changes nothing but this line: a commit cannot carry its own SHA. The working tree is
+clean, with no uncommitted work.
+The detailed per-task history is below, newest last. The generator
 selection, pinned artifacts, prerequisites, coverage and current evidence are in [Plan 3
 verification](../engineering/07-WAVE-0-PLAN-3-VERIFICATION.md). Corvus.Json.Cli 5.8.8 supplies
 C# generated clients; openapi-typescript 7.13.0 plus openapi-fetch 0.17.0 supplies typed TS
@@ -542,11 +544,12 @@ aggregate describing an ordinary exit as "the interrupted run" and reporting a f
 teardown twice. The review was otherwise READY, with no Critical and no Important finding.
 
 **Branch and state.** Branch `feat/wave-0-plan-3-frontend-contract-toolchain`, base
-`5257abf`. The fix is the commit `fix(contracts): correct the Plan 3 teardown wording and
-handoff state`; its SHA is recorded by the commit that follows it, because a commit cannot
-carry its own SHA. The working tree contains only the intended changes of this round and no
-uncommitted source work. No merge, push, deploy, publication or database migration is
-authorized or performed.
+`5257abf`. The fix is the commit
+`cc5df3c7205af2f8be544142c86bf7240b7c4cea` — `fix(contracts): correct the Plan 3 teardown
+wording and handoff state`; the commit that follows it rewrites only the recorded HEAD SHA
+of this document and changes nothing else. The working tree contains only the intended
+changes of this round and no uncommitted source work. No merge, push, deploy, publication
+or database migration is authorized or performed.
 
 **F-2 — the stale HEAD SHA.** The "Current state" header of this document recorded
 `ac69dc78c06e54497b83dd5599dbab8d60544f98`, the fix commit of round 1, as the HEAD of the
