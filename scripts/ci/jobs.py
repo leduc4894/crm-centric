@@ -1,9 +1,11 @@
 """Isolated locked job runner. Raw subprocess diagnostics never leave this process."""
 import argparse
+from contextlib import contextmanager
 import json
 import os
 from pathlib import Path
 import platform
+import signal
 import subprocess
 import sys
 import tempfile
@@ -21,17 +23,87 @@ def verify_versions(actual):
 class JobError(Exception):
     def __init__(self, token): self.token = token
 
+def stop_process_group(process, grace=1):
+    """Signal only the session created for this exact command, including descendants."""
+    try:
+        os.killpg(process.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        return
+    time.sleep(grace)
+    try:
+        os.killpg(process.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    process.wait()
+
+
 def execute(command, timeout=3300, env=None):
     try:
-        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                timeout=timeout, env=env)
-    except subprocess.TimeoutExpired:
-        raise JobError('CI_COMMAND_TIMEOUT') from None
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                   start_new_session=True, env=env)
     except OSError:
         raise JobError('CI_PREREQUISITE_MISSING') from None
-    if result.returncode:
+    try:
+        stdout, _ = process.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        stop_process_group(process)
+        process.communicate()
+        raise JobError('CI_COMMAND_TIMEOUT') from None
+    except BaseException:
+        stop_process_group(process)
+        process.communicate()
+        raise
+    if process.returncode:
         raise JobError('CI_COMMAND_FAILED')
-    return result.stdout.decode().strip()
+    return stdout.decode().strip()
+
+
+def native_suite(command, suites, name, format, output, env=None):
+    try:
+        execute(command, env=env)
+    finally:
+        if output.is_file():
+            payload = output.read_text()
+            suites.append({'name':name,'format':format,
+                           'report':payload if format == 'trx' else json.loads(payload)})
+
+
+def cleanup_resources(owner):
+    """Use fresh label inspection; never infer ownership from resource names."""
+    if len(owner) != 32 or any(char not in '0123456789abcdef' for char in owner):
+        raise JobError('CI_RESOURCE_OWNERSHIP_INVALID')
+    for kind in ('container','network','volume'):
+        listing = ['docker',kind,'ls','-q']
+        if kind == 'container':listing.append('-a')
+        ids = execute(listing+['--filter','label=io.crm-centric.ci-owner='+owner], timeout=30).splitlines()
+        for ident in ids:
+            objects = json.loads(execute(['docker',kind,'inspect',ident],timeout=30))
+            if len(objects) != 1:
+                raise JobError('CI_RESOURCE_OWNERSHIP_INVALID')
+            resource = objects[0]
+            labels = resource.get('Config',{}).get('Labels',{}) if kind == 'container' else resource.get('Labels',{})
+            if not labels or labels.get('io.crm-centric.ci-owner') != owner:
+                continue
+            command = ['docker',kind,'rm']
+            if kind == 'container':command.append('-f')
+            execute(command+[ident], timeout=60)
+
+
+@contextmanager
+def job_resources():
+    # Each invocation has a fresh owner, even when run/attempt identities repeat.
+    previous = os.environ.get('CI_RESOURCE_OWNER')
+    owner = uuid.uuid4().hex
+    os.environ['CI_RESOURCE_OWNER'] = owner
+    try:
+        yield
+    finally:
+        try:
+            cleanup_resources(owner)
+        finally:
+            if previous is None:os.environ.pop('CI_RESOURCE_OWNER',None)
+            else:os.environ['CI_RESOURCE_OWNER'] = previous
+
 
 def tool_versions():
     return {'node':execute(['node','--version']).lstrip('v'),
@@ -98,6 +170,10 @@ def main():
     parser.add_argument('--revision', required=True, type=Path)
     parser.add_argument('--output', required=True, type=Path)
     args = parser.parse_args()
+    def cancelled(signum, frame):
+        raise JobError('CI_COMMAND_CANCELLED')
+    signal.signal(signal.SIGTERM, cancelled)
+    signal.signal(signal.SIGINT, cancelled)
     started = time.monotonic()
     correlation = str(uuid.uuid4())
     report = {'job':args.job,'status':'failure','command_id':args.job,
@@ -117,7 +193,7 @@ def main():
             raise JobError('CI_TOOLCHAIN_MISMATCH') from None
         report['tools'] = {**versions, 'runner_image':os.environ.get('ImageOS','local'),
                            'runner_version':os.environ.get('ImageVersion','local')}
-        with tempfile.TemporaryDirectory(prefix='ci-job-') as directory:
+        with tempfile.TemporaryDirectory(prefix='ci-job-') as directory, job_resources():
             scratch = Path(directory)
             def py_suite(name, directory):
                 output = scratch / (name+'.json')
@@ -130,11 +206,11 @@ def main():
                 execute(['dotnet','restore','CrmPlatform.sln','--locked-mode'])
                 execute(['dotnet','build','CrmPlatform.sln','-c','Release','--no-restore'])
                 category = 'Category=Compose' if args.job == 'compose' else 'Category!=Compose'
-                execute(['dotnet','test','tests/Integration/Integration.csproj','-c','Release',
+                native_suite(['dotnet','test','tests/Integration/Integration.csproj','-c','Release',
                          '--no-build','--no-restore','--filter',category,
-                         '--logger','trx;LogFileName=results.trx','--results-directory',str(scratch)])
-                report['suites'].append({'name':'compose' if args.job == 'compose' else 'non-compose',
-                                        'format':'trx','report':(scratch/'results.trx').read_text()})
+                         '--logger','trx;LogFileName=results.trx','--results-directory',str(scratch)],
+                             report['suites'],'compose' if args.job == 'compose' else 'non-compose',
+                             'trx',scratch/'results.trx')
                 if args.job == 'backend': py_suite('local','tests/Local')
             else:
                 execute(['npm','ci','--ignore-scripts','--no-audit','--no-fund'])

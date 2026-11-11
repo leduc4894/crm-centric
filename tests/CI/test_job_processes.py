@@ -1,0 +1,60 @@
+"""Real process-tree cleanup and safe failed-suite retention."""
+import os
+from pathlib import Path
+import signal
+import sys
+import tempfile
+import time
+import unittest
+from unittest.mock import patch
+
+from scripts.ci.jobs import JobError, execute
+
+class ProcessTests(unittest.TestCase):
+    def test_timeout_terminates_child_that_ignores_term(self):
+        with tempfile.TemporaryDirectory() as directory:
+            pidfile=Path(directory)/'child'
+            child="import os,signal,time; signal.signal(signal.SIGTERM,signal.SIG_IGN); open("+repr(str(pidfile))+",'w').write(str(os.getpid())); time.sleep(60)"
+            command=[sys.executable,'-c','import subprocess,time; subprocess.Popen('+repr([sys.executable,'-c',child])+'); time.sleep(60)']
+            try:
+                with self.assertRaises(JobError) as caught: execute(command,timeout=0.5)
+                self.assertEqual(caught.exception.token,'CI_COMMAND_TIMEOUT')
+                pid=int(pidfile.read_text())
+                for _ in range(100):
+                    stat=Path('/proc')/str(pid)/'stat'
+                    try:
+                        if stat.read_text().split()[2]=='Z': break
+                    except FileNotFoundError:
+                        break
+                    time.sleep(.02)
+                else: self.fail('command descendant survived timeout')
+            finally:
+                if pidfile.exists():
+                    try: os.kill(int(pidfile.read_text()),signal.SIGKILL)
+                    except ProcessLookupError: pass
+
+    def test_cancellation_cleans_group_before_propagating(self):
+        from scripts.ci.jobs import stop_process_group
+        process=unittest.mock.Mock(pid=999999)
+        with patch('scripts.ci.jobs.os.killpg') as kill, patch('scripts.ci.jobs.time.sleep'):
+            stop_process_group(process,grace=0)
+        self.assertEqual(kill.call_args_list[0].args,(999999,signal.SIGTERM))
+        self.assertEqual(kill.call_args_list[-1].args,(999999,signal.SIGKILL))
+
+    def test_interrupt_calls_group_cleanup_and_propagates(self):
+        process=unittest.mock.Mock()
+        process.communicate.side_effect=[KeyboardInterrupt, (b'',b'')]
+        with patch('scripts.ci.jobs.subprocess.Popen',return_value=process) as spawn, patch('scripts.ci.jobs.stop_process_group') as stop:
+            with self.assertRaises(KeyboardInterrupt):execute(['owned-command'])
+        self.assertTrue(spawn.call_args.kwargs['start_new_session'])
+        stop.assert_called_once_with(process)
+
+    def test_failed_native_command_retains_discovered_report(self):
+        from scripts.ci.jobs import native_suite
+        with tempfile.TemporaryDirectory() as directory:
+            output=Path(directory)/'results.trx'
+            output.write_text('<TestRun/>')
+            suites=[]
+            with patch('scripts.ci.jobs.execute',side_effect=JobError('CI_COMMAND_FAILED')):
+                with self.assertRaises(JobError):native_suite(['false'],suites,'compose','trx',output)
+            self.assertEqual(suites,[{'name':'compose','format':'trx','report':'<TestRun/>'}])

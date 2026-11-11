@@ -102,3 +102,13 @@ libraries fail that preflight; no dependency-install shim or browser-test skip
 is accepted. Local library packages may be extracted into an ignored directory
 without root privileges and exposed through `LD_LIBRARY_PATH`; record versions
 and the successful actual launch separately from hosted setup evidence.
+
+Job commands run in separate process sessions. Timeout or controlled cancellation
+terminates that command's process group (TERM, grace, KILL), then reaps the parent.
+Each job invocation supplies a fresh `CI_RESOURCE_OWNER` UUID to the Compose
+manifest. Its exit handler selects containers (including stopped containers),
+networks and volumes by this label, re-inspects exact ownership, then removes
+only matching resources. Non-CI `local` labels are ineligible. This covers the
+Compose manifest, not arbitrary resources created without that label; Testcontainers
+keeps its own Ryuk lifecycle. Abrupt SIGKILL cannot run finalizers, so hosted runner
+isolation and remote cancellation verification remain necessary.
