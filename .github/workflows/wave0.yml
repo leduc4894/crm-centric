@@ -1,0 +1,188 @@
+name: Wave 0
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  backend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12.3'
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '24.22.2'
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1
+        with:
+          dotnet-version: '10.0.403'
+      - name: Verify immutable event revisions
+        run: python -m scripts.ci.revision --event-file "$GITHUB_EVENT_PATH" > revision.json
+      - name: Provision locked tools
+        run: bash scripts/ci/setup.sh
+      - name: Run backend gate
+        run: python -m scripts.ci.jobs backend --revision revision.json --output .local/ci/backend.json
+      - name: Publish safe summary
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: backend-summary
+          path: .local/ci/backend.json
+          if-no-files-found: error
+          retention-days: 7
+  compose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12.3'
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '24.22.2'
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1
+        with:
+          dotnet-version: '10.0.403'
+      - name: Verify immutable event revisions
+        run: python -m scripts.ci.revision --event-file "$GITHUB_EVENT_PATH" > revision.json
+      - name: Provision locked tools
+        run: bash scripts/ci/setup.sh
+      - name: Run compose gate
+        run: python -m scripts.ci.jobs compose --revision revision.json --output .local/ci/compose.json
+      - name: Publish safe summary
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: compose-summary
+          path: .local/ci/compose.json
+          if-no-files-found: error
+          retention-days: 7
+  contracts-sdk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12.3'
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '24.22.2'
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1
+        with:
+          dotnet-version: '10.0.403'
+      - name: Verify immutable event revisions
+        run: python -m scripts.ci.revision --event-file "$GITHUB_EVENT_PATH" > revision.json
+      - name: Provision locked tools
+        run: bash scripts/ci/setup.sh
+      - name: Run contracts-sdk gate
+        run: python -m scripts.ci.jobs contracts-sdk --revision revision.json --output .local/ci/contracts-sdk.json
+      - name: Publish safe summary
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: contracts-sdk-summary
+          path: .local/ci/contracts-sdk.json
+          if-no-files-found: error
+          retention-days: 7
+  web-browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12.3'
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '24.22.2'
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1
+        with:
+          dotnet-version: '10.0.403'
+      - name: Verify immutable event revisions
+        run: python -m scripts.ci.revision --event-file "$GITHUB_EVENT_PATH" > revision.json
+      - name: Provision locked tools
+        run: bash scripts/ci/setup.sh
+      - name: Run web-browser gate
+        run: python -m scripts.ci.jobs web-browser --revision revision.json --output .local/ci/web-browser.json
+      - name: Publish safe summary
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: web-browser-summary
+          path: .local/ci/web-browser.json
+          if-no-files-found: error
+          retention-days: 7
+  security:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12.3'
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '24.22.2'
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1
+        with:
+          dotnet-version: '10.0.403'
+      - name: Verify immutable event revisions
+        run: python -m scripts.ci.revision --event-file "$GITHUB_EVENT_PATH" > revision.json
+      - name: Provision locked tools
+        run: bash scripts/ci/setup.sh
+      - name: Security implementation pending
+        run: |
+          python -c 'import json,uuid; print(json.dumps({"reasonToken":"CI_SECURITY_NOT_PROVISIONED","correlationId":str(uuid.uuid4())}))'
+          exit 1
+      - name: Publish safe summary
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: security-summary
+          path: .local/ci/security.json
+          if-no-files-found: error
+          retention-days: 7
+  wave0-required:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    needs: [backend, compose, contracts-sdk, web-browser, security]
+    if: always()
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
+        with:
+          pattern: '*-summary'
+          path: .local/ci
+          merge-multiple: true
+      - name: Aggregate every required result
+        if: always()
+        env:
+          CI_NEEDS: ${{ toJSON(needs) }}
+        run: |
+          python -m scripts.ci.revision --event-file "$GITHUB_EVENT_PATH" > revision.json
+          python -c 'import json,os; from pathlib import Path; r=json.loads(Path("revision.json").read_text()); Path("identity.json").write_text(json.dumps({"run_id":os.environ["GITHUB_RUN_ID"],"run_attempt":os.environ["GITHUB_RUN_ATTEMPT"],"candidate_sha":r["candidate_sha"],"base_sha":r["base_sha"],"merge_sha":r["merge_sha"]})); Path("needs.json").write_text(os.environ["CI_NEEDS"])'
+          python -m scripts.ci.aggregate --identity identity.json --needs needs.json --reports .local/ci/*.json

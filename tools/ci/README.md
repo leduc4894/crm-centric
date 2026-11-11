@@ -53,3 +53,33 @@ The Plan 3 missing-prerequisite simulation is a separate exception: its named
 `simulation_skips` must match exactly, with a reviewed reason pattern for each
 identity. Additional passing tests are allowed. This exception never applies to
 accepted real-suite reports.
+
+## Required-check migration and local rehearsal
+
+`Wave 0` replaces `Contract baseline`; the old `contracts` check is retired by
+removing its workflow. Proposed mandatory check is `wave0-required`, whose exact
+needs are `backend`, `compose`, `contracts-sdk`, `web-browser`, and `security`.
+Repository settings have not been changed. Existing protection requiring the old
+`contracts` check needs a separately authorized migration after remote evidence;
+removal alone does not prove enforcement. Security is deliberately blocked until
+its implementation arrives. Independent trusted-policy provisioning remains OPEN:
+this candidate-owned workflow/parser does not establish an independent trust root.
+
+Actions are pinned to full upstream commit IDs. Setup provisions .NET 10.0.403,
+Node 24.22.2, npm 11.19.1, Python 3.12.3, Docker 29.9.3, Compose 5.7.0, and
+containerd 2.4.2-3 using signed Docker package metadata. Chromium comes from the
+locked Playwright 1.65.0 package/browser revision. Existing oasdiff archive/binary
+and Corvus package SHA-256 pins are verified during provisioning. Runner OS image
+is recorded as mutable, not claimed immutable. No .NET/npm lock changes.
+
+For an already prepared environment, create a revision JSON using
+`python -m scripts.ci.revision --event-file <saved-event>` and run
+`python -m scripts.ci.jobs <job> --revision <revision.json> --output <ignored-path>`
+with `GITHUB_RUN_ID` and `GITHUB_RUN_ATTEMPT`. Rehearsals must use the actual
+candidate HEAD; the runner rejects another candidate SHA. The browser runner
+always invokes `check-plan3.sh --with-browser`, which owns stack teardown.
+Python reports count real discovered tests and reject every skip. Native reports
+are normalized to identity/outcome only; raw logs/reports/traces are never uploaded.
+Safe summaries retain seven days. Setup errors and absent artifacts fail the gate;
+aggregation also runs after artifact download failure and never accepts a skipped
+or missing platform job.
