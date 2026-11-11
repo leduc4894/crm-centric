@@ -65,13 +65,6 @@ if [ -x "$root/.venv/bin/python" ]; then
   interpreter="$root/.venv/bin/python"
 fi
 
-# The counts of the suite as this branch defines it: the 32 pre-existing tests
-# plus the 55 tests of the four Plan 3 modules. A change of the suite must be a
-# deliberate change of this harness, never a silent drift.
-expected_total=87
-expected_skipped=55
-expected_passed=32
-
 work=$(mktemp -d) ||
   closed_error PLAN3_TEMP_DIRECTORY_UNAVAILABLE "a temporary directory could not be created" 1
 cleanup() { scratch_remove "$work"; }
@@ -127,22 +120,9 @@ if [ "$status" -ne 0 ]; then
     "$(tail -n 20 "$out")"
 fi
 
-if [ "$total_count" != "$expected_total" ]; then
+if ! "$interpreter" "$root/scripts/ci/summary.py" --validate-simulation "$out"; then
   failures=$((failures + 1))
-  fail "ci simulation" "the simulated CI run reported $total_count tests, expected $expected_total" \
-    "a test must never vanish from the report"
-fi
-
-if [ "$skipped_count" != "$expected_skipped" ]; then
-  failures=$((failures + 1))
-  fail "ci simulation" "$skipped_count tests were skipped, expected $expected_skipped" \
-    "the Plan 3 tests must be skipped with a visible reason"
-fi
-
-if [ "$passed_count" != "$expected_passed" ]; then
-  failures=$((failures + 1))
-  fail "ci simulation" "$passed_count tests passed, expected $expected_passed" \
-    "the pre-existing contract tests must keep passing"
+  fail "ci simulation" "reviewed required identities or named prerequisite skips were not satisfied"
 fi
 
 if grep -qE '^(FAIL|ERROR):' "$out"; then

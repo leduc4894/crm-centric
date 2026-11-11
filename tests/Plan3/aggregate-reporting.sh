@@ -754,12 +754,12 @@ case_ci_checkout_keeps_the_contract_suite_green() {
       "$(printf '%s' "$output" | tail -n 10)"
     return
   fi
-  if ! printf '%s' "$output" | grep -q '87 tests, 55 skipped with a reason, 32 passed'; then
-    fail "ci checkout" "the simulated CI run did not report the expected counts" \
+  if ! printf '%s' "$output" | grep -q 'reviewed required identities and named prerequisite skips verified'; then
+    fail "ci checkout" "the simulated CI run did not verify required identities and named skips" \
       "$(printf '%s' "$output" | tail -n 5)"
     return
   fi
-  pass "ci checkout (exit 0, 87 tests, 55 skipped with a reason, 32 passed)"
+  pass "ci checkout (exit 0, required identities and named skips verified)"
 }
 
 # A comparator that cannot load the typescript module must close with the
