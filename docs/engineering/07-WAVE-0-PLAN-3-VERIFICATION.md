@@ -616,10 +616,10 @@ evidence.
 | Contract + tooling | `PATH=<Node-24.22.2>/bin:$PATH LD_LIBRARY_PATH=/tmp/plan3-libs .venv/bin/python -m unittest discover -s tests/Contract -v` | exit 0, **87 tests**, 1064.566 s, OK (fix round 1) |
 | Local Python | `PATH=<Node-24.22.2>/bin:$PATH LD_LIBRARY_PATH=/tmp/plan3-libs .venv/bin/python -m unittest discover -s tests/Local -v` | exit 0, **20 tests**, 4.544 s, OK (fix round 1) |
 | Backend, non-Compose | `DOTNET_ROOT=/tmp/crm-dotnet-10.0.403 dotnet restore CrmPlatform.sln --locked-mode` → `dotnet build CrmPlatform.sln -c Release --no-restore` → `dotnet test CrmPlatform.sln -c Release --no-build --no-restore --filter 'Category!=Compose'` | restore exit 0 (2.748 s); build exit 0, 0 warnings, 0 errors (10.64 s); test exit 0, **70 passed, 0 failed, 0 skipped**, 6 m 48 s (fix round 1) |
-| Negative cases | `bash tests/Plan3/negative-cases.sh --base-ref 408ded6` | exit 0, **3 of 3 cases**, ROUND5_NEGATIVE_CASES (fix round 5) |
-| Aggregate reporting regressions | `bash tests/Plan3/aggregate-reporting.sh --base-ref 408ded6` | exit 0, **13 of 13 cases**, ROUND5_REPORTING_CASES (fix round 5) |
-| Aggregate, working tree | `bash scripts/check-plan3.sh --base-ref 408ded6` | exit 0, ROUND5_WORKTREE_AGGREGATE, nine steps exit 0, browser step recorded as `not run`, source digest unchanged (fix round 5) |
-| Aggregate, clean export | `bash tests/Plan3/clean-export.sh --sha ROUND5_EXPORT_SHA --base-ref 408ded6 --with-browser` | exit 0, ROUND5_CLEAN_EXPORT, all ten steps exit 0 including the browser suite, source digest unchanged (fix round 5) |
+| Negative cases | `bash tests/Plan3/negative-cases.sh --base-ref 408ded6` | exit 0, **3 of 3 cases**, 3m33.104s (fix round 5) |
+| Aggregate reporting regressions | `bash tests/Plan3/aggregate-reporting.sh --base-ref 408ded6` | exit 0, **13 of 13 cases**, 3m33.250s (fix round 5) |
+| Aggregate, working tree | `bash scripts/check-plan3.sh --base-ref 408ded6` | exit 0, 4m16.339s, nine steps exit 0, browser step recorded as `not run`, source digest unchanged (fix round 5) |
+| Aggregate, clean export | `bash tests/Plan3/clean-export.sh --sha 599ad545113b9e07dee4f776f154ee5cd60cc5d1 --base-ref 408ded6 --with-browser` | exit 0, 6m00.310s, all ten steps exit 0 including the browser suite, source digest unchanged (fix round 5) |
 
 **Reused as historical evidence, not re-run.** Plan 2's Compose-category suite (14 cases)
 was **not** re-run in this task. Plan 3 changed no backend source, no container
@@ -743,11 +743,42 @@ follows this run changes the tracked Markdown by design, so a later run reports 
 digest value; the invariant that matters is the verdict, `unchanged during the run`.
 
 **The aggregate run in the working tree in fix round 5**,
-`bash scripts/check-plan3.sh --base-ref 408ded6`, ROUND5_WORKTREE_WALL_CLOCK wall clock,
-exit 0, on the clean working tree of ROUND5_WORKTREE_TREE:
+`bash scripts/check-plan3.sh --base-ref 408ded6`, 4m16.339s wall clock,
+exit 0, on the clean working tree of `599ad545113b9e07dee4f776f154ee5cd60cc5d1`:
 
 ```
-ROUND5_WORKTREE_OUTPUT
+```
+plan3 aggregate: base ref 408ded6
+plan3 aggregate: correlation 3aaec70a-e6b3-4fef-ba39-ba5191ed2f3d
+
+===== plan3 aggregate summary =====
+step                 exit     seconds   reason
+locked-install       0        4         -
+generated-check      0        10        SDK_GENERATED_CURRENT
+sdk-consumers        0        70        -
+compatibility        0        142       CONTRACT_COMPATIBLE
+frontend-typecheck   0        11        -
+frontend-lint        0        3         -
+frontend-test        0        7         -
+frontend-build       0        1         -
+frontend-leak-scan   0        2         -
+browser-e2e          not run  -         not run: the browser suite needs the local Docker stack; pass --with-browser to run it
+
+commands:
+  locked-install       npm ci --ignore-scripts --no-audit --no-fund
+  generated-check      python3 scripts/contracts/check.py
+  sdk-consumers        bash tests/ClientConsumers/run.sh
+  compatibility        python3 scripts/contracts/compatibility.py --base-ref 408ded6
+  frontend-typecheck   npm run typecheck -w apps/crm-web
+  frontend-lint        npm run lint -w apps/crm-web
+  frontend-test        npm run test -w apps/crm-web
+  frontend-build       npm run build -w apps/crm-web
+  frontend-leak-scan   npm run scan:leaks -w apps/crm-web
+  browser-e2e          npm run test:e2e -w apps/crm-web
+source digest: 8f2ce9e180d989aa21ced08f1797c4b79fae7beba333991f1b3c78db8e99e51c
+source digest: unchanged during the run
+plan3 aggregate: PASS
+```
 ```
 
 **The aggregate run in the clean export** of the tested SHA
@@ -793,11 +824,55 @@ clean export aggregate: exit 0
 ```
 
 **The aggregate run in the clean export in fix round 5** of the tested SHA
-`ROUND5_EXPORT_SHA`, with the browser suite, ROUND5_CLEAN_EXPORT_WALL_CLOCK wall clock,
+`599ad545113b9e07dee4f776f154ee5cd60cc5d1`, with the browser suite, 6m00.310s wall clock,
 exit 0:
 
 ```
-ROUND5_CLEAN_EXPORT_OUTPUT
+```
+export sha: 599ad545113b9e07dee4f776f154ee5cd60cc5d1
+base sha: 408ded6b01f1373dfaff92a663f2f80347475f55
+export directory: /tmp/plan3-export-PNJaWh
+correlation: 3b8263e4-ad11-4737-8319-e7c2f7ebbbe6
+local artifact: corvus.json.cli.5.8.8.nupkg b023226e7cffe4b58578ed51c460424cfadfbfe4b223abae020b6e5960a68051
+local artifact: .local/plan3-tools/oasdiff-1.37.0/oasdiff 401389ac23e81bc844093c88ae1e283fbf80ef719f400cbeb19cd36d15957971
+
+step                 exit     seconds   reason
+locked-install       0        4         -
+generated-check      0        15        SDK_GENERATED_CURRENT
+sdk-consumers        0        67        -
+compatibility        0        156       CONTRACT_COMPATIBLE
+frontend-typecheck   0        11        -
+frontend-lint        0        3         -
+frontend-test        0        7         -
+frontend-build       0        1         -
+frontend-leak-scan   0        2         -
+browser-e2e          0        88        -
+
+commands:
+  locked-install       npm ci --ignore-scripts --no-audit --no-fund
+  generated-check      python3 scripts/contracts/check.py
+  sdk-consumers        bash tests/ClientConsumers/run.sh
+  compatibility        python3 scripts/contracts/compatibility.py --base-ref 408ded6
+  frontend-typecheck   npm run typecheck -w apps/crm-web
+  frontend-lint        npm run lint -w apps/crm-web
+  frontend-test        npm run test -w apps/crm-web
+  frontend-build       npm run build -w apps/crm-web
+  frontend-leak-scan   npm run scan:leaks -w apps/crm-web
+  browser-e2e          bash scripts/dev-up.sh; bash scripts/dev-smoke.sh; npm run test:e2e -w apps/crm-web; bash scripts/dev-down.sh
+source digest: 8f2ce9e180d989aa21ced08f1797c4b79fae7beba333991f1b3c78db8e99e51c
+source digest: unchanged during the run
+plan3 aggregate: PASS
+clean export aggregate: exit 0
+```
+
+The browser step of the round 5 export ran against a **test-owned stack** with the compose
+project `crm-local-8e85363088e8`, derived from the export path and distinct from the
+project of the source checkout. The lifecycle events in the run log are `build_completed`
+(18.441 s), `startup_completed` (54.959 s), `stack_ready` with `api: http://localhost:5080`
+and `issuer: http://localhost:8080/realms/crm-local`, then `stack_stopped`. The four browser
+tests pass in 9.3 s, including the smoke test that reads the readiness of the real API and
+PostgreSQL through the development proxy. After the run no container of the project
+remained and nothing listened on 5080, 5173 or 8080.
 ```
 
 The base revision `408ded6b01f1373dfaff92a663f2f80347475f55` is the last commit before
@@ -1230,11 +1305,11 @@ measurement of **fix round 5**:
 
 | Command | Result |
 |---|---|
-| `bash tests/Plan3/aggregate-reporting.sh --base-ref 408ded6` | exit 0, **13 of 13 cases**, ROUND5_REPORTING_CASES |
-| `bash tests/Plan3/negative-cases.sh --base-ref 408ded6` | exit 0, **3 of 3 cases**, ROUND5_NEGATIVE_CASES, the tokens `SDK_GENERATED_MISMATCH`, `CONTRACT_BASE_UNAVAILABLE` and `CONTRACT_POLICY_REVIEW_REQUIRED` unchanged |
+| `bash tests/Plan3/aggregate-reporting.sh --base-ref 408ded6` | exit 0, **13 of 13 cases**, 3m33.250s |
+| `bash tests/Plan3/negative-cases.sh --base-ref 408ded6` | exit 0, **3 of 3 cases**, 3m33.104s, the tokens `SDK_GENERATED_MISMATCH`, `CONTRACT_BASE_UNAVAILABLE` and `CONTRACT_POLICY_REVIEW_REQUIRED` unchanged |
 | `python3 scripts/contracts/check.py` | exit 0, `SDK_GENERATED_CURRENT`, correlation identifier present |
-| `bash scripts/check-plan3.sh --base-ref 408ded6` | exit 0, ROUND5_WORKTREE_WALL_CLOCK, nine steps exit 0, browser step `not run`, digest unchanged |
-| `bash tests/Plan3/clean-export.sh --sha ROUND5_EXPORT_SHA --base-ref 408ded6 --with-browser` | exit 0, ROUND5_CLEAN_EXPORT_WALL_CLOCK, all ten steps exit 0 including the browser suite, digest unchanged |
+| `bash scripts/check-plan3.sh --base-ref 408ded6` | exit 0, 4m16.339s, nine steps exit 0, browser step `not run`, digest unchanged |
+| `bash tests/Plan3/clean-export.sh --sha 599ad545113b9e07dee4f776f154ee5cd60cc5d1 --base-ref 408ded6 --with-browser` | exit 0, 6m00.310s, all ten steps exit 0 including the browser suite, digest unchanged |
 
 **Limitations of round 5.** The 87-case contract suite and the 70-case .NET non-Compose
 suite were **not** re-run in this round. The round changed Markdown only, so the runtime

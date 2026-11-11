@@ -683,14 +683,19 @@ terminated" — and that the `INT` and the `TERM` path report `PLAN3_INTERRUPTED
 table now says 13 cases and names the case that round 4 added, the failing teardown of an
 ordinary run that must be reported once.
 
-**Verification.** The reporting harness passed 13 of 13 cases and the negative-case harness
-passed 3 of 3 cases with the unchanged reason tokens `SDK_GENERATED_MISMATCH`,
-`CONTRACT_BASE_UNAVAILABLE` and `CONTRACT_POLICY_REVIEW_REQUIRED`; `python3
-scripts/contracts/check.py` returned exit 0 with `SDK_GENERATED_CURRENT` and a correlation
-identifier. The aggregate in the working tree of this round and the clean exact-SHA export
-with the browser suite were **re-run** for this round and replace the round-1 measurements
-of the summary table. Exact commands, counts, durations and the tested SHA are in the Plan 3
-verification document.
+**Verification.** The reporting harness passed 13 of 13 cases in 3m33.250s and the
+negative-case harness passed 3 of 3 cases in 3m33.104s, both with exit 0 and with the
+unchanged reason tokens `SDK_GENERATED_MISMATCH`, `CONTRACT_BASE_UNAVAILABLE` and
+`CONTRACT_POLICY_REVIEW_REQUIRED`; `python3 scripts/contracts/check.py` returned exit 0 with
+`SDK_GENERATED_CURRENT` and a correlation identifier. The aggregate in the working tree of
+this round passed in 4m16.339s with nine steps at exit 0, the browser step recorded as
+`not run` and `source digest: unchanged during the run`; the clean exact-SHA export of
+`599ad545113b9e07dee4f776f154ee5cd60cc5d1` against base
+`408ded6b01f1373dfaff92a663f2f80347475f55` passed the aggregate with all ten steps,
+including the browser smoke against the test-owned stack `crm-local-8e85363088e8`, in
+6m00.310s with the digest unchanged. These two measurements replace the round-1
+measurements of the summary table of the Plan 3 verification document. Exact commands,
+counts and durations are in that document.
 
 **Known limitations.** The 87-case contract suite and the 70-case .NET non-Compose suite
 were **not** re-run in this round. This round changed Markdown only, so the runtime
