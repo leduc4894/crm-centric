@@ -112,13 +112,19 @@ def resolve_event(event: dict, checkout_sha: str, git: GitReader) -> RevisionCon
     raise RevisionError('CI_BASE_UNAVAILABLE')
 
 
+class _SafeArgumentParser(argparse.ArgumentParser):
+    def error(self, message):
+        # argparse's default error prints untrusted argument values before exiting.
+        raise RevisionError('CI_CANDIDATE_UNAVAILABLE')
+
+
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = _SafeArgumentParser(description=__doc__)
     parser.add_argument('--event-file', required=True)
     parser.add_argument('--event-name', default=os.environ.get('GITHUB_EVENT_NAME'))
     parser.add_argument('--checkout-sha')
-    args = parser.parse_args()
     try:
+        args = parser.parse_args()
         path = Path(args.event_file)
         if path.stat().st_size > 4 * 1024 * 1024:
             raise RevisionError('CI_CANDIDATE_UNAVAILABLE')

@@ -97,6 +97,19 @@ class RevisionTests(unittest.TestCase):
         for value in ('HEAD', '--help', 'a' * 39, '0' * 40, 'a' * 40 + '\n'):
             self.reject(self.event, value, 'CI_CANDIDATE_UNAVAILABLE')
 
+    def test_cli_argument_errors_are_safe_json(self):
+        for args in (['--event-file', '/nonexistent', '--unexpected=SYNTHETIC_SENTINEL'],
+                     ['--event-file'], [], ['--event-file', '/nonexistent', 'SYNTHETIC_SENTINEL']):
+            with self.subTest(args=args):
+                result = subprocess.run([sys.executable, str(ROOT / 'scripts/ci/revision.py'),
+                                         *args], capture_output=True, text=True)
+                self.assertEqual(1, result.returncode)
+                self.assertEqual('', result.stderr)
+                self.assertNotIn('SYNTHETIC_SENTINEL', result.stdout)
+                output = json.loads(result.stdout)
+                self.assertEqual('CI_CANDIDATE_UNAVAILABLE', output['reasonToken'])
+                self.assertTrue(output['correlationId'])
+
     def test_cli_failure_is_safe_json(self):
         event_file = self.path / 'event.json'
         event_file.write_text('{SENSITIVE_SENTINEL')
