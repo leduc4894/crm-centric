@@ -26,7 +26,7 @@ jobs:
       - name: Verify immutable event revisions
         run: python -m scripts.ci.revision --event-file "$GITHUB_EVENT_PATH" > revision.json
       - name: Provision locked tools
-        run: bash scripts/ci/setup.sh
+        run: bash scripts/ci/setup.sh backend
       - name: Run backend gate
         run: python -m scripts.ci.jobs backend --revision revision.json --output .local/ci/backend.json
       - name: Publish safe summary
@@ -57,7 +57,7 @@ jobs:
       - name: Verify immutable event revisions
         run: python -m scripts.ci.revision --event-file "$GITHUB_EVENT_PATH" > revision.json
       - name: Provision locked tools
-        run: bash scripts/ci/setup.sh
+        run: bash scripts/ci/setup.sh compose
       - name: Run compose gate
         run: python -m scripts.ci.jobs compose --revision revision.json --output .local/ci/compose.json
       - name: Publish safe summary
@@ -88,7 +88,7 @@ jobs:
       - name: Verify immutable event revisions
         run: python -m scripts.ci.revision --event-file "$GITHUB_EVENT_PATH" > revision.json
       - name: Provision locked tools
-        run: bash scripts/ci/setup.sh
+        run: bash scripts/ci/setup.sh contracts-sdk
       - name: Run contracts-sdk gate
         run: python -m scripts.ci.jobs contracts-sdk --revision revision.json --output .local/ci/contracts-sdk.json
       - name: Publish safe summary
@@ -119,7 +119,7 @@ jobs:
       - name: Verify immutable event revisions
         run: python -m scripts.ci.revision --event-file "$GITHUB_EVENT_PATH" > revision.json
       - name: Provision locked tools
-        run: bash scripts/ci/setup.sh
+        run: bash scripts/ci/setup.sh web-browser
       - name: Run web-browser gate
         run: python -m scripts.ci.jobs web-browser --revision revision.json --output .local/ci/web-browser.json
       - name: Publish safe summary
@@ -150,7 +150,7 @@ jobs:
       - name: Verify immutable event revisions
         run: python -m scripts.ci.revision --event-file "$GITHUB_EVENT_PATH" > revision.json
       - name: Provision locked tools
-        run: bash scripts/ci/setup.sh
+        run: bash scripts/ci/setup.sh security
       - name: Security implementation pending
         run: |
           python -c 'import json,uuid; print(json.dumps({"reasonToken":"CI_SECURITY_NOT_PROVISIONED","correlationId":str(uuid.uuid4())}))'

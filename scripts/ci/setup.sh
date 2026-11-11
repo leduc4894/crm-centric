@@ -18,3 +18,9 @@ sudo systemctl restart docker
 python -m pip install -r requirements-contracts.lock >/dev/null 2>&1
 python -m pip check >/dev/null 2>&1
 python -m scripts.ci.provision_contracts
+case "${1:-}" in
+  contracts-sdk|web-browser)
+    npm ci --ignore-scripts --no-audit --no-fund >/dev/null 2>&1
+    npm exec --workspace apps/crm-web -- playwright install --with-deps chromium >/dev/null 2>&1
+    ;;
+esac

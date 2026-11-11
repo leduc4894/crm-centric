@@ -93,3 +93,12 @@ repository variable, candidate-provided digest, or this blocker itself does not
 establish that trust. Remote evidence and separately authorized repository
 required-check configuration must then confirm actual enforcement. The blocker
 is visible technical incompleteness, not an accepted passing baseline.
+
+Browser OS provisioning is a setup responsibility: the hosted contracts/browser
+jobs run the locked Playwright `install --with-deps chromium` during setup.
+An already prepared local job runner uses browser-only installation, then
+actually launches and closes locked Chromium before any suite. Missing native
+libraries fail that preflight; no dependency-install shim or browser-test skip
+is accepted. Local library packages may be extracted into an ignored directory
+without root privileges and exposed through `LD_LIBRARY_PATH`; record versions
+and the successful actual launch separately from hosted setup evidence.

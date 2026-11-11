@@ -40,6 +40,12 @@ def tool_versions():
             'docker':execute(['docker','version','--format','{{.Server.Version}}']),
             'compose':execute(['docker','compose','version','--short'])}
 
+def prepare_browser():
+    execute(['npm','exec','--workspace','apps/crm-web','--','playwright','install','chromium'])
+    # A real launch verifies native OS libraries and the locked browser binary.
+    execute(['node','-e', "(async () => { const browser = await require('@playwright/test').chromium.launch(); await browser.close(); })().catch(() => process.exit(1))"],timeout=60)
+
+
 def plan3_commands(identity):
     return [
         ['bash','tests/Plan3/aggregate-reporting.sh','--base-ref',identity.base_sha],
@@ -134,16 +140,15 @@ def main():
                 execute(['npm','ci','--ignore-scripts','--no-audit','--no-fund'])
                 image = json.loads(Path('tools/contracts/toolchain.json').read_text())['dotnetImage']
                 execute(['docker','pull',image])
+                prepare_browser()
                 if args.job == 'contracts-sdk':
                     py_suite('contract','tests/Contract')
                     execute([sys.executable,'scripts/contracts/check.py'])
                     execute(['bash','tests/ClientConsumers/run.sh'])
                     execute([sys.executable,'scripts/contracts/compatibility.py','--base-ref',identity.base_sha])
-                    execute(['npm','exec','--workspace','apps/crm-web','--','playwright','install','--with-deps','chromium'])
                     for command in plan3_commands(identity):
                         execute(command)
                 else:
-                    execute(['npm','exec','--workspace','apps/crm-web','--','playwright','install','--with-deps','chromium'])
                     vitest = scratch/'vitest.json'; browser = scratch/'browser.json'
                     env = {**os.environ,'PLAYWRIGHT_JSON_OUTPUT_NAME':str(browser),
                            'PLAYWRIGHT_HTML_OPEN':'never'}

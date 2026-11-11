@@ -53,3 +53,12 @@ class JobReportTests(unittest.TestCase):
             self.assertNotIn('synthetic-native-secret-sentinel',text)
             self.assertNotIn('<TestRun>',text)
             self.assertEqual(json.loads(text)['total'],len(native)+len(local))
+
+class BrowserProvisioningTests(unittest.TestCase):
+    def test_privileged_dependencies_are_setup_and_runner_verifies_real_browser(self):
+        setup=Path('scripts/ci/setup.sh').read_text()
+        runner=Path('scripts/ci/jobs.py').read_text()
+        self.assertIn('--with-deps',setup)
+        self.assertNotIn('--with-deps',runner)
+        self.assertIn('chromium.launch',runner)
+        self.assertIn('browser.close',runner)
