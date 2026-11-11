@@ -602,6 +602,16 @@ green. Wherever the prerequisites are present the 55 tests **run for real**: 87 
 regression protection for that interaction is `tests/Plan3/ci-environment.sh`, which
 simulates the CI checkout and asserts the counts, the skip reasons and the exit code.
 
+The guard is deliberately **coarser than the per-test prerequisite**: it is applied per
+test module, so a module skips as a whole with one visible reason. Six of the 55 tests
+need no pinned tooling at all — the five `TypeScriptSurfaceTests` need only a resolvable
+`typescript` module, and `test_generated_code_uses_checkout_stable_newlines` only reads a
+tracked file — and they are skipped as well when a sibling test of the same module lacks
+its prerequisite. The behaviour is fail-closed and hides no failure, but the "32 passed"
+figure of a CI checkout therefore **understates** the coverage that is reachable without
+the pinned tooling. A per-test guard would report more, at the cost of a longer reason
+matrix.
+
 The exact commands a human must run, from the root of the checkout, with the pinned Node
 24.22.2 on the `PATH` and the Chromium shared libraries available to the browser suite:
 
@@ -614,7 +624,7 @@ The exact commands a human must run, from the root of the checkout, with the pin
 | scratch cleanup of the Plan 3 harnesses | `bash tests/Plan3/scratch-cleanup.sh` | the scratch of the Plan 3 harnesses is unlinked through an absolute rm binary; a `PATH`-resolved rm is never invoked, so a recoverable-delete shim on the `PATH` cannot copy a multi-gigabyte scratch tree into the trash of the user |
 
 The base revision must be a revision that the local clone already has; the harnesses never
-fetch. Plan 4 owns the wiring of these four commands into the continuous integration path.
+fetch. Plan 4 owns the wiring of these five commands into the continuous integration path.
 Until that happens they are run by hand, and their results are recorded in this document and
 in the handoff.
 
@@ -641,6 +651,7 @@ fix round 7, on the tree of this round, and is the current evidence.
 | Aggregate reporting regressions | `bash tests/Plan3/aggregate-reporting.sh --base-ref 408ded6` | exit 0, **16 of 16 cases**, 4m5.715s, including the case that fix round 7 added (fix round 7) |
 | CI-like checkout of the contract suite | `bash tests/Plan3/ci-environment.sh` | exit 0, **87 tests**, **55 skipped with a visible reason**, **32 passed**, 2.729s (fix round 7) |
 | Scratch cleanup of the Plan 3 harnesses | `bash tests/Plan3/scratch-cleanup.sh` | exit 0, the scratch of the child was unlinked, the `PATH`-resolved rm was never invoked (fix round 7) |
+| Browser suite, against the real local stack | `bash scripts/dev-up.sh` → `bash scripts/dev-smoke.sh` → `npm run test:e2e -w apps/crm-web` → `bash scripts/dev-down.sh` | dev-up exit 0, project `crm-local-91859983f1e0`, API `http://localhost:5080`; dev-smoke exit 0; **4 browser tests passed, 9.4 s**, exit 0; dev-down exit 0, the stack stopped and no container was left (scoped re-review of fix rounds 6 and 7) |
 | Aggregate, working tree | `bash scripts/check-plan3.sh --base-ref 408ded6` | exit 0, 4m16.339s, nine steps exit 0, browser step recorded as `not run`, source digest unchanged (fix round 5) |
 | Aggregate, clean export | `bash tests/Plan3/clean-export.sh --sha 599ad545113b9e07dee4f776f154ee5cd60cc5d1 --base-ref 408ded6 --with-browser` | exit 0, 6m00.310s, all ten steps exit 0 including the browser suite, source digest unchanged (fix round 5) |
 
@@ -693,10 +704,10 @@ tooling itself before use.
 | W0P3-03 | 1 | two generations into independent roots compared with `diff -qr`; `tests/Contract/test_generated_check.py`; the aggregate source digest; negative case 1 | `check.py` exit 0 in 10 s (clean export `ac69dc7`), 11 s (working tree) and 11.110 s (direct); negative case 1 exits 1 with `SDK_GENERATED_MISMATCH` — fix round 1 | the comparison is byte-level on the committed tree, not a semantic SDK equivalence proof |
 | W0P3-04 | 2 | `tests/ClientConsumers/run.sh`, `tests/ClientConsumers/audit.py`; the aggregate step `sdk-consumers` | exit 0, `PACKAGED_CONSUMERS_OK`, 66 s (clean export `ac69dc7`) and 68 s (working tree) — fix round 1; `.tgz` and `.nupkg` installed from a local path/feed with locked restore | the consumers are temporary local projects; nothing is published to npm or NuGet |
 | W0P3-05 | 2 | TypeScript captured-fetch and .NET `HttpMessageHandler` fixtures in `tests/ClientConsumers/` | exit 0; 200/500/503, Problem/reason/correlation, ETag/If-Match, 412/428 without retry, cursor encoding, nullable body, cancellation, no implicit bearer or tenant | synthetic HTTP fixtures, not a released consumer and not a business endpoint |
-| W0P3-06 | 6 | `apps/crm-web/tests/e2e/health.spec.ts`; the aggregate step `browser-e2e` | 4 browser tests pass (9.2–9.3 s) against the real API and PostgreSQL of the local stack; `stack_ready` on `http://localhost:5080` | the stack is the local Compose stack on this host; no production hosting and no business/auth readiness |
+| W0P3-06 | 6 | `apps/crm-web/tests/e2e/health.spec.ts`; the aggregate step `browser-e2e` | 4 browser tests pass against the real API and PostgreSQL of the local stack — 9.2–9.3 s (fix round 1) and 9.4 s re-measured at the final tree (scoped re-review of fix rounds 6 and 7); `stack_ready` on `http://localhost:5080`, project `crm-local-91859983f1e0` | the stack is the local Compose stack on this host; no production hosting and no business/auth readiness |
 | W0P3-07 | 6 | `apps/crm-web/src/health/healthClient.test.ts`, `HealthStatus.test.tsx`, the browser timeout and XSS cases | deadline pinned to 5000 ms with an elapsed-time assertion; 54 Vitest tests and 4 browser tests exit 0 | the client correlation identifier falls back to a non-cryptographic source when `crypto.randomUUID` is missing |
 | W0P3-08 | 5, 6 | `apps/crm-web/config/healthProxy.test.ts`, `devServer.test.ts`; `git diff --stat 5257abf..HEAD -- src/ compose.yaml scripts/local/ infra/` empty | 54 Vitest tests exit 0; the Compose file, the Keycloak realm, `scripts/local/` and the entrypoints are byte-identical to the branch base | the proxy behaviour is proven against the local stack on this host |
-| W0P3-09 | 3, 4 | `tests/Contract/test_compatibility.py` (39 cases) and `test_sdk_surface.py` (10 cases) with the real oasdiff 1.37.0 and the real generator; the aggregate step `compatibility` | the 87-test contract suite passes, 1064.566 s (fix round 1); `compatibility.py --base-ref 408ded6` exits 0 with `CONTRACT_COMPATIBLE`, `classification: compatible` | a structural diff and a public-surface comparison are not a runtime compatibility proof; the JSON Schema gate is a conservative review detector |
+| W0P3-09 | 3, 4 | `tests/Contract/test_compatibility.py` (39 cases) and `test_sdk_surface.py` (6 cases) with the real oasdiff 1.37.0 and the real generator; the aggregate step `compatibility` | the 87-test contract suite passes, 1064.566 s (fix round 1); `compatibility.py --base-ref 408ded6` exits 0 with `CONTRACT_COMPATIBLE`, `classification: compatible` | a structural diff and a public-surface comparison are not a runtime compatibility proof; the JSON Schema gate is a conservative review detector |
 | W0P3-10 | 1, 3, 4 | the compatibility gate resolves the base from a Git object and never fetches; negative cases 2 and 3 | base SHA `408ded6b01f1373dfaff92a663f2f80347475f55`; a missing revision exits 1 with `CONTRACT_BASE_UNAVAILABLE`; a policy or waiver edit exits 1 with `CONTRACT_POLICY_REVIEW_REQUIRED` | the trusted base is a local Git object; branch protection and approval governance are Plan 4 |
 | W0P3-11 | 2, 5, 6 | `npm run scan:leaks -w apps/crm-web`, `tests/ClientConsumers/audit.py`, the credential strip in `apps/crm-web/config/healthProxy.ts` | leak scan exit 0: no sentinel, secret, credential or local metadata leak in 5 artifact files, 3 browser console messages or the process log; package boundary audit exit 0 | a local scan with synthetic sentinels, not a CI secret scanner |
 | W0P3-12 | 7 | this section, the clean exact-SHA exports below (fix round 1 and fix round 5), and the suite table above | the export passes the aggregate with all ten steps, including the browser smoke against a test-owned stack; base SHA `408ded6b01f1373dfaff92a663f2f80347475f55` | local only: no remote CI, no Wave 0/P0 closure |

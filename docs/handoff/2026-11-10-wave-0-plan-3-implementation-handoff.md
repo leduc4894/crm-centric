@@ -9,11 +9,14 @@ Implement [Plan 3](../superpowers/plans/2026-11-10-wave-0-plan-3-frontend-contra
 Branch `feat/wave-0-plan-3-frontend-contract-toolchain`, base `5257abf`. Tasks 1–7 are
 implemented and committed. The recorded HEAD SHA is
 `907e675` (`docs: clarify the round labels of the Plan 3 verification mapping`); the
-commit on top of it carries **fix round 6** of the final review of Task 7 — the contract
-prerequisite guard, the CI-simulation harness, the TypeScript comparator envelope and
-the documentation of this round; the commit on top of that one carries **fix round 7** —
-the scratch cleanup of the Plan 3 harnesses and the documentation of that round. Neither
-SHA is recorded here, because a commit cannot carry its own SHA. The commits on top of the
+commit on top of it is `40a7c91` and carries **fix round 6** of the final review of Task 7
+— the contract prerequisite guard, the CI-simulation harness, the TypeScript comparator
+envelope and the documentation of that round; the commit on top of that one is
+`88f5542` and carries **fix round 7** — the scratch cleanup of the Plan 3 harnesses and
+the documentation of that round; the commit on top of that one carries the record of the
+scoped re-review of both rounds and the three documentation corrections that the review
+asked for. That last SHA is not recorded here, because a commit cannot carry its own SHA.
+The commits on top of the
 fix round 5 documentation change
 only the recorded HEAD SHA of this document and the wording of this document and of the
 Plan 3 verification document; they carry no source change. The commit that recorded the
@@ -938,4 +941,96 @@ SIGKILLed is **known** and **unchanged** by this round: those directories are re
 **Still open.** The five Plan 3 harnesses are still executed by no automated runner, and the
 prerequisites of the 55 contract tests are still not provisioned by the workflow; Plan 4 owns
 both. Wave 0/P0 acceptance, remote DemoModule end-to-end, tenant isolation,
+outage/recovery and restore drills and remote CI remain **OPEN** and are not claimed here.
+
+## Task 7, scoped re-review of fix rounds 6 and 7 — READY
+
+**Verdict.** **READY.** Critical **0**, Important **0**, Minor **3** — one of the three is
+pre-existing and outside the reviewed range. The re-review was performed by an independent
+verifier over the range `907e675..88f5542` (the fix round 6 commit `40a7c91` and the fix
+round 7 commit `88f5542`), on the review package
+`review-907e675..88f5542.diff`. The durable verdict, with every command and every
+mutation experiment it names, is recorded in the SDD workspace of this slice; the SDD
+workspace is scratch and is removed at the end of the slice, so the three documentation
+corrections below are the durable trace.
+
+**F-1 is genuinely closed.** The guard is keyed on real *usability*, not on the existence
+of a path: making the pinned oasdiff binary non-executable, corrupting its body, and
+appending seven bytes to the pinned Corvus package each turned the affected module into a
+skip **with a visible reason** and left the run green. The guard does **not** hide a real
+failure: with the prerequisites present and the comparator mutated to report
+`compatible: true`, the suite exited 1 with two failures and **zero** skips; restoring the
+comparator returned the suite to green. The CI simulation is not tautological: against the
+pre-fix tree `907e675` it exits 1 with `FAILED (failures=43, errors=6)`, 0 skipped and the
+envelope `PLAN3_CI_SIMULATION_FAILED` — the documented RED, reproduced exactly.
+
+**F-3 is genuinely closed.** Without typescript the comparator exits non-zero, prints the
+reason token `SDK_SURFACE_UNAVAILABLE` and a correlation identifier, and its **stderr is
+0 bytes**; the pre-fix tree printed 923 bytes of raw Node stack trace on the same path.
+
+**F-2 is closed.** The CI disclosure states the 55 new tests, the missing prerequisites,
+the explicit skip behaviour, the local 87/0-skipped reality and that Plan 4 owns the
+wiring.
+
+**The scratch cleanup of fix round 7 is correct and mutation-sensitive.** Reverting
+`tests/Plan3/ci-environment.sh` to `40a7c91` makes the new aggregate case fail with
+`PLAN3_SCRATCH_CLEANUP_FAILED` and the documented assertions ("the PATH-resolved rm was
+invoked", "the scratch was moved into a recoverable trash"); restoring it makes the case
+pass. The helper is silent when sourced, resolves `/bin/rm` as an absolute path, is never
+reached through a `PATH` lookup, handles a target that starts with a dash, and survives
+the tar copy of the checkout into a sandbox. No bare `rm -rf` is left under `scripts/` or
+`tests/`. An additional controlled A/B — a pre-fix and a hardened `tests/ClientConsumers/run.sh`
+under the same controlled `XDG_DATA_HOME` — deposited **one** trash entry with the pre-fix
+variant and **none** with the hardened one.
+
+**The measurements of the reviewer, on the reviewed commit** (independent of the
+implementer's own numbers):
+
+| Command | Result |
+|---|---|
+| `.venv/bin/python -m unittest discover -s tests/Contract -v` | exit 0, **87 tests**, **0 skipped**, `Ran 87 tests in 1246.793s`, OK |
+| `bash tests/Plan3/aggregate-reporting.sh --base-ref 408ded6` | exit 0, **16 of 16 cases** |
+| `bash tests/Plan3/negative-cases.sh --base-ref 408ded6` | exit 0, **3 of 3 cases** |
+| `bash tests/Plan3/ci-environment.sh` | exit 0, **87 tests**, **55 skipped with a visible reason**, **32 passed** |
+| `bash tests/Plan3/scratch-cleanup.sh` | exit 0 |
+| `npm run test -w apps/crm-web` | exit 0, **54 tests** |
+| `python3 scripts/contracts/check.py` | exit 0, `SDK_GENERATED_CURRENT` |
+
+**The three Minor findings and their disposition.**
+
+- **M-1 — the harness count contradicted its own table.** `07-WAVE-0-PLAN-3-VERIFICATION.md`
+  said "Plan 4 owns the wiring of these **four** commands" while the table above it lists
+  **five**. **Corrected** in the commit on top of `88f5542`.
+- **M-2 — the module-level guard over-skips.** The guard is applied per test module, so
+  six tests that need no pinned tooling (the five `TypeScriptSurfaceTests` need only a
+  resolvable `typescript` module, and `test_generated_code_uses_checkout_stable_newlines`
+  only reads a tracked file) are skipped as well. The behaviour is fail-closed with a
+  visible reason and hides no failure, and the granularity is deliberate. **Accepted as
+  designed** and now **disclosed** in the CI disclosure of the verification document,
+  which states that the "32 passed" figure of a CI checkout understates the reachable
+  coverage.
+- **M-3 — a stale test count in the coverage map.** The row `W0P3-09` said
+  `test_sdk_surface.py` has "10 cases"; the module has had 5, then 6, since it was
+  created. The wrong number was introduced in `422e049`, an ancestor of the reviewed
+  range. **Corrected** in the commit on top of `88f5542`, although it was outside the
+  reviewed range.
+
+No second scoped re-review was performed: the changes above are documentation only, they
+touch no assertion, no message, no reason token, no correlation identifier and no exit
+code, and the review rule of this slice allows one fix wave and one scoped re-review.
+
+**Browser suite, re-measured by the controller at the final SHA.** The browser suite was
+not re-run by the reviewer. The controller ran it at the final tree against the real local
+stack: `bash scripts/dev-up.sh` (exit 0, project `crm-local-91859983f1e0`, API
+`http://localhost:5080`), `bash scripts/dev-smoke.sh` (exit 0),
+`npm run test:e2e -w apps/crm-web` (**4 passed, 9.4 s**, exit 0) and
+`bash scripts/dev-down.sh` (exit 0, the stack stopped, no container left). The host
+prerequisite of the browser — the Chromium shared libraries under
+`/tmp/plan3-browser-libs` and the `libatomic` workaround under `/tmp/plan3-libs` — had
+been removed by the disk cleanup of the incident described in fix round 7, and was restored
+before this run; the pinned Node 24.22.2 needs no `libatomic` workaround.
+
+**Still open.** The five Plan 3 harnesses are still executed by no automated runner, and
+the prerequisites of the 55 contract tests are still not provisioned by the workflow; Plan 4
+owns both. Wave 0/P0 acceptance, remote DemoModule end-to-end, tenant isolation,
 outage/recovery and restore drills and remote CI remain **OPEN** and are not claimed here.
