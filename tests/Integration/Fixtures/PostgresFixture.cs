@@ -15,6 +15,8 @@ public sealed class PostgresFixture(bool stableHostPort = false) : IAsyncLifetim
         var builder = new PostgreSqlBuilder(
             ContainerImages.Pins["POSTGRES_IMAGE"])
             .WithPassword(Guid.NewGuid().ToString("N"));
+        if (Environment.GetEnvironmentVariable("CI_RESOURCE_OWNER") is { } owner)
+            builder = builder.WithLabel("io.crm-centric.ci-owner", owner);
         if (stableHostPort)
         {
             // Docker can reassign dynamic mappings on restart. Outage tests need
@@ -38,6 +40,7 @@ public sealed class PostgresFixture(bool stableHostPort = false) : IAsyncLifetim
     public async Task InitializeAsync()
     {
         await Container.StartAsync();
+        await ContainerImages.CaptureImageEvidence(Container.Id, new NpgsqlConnectionStringBuilder(Container.GetConnectionString()).Password!);
         await using var admin = new NpgsqlConnection(Container.GetConnectionString());
         await admin.OpenAsync();
         var migrationPassword = Guid.NewGuid().ToString("N");

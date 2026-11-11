@@ -195,7 +195,7 @@ def main():
                            'runner_version':os.environ.get('ImageVersion','local')}
         with tempfile.TemporaryDirectory(prefix='ci-job-') as directory, job_resources():
             scratch = Path(directory)
-            if args.job in ('compose','web-browser'):
+            if args.job in ('backend','compose','web-browser'):
                 os.environ['CI_IMAGE_JOB'] = args.job
                 os.environ['CI_IMAGE_EVIDENCE'] = str(scratch/'image-evidence')
             def py_suite(name, directory):
@@ -239,7 +239,7 @@ def main():
                     report['suites'].extend([
                         {'name':'vitest','format':'vitest','report':json.loads(vitest.read_text())},
                         {'name':'browser','format':'playwright','report':json.loads(browser.read_text())}])
-            if args.job in ('compose','web-browser'):
+            if args.job in ('backend','compose','web-browser'):
                 from scripts.ci.image_identity import verify_job_evidence
                 from scripts.ci.scan import ScanError
                 records = [json.loads(p.read_text()) for p in (scratch/'image-evidence').glob('*.json')]

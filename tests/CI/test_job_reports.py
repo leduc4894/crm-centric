@@ -37,7 +37,9 @@ class JobReportTests(unittest.TestCase):
 
     def test_valid_native_payload_is_normalized_before_atomic_publication(self):
         from scripts.ci.jobs import publish_report
-        identity=RunIdentity('run','1','a'*40,'b'*40,None)
+        from scripts.ci.image_identity import ImageIdentity
+        from test_image_identity import evidence
+        identity=RunIdentity('123','1','a'*40,'b'*40,None)
         policy=json.loads(Path('tools/ci/coverage.json').read_text())
         native=policy['suites']['non-compose']['required']
         local=policy['suites']['local']['required']
@@ -46,6 +48,8 @@ class JobReportTests(unittest.TestCase):
                 'elapsed_seconds':1,'tools':{'python':'3.15.2'},'artifacts':[],
                 'suites':[{'name':'non-compose','format':'trx','report':trx},
                           {'name':'local','tests':[{'id':name,'outcome':'passed'} for name in local]}]}
+        image=ImageIdentity('backend','123','sha256:'+'c'*64,'linux/amd64',None)
+        report['image_evidence']=[{'role':'runtime','testedIdentity':vars(image),'scan':evidence(image)}]
         with tempfile.TemporaryDirectory() as directory:
             output=Path(directory)/'summary.json'
             publish_report(report,output,identity)

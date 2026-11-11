@@ -67,7 +67,9 @@ def require_evidence(expected,reports):
 
 def verify_job_evidence(records,job,run):
     try:
-        if not records or {r.get('role') for r in records}!={'api','migrator','postgres','keycloak'}: raise ScanError()
+        roles={r.get('role') for r in records}
+        required={'runtime'} if job=='backend' else {'api','migrator','postgres','keycloak'}
+        if not records or not required.issubset(roles) or not roles.issubset(required|{'runtime'}): raise ScanError()
         for record in records:
             expected=validate(ImageIdentity(**record['testedIdentity']))
             if expected.job!=job or expected.runId!=run: raise ScanError()
@@ -75,7 +77,7 @@ def verify_job_evidence(records,job,run):
     except (KeyError,TypeError,ValueError,AttributeError): raise ScanError() from None
 
 
-def record_stack(containers,job,run,directory,scanner,secrets=()):
+def _record_stack(containers,job,run,directory,scanner,secrets=()):
     """Observe started containers independently of mutable Compose image tags."""
     from pathlib import Path
     import hashlib
@@ -103,6 +105,50 @@ def record_stack(containers,job,run,directory,scanner,secrets=()):
         require_evidence([identity],[scan])
 
 
+def _record_container(container,job,run,directory,scanner,secrets=()):
+    from pathlib import Path
+    import json,hashlib
+    from scripts.ci.scan import scan_image
+    from scripts.ci.jobs import atomic_write
+    from scripts.ci.sbom import require_no_secrets
+    identity=observe_container(job,run,container)
+    directory=Path(directory);directory.mkdir(mode=0o700,parents=True,exist_ok=True)
+    key=hashlib.sha256(json.dumps(asdict(identity),sort_keys=True).encode()).hexdigest()
+    output=directory/(key+'.json')
+    if output.exists():
+        record=json.loads(output.read_text())
+        if record['testedIdentity']!=asdict(identity): raise ScanError()
+    else:
+        record={'role':'runtime','testedIdentity':asdict(identity),'scan':scan_image(scanner,identity)}
+    require_no_secrets(record,secrets)
+    atomic_write(output,record)
+    require_evidence([identity],[record['scan']])
+
+
+from contextlib import contextmanager
+
+@contextmanager
+def scan_lock(directory):
+    import fcntl,os
+    from pathlib import Path
+    directory=Path(directory);directory.mkdir(mode=0o700,parents=True,exist_ok=True)
+    fd=os.open(directory/'scan.lock',os.O_CREAT|os.O_RDWR|os.O_NOFOLLOW,0o600)
+    try:
+        fcntl.flock(fd,fcntl.LOCK_EX)
+        yield
+    finally: os.close(fd)
+
+
+def record_stack(containers,job,run,directory,scanner,secrets=()):
+    with scan_lock(directory):
+        return _record_stack(containers,job,run,directory,scanner,secrets)
+
+
+def record_container(container,job,run,directory,scanner,secrets=()):
+    with scan_lock(directory):
+        return _record_container(container,job,run,directory,scanner,secrets)
+
+
 def main():
     """Private JSON stdin from local lifecycle; only reason/correlation on stdout."""
     import json,os,sys,uuid
@@ -118,9 +164,14 @@ def main():
         scanner=ScannerConfig('trivy',tools/'bin/trivy',pin['executableSha256'],pin['version'],cache=tools/'trivy-cache')
         payload=json.load(sys.stdin)
         # Lifecycle supplies only paths; values never enter argv/environment/report.
-        secrets=[Path(path).read_text().strip() for path in payload['secretFiles']]
-        if not secrets or any(not value for value in secrets): raise ScanError()
-        record_stack(payload['containers'],os.environ['CI_IMAGE_JOB'],os.environ['GITHUB_RUN_ID'],os.environ['CI_IMAGE_EVIDENCE'],scanner,secrets)
+        secrets=[Path(path).read_text().strip() for path in payload.get('secretFiles',[])]+payload.get('secretValues',[])
+        if any(not value for value in secrets): raise ScanError()
+        if 'singleContainer' in payload:
+            if os.environ['CI_IMAGE_JOB'] not in ('backend','compose','web-browser','contracts-sdk'): raise ScanError()
+            record_container(payload['singleContainer'],os.environ['CI_IMAGE_JOB'],os.environ['GITHUB_RUN_ID'],os.environ['CI_IMAGE_EVIDENCE'],scanner,secrets)
+        else:
+            if not secrets: raise ScanError()
+            record_stack(payload['containers'],os.environ['CI_IMAGE_JOB'],os.environ['GITHUB_RUN_ID'],os.environ['CI_IMAGE_EVIDENCE'],scanner,secrets)
         return 0
     except (ScanError,OSError,KeyError,TypeError,ValueError):
         print(json.dumps({'reasonToken':'CI_IMAGE_EVIDENCE_INCOMPLETE','correlationId':str(uuid.uuid4())}))

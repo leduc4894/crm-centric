@@ -134,3 +134,54 @@ class LifecycleHookTests(unittest.TestCase):
         with patch.dict(os.environ,{'CI_IMAGE_EVIDENCE':'/tmp/test-evidence'}),patch.object(compose,'_owned',return_value={}),patch.object(compose.subprocess,'Popen',return_value=SimpleNamespace(returncode=1,communicate=lambda *a,**kw: ('',''))):
             with self.assertRaises(compose.LocalFailure) as failure: compose.capture_stack_images(docker)
         self.assertEqual('CI_IMAGE_EVIDENCE_INCOMPLETE',failure.exception.token)
+
+class ProvisionAndSourceTests(unittest.TestCase):
+    def test_provisioned_archive_must_match_pin_and_extract_only_binary(self):
+        from scripts.ci.provision_scanners import unpack_trivy
+        import io,tarfile,tempfile
+        from pathlib import Path
+        buffer=io.BytesIO()
+        with tarfile.open(fileobj=buffer,mode='w:gz') as archive:
+            member=tarfile.TarInfo('trivy');member.size=4;archive.addfile(member,io.BytesIO(b'tool'))
+        data=buffer.getvalue()
+        with tempfile.TemporaryDirectory() as directory:
+            target=Path(directory)/'trivy'
+            unpack_trivy(data,hashlib.sha256(data).hexdigest(),hashlib.sha256(b'tool').hexdigest(),target)
+            self.assertEqual(b'tool',target.read_bytes())
+            with self.assertRaises(ScanError): unpack_trivy(data,'0'*64,hashlib.sha256(b'tool').hexdigest(),target)
+
+    def test_source_sbom_bindings_require_exact_inventory(self):
+        from scripts.ci.sbom import source_sbom
+        from scripts.ci.summary import RunIdentity
+        run=RunIdentity('42','1','a'*40,'b'*40,None)
+        sbom=source_sbom({'package-lock.json':{('safe','1')}},run,'0.76.2')
+        self.assertEqual(1,len(sbom['components']))
+        with self.assertRaises(ScanError): source_sbom({},run,'0.76.2')
+
+    def test_backend_runtime_evidence_required(self):
+        identity=replace(ImageTests().identity(),job='backend')
+        records=[{'role':'runtime','testedIdentity':vars(identity),'scan':evidence(identity)}]
+        images.verify_job_evidence(records,'backend','42')
+        with self.assertRaises(ScanError): images.verify_job_evidence([],'backend','42')
+
+class ScanSerializationTests(unittest.TestCase):
+    def test_evidence_lock_serializes_processes(self):
+        import subprocess,sys,tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as directory:
+            marker=Path(directory)/'acquired'
+            with images.scan_lock(Path(directory)):
+                code="from pathlib import Path\nfrom scripts.ci.image_identity import scan_lock\nprint('waiting',flush=True)\nwith scan_lock(Path("+repr(directory)+")):\n Path("+repr(str(marker))+").write_text('acquired')\n"
+                process=subprocess.Popen([sys.executable,'-c',code],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+                self.assertEqual('waiting',process.stdout.readline().strip())
+                self.assertFalse(marker.exists())
+            process.communicate(timeout=5)
+            self.assertEqual(0,process.returncode)
+            self.assertTrue(marker.exists())
+
+class DirectComposeTests(unittest.TestCase):
+    def test_direct_runtime_evidence_adds_to_required_compose_roles(self):
+        identity=ImageTests().identity()
+        records=[{'role':role,'testedIdentity':vars(identity),'scan':evidence(identity)} for role in ('api','migrator','postgres','keycloak','runtime')]
+        images.verify_job_evidence(records,'compose','42')
+        with self.assertRaises(ScanError): images.verify_job_evidence(records[1:],'compose','42')

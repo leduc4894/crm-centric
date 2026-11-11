@@ -223,8 +223,9 @@ that job/run/image. Both the job and normalized-summary parser require all four
 roles, matching tested/scanned identities, fresh databases, nonempty inventories,
 and a recomputed SBOM hash. Missing scanner, missing roles, unknown severities,
 findings or mismatches close the gate. Workflow scanner path is explicitly
-`.local/ci-scanners`; hosted provisioning for it is **not implemented** and therefore
-fails closed. A local rehearsal may instead supply `CI_SCANNER_ROOT=.local/task5`.
+`.local/ci-scanners`; `setup.sh` now provisions it with the reviewed release/archive/executable
+hashes and a bounded HTTPS download. Actual hosted execution remains unverified;
+network/version/hash failures close setup. A local rehearsal may instead supply `CI_SCANNER_ROOT=.local/task5`.
 
 Trivy verifies executable checksum/version, successfully updates both vulnerability
 and Java DBs, and checks each upstream `UpdatedAt` against the existing 24h maximum
@@ -242,10 +243,34 @@ artifact upload remains restricted to normalized job JSON (including validated
 image evidence on successful Compose/browser jobs), with 7-day retention.
 
 **Limits:** This is candidate-owned verification, not independent policy authority.
-Backend `ContainerImages`/direct Docker and Testcontainers image coverage is not
-wired into this local-stack hook. No new exact-SHA full Compose/browser rehearsal,
-source-dependency SBOM, hosted scan provisioning, or remote execution has passed.
+Backend `ContainerImages.Docker` run commands retain CID files long enough to
+observe actual started config IDs, then honor requested auto-removal. Both PostgreSQL
+Testcontainers fixtures call the same evidence helper after start; direct Compose
+run commands also route through it. CI disables Ryuk and labels test containers
+for the existing owner-scoped cleanup. Evidence scans serialize within each job
+to avoid concurrent DB/cache updates. No full current-SHA service or remote run
+has passed. Source inventories and provisioning details follow below.
 Historical locally available runtime-image scans found real blocking vulnerabilities;
 PostgreSQL also has unknown-severity findings and remains incomplete. Security tool
 coverage, source/dependency findings, independent trust and acceptance drills remain
 open. Never describe wrapper tests or nonempty SBOMs as passing image security.
+
+### Task 6 review round 1
+
+`python -m scripts.ci.provision_scanners --output .local/ci-scanners` is called
+by hosted setup. It accepts only the locked Trivy tarball hash and executable
+hash, extracts only a regular-file `trivy` member, installs atomically and verifies
+exact version. HTTPS redirects and download size/time are bounded; raw curl
+output remains private. `--archive <path>` supports an already-downloaded reviewed
+release with the same mandatory hashes (not a trust/checksum bypass). Local real
+archive installation passed; local fresh network retrieval failed closed, so
+hosted download availability is still unproven.
+
+The security job runs `scripts.ci.sbom` against the exact committed candidate
+archive, publishes only `.local/ci-sbom/source.json` as a separate `source-sbom`
+artifact, and exits nonzero on discovered coverage gaps. It has ecosystem-aware
+package URLs, exact run/revision properties, nonempty package inventory and a
+canonical hash. This is package inventory, not vulnerability/license approval.
+Unsupported tool/unlocked inputs remain explicit incomplete coverage. Security
+scanner completeness and independent workflow trust remain blocked; no local
+candidate-side implementation can grant the independent authority.

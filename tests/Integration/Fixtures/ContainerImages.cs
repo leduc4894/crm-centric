@@ -8,6 +8,12 @@ namespace Integration.Fixtures;
 public sealed class ContainerImages : IAsyncLifetime
 {
     public static string Root { get; } = FindRoot();
+    static ContainerImages()
+    {
+        // CI has explicit owner-label cleanup, so no unobserved Ryuk sidecar runs.
+        if (Environment.GetEnvironmentVariable("CI_IMAGE_EVIDENCE") is not null)
+            DotNet.Testcontainers.Configurations.TestcontainersSettings.ResourceReaperEnabled = false;
+    }
     public string Api { get; } = "crm-task3-api-" + Guid.NewGuid().ToString("N");
     public string Migrator { get; } = "crm-task3-migrate-" + Guid.NewGuid().ToString("N");
     public string Keycloak { get; } = "crm-task3-idp-" + Guid.NewGuid().ToString("N");
@@ -33,6 +39,13 @@ public sealed class ContainerImages : IAsyncLifetime
     public static Task<Capture> Docker(params string[] args) => Docker(true, args);
     public static async Task<Capture> Docker(bool requireSuccess, params string[] args)
     {
+        var evidence = Environment.GetEnvironmentVariable("CI_IMAGE_EVIDENCE") is not null && args[0] == "run";
+        var removeAfter = evidence && args.Contains("--rm");
+        var cid = evidence ? Path.Combine(Path.GetTempPath(), "crm-ci-container-" + Guid.NewGuid().ToString("N")) : null;
+        if (evidence) args = new[] { "run", "--cidfile", cid! }.Concat(args.Skip(1).Where(arg => arg != "--rm")).ToArray();
+        var owner = Environment.GetEnvironmentVariable("CI_RESOURCE_OWNER");
+        if (evidence && owner is not null)
+            args = new[] { "run", "--label", "io.crm-centric.ci-owner=" + owner }.Concat(args.Skip(1)).ToArray();
         var start = new ProcessStartInfo("docker") { WorkingDirectory = Root, RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
         foreach (var arg in args) start.ArgumentList.Add(arg);
         using var process = Process.Start(start)!;
@@ -47,9 +60,49 @@ public sealed class ContainerImages : IAsyncLifetime
             throw new TimeoutException("Container operation exceeded test deadline.");
         }
         var result = new Capture(process.ExitCode, await stdout, await stderr);
+        if (cid is not null)
+        {
+            try
+            {
+                if (File.Exists(cid))
+                {
+                    var container = File.ReadAllText(cid).Trim();
+                    await CaptureImageEvidence(container);
+                }
+            }
+            finally
+            {
+                if (removeAfter && File.Exists(cid)) await Docker(false, "container", "rm", "--force", File.ReadAllText(cid).Trim());
+                File.Delete(cid);
+            }
+        }
         if (requireSuccess && result.ExitCode != 0) SavePrivateCapture("failed-" + args[0], result.Output + result.Error);
         if (requireSuccess) Assert.True(result.ExitCode == 0, "Container operation failed: " + args[0] + " exit " + result.ExitCode);
         return result;
+    }
+
+    public static async Task CaptureImageEvidence(string container, params string[] secrets)
+    {
+        if (Environment.GetEnvironmentVariable("CI_IMAGE_EVIDENCE") is null) return;
+        var start = new ProcessStartInfo("python3") { WorkingDirectory = Root, RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
+        start.ArgumentList.Add("-m"); start.ArgumentList.Add("scripts.ci.image_identity");
+        using var process = Process.Start(start)!;
+        var stdout = process.StandardOutput.ReadToEndAsync(); var stderr = process.StandardError.ReadToEndAsync();
+        await process.StandardInput.WriteAsync(JsonSerializer.Serialize(new { singleContainer = container, secretValues = secrets }));
+        process.StandardInput.Close();
+        using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(15));
+        try { await process.WaitForExitAsync(timeout.Token); }
+        catch (OperationCanceledException)
+        {
+            // TERM lets the helper dispose its scanner groups before forced kill.
+            using var terminate = Process.Start(new ProcessStartInfo("kill", "-TERM " + process.Id) { RedirectStandardOutput = true, RedirectStandardError = true });
+            if (terminate is not null) await terminate.WaitForExitAsync();
+            try { await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(3)); }
+            catch (TimeoutException) { process.Kill(true); await process.WaitForExitAsync(); }
+            throw new InvalidOperationException("CI_IMAGE_EVIDENCE_INCOMPLETE correlation=" + Guid.NewGuid().ToString("N"));
+        }
+        await stdout; await stderr;
+        Assert.True(process.ExitCode == 0, "CI_IMAGE_EVIDENCE_INCOMPLETE correlation=" + Guid.NewGuid().ToString("N"));
     }
 
     public static void SavePrivateCapture(string operation, string capture)

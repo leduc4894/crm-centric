@@ -9,8 +9,12 @@ from scripts.ci.summary import RunIdentity, ReportError, parse_report
 IDENTITY = RunIdentity('123', '1', 'a'*40, 'b'*40, None)
 
 def report(job='backend'):
+    from scripts.ci.image_identity import ImageIdentity
+    from test_image_identity import evidence
+    image=ImageIdentity(job,IDENTITY.run_id,'sha256:'+'c'*64,'linux/amd64',None)
+    records=[{'role':'runtime','testedIdentity':vars(image),'scan':evidence(image)}] if job=='backend' else []
     return dict(identity=dict(IDENTITY.__dict__), job=job, command_id='unit', status='success',
-                elapsed_seconds=1, tools={'python':'3'}, artifacts=[],
+                elapsed_seconds=1, tools={'python':'3'}, artifacts=[],image_evidence=records,
                 suites=[dict(name='local', tests=[dict(id='required', outcome='passed')])])
 
 class SummaryTests(unittest.TestCase):

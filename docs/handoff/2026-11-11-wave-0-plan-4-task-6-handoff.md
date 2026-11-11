@@ -105,3 +105,72 @@ retry/deadline loop, so a scanner failure propagates CI_IMAGE_EVIDENCE_INCOMPLET
 immediately. Helper handles TERM/INT and unwinds private scanner groups; the
 lifecycle wrapper terminates the helper on its bounded timeout before force kill.
 Full service/browser/remote acceptance remains NOT RUN and blocked as above.
+
+## Review round 1 corrections (same authorized local checkout)
+Parent requested feasible fixes for missing hosted provisioning, backend/direct
+Docker/Testcontainers coverage and source SBOM, while retaining all real findings
+and independent-trust blockers. Implemented:
+- setup.sh calls pinned Trivy provisioning for hosted jobs; archive and binary
+  SHA256, regular-file-only extraction, bounded HTTPS and exact version checked.
+  Offline real reviewed release install PASS; initial real asset RED exposed
+ 176386208-byte binary > initial128MiB bound, corrected to reviewed256MiB bound.
+  Fresh network install attempt failed CI_IMAGE_SCANNER_UNAVAILABLE; availability
+  on hosted runner NOT PROVEN. No checksum/version fallback.
+- Backend direct run uses CID before requested --rm cleanup, observes actual
+  started container image ID and scans it; both PostgreSQL Testcontainers fixtures
+  invoke evidence after start. Direct Compose replacement runs route through same
+  helper. CI disables unobserved Ryuk sidecar; direct/TC containers receive owner
+  labels so failure cleanup remains scoped. Job and summary now require backend
+  evidence. A job-local OS flock serializes scans/cache access.
+- Source SBOM inventories exact committed supported npm/NuGet/Python locks with
+  ecosystem-aware purl/bom-ref and run/revision binding. Security publishes exact
+  normalized artifact separately from summary download/aggregation. Unsupported
+  tool/unlocked coverage remains incomplete and command nonzero.
+
+Observed round1 checks:
+- RED missing provision/source/backend interfaces; RED missing file-lock helper;
+  RED direct Compose runtime role rejected; each corrected, final focused PASS18,
+  0skips,0.163s on pinned Python3.15.2.
+- Actual reviewed release installation command
+  `python3 -m scripts.ci.provision_scanners --output .local/task6-provisioned --archive .local/task5/trivy_0.76.2_Linux-64bit.tar.gz`: PASS, archive/executable/version verified.
+  Fresh bounded network command: FAIL closed; urllib diagnostic retry was stopped
+  and replaced by bounded private curl so network cannot wait indefinitely.
+- `dotnet build tests/Integration/Integration.csproj -c Release --no-restore`:
+  PASS0warnings/0errors (7.46s checkpoint; final recheck recorded in report).
+- Actual backend `Integration.MigrationTests.Up_creates_only_technical_schema_and_history`
+  with image evidence enabled: expected FAIL1 with safe CI_IMAGE_EVIDENCE_INCOMPLETE;
+  initial scanner result incomplete0 packages, immutable-ID retry generated151
+  packages/152 SBOM components but remains incompleteUNKNOWN. No vulnerability
+  suppression. Owner-label cleanup verified. This is a negative gate rehearsal,
+  NOT a passing service test.
+- `python3 -m unittest discover -s tests/Security -v`: PASS10,0skips,35.691s.
+- Full pinned CI run: FAIL1error/93,385.794s: native-publication test fixture lacked
+  newly required backend evidence. Corrected fixture; targeted job-report4 PASS,
+  0skips,0.030s. Summary10 PASS0skips0.040s. The semantic policy test passed in
+  that full run. Final all-suite rerun NOT RUN; parent directed commit for review
+  without waiting on a long suite. No claim of full final suite green.
+- Fresh four-image build/started-container/scan rehearsal from exact committed
+  `f67d15d74320ef43e4d3c45c6b8049e0cd382fc2` Git archive (not preexisting tags),
+  source-identity labels and newly provisioned Trivy binary: API BLOCKED106/107,
+  migrator BLOCKED120/121, PostgreSQL INCOMPLETE151/152, Keycloak BLOCKED559/560
+  (packages/SBOM components). Each container actually started `/bin/sh -c exit 0`
+  with network disabled; this verifies image binding, NOT full service readiness.
+  Task6r1 code changes were still uncommitted: NOT a final-SHA service rehearsal.
+- Actual source SBOM for f67d15d: incomplete10locks/444components with
+  CI_TOOL_DEPENDENCY_COVERAGE + CI_UNLOCKED_DEPENDENCIES. Findings not waived.
+
+Changed round1: scripts/ci/{provision_scanners,image_identity,sbom,setup,jobs,
+summary}; workflow; three CI test files; Integration ContainerImages,
+PostgresFixture, ComposeFixture and LocalBootstrap fixtures; README/handoff.
+No API/schema/database changes, remote changes, new exceptions or trust approval.
+Independent trust remains unprovisioned by design: remote owner/independent
+coordinator authority cannot be created by candidate-owned scripts. All earlier
+security/acceptance blockers still apply where not explicitly corrected above.
+
+Final round1 .NET rebuild PASS0warnings/0errors,7.41s; final source inventory unchanged incomplete10locks/444components. Final py_compile/workflow contract/actionlint/diff-check PASS.
+
+Final pinned nonsemantic CI subset: PASS94,0errors/0failures/0skips. Used unittest
+discovery and flattened all tests, excluding only
+`test_real_plan3_semantics_under_both_immutable_policies` (already passed in the
+93-case full run above). This is explicitly a subset, not a final full-suite pass.
+Round1 commit subject: `fix(ci): provision image scanner and extend runtime evidence`.
