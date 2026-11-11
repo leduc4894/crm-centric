@@ -60,6 +60,22 @@ def current_policy_files(repo):
                 paths.add(path.relative_to(repo).as_posix())
     return {path for path in paths if is_policy_path(path) and is_policy(path)}
 
+def policy_identity_preflight(old_hashes, new_hashes, revision=None, transition=None):
+    """Identity only: signed approval never substitutes for semantic evaluation.
+
+    Normal CLI supplies no transition and preserves the Plan 3 fail-closed gate.
+    Independent workflow callers must run both immutable semantic evaluators.
+    """
+    if old_hashes == new_hashes:
+        return
+    from scripts.ci.policy_transition import VerifiedTransition
+    import time
+    if (not isinstance(transition, VerifiedTransition) or revision is None
+            or transition.revision != revision or transition.expires_at <= time.time()
+            or dict(transition.old_hashes) != old_hashes
+            or dict(transition.new_hashes) != new_hashes):
+        raise GateError('CONTRACT_POLICY_REVIEW_REQUIRED')
+
 def check_baseline_configuration(repo, base):
     """Reject incomplete baseline toolchains and unreviewed policy changes."""
     paths = set(git(repo, 'ls-tree', '-r', '--name-only', base, '--', 'tools/contracts', 'scripts/contracts', 'sdks').decode().splitlines())
@@ -81,8 +97,9 @@ def check_baseline_configuration(repo, base):
         current_policy |= {p.relative_to(repo).as_posix() for p in (repo / 'tools/contracts/surface').rglob('*') if p.is_file()} if (repo / 'tools/contracts/surface').is_dir() else set()
         if (repo / 'scripts/contracts/sdk_surface.py').is_file():
             current_policy.add('scripts/contracts/sdk_surface.py')
-    if base_policy != current_policy or any(git(repo, 'show', f'{base}:{p}') != (repo / p).read_bytes() for p in base_policy):
-        raise GateError('CONTRACT_POLICY_REVIEW_REQUIRED')
+    old_hashes = {p: hashlib.sha256(git(repo, 'show', f'{base}:{p}')).hexdigest() for p in base_policy}
+    new_hashes = {p: sha(repo / p) for p in current_policy}
+    policy_identity_preflight(old_hashes, new_hashes)
 
 def schema_contents(value):
     if not isinstance(value, dict):
