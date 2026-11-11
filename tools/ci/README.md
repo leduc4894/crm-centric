@@ -22,7 +22,10 @@ required identities and a count below the minimum all fail.
 Alternatively a suite can have `name`, `format` and embedded `report` instead
 of `tests`. Formats are `trx` (XML string), `vitest` (JSON object), or
 `playwright` (JSON object). Native reports alone do not prove CI run provenance;
-they must be embedded in the run-bound envelope. Parsers retain test identities
+they must be embedded in the run-bound envelope. Playwright reports require native
+`stats` with nonnegative integer expected/unexpected/skipped/flaky counts and case
+status consistent with the actual result. Counts must reconcile exactly with
+extracted cases; skipped and flaky evidence fails. Parsers retain test identities
 and outcomes only, discarding native diagnostics. Never upload raw native
 reports or input envelopes by default: tool output can contain sensitive data.
 The aggregator emits only success, a safe reason token and a correlation ID.

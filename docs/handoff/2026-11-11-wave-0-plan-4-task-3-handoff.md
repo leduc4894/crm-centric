@@ -76,3 +76,16 @@ write_stdin follow-up. Record the eventual final count/exit status before any
 full-contract completion claim. Task implementation and focused/harness checks
 are complete locally; trusted policy review/provisioning and other acceptance
 items remain open as stated above. No unrelated uncommitted work at staging.
+
+## Review fix round 1
+Reproduced both Important findings with new regressions: Playwright contradictory
+native stats/status accepted, and oversized integer elapsed_seconds escaping as
+OverflowError/CLI traceback. RED: summary10 tests had 11 failing Playwright
+subcases + one error; aggregate6 tests had one CLI failure. Parser now requires
+nonnegative integer native stats, exact total/outcome reconciliation and matching
+case statuses; skips/flaky/missing stats fail. Numeric overflow becomes safe
+ReportError. GREEN: summary10 and aggregate6 PASS; py_compile and diff check PASS.
+README documents stricter native Playwright requirements. Broader suites not
+repeated for this parser-only review change. Commit subject:
+`fix(ci): reject contradictory browser evidence and numeric overflow`.
+Trust provisioning and other previously documented acceptance gaps remain open.

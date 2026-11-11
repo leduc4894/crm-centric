@@ -72,8 +72,8 @@ class SummaryTests(unittest.TestCase):
         vitest={'numTotalTests':1,'testResults':[{'name':'/repo/apps/crm-web/a.test.ts',
             'assertionResults':[{'ancestorTitles':['suite'],'title':'case','status':'passed'}]}]}
         self.assertEqual(parse_cases('vitest',vitest)[0]['id'], 'apps/crm-web/a.test.ts::suite > case')
-        browser={'suites':[{'file':'test.spec.ts','specs':[{'title':'case','tests':[
-            {'projectName':'chromium','expectedStatus':'passed','results':[{'status':'passed'}]}]}]}]}
+        browser={'stats':{'expected':1,'unexpected':0,'skipped':0,'flaky':0},'suites':[{'file':'test.spec.ts','specs':[{'title':'case','tests':[
+            {'projectName':'chromium','expectedStatus':'passed','status':'expected','results':[{'status':'passed'}]}]}]}]}
         self.assertEqual(parse_cases('playwright',browser)[0]['outcome'],'passed')
         for kind,data in [('trx',trx.replace('total="1"','total="2"')),
                           ('trx',trx.replace('Passed','NotExecuted')),
@@ -103,6 +103,38 @@ class SummaryTests(unittest.TestCase):
         for kind,data in [('trx',trx),('vitest',vitest),('playwright',browser)]:
             with self.subTest(kind=kind):
                 with self.assertRaises(ReportError):parse_cases(kind,data)
+
+    def test_playwright_reconciles_stats_and_case_status(self):
+        import copy
+        from scripts.ci.summary import parse_cases
+        browser={'stats':{'expected':1,'unexpected':0,'skipped':0,'flaky':0},
+                 'suites':[{'file':'test.spec.ts','specs':[{'title':'case','tests':[
+                     {'projectName':'chromium','expectedStatus':'passed','status':'expected',
+                      'results':[{'status':'passed'}]}]}]}]}
+        self.assertEqual(parse_cases('playwright',browser)[0]['outcome'],'passed')
+        bad_stats=[{'expected':1,'unexpected':1,'skipped':1,'flaky':0},
+                   {'expected':1,'unexpected':1,'skipped':0,'flaky':0},
+                   {'expected':0,'unexpected':1,'skipped':0,'flaky':0},
+                   {'expected':2,'unexpected':0,'skipped':0,'flaky':0},
+                   {'expected':1,'unexpected':0,'skipped':0,'flaky':1},
+                   {'expected':True,'unexpected':0,'skipped':0,'flaky':0},
+                   {'expected':-1,'unexpected':0,'skipped':0,'flaky':0}, {}]
+        for stats in bad_stats:
+            with self.subTest(stats=stats):
+                bad=copy.deepcopy(browser);bad['stats']=stats
+                with self.assertRaises(ReportError):parse_cases('playwright',bad)
+        for status in ('unexpected','skipped','flaky',None):
+            bad=copy.deepcopy(browser);bad['suites'][0]['specs'][0]['tests'][0]['status']=status
+            with self.subTest(status=status):
+                with self.assertRaises(ReportError):parse_cases('playwright',bad)
+        bad=copy.deepcopy(browser);del bad['stats']
+        with self.assertRaises(ReportError):parse_cases('playwright',bad)
+
+    def test_huge_elapsed_integer_fails_with_safe_report_error(self):
+        data=report();data['elapsed_seconds']=10**400
+        with self.assertRaises(ReportError) as failure:self.parse(data)
+        self.assertTrue(failure.exception.reason_token.startswith('CI_'))
+        self.assertTrue(failure.exception.correlation_id)
 
     def test_missing_and_raw_payload_are_safe(self):
         with self.assertRaises(ReportError) as error:

@@ -9,7 +9,7 @@ from unittest.mock import patch
 from dataclasses import replace
 from scripts.ci.aggregate import aggregate, INVENTORY
 from scripts.ci.summary import CiSummary
-from test_summary import IDENTITY
+from test_summary import IDENTITY, report
 
 class AggregateTests(unittest.TestCase):
     def evidence(self):
@@ -45,6 +45,23 @@ class AggregateTests(unittest.TestCase):
         self.assertFalse(data['success'])
         self.assertTrue(data['reason_token'].startswith('CI_'))
         self.assertTrue(data['correlation_id'])
+
+    def test_cli_oversized_elapsed_integer_fails_without_traceback(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            identity=root/'identity.json';identity.write_text(json.dumps(IDENTITY.__dict__))
+            needs=root/'needs.json';needs.write_text(json.dumps(dict.fromkeys(INVENTORY,'success')))
+            path=root/'report.json';data=report();data['elapsed_seconds']=10**400
+            path.write_text(json.dumps(data))
+            result=subprocess.run([sys.executable,'-m','scripts.ci.aggregate',
+                                   '--identity',str(identity),'--needs',str(needs),
+                                   '--reports',str(path)],capture_output=True,text=True,timeout=20)
+            self.assertNotEqual(result.returncode,0)
+            self.assertEqual(result.stderr,'')
+            envelope=json.loads(result.stdout)
+            self.assertFalse(envelope['success'])
+            self.assertTrue(envelope['reason_token'].startswith('CI_'))
+            self.assertTrue(envelope['correlation_id'])
 
     def test_deliberately_failing_local_test_fails_aggregate(self):
         # Real unittest process, same discovery entry point as the Local job.

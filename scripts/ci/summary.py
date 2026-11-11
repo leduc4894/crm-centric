@@ -96,7 +96,7 @@ def parse_report(kind, path, expected):
                          failed, 0, len(outcomes))
     except ReportError:
         raise
-    except (OSError, ValueError, TypeError, KeyError, AttributeError, RecursionError):
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, RecursionError, OverflowError):
         raise ReportError() from None
 
 
@@ -151,6 +151,12 @@ def parse_cases(kind, raw):
         elif kind == 'playwright':
             if raw.get('errors'):
                 raise ReportError('CI_TEST_EVIDENCE_FAILED')
+            stats = raw['stats']
+            counters = [stats[key] for key in ('expected','unexpected','skipped','flaky')]
+            if any(type(count) is not int or count < 0 for count in counters):
+                raise ReportError()
+            if stats['skipped'] or stats['flaky']:
+                raise ReportError('CI_TEST_EVIDENCE_FAILED')
             def visit(suites,parents):
                 for suite in suites:
                     for spec in suite.get('specs',[]):
@@ -161,10 +167,17 @@ def parse_cases(kind, raw):
                             statuses=[result['status'] for result in results]
                             if any(status not in ('passed','failed','timedOut','interrupted') for status in statuses):
                                 raise ReportError('CI_UNEXPECTED_SKIP')
+                            outcome = 'passed' if statuses == ['passed'] else 'failed'
+                            if case['status'] != ('expected' if outcome == 'passed' else 'unexpected'):
+                                raise ReportError('CI_REPORT_STATUS_MISMATCH')
                             tests.append({'id':suite['file']+'::'+' > '.join(parents+[spec['title']])+'::'+case['projectName'],
-                                          'outcome':'passed' if statuses==['passed'] else 'failed'})
+                                          'outcome':outcome})
                     visit(suite.get('suites',[]),parents+[suite['title']] if suite.get('title') else parents)
             visit(raw['suites'],[])
+            if (sum(counters) != len(tests)
+                    or stats['expected'] != sum(test['outcome'] == 'passed' for test in tests)
+                    or stats['unexpected'] != sum(test['outcome'] == 'failed' for test in tests)):
+                raise ReportError('CI_DISCOVERY_INCOMPLETE')
         else:
             raise ReportError('CI_REPORT_FORMAT_UNSUPPORTED')
         if not tests or any(test['outcome'] not in ('passed','failed') for test in tests):
