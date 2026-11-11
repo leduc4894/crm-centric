@@ -12,7 +12,7 @@ import uuid
 
 from scripts.ci.summary import ReportError, RunIdentity, parse_report
 
-VERSIONS = {'node':'24.22.2','npm':'11.19.1','python':'3.12.3','dotnet':'10.0.403','docker':'29.9.3','compose':'5.7.0'}
+VERSIONS = {'node':'24.22.2','npm':'11.19.1','python':'3.15.2','dotnet':'10.0.403','docker':'29.9.3','compose':'5.7.0'}
 
 def verify_versions(actual):
     if actual != VERSIONS:

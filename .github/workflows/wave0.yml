@@ -16,7 +16,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
-          python-version: '3.12.3'
+          python-version: '3.15.2'
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: '24.22.2'
@@ -47,7 +47,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
-          python-version: '3.12.3'
+          python-version: '3.15.2'
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: '24.22.2'
@@ -78,7 +78,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
-          python-version: '3.12.3'
+          python-version: '3.15.2'
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: '24.22.2'
@@ -109,7 +109,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
-          python-version: '3.12.3'
+          python-version: '3.15.2'
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: '24.22.2'
@@ -140,7 +140,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
-          python-version: '3.12.3'
+          python-version: '3.15.2'
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: '24.22.2'
@@ -186,3 +186,8 @@ jobs:
           python -m scripts.ci.revision --event-file "$GITHUB_EVENT_PATH" > revision.json
           python -c 'import json,os; from pathlib import Path; r=json.loads(Path("revision.json").read_text()); Path("identity.json").write_text(json.dumps({"run_id":os.environ["GITHUB_RUN_ID"],"run_attempt":os.environ["GITHUB_RUN_ATTEMPT"],"candidate_sha":r["candidate_sha"],"base_sha":r["base_sha"],"merge_sha":r["merge_sha"]})); Path("needs.json").write_text(os.environ["CI_NEEDS"])'
           python -m scripts.ci.aggregate --identity identity.json --needs needs.json --reports .local/ci/*.json
+      - name: Independent trust provisioning required
+        if: always()
+        run: |
+          python -c 'import json,uuid; print(json.dumps({"reasonToken":"CI_TRUST_NOT_PROVISIONED","correlationId":str(uuid.uuid4())}))'
+          exit 1

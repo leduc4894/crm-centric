@@ -27,7 +27,7 @@ class WorkflowTests(unittest.TestCase):
 
     def test_missing_and_wrong_prerequisite_fail(self):
         from scripts.ci.jobs import verify_versions
-        good = {'node':'24.22.2','npm':'11.19.1','python':'3.12.3','dotnet':'10.0.403','docker':'29.9.3','compose':'5.7.0'}
+        good = {'node':'24.22.2','npm':'11.19.1','python':'3.15.2','dotnet':'10.0.403','docker':'29.9.3','compose':'5.7.0'}
         verify_versions(good)
         for key in good:
             bad = dict(good); bad.pop(key)
@@ -56,3 +56,15 @@ class RealProducerTests(unittest.TestCase):
         self.assertIn("'--with-browser'",runner)
         self.assertIn("json.loads(browser.read_text())",runner)
         self.assertIn('PLAYWRIGHT_JSON_OUTPUT_NAME',(ROOT/'apps/crm-web/playwright.config.ts').read_text())
+
+class TrustBootstrapTests(unittest.TestCase):
+    def test_missing_independent_trust_remains_explicit_failure(self):
+        workflow = yaml.safe_load((ROOT/'.github/workflows/wave0.yml').read_text())
+        steps = workflow['jobs']['wave0-required']['steps']
+        blocked = [step for step in steps if 'CI_TRUST_NOT_PROVISIONED' in step.get('run','')]
+        self.assertEqual(len(blocked),1)
+        self.assertIn('exit 1',blocked[0]['run'])
+        for job in ('backend','compose','contracts-sdk','web-browser'):
+            pins=[step['with']['python-version'] for step in workflow['jobs'][job]['steps']
+                  if step.get('uses','').startswith('actions/setup-python@')]
+            self.assertEqual(pins,['3.15.2'])

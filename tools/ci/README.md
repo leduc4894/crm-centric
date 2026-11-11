@@ -66,7 +66,7 @@ its implementation arrives. Independent trusted-policy provisioning remains OPEN
 this candidate-owned workflow/parser does not establish an independent trust root.
 
 Actions are pinned to full upstream commit IDs. Setup provisions .NET 10.0.403,
-Node 24.22.2, npm 11.19.1, Python 3.12.3, Docker 29.9.3, Compose 5.7.0, and
+Node 24.22.2, npm 11.19.1, Python 3.15.2, Docker 29.9.3, Compose 5.7.0, and
 containerd 2.4.2-3 using signed Docker package metadata. Chromium comes from the
 locked Playwright 1.65.0 package/browser revision. Existing oasdiff archive/binary
 and Corvus package SHA-256 pins are verified during provisioning. Runner OS image
@@ -83,3 +83,13 @@ are normalized to identity/outcome only; raw logs/reports/traces are never uploa
 Safe summaries retain seven days. Setup errors and absent artifacts fail the gate;
 aggregation also runs after artifact download failure and never accepts a skipped
 or missing platform job.
+
+The final `wave0-required` step deliberately fails with
+`CI_TRUST_NOT_PROVISIONED`. Removing this blocker requires an independently
+provisioned immutable verifier/parser/coverage checkout, externally authenticated
+bootstrap policy identity, and review/transition verification under the Task2
+protocol before any candidate-modifiable policy executes. A candidate file,
+repository variable, candidate-provided digest, or this blocker itself does not
+establish that trust. Remote evidence and separately authorized repository
+required-check configuration must then confirm actual enforcement. The blocker
+is visible technical incompleteness, not an accepted passing baseline.
