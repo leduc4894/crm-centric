@@ -132,6 +132,86 @@ class TransitionTests(unittest.TestCase):
                 with self.assertRaises(p.TransitionError):
                     p.GitSnapshotCapability.from_git(repo, self.rev, self.key.verify, 'merge', paths)
 
+    def test_real_plan3_semantics_under_both_immutable_policies(self):
+        root = Path(__file__).resolve().parents[2]
+        tracked = subprocess.check_output(['git', 'ls-files'], cwd=root, text=True).splitlines()
+        names = {'package.json', 'package-lock.json', '.npmrc', '.node-version', 'global.json'}
+        policy = tuple((name, (root / name).read_bytes()) for name in tracked
+                       if name in names or name.startswith(('scripts/contracts/', 'tools/contracts/', 'tests/ClientConsumers/')))
+        contracts = tuple((name, (root / name).read_bytes()) for name in tracked if name.startswith('docs/contracts/'))
+        changed_policy = tuple((name, data + b'\n' if name == 'tools/contracts/oasdiff.json' else data)
+                               for name, data in policy)
+        # Materialize a real Git base/head/merge graph, then discard worktree
+        # authority. Both contracts and evaluator source come from Git objects.
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        repo = Path(temp.name)
+        def git(*args, input=None):
+            return subprocess.run(['git', '-c', 'user.name=Fixture', '-c',
+                                   'user.email=fixture@example.invalid', *args], cwd=repo,
+                                  input=input, check=True, capture_output=True, text=True).stdout.strip()
+        def write(files):
+            for name, data in files:
+                path = repo / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(data)
+        git('init', '-q')
+        write(policy + contracts)
+        git('add', '.')
+        git('commit', '-qm', 'base policy and canonical contracts')
+        base = git('rev-parse', 'HEAD')
+        write(changed_policy)
+        git('add', '.')
+        git('commit', '-qm', 'reviewed policy formatting transition')
+        head = git('rev-parse', 'HEAD')
+        tree = git('rev-parse', 'HEAD^{tree}')
+        candidate = git('commit-tree', tree, '-p', base, '-p', head, input='reviewed candidate\n')
+        self.rev = RevisionContext(candidate, base, head, candidate, base)
+        self.key = p.GitSnapshotCapability.from_git(repo, self.rev, self.key.verify, 'merge',
+                                                   tuple(name for name, _ in policy))
+        policy, changed_policy = self.key.old_policy, self.key.new_policy
+        contracts = self.key.base_contracts
+        self.old = {name: hashlib.sha256(data).hexdigest() for name, data in policy}
+        self.new = {name: hashlib.sha256(data).hexdigest() for name, data in changed_policy}
+        self.payload.update(old_hashes=self.old, new_hashes=self.new, files=sorted(self.old),
+                            base_sha=base, head_sha=head, candidate_sha=candidate, candidate_tree=tree)
+        transition = self.verify()
+        runner = p.Plan3SnapshotEvaluator(policy, root, self.rev.base_sha)
+        result = p.evaluate_transition(transition, runner, runner)
+        self.assertEqual(result.evaluations, ('CONTRACT_COMPATIBLE', 'CONTRACT_COMPATIBLE'))
+        self.assertEqual(result.reason, 'CONTRACT_COMPATIBLE')
+        self.assertEqual(dict(result.base_contract_hashes), dict(result.candidate_contract_hashes))
+        # Removing an existing canonical operation must fail under BOTH policies.
+        import yaml
+        changed_contracts = []
+        for name, data in contracts:
+            if name == 'docs/contracts/crm-api.openapi.yaml':
+                doc = yaml.safe_load(data)
+                del doc['paths']['/api/v1/tenants']['get']
+                data = yaml.safe_dump(doc).encode()
+            changed_contracts.append((name, data))
+        write(tuple(changed_contracts))
+        git('add', '.')
+        git('commit', '-qm', 'wire breaking fixture')
+        breaking_head = git('rev-parse', 'HEAD')
+        breaking_tree = git('rev-parse', 'HEAD^{tree}')
+        breaking_candidate = git('commit-tree', breaking_tree, '-p', base, '-p', breaking_head,
+                                 input='breaking merge candidate\n')
+        self.rev = RevisionContext(breaking_candidate, base, breaking_head, breaking_candidate, base)
+        self.key = p.GitSnapshotCapability.from_git(repo, self.rev, self.key.verify, 'merge', tuple(self.old))
+        self.payload.update(head_sha=breaking_head, candidate_sha=breaking_candidate,
+                            candidate_tree=breaking_tree)
+        breaking = self.verify()
+        result = p.evaluate_transition(breaking, runner, runner)
+        self.assertEqual(result.evaluations, ('CONTRACT_BREAKING', 'CONTRACT_BREAKING'))
+        # Missing actual pinned tools on either side is closed, even on valid contracts.
+        with tempfile.TemporaryDirectory() as missing_tools:
+            missing_runner = p.Plan3SnapshotEvaluator(policy, Path(missing_tools), self.rev.base_sha)
+            for runners in [(missing_runner, runner), (runner, missing_runner)]:
+                result = p.evaluate_transition(breaking, *runners)
+                self.assertIn('CONTRACT_TOOL_ERROR', result.evaluations)
+                self.assertNotEqual(result.reason, 'CONTRACT_COMPATIBLE')
+
     def test_bad_bindings_and_missing_review_fail_closed(self):
         for field, value in [('base_sha', 'e'*40), ('head_sha', 'e'*40),
                              ('candidate_sha', 'e'*40), ('candidate_tree', 'e'*40),
@@ -170,7 +250,12 @@ class TransitionTests(unittest.TestCase):
     def test_first_push_requires_fresh_before_method_and_resulting_tree(self):
         self.rev = replace(self.rev, head_sha=self.rev.candidate_sha, merge_sha=None)
         self.payload.update(event='push', head_sha=self.rev.head_sha)
-        self.assertEqual(self.verify().identity, 'review-123')
+        transition = self.verify()
+        self.assertEqual(transition.identity, 'review-123')
+        result = p.evaluate_transition(transition,
+                                       lambda *args: p.CompatibilityResult('CONTRACT_COMPATIBLE'),
+                                       lambda *args: p.CompatibilityResult('CONTRACT_COMPATIBLE'))
+        self.assertEqual(result.evaluations, ('CONTRACT_COMPATIBLE', 'CONTRACT_COMPATIBLE'))
         for changes in [dict(base_sha='e'*40), dict(merge_method='squash'), dict(candidate_tree='e'*40)]:
             with self.assertRaises(p.TransitionError):
                 self.verify(self.attestation(**changes))

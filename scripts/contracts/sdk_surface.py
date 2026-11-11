@@ -30,8 +30,9 @@ def prepare(root, source, contracts, git, base=None):
             path = source / name
             if path.is_file():
                 shutil.copyfile(path, root / name)
-        for name in ('scripts/contracts', 'tools/contracts'):
-            shutil.copytree(source / name, root / name, ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
+        for name in ('scripts/contracts', 'tools/contracts', 'tests/ClientConsumers'):
+            if (source / name).is_dir():
+                shutil.copytree(source / name, root / name, ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
     shutil.copytree(contracts, root / 'docs/contracts')
     return root
 

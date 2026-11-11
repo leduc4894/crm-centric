@@ -241,6 +241,21 @@ def run(base_ref, repo, context):
             raise GateError('CONTRACT_TOOL_UNAVAILABLE')
     except (OSError, ValueError, KeyError, TypeError):
         raise GateError('CONTRACT_TOOL_UNAVAILABLE') from None
+    return evaluate_contract_snapshots(base, paths, repo, context, policy, binary)
+
+
+def evaluate_contract_snapshots(base, paths, repo, context, policy, binary,
+                                immutable_base=None, policy_sources=None):
+    """Semantic phase shared with unprivileged immutable transition runners.
+
+    Identity/trust is the coordinator's separate responsibility. The CLI above
+    always executes its unchanged preflight before reaching this routine.
+    """
+    from scripts.contracts.check import ref_files
+    import yaml
+    from jsonschema import Draft202012Validator
+    from jsonschema.exceptions import SchemaError
+    current_root = repo / 'docs/contracts'
     base_inputs = {p for p in paths if p.endswith('.openapi.yaml') or p.endswith('.schema.json')}
     current_inputs = {p.relative_to(repo).as_posix() for p in current_root.rglob('*') if p.is_file() and (p.name.endswith('.openapi.yaml') or p.name.endswith('.schema.json'))}
     hashes = {'base': {}, 'current': {}}
@@ -258,7 +273,7 @@ def run(base_ref, repo, context):
             if path.startswith('docs/contracts/') and '..' not in Path(path).parts:
                 target = oldroot / path
                 target.parent.mkdir(parents=True, exist_ok=True)
-                target.write_bytes(git(repo, 'show', f'{base}:{path}'))
+                target.write_bytes(dict(immutable_base)[path] if immutable_base is not None else git(repo, 'show', f'{base}:{path}'))
         for path in sorted(base_inputs):
             hashes['base'][path] = sha(oldroot / path)
         for path in sorted(current_inputs):
@@ -350,13 +365,13 @@ def run(base_ref, repo, context):
         from scripts.contracts import sdk_surface
         workspace = Path(tmp) / 'surface'
         workspace.mkdir()
-        has_base_toolchain = bool(git(repo, 'ls-tree', '-r', '--name-only', base, '--', 'tools/contracts/toolchain.json').strip())
-        source = repo if (repo / 'tools/contracts/toolchain.json').is_file() else ROOT
+        has_base_toolchain = True if policy_sources else bool(git(repo, 'ls-tree', '-r', '--name-only', base, '--', 'tools/contracts/toolchain.json').strip())
+        source = policy_sources[1] if policy_sources else repo if (repo / 'tools/contracts/toolchain.json').is_file() else ROOT
         result['sdkBaseline'] = 'historical-toolchain' if has_base_toolchain else 'bootstrap-no-released-consumer'
         try:
-            old_sdk = sdk_surface.prepare(workspace / 'old', repo if has_base_toolchain else source, oldroot / 'docs/contracts', git, base if has_base_toolchain else None)
+            old_sdk = sdk_surface.prepare(workspace / 'old', policy_sources[0] if policy_sources else repo if has_base_toolchain else source, oldroot / 'docs/contracts', git, None if policy_sources else base if has_base_toolchain else None)
             new_sdk = sdk_surface.prepare(workspace / 'new', source, snapshot, git)
-            if not sdk_surface.compare(old_sdk, new_sdk, ROOT, workspace, has_base_toolchain, result):
+            if not sdk_surface.compare(old_sdk, new_sdk, source if policy_sources else ROOT, workspace, has_base_toolchain, result):
                 result['reason'] = 'SDK_SURFACE_INCOMPATIBLE'
                 return result
         except (RuntimeError, OSError, ValueError, KeyError, TypeError):

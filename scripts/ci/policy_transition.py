@@ -215,3 +215,71 @@ def evaluate_transition(transition, old_evaluator, new_evaluator):
                                transition.old_hashes, transition.new_hashes,
                                tuple(sorted(_hashes(transition.base_contracts).items())),
                                tuple(sorted(_hashes(transition.candidate_contracts).items())))
+
+
+@dataclass(frozen=True)
+class Plan3SnapshotEvaluator:
+    """Actual Plan 3 semantic runner, for the unprivileged evaluation phase only.
+
+    The baseline generator/consumer policy is fixed across both evaluations.
+    Each candidate policy is materialized with the same real contract pair.
+    No verifier calls this runner; source scripts execute only in this separate
+    unprivileged phase. tool_root supplies already provisioned checksum-pinned
+    assets and is never inferred from approval files.
+    """
+    baseline_policy: tuple
+    tool_root: object
+    base_sha: str
+
+    def __call__(self, policy, base_contracts, candidate_contracts):
+        from pathlib import Path
+        import shutil
+        import tempfile
+        import sys
+        try:
+            with tempfile.TemporaryDirectory(prefix='crm-transition-semantic-') as tmp:
+                root = Path(tmp)
+                def materialize(destination, files):
+                    for name, content in _snapshot(files):
+                        target = destination / name
+                        target.parent.mkdir(parents=True, exist_ok=True)
+                        target.write_bytes(content)
+                old_source, source, candidate = root / 'old-policy', root / 'policy', root / 'candidate'
+                materialize(old_source, self.baseline_policy)
+                materialize(source, policy)
+                materialize(candidate, candidate_contracts)
+                materialize(root / 'base-contracts', base_contracts)
+                if any(not name.startswith('docs/contracts/') for name, _ in base_contracts + candidate_contracts):
+                    raise TransitionError()
+                config = json.loads((source / 'tools/contracts/oasdiff.json').read_bytes())
+                relative = config['binaryPath']
+                _snapshot(((relative, b''),))
+                binary = Path(self.tool_root) / relative
+                if not binary.is_file() or hashlib.sha256(binary.read_bytes()).hexdigest() != config['binarySha256']:
+                    raise TransitionError()
+                if config['breakOn'] not in ('INFO', 'WARN', 'ERR') or not re.fullmatch(r'[^\s]+@sha256:[0-9a-f]{64}', config['dockerImage']):
+                    raise TransitionError()
+                # The SDK routines verify the package against each policy's pin.
+                asset = Path(self.tool_root) / '.local/plan3-tools/corvus.json.cli.5.8.8.nupkg'
+                target = source / '.local/plan3-tools' / asset.name
+                target.parent.mkdir(parents=True)
+                shutil.copyfile(asset, target)
+                if not re.fullmatch('[0-9a-f]{40}', self.base_sha):
+                    raise TransitionError()
+                # Execute the selected immutable policy module in a fresh process;
+                # never import candidate evaluator code into the verifier process.
+                environment = {name: os.environ[name] for name in
+                               ('PATH', 'HOME', 'TMPDIR', 'LD_LIBRARY_PATH', 'NPM_CONFIG_CACHE')
+                               if name in os.environ}
+                worker = Path(__file__).with_name('semantic_worker.py')
+                proc = subprocess.run([sys.executable, str(worker), str(source), str(old_source),
+                                       str(root / 'base-contracts'), str(candidate), self.base_sha,
+                                       str(binary.resolve())], cwd=root, env=environment,
+                                      stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=1200)
+                if proc.returncode:
+                    raise TransitionError()
+                report = json.loads(proc.stdout)
+                return CompatibilityResult(report['reason'])
+        except Exception:
+            # This is a closed runner failure, not permission to skip semantics.
+            return CompatibilityResult('CONTRACT_TOOL_ERROR')
