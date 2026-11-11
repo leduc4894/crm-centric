@@ -72,3 +72,37 @@ Next: finish full CI; commit code; rehearse actual scanners and real stack from
 exact immutable source; retain reason/count/duration and distinguish failed gates
 from diagnostic service checks. Review and fix findings without suppression;
 provision independent verifier and conduct separately authorized remote runs.
+
+## Exact b4d70f3 implementation checkpoint and self-review
+Implementation commit `b4d70f3e3b8254a8175dee2e679ef7674cf582bd`.
+- Full pinned CI107 PASS,0skips,380.284s; began before late completion/security
+  test additions. Fresh committed-code full discovery RUNNING, result pending.
+- Local20 PASS,0skips,7.394s. Real security12 PASS,0skips,26.809s.
+- Actual security entrypoint on b4d70f3 FAIL CI_SCAN_INCOMPLETE16.790s; guarded
+  source INCOMPLETE10locks/444components with tool/unlocked gaps. Per-scanner
+  exact-SHA diagnostics: Semgrep PASS1017/1017files; Trivy BLOCKED10locks with
+  271license-review findings plus coverage gaps; Gitleaks BLOCKED4secret findings.
+  Current source Semgrep pass does not replace positive SAST fixtures or clear
+  dependency/license/secret/image/trust gates. No raw findings exported.
+- Clean Git archive stack build3.790s; real services readiness92.804s then FAIL
+  CI_IMAGE_EVIDENCE_INCOMPLETE, first API scan incomplete0packages. Actual-image
+  retry: API BLOCKED106packages/107SBOMcomponents/5blocking; migrator BLOCKED120/
+  121/5; PostgreSQL INCOMPLETE151/152/135blocking+12unknown; Keycloak BLOCKED559/
+  560/6. All identities are local config IDs with null manifestDigest.
+- Exact b4d70f3 real Testcontainers migration probe FAIL1/1,0skips,23.828s at
+  mandatory image-evidence gate, initial PostgreSQL scan incomplete0packages.
+  This negative check does not supersede Task4 failed full backend/Compose jobs.
+- Clean archive npm ci PASS254packages10s. Initial browser attempt FAIL4/4,
+ 0skips because host lacked libatk. Prepared existing native runtime library path
+  corrected the environment: actual Playwright Chromium4 PASS,0skips,10.163s,
+  including owned API/PostgreSQL requests. Diagnostic service evidence only:
+  scanner-rejected stack remains rejected. Stack stopped and only owner-labeled
+  resources cleaned. No raw browser reports uploaded.
+- Aggregate CLI with actual failed security report and non-success needs returned
+  CI_JOB_NON_SUCCESS/nonzero and safe correlation ID. No forged successful status.
+
+Whole-branch self-review found nested format/join expressions could evade the
+initial deny regex. Added mutations, observed RED2, replaced with exact allowed
+expression inventory. Focused workflow9 PASS0skips0.288s, actionlint/workflow/diff
+checks PASS. This changes lint/tests only; it does not resolve any acceptance
+blocker. New code commit and final exact-SHA rehearsal results recorded below.

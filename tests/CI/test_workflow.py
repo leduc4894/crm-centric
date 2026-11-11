@@ -79,6 +79,8 @@ class IsolationMutationTests(unittest.TestCase):
             lambda w:w['jobs']['security'].update(environment='production'),
             lambda w:w['jobs']['security']['steps'].append({'run':'echo ${{ secrets.TEST }}'}),
             lambda w:w['jobs']['security']['steps'].append({'run':'echo ${{ github.event.pull_request.title }}'}),
+            lambda w:w['jobs']['security']['steps'].append({'run':"echo ${{ format('{0}', secrets.TEST) }}"}),
+            lambda w:w['jobs']['security']['steps'].append({'run':"echo ${{ join(github.event.pull_request.title) }}"}),
             lambda w:w['jobs']['security']['steps'].append({'uses':'actions/cache@'+'a'*40}),
             lambda w:w['jobs']['security']['steps'].append({'uses':'actions/upload-artifact@'+'a'*40,'with':{'name':'raw','path':'.local/**','retention-days':90}}),
             lambda w:w['jobs']['wave0-required']['steps'].append({'run':'echo unsafe','if':'always()'}),

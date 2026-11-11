@@ -28,7 +28,10 @@ def validate(data):
             raise ValueError('CI_WORKFLOW_SKIPPED_JOB')
         for step in job['steps']:
             serialized=json.dumps(step)
-            if re.search(r'\$\{\{\s*(secrets\b|github\.event\b)',serialized):
+            expressions=re.findall(r'\$\{\{(.*?)\}\}',serialized)
+            allowed_expressions={'github.workspace','toJSON(steps)','toJSON(needs)',
+                                 'steps.scanner-python.outputs.python-path'}
+            if any(expression.strip() not in allowed_expressions for expression in expressions):
                 raise ValueError('CI_WORKFLOW_UNTRUSTED_EXPRESSION')
             action=step.get('uses','').split('@')[0]
             allowed={'actions/checkout','actions/setup-python','actions/setup-node','actions/setup-dotnet',
