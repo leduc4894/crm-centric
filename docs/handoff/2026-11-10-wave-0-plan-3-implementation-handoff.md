@@ -8,11 +8,14 @@ Implement [Plan 3](../superpowers/plans/2026-11-10-wave-0-plan-3-frontend-contra
 
 Branch `feat/wave-0-plan-3-frontend-contract-toolchain`, base `5257abf`. Tasks 1–7 are
 implemented and committed. The recorded HEAD SHA is
-`cc5df3c7205af2f8be544142c86bf7240b7c4cea`
-(`fix(contracts): correct the Plan 3 teardown wording and handoff state`), the commit that
-carries the fix round 4 of the independent review of Task 7. The commit on top of it
-changes nothing but this line: a commit cannot carry its own SHA. The working tree is
-clean, with no uncommitted work.
+`SHA_RECORDED_BY_THE_FOLLOWING_COMMIT`
+(`docs: record the fix round 5 verification measurements`), the commit that carries the fix
+round 5 of the independent review of Task 7. The commit on top of it changes only the
+recorded HEAD SHA in this header and in the round-5 "Branch and state" block below, and
+carries no source change: a commit cannot carry its own SHA. The commit that recorded the
+fix round 4 HEAD SHA, `651de9bf1364ea10062c09645f3a6e52356d677f`, changed the recorded
+HEAD SHA in this header and the round-4 "Branch and state" block below, and carried no
+source change either. The working tree is clean, with no uncommitted work.
 The detailed per-task history is below, newest last. The generator
 selection, pinned artifacts, prerequisites, coverage and current evidence are in [Plan 3
 verification](../engineering/07-WAVE-0-PLAN-3-VERIFICATION.md). Corvus.Json.Cli 5.8.8 supplies
@@ -546,10 +549,12 @@ teardown twice. The review was otherwise READY, with no Critical and no Importan
 **Branch and state.** Branch `feat/wave-0-plan-3-frontend-contract-toolchain`, base
 `5257abf`. The fix is the commit
 `cc5df3c7205af2f8be544142c86bf7240b7c4cea` — `fix(contracts): correct the Plan 3 teardown
-wording and handoff state`; the commit that follows it rewrites only the recorded HEAD SHA
-of this document and changes nothing else. The working tree contains only the intended
-changes of this round and no uncommitted source work. No merge, push, deploy, publication
-or database migration is authorized or performed.
+wording and handoff state`; the commit that follows it,
+`651de9bf1364ea10062c09645f3a6e52356d677f` (`docs: record the Task 7 fix round 4 HEAD
+SHA`), rewrites the recorded HEAD SHA of this document and this round's "Branch and state"
+block, and changes nothing else. The working tree contains only the intended changes of
+this round and no uncommitted source work. No merge, push, deploy, publication or database
+migration is authorized or performed.
 
 **F-2 — the stale HEAD SHA.** The "Current state" header of this document recorded
 `ac69dc78c06e54497b83dd5599dbab8d60544f98`, the fix commit of round 1, as the HEAD of the
@@ -621,6 +626,78 @@ configuration, so the runtime evidence of the earlier rounds stands and is not p
 a run of this round. The two harness rows of the summary table of the Plan 3 verification
 document carry the results of this round; its other rows still show the evidence of round
 1.
+
+**Still open.** The three Plan 3 harnesses are still executed by no automated runner; Plan 4
+owns that wiring. Wave 0/P0 acceptance, remote DemoModule end-to-end, tenant isolation,
+outage/recovery and restore drills and remote CI remain **OPEN** and are not claimed here.
+## Task 7, fix round 5 — the verification evidence and the state of this document (review pending)
+
+**Objective.** Close the three Minor documentation findings the scoped re-review of
+`cc5df3c..651de9b` left open: **M-1**, the false statement about the scope of the commit on
+top of the round 4 fix, **M-2**, the summary table of the Plan 3 verification document
+presenting round-1 measurements as current, and **M-3**, the missing fix round 4 section and
+the outdated description of the aggregate in that document. The re-review was otherwise
+READY, with no Critical and no Important finding and no functional defect. This round is
+documentation-only: no script, no test, no source file, no manifest and no canonical
+contract changed.
+
+**Branch and state.** Branch `feat/wave-0-plan-3-frontend-contract-toolchain`, base
+`5257abf`. The documentation refresh of this round is the commit
+`SHA_RECORDED_BY_THE_FOLLOWING_COMMIT` — `docs: record the fix round 5 verification
+measurements`; the commit that follows it rewrites only the recorded HEAD SHA of this
+document and of this block, and changes nothing else. The working tree contains only the
+intended changes of this round and no uncommitted source work. No merge, push, deploy,
+publication or database migration is authorized or performed.
+
+**M-1 — the description of the top commit was false.** The "Current state" header said that
+the commit on top of the round 4 fix "changes nothing but this line: a commit cannot carry
+its own SHA", and the round 4 "Branch and state" block said that it "rewrites only the
+recorded HEAD SHA of this document and changes nothing else". The commit in question,
+`651de9bf1364ea10062c09645f3a6e52356d677f`, has **two** hunks: the header and the round 4
+"Branch and state" block. The intent — that it carries no source change — held; the
+wording overstated it. Both statements now name the two places the commit touched, keep the
+explanation that a commit cannot carry its own SHA, and state that the commit carried no
+source change. The handoff was searched for the same overstatement; the two places above
+were the only ones.
+
+**M-2 — the summary table presented round-1 evidence as current.** The "Suites executed on
+this branch" table of the Plan 3 verification document carried the round-1 measurements — the
+working-tree aggregate at "4m14.643s" and the clean export at `--sha ac69dc7` — without a
+round label, while the two harness rows next to them carried "(fix round 4)". The round-1
+working-tree row was stale in any case, because round 4 changed the aggregate gate itself.
+Every row of the table now names the round that measured it. The two stale measurements
+were **re-run** in this round on the tree of this round; the rows that were not re-run are
+labelled with the round that measured them instead of being presented as current. The
+W0P3 mapping rows and the two export blocks of the same document carry the same labels.
+
+**M-3 — the verification document had no round-4 section and described the gate
+inaccurately.** The document has sections for fix rounds 1, 2 and 3, but none for round 4,
+and the behavioural description of the aggregate still described the pre-round-4 gate. The
+document now has a fix round 4 section in the shape of the sections of the earlier rounds:
+what changed, why, the coverage and its mutation sensitivity, the commands of that round
+with their real results and the limitations of that round. The behavioural description now
+states that every condition is reported exactly once, that the disposition of the run is
+named by `run_state` — "the run ended", "the run was interrupted" or "the run was
+terminated" — and that the `INT` and the `TERM` path report `PLAN3_INTERRUPTED` and
+`PLAN3_TERMINATED` with the exit codes 130 and 143. The harness row of the manual-command
+table now says 13 cases and names the case that round 4 added, the failing teardown of an
+ordinary run that must be reported once.
+
+**Verification.** The reporting harness passed 13 of 13 cases and the negative-case harness
+passed 3 of 3 cases with the unchanged reason tokens `SDK_GENERATED_MISMATCH`,
+`CONTRACT_BASE_UNAVAILABLE` and `CONTRACT_POLICY_REVIEW_REQUIRED`; `python3
+scripts/contracts/check.py` returned exit 0 with `SDK_GENERATED_CURRENT` and a correlation
+identifier. The aggregate in the working tree of this round and the clean exact-SHA export
+with the browser suite were **re-run** for this round and replace the round-1 measurements
+of the summary table. Exact commands, counts, durations and the tested SHA are in the Plan 3
+verification document.
+
+**Known limitations.** The 87-case contract suite and the 70-case .NET non-Compose suite
+were **not** re-run in this round. This round changed Markdown only, so the runtime
+evidence of fix round 1 stands and is not presented as a run of this round. The measurements
+of this round were taken on the tree of this round; the documentation-only commits that
+follow them change the tracked Markdown, so a later run reports a different source digest
+value, and the invariant that matters is the verdict, `unchanged during the run`.
 
 **Still open.** The three Plan 3 harnesses are still executed by no automated runner; Plan 4
 owns that wiring. Wave 0/P0 acceptance, remote DemoModule end-to-end, tenant isolation,
