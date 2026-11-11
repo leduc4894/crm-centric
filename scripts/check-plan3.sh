@@ -16,8 +16,9 @@
 # Every closed error path of this script produces a reason token and the
 # correlation identifier of the run. This includes the signal paths: an
 # interrupted run reports PLAN3_INTERRUPTED and exits 130, a terminated run
-# reports PLAN3_TERMINATED and exits 143, and a stack that the interrupted run
-# could not stop reports PLAN3_STACK_TEARDOWN_FAILED.
+# reports PLAN3_TERMINATED and exits 143, and a stack that the run could not
+# stop reports PLAN3_STACK_TEARDOWN_FAILED. Every condition is reported
+# exactly once, so the operator never sees the same envelope twice.
 #
 # Usage:
 #   bash scripts/check-plan3.sh --base-ref <ref> [--with-browser]
@@ -80,6 +81,54 @@ signal_error() {
   exit "$code"
 }
 
+# The conditions that the run detected, with the reason token of each and a
+# safe detail, and the flag that tells whether the condition was already
+# reported as an envelope. A condition is reported exactly once: the step that
+# detects it and the cleanup of the run report the same condition only once.
+condition_reasons=()
+condition_details=()
+condition_reported=()
+
+# Records a condition of the run. A condition that is already recorded is not
+# recorded twice: the first report of a condition is the report of the run.
+record_condition() {
+  local reason="$1" detail="$2" index
+  for index in "${!condition_reasons[@]}"; do
+    if [ "${condition_reasons[$index]}" = "$reason" ]; then
+      return 0
+    fi
+  done
+  condition_reasons+=("$reason")
+  condition_details+=("$detail")
+  condition_reported+=("0")
+}
+
+# Tells whether a reason token is one of the recorded conditions.
+condition_is_recorded() {
+  local wanted="$1" index
+  for index in "${!condition_reasons[@]}"; do
+    if [ "${condition_reasons[$index]}" = "$wanted" ]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+# Reports the conditions that were recorded but not yet reported, each as an
+# envelope with a reason token and the correlation identifier of the run. The
+# envelopes go to the saved stderr, so that they reach the operator even when
+# a step had redirected stderr into its own log.
+report_conditions() {
+  local index
+  for index in "${!condition_reasons[@]}"; do
+    if [ "${condition_reported[$index]}" = "0" ]; then
+      printf '{"reason": "%s", "detail": "%s", "correlationId": "%s"}\n' \
+        "${condition_reasons[$index]}" "${condition_details[$index]}" "$correlation" >&9
+      condition_reported[$index]=1
+    fi
+  done
+}
+
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd) ||
   closed_error PLAN3_WORKSPACE_UNAVAILABLE "the checkout could not be located" 1
 cd "$root" || closed_error PLAN3_WORKSPACE_UNAVAILABLE "the checkout could not be entered" 1
@@ -132,26 +181,34 @@ logs=$(mktemp -d) ||
   closed_error PLAN3_TEMP_DIRECTORY_UNAVAILABLE "a temporary directory could not be created" 1
 stack_started=0
 
-# The local stack is owned by this run. An interrupted run must not orphan it.
+# How the run ended. The wording of the cleanup must be accurate for a run
+# that was interrupted or terminated and for a run that simply ended, so it
+# never describes an ordinary exit as an interrupted one.
+run_state="the run ended"
+
+# The local stack is owned by this run. A run that ends before its stack was
+# stopped must not orphan it.
 cleanup() {
   local status=$?
   if [ "$stack_started" -eq 1 ]; then
-    printf 'plan3 aggregate: stopping the local stack of the interrupted run\n' >&9
+    printf 'plan3 aggregate: stopping the local stack of this run (%s)\n' "$run_state" >&9
     if ! bash scripts/dev-down.sh >/dev/null 2>&1; then
       # A teardown that fails is a closed error path of its own: it is
       # reported as an envelope with a reason token and the correlation
-      # identifier, not as a bare warning. The exit code of the run is the one
-      # of the signal that interrupted it.
-      printf '{"reason": "PLAN3_STACK_TEARDOWN_FAILED", "detail": "the local stack of the interrupted run was not stopped cleanly", "correlationId": "%s"}\n' \
-        "$correlation" >&9
+      # identifier, not as a bare warning. A condition that the run already
+      # reported is not reported a second time; the exit code of the run is
+      # the one it had before the cleanup.
+      record_condition PLAN3_STACK_TEARDOWN_FAILED \
+        "the local stack of this run was not stopped cleanly"
+      report_conditions
     fi
   fi
   rm -rf "$logs"
   return "$status"
 }
 trap cleanup EXIT
-trap 'signal_error PLAN3_INTERRUPTED "the run was interrupted" 130' INT
-trap 'signal_error PLAN3_TERMINATED "the run was terminated" 143' TERM
+trap 'run_state="the run was interrupted"; signal_error PLAN3_INTERRUPTED "the run was interrupted" 130' INT
+trap 'run_state="the run was terminated"; signal_error PLAN3_TERMINATED "the run was terminated" 143' TERM
 
 step_names=()
 step_commands=()
@@ -279,7 +336,10 @@ source_digest() {
 
 # The browser suite needs the local stack. The stack is started and stopped
 # here so that the run owns its lifecycle. A teardown that fails fails the
-# step: a run must never report success while the stack is still up.
+# step: a run must never report success while the stack is still up. The
+# conditions that the step detects are recorded, not printed here: the run
+# reports each of them exactly once, as an envelope with a reason token and
+# the correlation identifier of the run.
 browser_step() {
   local status=0
   # The stack may be partially started when dev-up.sh fails, so the run owns
@@ -287,10 +347,11 @@ browser_step() {
   # after it.
   stack_started=1
   if ! bash scripts/dev-up.sh; then
-    printf '{"reason": "PLAN3_STACK_START_FAILED", "detail": "the local stack did not start", "correlationId": "%s"}\n' "$correlation"
+    record_condition PLAN3_STACK_START_FAILED "step browser-e2e: the local stack did not start"
     status=1
     if ! bash scripts/dev-down.sh; then
-      printf '{"reason": "PLAN3_STACK_TEARDOWN_FAILED", "detail": "the stack that did not start cleanly was not stopped cleanly", "correlationId": "%s"}\n' "$correlation"
+      record_condition PLAN3_STACK_TEARDOWN_FAILED \
+        "step browser-e2e: the stack that did not start cleanly was not stopped cleanly"
       stack_started=1
     else
       stack_started=0
@@ -300,7 +361,8 @@ browser_step() {
   bash scripts/dev-smoke.sh || status=$?
   npm run test:e2e -w apps/crm-web || status=$?
   if ! bash scripts/dev-down.sh; then
-    printf '{"reason": "PLAN3_STACK_TEARDOWN_FAILED", "detail": "the local stack was not stopped cleanly", "correlationId": "%s"}\n' "$correlation"
+    record_condition PLAN3_STACK_TEARDOWN_FAILED \
+      "step browser-e2e: the local stack was not stopped cleanly"
     stack_started=1
     status=1
   else
@@ -328,11 +390,18 @@ run_named_step() {
 run_step() {
   local name="$1" command="$2"
   local start end status reason
+  # The conditions that this step records are the reason of the step; they are
+  # reported by the run itself, once.
+  local before=${#condition_reasons[@]}
   start=$(date +%s)
   run_named_step "$name" >"$logs/$name.log" 2>&1
   status=$?
   end=$(date +%s)
-  reason=$(extract_reason "$logs/$name.log")
+  if [ "${#condition_reasons[@]}" -gt "$before" ]; then
+    reason="${condition_reasons[$before]}"
+  else
+    reason=$(extract_reason "$logs/$name.log")
+  fi
   if [ "$status" -ne 0 ] && [ -z "$reason" ]; then
     reason=$(default_reason "$name")
   fi
@@ -430,7 +499,14 @@ fi
 
 if [ -n "$failed_step" ]; then
   printf 'plan3 aggregate: FAIL at %s (%s)\n' "$failed_step" "$failed_reason"
-  closed_error "$failed_reason" "step $failed_step failed" 1
+  # The conditions that the step detected are reported here, each exactly
+  # once, as an envelope with a reason token and the correlation identifier of
+  # the run. A reason that was already reported is not reported again.
+  report_conditions
+  if ! condition_is_recorded "$failed_reason"; then
+    closed_error "$failed_reason" "step $failed_step failed" 1
+  fi
+  exit 1
 fi
 if [ "$mutated" -eq 1 ]; then
   printf 'plan3 aggregate: FAIL (PLAN3_SOURCE_MUTATED: a step modified a file of the worktree)\n'

@@ -596,8 +596,8 @@ The second library path is a local prerequisite of this host, not a repository s
 | Contract + tooling | `PATH=<Node-24.22.2>/bin:$PATH LD_LIBRARY_PATH=/tmp/plan3-libs .venv/bin/python -m unittest discover -s tests/Contract -v` | exit 0, **87 tests**, 1064.566 s, OK |
 | Local Python | `PATH=<Node-24.22.2>/bin:$PATH LD_LIBRARY_PATH=/tmp/plan3-libs .venv/bin/python -m unittest discover -s tests/Local -v` | exit 0, **20 tests**, 4.544 s, OK |
 | Backend, non-Compose | `DOTNET_ROOT=/tmp/crm-dotnet-10.0.403 dotnet restore CrmPlatform.sln --locked-mode` → `dotnet build CrmPlatform.sln -c Release --no-restore` → `dotnet test CrmPlatform.sln -c Release --no-build --no-restore --filter 'Category!=Compose'` | restore exit 0 (2.748 s); build exit 0, 0 warnings, 0 errors (10.64 s); test exit 0, **70 passed, 0 failed, 0 skipped**, 6 m 48 s |
-| Negative cases | `bash tests/Plan3/negative-cases.sh --base-ref 408ded6` | exit 0, **3 of 3 cases**, 3m16.863s |
-| Aggregate reporting regressions | `bash tests/Plan3/aggregate-reporting.sh --base-ref 408ded6` | exit 0, **6 of 6 cases**, 1m14.035s |
+| Negative cases | `bash tests/Plan3/negative-cases.sh --base-ref 408ded6` | exit 0, **3 of 3 cases**, 3m38.358s (fix round 4) |
+| Aggregate reporting regressions | `bash tests/Plan3/aggregate-reporting.sh --base-ref 408ded6` | exit 0, **13 of 13 cases**, 3m36.377s (fix round 4) |
 | Aggregate, working tree | `bash scripts/check-plan3.sh --base-ref 408ded6` | exit 0, 4m14.643s, nine steps exit 0, browser step recorded as `not run`, source digest unchanged |
 | Aggregate, clean export | `bash tests/Plan3/clean-export.sh --sha ac69dc7 --base-ref 408ded6 --with-browser` | exit 0, 5m52.296s, all ten steps exit 0 including the browser suite, source digest unchanged |
 

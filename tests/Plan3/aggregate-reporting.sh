@@ -18,7 +18,9 @@
 #        the source digest;
 #   R-1  the signal paths of the aggregate (INT, TERM) and the failing teardown
 #        of the interrupted cleanup carry a reason token and a correlation id
-#        instead of closing silently.
+#        instead of closing silently;
+#   N-R3-1  a teardown that fails in a run that was never interrupted is
+#        reported exactly once, without wording that calls the run interrupted.
 #
 # The sandbox is a copy of the checkout with a read-only Git object context
 # (objects/info/alternates) so that a base revision resolves without a fetch.
@@ -330,6 +332,47 @@ case_teardown_failure() {
     return
   fi
   pass "teardown failure (exit $gate_status, PLAN3_STACK_TEARDOWN_FAILED, no PASS)"
+}
+
+# A teardown that fails in a run that was never interrupted must be reported
+# exactly once, with wording that does not describe the run as interrupted.
+# The run stays fail-closed: a non-zero exit and no PASS.
+case_ordinary_teardown_failure_is_reported_once() {
+  log "case  a failing teardown of an ordinary run is reported once"
+  cases=$((cases + 1))
+  local dir="$work/ordinary-teardown-failure"
+  make_sandbox "$dir"
+  stub_driven_tools "$dir"
+  printf '#!/usr/bin/env bash\nexit 1\n' > "$dir/scripts/dev-down.sh"
+  chmod +x "$dir/scripts/dev-down.sh"
+  run_gate "$dir" --base-ref "$base_ref" --with-browser
+  if [ "$gate_status" -eq 0 ]; then
+    fail "ordinary teardown failure" "the gate exited 0 although the teardown failed"
+    return
+  fi
+  if printf '%s' "$gate_output" | grep -q 'plan3 aggregate: PASS'; then
+    fail "ordinary teardown failure" "the gate reported PASS although the teardown failed"
+    return
+  fi
+  local envelopes
+  envelopes=$(printf '%s\n' "$gate_output" | grep -c '"reason": "PLAN3_STACK_TEARDOWN_FAILED"')
+  if [ "$envelopes" -ne 1 ]; then
+    fail "ordinary teardown failure" \
+      "expected exactly one envelope PLAN3_STACK_TEARDOWN_FAILED, got $envelopes"
+    return
+  fi
+  if ! envelope_carries_the_run_correlation "$gate_output" PLAN3_STACK_TEARDOWN_FAILED \
+    "$(run_correlation "$gate_output")"; then
+    fail "ordinary teardown failure" \
+      "the envelope PLAN3_STACK_TEARDOWN_FAILED does not carry the correlation id of the run"
+    return
+  fi
+  if printf '%s' "$gate_output" | grep -qi 'interrupted run'; then
+    fail "ordinary teardown failure" \
+      "the output describes a run that was never interrupted as the interrupted run"
+    return
+  fi
+  pass "ordinary teardown failure (exit $gate_status, one PLAN3_STACK_TEARDOWN_FAILED envelope, no misleading wording, no PASS)"
 }
 
 case_interrupt_tears_the_stack_down() {
@@ -690,6 +733,7 @@ run_case argument_error
 run_case toolchain_mismatch
 run_case steps_after_failure_are_recorded
 run_case teardown_failure
+run_case ordinary_teardown_failure_is_reported_once
 run_case interrupt_tears_the_stack_down
 run_case interrupt_emits_a_reason_envelope
 run_case terminate_emits_a_reason_envelope

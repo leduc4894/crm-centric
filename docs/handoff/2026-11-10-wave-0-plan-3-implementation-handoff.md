@@ -7,10 +7,10 @@ Implement [Plan 3](../superpowers/plans/2026-11-10-wave-0-plan-3-frontend-contra
 ## Current state
 
 Branch `feat/wave-0-plan-3-frontend-contract-toolchain`, base `5257abf`. Tasks 1–7 are
-implemented and committed. HEAD is `ac69dc78c06e54497b83dd5599dbab8d60544f98`
-(`fix(contracts): harden the Plan 3 aggregate reporting and teardown`, the fix round of the
-independent review of Task 7); the documentation of that round follows it in one commit.
-The working tree carries only the intended documentation changes of the round, no
+implemented and committed. The fix round 4 of the independent review of Task 7 is the
+commit `fix(contracts): correct the Plan 3 teardown wording and handoff state`; its SHA is
+recorded by the commit that follows it, because a commit cannot carry its own SHA.
+The working tree carries only the intended changes of the round, no
 uncommitted source work. The detailed per-task history is below, newest last. The generator
 selection, pinned artifacts, prerequisites, coverage and current evidence are in [Plan 3
 verification](../engineering/07-WAVE-0-PLAN-3-VERIFICATION.md). Corvus.Json.Cli 5.8.8 supplies
@@ -468,6 +468,14 @@ false statement that the repository has no CI, and the closed error paths of the
 handlers of the aggregate, which reported no reason token and no correlation identifier.
 The review was otherwise READY, with no Critical and no Important finding.
 
+**Branch and state.** Branch `feat/wave-0-plan-3-frontend-contract-toolchain`, base
+`5257abf`. The fix is the commit
+`62a4c6746b658cc41e10ee5db58b333eb4cf3272` — `fix(contracts): correct the Plan 3 CI
+statement and signal envelopes`; the documentation of this round is the commit that follows
+it. The working tree contains only the intended documentation changes of this round and no
+uncommitted source work. No merge, push, deploy, publication or database migration is
+authorized or performed.
+
 **F-1 — the CI statement.** The round 2 documentation stated *"The repository has no CI yet;
 CI is Plan 4."* That was factually false: `.github/workflows/contracts.yml` has existed since
 `e3dbbb1` and runs `python -m unittest discover -s tests/Contract -v` on push and
@@ -521,6 +529,95 @@ re-run in this round. This round changed the aggregate gate, one shell harness a
 Markdown documents; it changed no canonical contract, no backend source and no container
 configuration, so the runtime evidence of the earlier rounds stands and is not presented as
 a run of this round.
+
+**Still open.** The three Plan 3 harnesses are still executed by no automated runner; Plan 4
+owns that wiring. Wave 0/P0 acceptance, remote DemoModule end-to-end, tenant isolation,
+outage/recovery and restore drills and remote CI remain **OPEN** and are not claimed here.
+
+## Task 7, fix round 4 — the teardown wording and the state of this document
+
+**Objective.** Close the two Minor items the scoped re-review of `66c4523..62a4c67` left
+open: **F-2**, this document recording a stale HEAD SHA, and **N-R3-1**, the cleanup of the
+aggregate describing an ordinary exit as "the interrupted run" and reporting a failing
+teardown twice. The review was otherwise READY, with no Critical and no Important finding.
+
+**Branch and state.** Branch `feat/wave-0-plan-3-frontend-contract-toolchain`, base
+`5257abf`. The fix is the commit `fix(contracts): correct the Plan 3 teardown wording and
+handoff state`; its SHA is recorded by the commit that follows it, because a commit cannot
+carry its own SHA. The working tree contains only the intended changes of this round and no
+uncommitted source work. No merge, push, deploy, publication or database migration is
+authorized or performed.
+
+**F-2 — the stale HEAD SHA.** The "Current state" header of this document recorded
+`ac69dc78c06e54497b83dd5599dbab8d60544f98`, the fix commit of round 1, as the HEAD of the
+branch. That SHA had been stale since round 1, at `80de4d8`, `66c4523`, `97fcc45` and
+`62a4c67`. The header now names the commit that carries the fix round 4, and states the
+branch and the state of the working tree. The round 3 section had no "Branch and state"
+block, unlike the round 1 and the round 2 sections; it now has one that names its fix
+commit `62a4c6746b658cc41e10ee5db58b333eb4cf3272`. The rest of the document was read for
+other stale values presented as current: every other SHA names the commit of the round
+that produced it, and every other count is the result of the round that recorded it. The
+count of the reporting harness is the one value that moved in this round, and this section
+records it.
+
+**N-R3-1 — the teardown wording and the duplicate envelope.** The cleanup of the aggregate
+runs on every exit, and it described the stack it stopped as "the local stack of the
+interrupted run" and reported a failing teardown with the detail "the local stack of the
+interrupted run was not stopped cleanly". A run that was never interrupted saw that
+wording. A failing teardown was also reported twice: the browser step printed one
+`PLAN3_STACK_TEARDOWN_FAILED` envelope into its own log and the cleanup printed another
+one, so the operator saw two envelopes for one condition. The conditions of the run are now
+recorded by the step that detects them and reported by the run itself, exactly once, as an
+envelope with a reason token and the correlation identifier of the run. The wording of the
+cleanup now names the disposition of the run — "the run ended", "the run was interrupted",
+"the run was terminated" — so it is accurate for an interrupted run and for a run that
+simply ended. The signal paths are unchanged: an `INT` reports `PLAN3_INTERRUPTED` and
+exits 130, a `TERM` reports `PLAN3_TERMINATED` and exits 143, and a stack that the run
+could not stop reports `PLAN3_STACK_TEARDOWN_FAILED` next to them, once. The two
+conditions of a signalled run stay two envelopes; they are not collapsed into one.
+
+**What changed in the code.** `scripts/check-plan3.sh` gained the three condition helpers
+(`record_condition`, `condition_is_recorded`, `report_conditions`), the `run_state`
+disposition of the run and the new wording of the cleanup. The browser step records its
+conditions instead of printing them, the step reason is taken from the condition that the
+step recorded, and the run reports the recorded conditions once at the point where it
+fails. `tests/Plan3/aggregate-reporting.sh` grew from twelve to thirteen cases: an
+ordinary, never-interrupted failing teardown must be reported exactly once, with the
+correlation identifier of the run, without the misleading "interrupted run" wording, with a
+non-zero exit code and without `plan3 aggregate: PASS`. No canonical contract, no backend
+source and no container configuration was touched.
+
+**Coverage.** The new case was observed RED against the implementation of `62a4c67`: it
+failed with "expected exactly one envelope PLAN3_STACK_TEARDOWN_FAILED, got 3". The
+implementation of the aggregate was then reverted to the state of `62a4c67` in a scratch
+copy of the checkout, with the new case kept, and the case failed again with the same
+count of three envelopes. It is GREEN after the fix. The three signal paths were observed
+by hand in the same scratch copies: an ordinary failing teardown exits 1 with exactly one
+`PLAN3_STACK_TEARDOWN_FAILED`, the correlation identifier of the run and the wording "the
+run ended"; an `INT` with a failing teardown exits 130 with `PLAN3_INTERRUPTED` and one
+`PLAN3_STACK_TEARDOWN_FAILED`; a `TERM` exits 143 with `PLAN3_TERMINATED` and one
+`PLAN3_STACK_TEARDOWN_FAILED`. Both envelopes of a signalled run carry the correlation
+identifier of that run.
+
+**Verification.** The reporting harness passed 13 of 13 cases in 3m36.377s and the
+negative-case harness passed 3 of 3 cases in 3m38.358s, both with exit 0 and with the
+unchanged reason tokens `SDK_GENERATED_MISMATCH`, `CONTRACT_BASE_UNAVAILABLE` and
+`CONTRACT_POLICY_REVIEW_REQUIRED`. `python3 scripts/contracts/check.py` returned exit 0
+with `SDK_GENERATED_CURRENT` and a correlation identifier. `bash scripts/check-plan3.sh
+--base-ref` without a value returned exit 2 with `PLAN3_ARGUMENT_INVALID` and a
+correlation identifier, the same script with Node 26.13.0 on the `PATH` returned exit 1
+with `PLAN3_TOOLCHAIN_MISMATCH` and a correlation identifier, and the same script with
+`docker` off the `PATH` returned exit 1 with `PLAN3_PREREQUISITE_MISSING` and a
+correlation identifier.
+
+**Known limitations.** The 87-case contract suite, the 70-case .NET non-Compose suite, the
+full clean export with the browser and the full 10-step working-tree aggregate were **not**
+re-run in this round. This round changed the aggregate gate, one shell harness and two
+Markdown documents; it changed no canonical contract, no backend source and no container
+configuration, so the runtime evidence of the earlier rounds stands and is not presented as
+a run of this round. The two harness rows of the summary table of the Plan 3 verification
+document carry the results of this round; its other rows still show the evidence of round
+1.
 
 **Still open.** The three Plan 3 harnesses are still executed by no automated runner; Plan 4
 owns that wiring. Wave 0/P0 acceptance, remote DemoModule end-to-end, tenant isolation,
