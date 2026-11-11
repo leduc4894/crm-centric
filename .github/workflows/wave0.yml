@@ -158,6 +158,8 @@ jobs:
       - name: Provision locked tools
         run: bash scripts/ci/setup.sh security
       - name: Inventory exact committed source dependencies
+        env:
+          CI_SCANNER_ROOT: ${{ github.workspace }}/.local/ci-scanners
         run: python -m scripts.ci.sbom --revision revision.json --output .local/ci-sbom/source.json
       - name: Publish normalized source inventory
         if: always()

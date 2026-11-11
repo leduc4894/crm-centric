@@ -174,3 +174,64 @@ discovery and flattened all tests, excluding only
 `test_real_plan3_semantics_under_both_immutable_policies` (already passed in the
 93-case full run above). This is explicitly a subset, not a final full-suite pass.
 Round1 commit subject: `fix(ci): provision image scanner and extend runtime evidence`.
+
+## Review round 2: source artifact and direct Docker secret checks
+Parent assigned Important leak fix at source SBOM allowed name/version fields and
+empty direct-Docker sentinel guard. Read current handoff and verified starting
+workspace clean at a5cf17b. Same local-only authorization, no subagents/remotes.
+
+Implemented source prepublication boundary: remove stale output before revision/
+input/scanner checks; inspect original supported lock bytes under neutral private
+filenames (default Gitleaks skips lockfile paths), then inspect normalized output
+before atomic publish. Known sentinels are checked before serialization as well.
+Missing/mismatched scanner, findings and malformed output deny the artifact even
+if coverage status was already incomplete. Provisioner/setup now install pinned
+Gitleaks using archive+executable hashes and exact version; source workflow supplies
+its root explicitly. No scanner failures or findings are waived.
+
+Direct Docker freezes fixture secrets before launch and passes them to evidence
+helper via stdin: secret bind/volume files, sensitive environment entries, and
+connection passwords. Testcontainers retained explicit generated passwords.
+New .NET tests distinguish mount and environment values and avoid echoing them.
+No values added to argv/environment/artifact/logs by this plumbing.
+
+Actual verification:
+- Initial Python focused RED2: missing known-sentinel source argument/publication
+  guard. .NET compile RED2: missing FixtureSecretValues interface,0warnings.
+- First real Gitleaks name/version regression FAIL1 (ScanError not raised).
+  Raw scanner probes showed neutral-name JSON detects synthetic token but
+  package-lock.json is omitted. Name canonicalization also transforms its prefix.
+  Scanning original lock bytes under private neutral filenames fixed the real
+  regression; extra normalized-artifact scan remains mandatory.
+- Additional observed RED: invalid revision left an old uploadable source.json.
+  CLI now removes it before reading revision; regression passes.
+- Pinned Python3.15.2 focused image/SBOM suite: PASS21,0skips,0.290s.
+- Real Gitleaks source SBOM fixtures: PASS2,0skips,5.841s. Secret in package name
+  or version leaves no artifact (including when preexisting output existed);
+  clean inventory still publishes its explicit incomplete tool coverage.
+- Full real security fixtures `python3 -m unittest discover -s tests/Security -v`:
+  PASS12,0skips,27.390s (actual pinned source/dependency/secret/image scanners).
+- `dotnet test tests/Integration/Integration.csproj -c Release --no-restore --filter FullyQualifiedName~Integration.ImageEvidenceSecretTests ...`:
+  final PASS2,0skips,57ms; rebuild has no warnings. Earlier first-green rebuild
+  had1 nullable warning, fixed before final rerun. Logs/TRX remain private locally.
+- Pinned CI discovery excluding only the long immutable-policy semantic case:
+  PASS97,0errors/0failures/0skips. Explicit subset, full final suite NOT RUN per
+  parent direction not to block review commit on long suite.
+- Real Gitleaks offline install from previously verified release archive:
+  `python3 -m scripts.ci.provision_scanners --kind gitleaks --output .local/task6-provisioned --archive .local/task5/gitleaks_8.30.1_linux_x64.tar.gz` PASS.
+  Fresh network/hosted provisioning NOT rerun; prior availability blocker remains.
+- Workflow contract, actionlint, py_compile and diff-check: PASS.
+
+Changed round2: scripts/ci/{sbom,provision_scanners,setup}; source workflow env;
+ContainerImages fixture; focused CI tests; new ImageEvidenceSecretTests.cs and
+real source SBOM tests; README and this handoff. No contract/schema/database or
+remote changes, exceptions, new trust authority or vulnerability suppression.
+Commit subject `fix(ci): validate artifact secrets before publication`.
+All real image findings, tool coverage/unlocked gaps, independent trust and
+full-service/remote acceptance remain OPEN/BLOCKED. Local scanner diagnostics and
+synthetic private files never become uploaded artifacts.
+
+Final round2 guarded source rehearsal on committed a5cf17b: actual pinned Gitleaks
+checked original lock bytes and normalized output; safe artifact produced with
+INCOMPLETE10locks/444components, preserving existing coverage gaps. This is local
+precommit guard evidence, not final-SHA/remote acceptance.

@@ -274,3 +274,28 @@ canonical hash. This is package inventory, not vulnerability/license approval.
 Unsupported tool/unlocked inputs remain explicit incomplete coverage. Security
 scanner completeness and independent workflow trust remain blocked; no local
 candidate-side implementation can grant the independent authority.
+
+### Task 6 review round 2: artifact secret boundary
+
+Source package names/versions are untrusted strings even when they match a package
+syntax. Before a source SBOM is uploadable, the publisher now runs pinned Gitleaks
+on original supported lock bytes staged under neutral private filenames, then on
+the serialized normalized record. Neutral names are necessary because Gitleaks
+normally omits lockfile paths; original bytes are necessary because package-name
+canonicalization and purl escaping can hide a token from the later artifact scan.
+Known fixture sentinels are also checked recursively. Any finding, missing tool,
+invalid output or failed input removes/withholds the exact artifact path, including
+stale output from a previous attempt. Coverage-incomplete inventories receive the
+same secret checks; incomplete is never an exemption for publication.
+
+Hosted setup provisions the pinned Gitleaks release alongside Trivy. The source
+step explicitly supplies that scanner root. A successful secret check is pattern
+coverage plus any supplied known sentinels, not proof of general secret absence
+or independent policy authority. Existing security/trust blockers remain.
+
+Direct Docker evidence now freezes known fixture values before launching the
+container: bind-mounted /run/secrets file contents, sensitive environment values,
+and passwords parsed from connection strings. These values travel only over the
+private helper stdin and reach the existing recursive sentinel guard; they do
+not enter argv, logs or reports. Testcontainers already supplied their generated
+passwords. Secretless commands keep an empty known-value set.

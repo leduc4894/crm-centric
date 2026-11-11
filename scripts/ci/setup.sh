@@ -19,6 +19,7 @@ python -m pip install -r requirements-contracts.lock >/dev/null 2>&1
 python -m pip check >/dev/null 2>&1
 python -m scripts.ci.provision_contracts
 python -m scripts.ci.provision_scanners --output .local/ci-scanners
+python -m scripts.ci.provision_scanners --kind gitleaks --output .local/ci-scanners
 case "${1:-}" in
   contracts-sdk|web-browser)
     npm ci --ignore-scripts --no-audit --no-fund >/dev/null 2>&1

@@ -40,6 +40,7 @@ public sealed class ContainerImages : IAsyncLifetime
     public static async Task<Capture> Docker(bool requireSuccess, params string[] args)
     {
         var evidence = Environment.GetEnvironmentVariable("CI_IMAGE_EVIDENCE") is not null && args[0] == "run";
+        var fixtureSecrets = evidence ? FixtureSecretValues(args) : Array.Empty<string>();
         var removeAfter = evidence && args.Contains("--rm");
         var cid = evidence ? Path.Combine(Path.GetTempPath(), "crm-ci-container-" + Guid.NewGuid().ToString("N")) : null;
         if (evidence) args = new[] { "run", "--cidfile", cid! }.Concat(args.Skip(1).Where(arg => arg != "--rm")).ToArray();
@@ -67,7 +68,7 @@ public sealed class ContainerImages : IAsyncLifetime
                 if (File.Exists(cid))
                 {
                     var container = File.ReadAllText(cid).Trim();
-                    await CaptureImageEvidence(container);
+                    await CaptureImageEvidence(container, fixtureSecrets);
                 }
             }
             finally
@@ -79,6 +80,59 @@ public sealed class ContainerImages : IAsyncLifetime
         if (requireSuccess && result.ExitCode != 0) SavePrivateCapture("failed-" + args[0], result.Output + result.Error);
         if (requireSuccess) Assert.True(result.ExitCode == 0, "Container operation failed: " + args[0] + " exit " + result.ExitCode);
         return result;
+    }
+
+    public static string[] FixtureSecretValues(string[] arguments)
+    {
+        var values = new HashSet<string>(StringComparer.Ordinal);
+        void Add(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return;
+            value = value.Trim(); values.Add(value);
+            if (value.Contains("Password=", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    var password = new Npgsql.NpgsqlConnectionStringBuilder(value).Password;
+                    if (!string.IsNullOrEmpty(password)) values.Add(password);
+                }
+                catch (ArgumentException)
+                {
+                    throw new InvalidOperationException("CI_SECRET_EXTRACTION_INCOMPLETE correlation=" + Guid.NewGuid().ToString("N"));
+                }
+            }
+        }
+        void Mount(string mount)
+        {
+            var parts = mount.Split(',').Select(part => part.Split('=', 2))
+                .Where(part => part.Length == 2).ToDictionary(part => part[0], part => part[1], StringComparer.Ordinal);
+            if (parts.GetValueOrDefault("type") == "bind" &&
+                parts.GetValueOrDefault("target", parts.GetValueOrDefault("dst", "")).StartsWith("/run/secrets/", StringComparison.Ordinal) &&
+                parts.GetValueOrDefault("source", parts.GetValueOrDefault("src", "")) is { } source && File.Exists(source))
+                Add(File.ReadAllText(source));
+        }
+        void EnvironmentValue(string entry)
+        {
+            var parts = entry.Split('=', 2); var name = parts[0];
+            if (!name.EndsWith("_FILE", StringComparison.OrdinalIgnoreCase) &&
+                new[] { "PASSWORD", "TOKEN", "SECRET", "CONNECTION" }.Any(key => name.Contains(key, StringComparison.OrdinalIgnoreCase)))
+                Add(parts.Length == 2 ? parts[1] : Environment.GetEnvironmentVariable(name));
+        }
+        for (var index = 0; index < arguments.Length; index++)
+        {
+            var arg = arguments[index];
+            if (arg is "--mount" && index + 1 < arguments.Length) Mount(arguments[++index]);
+            else if (arg.StartsWith("--mount=", StringComparison.Ordinal)) Mount(arg[8..]);
+            else if (arg is "--env" or "-e" && index + 1 < arguments.Length) EnvironmentValue(arguments[++index]);
+            else if (arg.StartsWith("--env=", StringComparison.Ordinal)) EnvironmentValue(arg[6..]);
+            else if (arg is "--volume" or "-v" && index + 1 < arguments.Length)
+            {
+                var mount = arguments[++index].Split(':');
+                if (mount.Length >= 2 && mount[1].StartsWith("/run/secrets/", StringComparison.Ordinal) && File.Exists(mount[0]))
+                    Add(File.ReadAllText(mount[0]));
+            }
+        }
+        return values.ToArray();
     }
 
     public static async Task CaptureImageEvidence(string container, params string[] secrets)

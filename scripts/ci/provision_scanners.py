@@ -1,4 +1,4 @@
-"""Provision the reviewed Trivy release; failed network/hash/version closes setup.
+"""Provision reviewed Trivy/Gitleaks releases; network/hash/version failures close setup.
 
 This candidate-owned downloader does not establish independent policy authority.
 """
@@ -13,11 +13,11 @@ import uuid
 from scripts.ci.scan import ScanError,ScannerConfig,_verify_tool
 
 
-def unpack_trivy(data,archive_sha,binary_sha,target):
+def unpack_trivy(data,archive_sha,binary_sha,target,member_name='trivy'):
     try:
         if hashlib.sha256(data).hexdigest()!=archive_sha: raise ScanError()
         with tarfile.open(fileobj=io.BytesIO(data),mode='r:gz') as archive:
-            members=[m for m in archive.getmembers() if m.name=='trivy']
+            members=[m for m in archive.getmembers() if m.name==member_name]
             if len(members)!=1 or not members[0].isfile() or members[0].size>256*1024*1024: raise ScanError()
             binary=archive.extractfile(members[0]).read()
         if hashlib.sha256(binary).hexdigest()!=binary_sha: raise ScanError()
@@ -31,8 +31,8 @@ def unpack_trivy(data,archive_sha,binary_sha,target):
     except (OSError,ValueError,TypeError,tarfile.TarError): raise ScanError() from None
 
 
-def provision(root,target,archive=None):
-    pin=json.loads((Path(root)/'tools/ci/toolchain.json').read_text())['scanners']['trivy']
+def provision(root,target,archive=None,kind='trivy'):
+    pin=json.loads((Path(root)/'tools/ci/toolchain.json').read_text())['scanners'][kind]
     # URL and both hashes come from the checked-in reviewed release lock.
     if archive is None:
         from scripts.ci.run_safe import private_command
@@ -45,9 +45,9 @@ def provision(root,target,archive=None):
     else:
         data=Path(archive).read_bytes()
     if len(data)>128*1024*1024: raise ScanError()
-    executable=Path(target).resolve()/'bin/trivy'
-    unpack_trivy(data,pin['archiveSha256'],pin['executableSha256'],executable)
-    config=ScannerConfig('trivy',executable,pin['executableSha256'],pin['version'],cache=Path(target).resolve()/'trivy-cache')
+    executable=Path(target).resolve()/'bin'/kind
+    unpack_trivy(data,pin['archiveSha256'],pin['executableSha256'],executable,kind)
+    config=ScannerConfig(kind,executable,pin['executableSha256'],pin['version'],cache=Path(target).resolve()/'trivy-cache')
     _verify_tool(config)
     return config
 
@@ -55,9 +55,9 @@ def provision(root,target,archive=None):
 def main():
     import argparse
     from scripts.ci.run_safe import SafeProcessError
-    parser=argparse.ArgumentParser();parser.add_argument('--output',type=Path,required=True);parser.add_argument('--archive',type=Path)
+    parser=argparse.ArgumentParser();parser.add_argument('--output',type=Path,required=True);parser.add_argument('--archive',type=Path);parser.add_argument('--kind',choices=['trivy','gitleaks'],default='trivy')
     try:
-        args=parser.parse_args();provision(Path.cwd(),args.output,args.archive)
+        args=parser.parse_args();provision(Path.cwd(),args.output,args.archive,args.kind)
         print(json.dumps({'reasonToken':'CI_IMAGE_SCANNER_PROVISIONED','correlationId':str(uuid.uuid4())}))
         return 0
     except (ScanError,SafeProcessError,OSError,ValueError,TypeError,KeyError):

@@ -185,3 +185,34 @@ class DirectComposeTests(unittest.TestCase):
         records=[{'role':role,'testedIdentity':vars(identity),'scan':evidence(identity)} for role in ('api','migrator','postgres','keycloak','runtime')]
         images.verify_job_evidence(records,'compose','42')
         with self.assertRaises(ScanError): images.verify_job_evidence(records[1:],'compose','42')
+
+class SourcePublicationSecretTests(unittest.TestCase):
+    def test_known_sentinel_in_package_name_or_version_is_rejected(self):
+        from scripts.ci.sbom import source_sbom
+        from scripts.ci.summary import RunIdentity
+        run=RunIdentity('42','1','a'*40,'b'*40,None)
+        for pair in (('synthetic-sentinel','1'),('safe','synthetic-sentinel')):
+            with self.assertRaises(ScanError): source_sbom({'package-lock.json':{pair}},run,'1.0.0',secrets=['synthetic-sentinel'])
+
+    def test_missing_secret_scanner_leaves_no_uploadable_artifact(self):
+        from scripts.ci.sbom import publish_source_record
+        from scripts.ci.scan import ScannerConfig
+        from pathlib import Path
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            output=Path(directory)/'source.json';output.write_text('stale')
+            scanner=ScannerConfig('gitleaks',Path('/nonexistent'), 'a'*64,'8.30.1',rules=Path('tools/ci/gitleaks.toml'))
+            with self.assertRaises(ScanError): publish_source_record({'status':'incomplete'},output,scanner)
+            self.assertFalse(output.exists())
+
+class SourceCliSecretTests(unittest.TestCase):
+    def test_invalid_revision_cannot_leave_stale_uploadable_inventory(self):
+        import subprocess,sys,tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);output=root/'source.json';output.write_text('synthetic-sentinel')
+            revision=root/'revision.json';revision.write_text('{')
+            result=subprocess.run([sys.executable,'-m','scripts.ci.sbom','--revision',str(revision),'--output',str(output)],capture_output=True,text=True,timeout=10)
+            self.assertNotEqual(0,result.returncode)
+            self.assertNotIn('synthetic-sentinel',result.stdout+result.stderr)
+            self.assertFalse(output.exists())
