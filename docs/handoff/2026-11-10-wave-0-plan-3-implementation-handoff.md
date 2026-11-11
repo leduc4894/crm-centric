@@ -15,8 +15,10 @@ envelope and the documentation of that round; the commit on top of that one is
 `88f5542` and carries **fix round 7** — the scratch cleanup of the Plan 3 harnesses and
 the documentation of that round; the commit on top of that one is `5e87961` and carries
 the record of the scoped re-review of both rounds and the three documentation
-corrections that the review asked for. That last SHA is not recorded here, because a
-commit cannot carry its own SHA. The commits on top of the
+corrections that the review asked for; the commit on top of that one is `cd45f0f` and
+carries the record of the base revision that the aggregate needs after fix round 6. The
+SHA of the commit that records those two SHAs is not recorded here, because a commit
+cannot carry its own SHA. The commits on top of the
 fix round 5 documentation change
 only the recorded HEAD SHA of this document and the wording of this document and of the
 Plan 3 verification document; they carry no source change. The commit that recorded the
