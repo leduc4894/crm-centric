@@ -8,7 +8,7 @@ Implement [Plan 3](../superpowers/plans/2026-11-10-wave-0-plan-3-frontend-contra
 
 Branch `feat/wave-0-plan-3-frontend-contract-toolchain`, base `5257abf`. Tasks 1–7 are
 implemented and committed. The recorded HEAD SHA is
-`SHA_RECORDED_BY_THE_FOLLOWING_COMMIT`
+`ccce8d4ba58803a0a2139794f487bc25957c50f2`
 (`docs: record the fix round 5 verification measurements`), the commit that carries the fix
 round 5 of the independent review of Task 7. The commit on top of it changes only the
 recorded HEAD SHA in this header and in the round-5 "Branch and state" block below, and
@@ -643,7 +643,7 @@ contract changed.
 
 **Branch and state.** Branch `feat/wave-0-plan-3-frontend-contract-toolchain`, base
 `5257abf`. The documentation refresh of this round is the commit
-`SHA_RECORDED_BY_THE_FOLLOWING_COMMIT` — `docs: record the fix round 5 verification
+`ccce8d4ba58803a0a2139794f487bc25957c50f2` — `docs: record the fix round 5 verification
 measurements`; the commit that follows it rewrites only the recorded HEAD SHA of this
 document and of this block, and changes nothing else. The working tree contains only the
 intended changes of this round and no uncommitted source work. No merge, push, deploy,
