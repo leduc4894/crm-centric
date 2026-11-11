@@ -18,3 +18,11 @@ User requested a Plan 4 spec after completing Plan 3. Work is design documentati
 ## Next steps
 1. User can review the design; builder-review gaps were resolved.
 2. Upon user request, write the implementation plan. Do not modify repository settings or publish without the relevant authorization.
+
+## Independent review and corrections
+
+User requested a review and corrections of the Plan 4 spec. Two read-only reviewers examined revision/base semantics and security/evidence separately. Verified findings against current repository scripts and GitHub's official required-check/event documentation, then revised the spec.
+
+Corrections: bind PR merge parents/head/base and push forced/after SHA; define independently attested policy transition with old/new evaluators and first-push proof; require evidence linking reviewed PR and final main acceptance SHA; include `tests/Local` and prevent frozen total-count/partial-discovery loopholes; define merge queue boundary; enforce fail-closed job aggregation and honest whole-workflow cancellation semantics; cover unverified secrets, commit history, secret-safe live output, scanner positive fixtures, DB freshness, and image identity provenance. Reviewers confirmed their findings addressed in scoped re-review. No implementation or remote verification was performed.
+
+`git diff --check` and staged diff whitespace check run before the review-correction commit. Runtime/scanner/CI tests remain NOT RUN; source-only documentation task. Updated files: Plan 4 spec and this handoff. Local commit subject `docs: tighten Plan 4 CI specification after review`; no push. Branch `main`, parent `d3b5a40` before correction; verify current HEAD/status on resume. Next: user review, then write implementation plan on request; Wave 0 and P0 remain OPEN.
