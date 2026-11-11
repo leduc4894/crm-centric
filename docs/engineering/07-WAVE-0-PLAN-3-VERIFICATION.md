@@ -389,9 +389,16 @@ bash scripts/check-plan3.sh --base-ref <ref> [--with-browser]
 - Every closed error path of the aggregate itself produces a reason token and the
   correlation identifier of the run: `PLAN3_ARGUMENT_INVALID`, `PLAN3_PREREQUISITE_MISSING`,
   `PLAN3_TOOLCHAIN_MISMATCH`, `PLAN3_STACK_START_FAILED`, `PLAN3_STACK_TEARDOWN_FAILED`,
-  `PLAN3_SOURCE_MUTATED` and a failing step. The identifier is a UUID generated once per
-  run and printed in the header, so the report of a run and the report of its failure carry
-  the same identifier.
+  `PLAN3_SOURCE_MUTATED`, `PLAN3_INTERRUPTED`, `PLAN3_TERMINATED` and a failing step. The
+  identifier is a UUID generated once per run and printed in the header, so the report of a
+  run and the report of its failure carry the same identifier.
+- The signal paths are closed error paths too. An `INT` reports `PLAN3_INTERRUPTED` and exits
+  130, a `TERM` reports `PLAN3_TERMINATED` and exits 143, and both carry the correlation
+  identifier of the run. The envelope is written to the stderr that the aggregate had before
+  a step redirected it into its own log, so an interrupted run still reports the failure to
+  the operator instead of leaving it in the log of the step that was running. A stack that the
+  interrupted run could not stop reports `PLAN3_STACK_TEARDOWN_FAILED` with the same
+  identifier, rather than a bare prose warning.
 - Prerequisites are checked before the first step: `node` must be the version in
   `.node-version` (24.22.2) and `docker` and `python3` must exist. A missing or mismatched
   prerequisite fails closed with `PLAN3_PREREQUISITE_MISSING` or `PLAN3_TOOLCHAIN_MISMATCH`
@@ -412,7 +419,9 @@ bash scripts/check-plan3.sh --base-ref <ref> [--with-browser]
   `dev-down.sh` after a **failed** start as well, and a teardown that fails on that path
   fails the step with `PLAN3_STACK_TEARDOWN_FAILED` instead of being reduced to a warning.
 - An `EXIT`, `INT` or `TERM` trap stops a local stack that this run started, so an
-  interrupted run cannot orphan the stack.
+  interrupted run cannot orphan the stack. A teardown that fails on that path is reported
+  as the envelope `PLAN3_STACK_TEARDOWN_FAILED` with the correlation identifier, not as a
+  bare warning.
 - The echoed step output is passed through a defensive redaction of the common secret
   shapes (bearer values, `Authorization` headers and the usual password, secret, token and
   key assignments). The deeper property, that the driven tools never emit a secret, stays
@@ -553,10 +562,13 @@ aggregate reporting cases: 6 of 6 passed
 The three harnesses of this slice — `tests/Plan3/negative-cases.sh`,
 `tests/Plan3/aggregate-reporting.sh` and `tests/Plan3/clean-export.sh` — are **not**
 executed by `unittest discover -s tests/Contract`, by `npm test`, by any `package.json`
-script or by a continuous integration pipeline. The repository has no CI yet; CI is Plan 4.
-A regression that deletes or neuters one of these harnesses would therefore not fail any
-suite that runs today. This is the honest state of the slice, not a claim that the harnesses
-are covered.
+script or by a continuous integration pipeline. The repository does have CI, but it is
+**contract-only**: `.github/workflows/contracts.yml` runs the Python contract suite
+(`python -m unittest discover -s tests/Contract -v`) on push and pull_request, and it does
+not run these three harnesses. Wiring the harnesses into an automated runner is Plan 4's
+job. A regression that deletes or neuters one of these harnesses would therefore not fail
+any suite that runs today. This is the honest state of the slice, not a claim that the
+harnesses are covered.
 
 The exact commands a human must run, from the root of the checkout, with the pinned Node
 24.22.2 on the `PATH` and the Chromium shared libraries available to the browser suite:
@@ -800,8 +812,11 @@ gates never ran.
 UUID per run, prints it in the header, and prints it with the reason token of every closed
 path it owns: `PLAN3_ARGUMENT_INVALID`, `PLAN3_PREREQUISITE_MISSING`,
 `PLAN3_TOOLCHAIN_MISMATCH`, `PLAN3_STACK_START_FAILED`, `PLAN3_STACK_TEARDOWN_FAILED`,
-`PLAN3_SOURCE_MUTATED` and a failing step. The envelope is a safe JSON object with
-`reason`, `detail` and `correlationId`; no payload and no secret.
+`PLAN3_SOURCE_MUTATED`, `PLAN3_INTERRUPTED`, `PLAN3_TERMINATED` and a failing step. The
+envelope is a safe JSON object with `reason`, `detail` and `correlationId`; no payload and no
+secret. The signal paths (`INT` and `TERM`) and the cleanup of an interrupted run write the
+envelope to the stderr that the aggregate had before a step redirected it into its own log,
+so an interrupted run still reports the failure to the operator.
 
 **I-3 — a failed teardown fails the run.** A `dev-down.sh` that fails is no longer reduced
 to a warning: the browser step fails with `PLAN3_STACK_TEARDOWN_FAILED`, so the aggregate
@@ -892,8 +907,10 @@ of `HEAD` and nothing else.
 **N-4 — the harnesses are wired to nothing.** `tests/Plan3/aggregate-reporting.sh`,
 `tests/Plan3/negative-cases.sh` and `tests/Plan3/clean-export.sh` are **not** executed by
 `unittest discover -s tests/Contract`, by any `package.json` script or by a CI pipeline:
-the repository has no CI yet, CI is Plan 4. A regression that deletes or neuters one of
-them would not fail any suite that runs today. The section *The Plan 3 harnesses are not yet
+the CI of the repository is contract-only (`.github/workflows/contracts.yml` runs the
+Python contract suite) and does not run these harnesses; wiring them into an automated
+runner is Plan 4's job. A regression that deletes or neuters one of them would not fail
+any suite that runs today. The section *The Plan 3 harnesses are not yet
 executed by an automated runner* above names the exact command a human must run for each of
 them and assigns the wiring to Plan 4.
 
@@ -963,3 +980,92 @@ aggregate gate, which no Python or .NET suite executes; the aggregate, the clean
 the two harnesses of this round are the coverage of the change. After the export the stack
 was stopped, no container of the project remained and nothing listened on 5080, 5173 or
 8080.
+
+### Fix round 3 — the CI statement and the signal envelopes (review pending)
+
+The scoped re-review of `80de4d8..66c4523` came back READY: all five findings N-1..N-5 were
+addressed, with no Critical and no Important finding and no behavioural regression. It left
+one Minor finding to close and one Minor residual. Both are closed here.
+
+**F-1 — the statement about the CI of the repository was false.** The round 2 documentation
+said *"The repository has no CI yet; CI is Plan 4."* That was wrong: the repository has had
+`.github/workflows/contracts.yml` since `e3dbbb1`, and the workflow runs
+`python -m unittest discover -s tests/Contract -v` on push and pull_request. The claim also
+contradicted the repository's own `docs/engineering/02-REPO-CI-CD.md` and
+`docs/roadmap/01-BACKLOG.md`. The sentence is replaced, in all four places where it stood,
+by the accurate one: the repository has a **contract-only** CI workflow that runs the Python
+contract suite, it does **not** execute the three Plan 3 harnesses, and wiring those
+harnesses into an automated runner is Plan 4's job. The harness list, the exact manual
+commands and the Plan 4 ownership are unchanged. The N-4 finding itself stays true: the
+three harnesses are still executed by no runner.
+
+**R-1 — the signal paths of the aggregate had no reason token.** `scripts/check-plan3.sh`
+handled `INT` and `TERM` with `trap 'exit 130' INT` and `trap 'exit 143' TERM`: the run
+exited with the conventional code of the signal but reported no reason token and no
+correlation identifier, so a closed error path violated the constraint that every closed
+error path produces both. The cleanup of an interrupted run downgraded a failing teardown to
+a bare prose warning. Both are closed:
+
+- an `INT` reports `PLAN3_INTERRUPTED` and exits 130, a `TERM` reports `PLAN3_TERMINATED`
+  and exits 143, each with the correlation identifier of the run;
+- a stack that the interrupted run could not stop reports `PLAN3_STACK_TEARDOWN_FAILED`
+  with the correlation identifier, as an envelope and not as a warning;
+- the exit codes 130 and 143 are unchanged.
+
+The envelopes of the signal paths and of the cleanup are written to the stderr that the
+aggregate had **before** a step redirected it into its own log. Without that, an interrupt
+that arrived while a step was running would have left the envelope in the log of that step,
+which the aggregate deletes on the way out: the failure would have been reported to nobody.
+
+**RED before the fix.** The three new cases of `tests/Plan3/aggregate-reporting.sh` were run
+against the unchanged implementation and each failed for its own reason — the envelope and
+the correlation identifier were missing, while the exit codes 130 and 143 were already
+correct:
+
+```
+case  an interrupted run emits a reason token and a correlation id
+FAIL  interrupt envelope
+      the envelope PLAN3_INTERRUPTED with a correlation id is missing
+case  a terminated run emits a reason token and a correlation id
+FAIL  terminate envelope
+      the envelope PLAN3_TERMINATED with a correlation id is missing
+case  a failing teardown of an interrupted run is a failure envelope
+FAIL  interrupted teardown failure
+      the envelope PLAN3_STACK_TEARDOWN_FAILED with a correlation id is missing
+```
+
+**Mutation sensitivity.** The implementation of the signal paths and of the cleanup was
+reverted to the state of `66c4523` in the working tree, the three new cases were kept, and
+all three failed again with the reasons above. The cases therefore test the behaviour, not
+the wording.
+
+**The commands of this round and their real results.**
+
+| Command | Result |
+|---|---|
+| `bash tests/Plan3/aggregate-reporting.sh --base-ref 408ded6` | exit 0, **12 of 12 cases**, 3m18.845s |
+| `bash tests/Plan3/negative-cases.sh --base-ref 408ded6` | exit 0, **3 of 3 cases**, 3m28.570s, the tokens `SDK_GENERATED_MISMATCH`, `CONTRACT_BASE_UNAVAILABLE` and `CONTRACT_POLICY_REVIEW_REQUIRED` unchanged |
+| `python3 scripts/contracts/check.py` | exit 0, `SDK_GENERATED_CURRENT`, correlation identifier present |
+| `bash scripts/check-plan3.sh --base-ref` (no value) | exit 2, `PLAN3_ARGUMENT_INVALID`, correlation identifier present |
+| `bash scripts/check-plan3.sh --base-ref 408ded6` with Node 26.13.0 on the `PATH` | exit 1, `PLAN3_TOOLCHAIN_MISMATCH`, correlation identifier present |
+
+The three new cases of the reporting harness in GREEN, after the fix:
+
+```
+ok    interrupt envelope (exit 130, PLAN3_INTERRUPTED, correlation id present, the stack teardown ran)
+ok    terminate envelope (exit 143, PLAN3_TERMINATED, correlation id present, the stack teardown ran)
+ok    interrupted teardown failure (exit 130, PLAN3_STACK_TEARDOWN_FAILED, correlation id present)
+```
+
+Each of the three asserts the exit code of the signal, the reason token, the teardown of the
+stack and that the envelope carries the correlation identifier **of that very run** — the
+identifier printed in the header of the interrupted run — and not the identifier of another
+run.
+
+The 87-case contract suite, the 70-case .NET non-Compose suite, the full clean export with
+the browser and the full 10-step working-tree aggregate were **not** re-run in this round.
+This round changed the aggregate gate, one shell harness and two Markdown documents; it
+changed no canonical contract, no backend source and no container configuration, so the
+runtime evidence of the earlier rounds stands and is not presented as a run of this round.
+The harness of the reporting suite and the single commands above are the coverage of the
+change.

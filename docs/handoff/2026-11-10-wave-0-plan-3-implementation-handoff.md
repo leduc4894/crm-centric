@@ -413,8 +413,11 @@ and the missing reason token.
 **The harnesses are not yet wired into any runner.** `tests/Plan3/aggregate-reporting.sh`,
 `tests/Plan3/negative-cases.sh` and `tests/Plan3/clean-export.sh` are not executed by
 `unittest discover -s tests/Contract`, by any `package.json` script or by a CI pipeline.
-The repository has no CI yet; **Plan 4 owns the wiring** of these three commands into the
-continuous integration path. Until then a human must run, from the root of the checkout:
+The repository does have CI, but it is **contract-only**: `.github/workflows/contracts.yml`
+runs the Python contract suite (`python -m unittest discover -s tests/Contract -v`) on push
+and pull_request, and it does not run these three harnesses. **Plan 4 owns the wiring** of
+these three commands into the continuous integration path. Until then a human must run,
+from the root of the checkout:
 
 ```
 bash tests/Plan3/negative-cases.sh --base-ref 408ded6
@@ -457,3 +460,68 @@ copied into every sandbox and export; the tooling verifies their digests.
 round; the plan keeps the annotation that it has not run. Wave 0/P0 acceptance, remote
 DemoModule end-to-end, tenant isolation, outage/recovery and restore drills and remote CI
 remain **OPEN** and are not claimed here.
+
+## Task 7, fix round 3 — the CI statement and the signal envelopes
+
+**Objective.** Close the two items the scoped re-review of `80de4d8..66c4523` left open: the
+false statement that the repository has no CI, and the closed error paths of the signal
+handlers of the aggregate, which reported no reason token and no correlation identifier.
+The review was otherwise READY, with no Critical and no Important finding.
+
+**F-1 — the CI statement.** The round 2 documentation stated *"The repository has no CI yet;
+CI is Plan 4."* That was factually false: `.github/workflows/contracts.yml` has existed since
+`e3dbbb1` and runs `python -m unittest discover -s tests/Contract -v` on push and
+pull_request, and the repository's own `docs/engineering/02-REPO-CI-CD.md` and
+`docs/roadmap/01-BACKLOG.md` say so. The sentence is replaced in all four places where it
+stood — the Plan 3 verification document (twice), this handoff and the git-ignored SDD task
+report — by the accurate statement: the repository has a **contract-only** CI workflow that
+runs the Python contract suite, it does **not** execute the three Plan 3 harnesses, and
+wiring those harnesses into an automated runner is Plan 4's job. The harness list, the exact
+manual commands and the Plan 4 ownership are preserved. The N-4 finding itself is unchanged
+and still true.
+
+**R-1 — the signal paths.** `scripts/check-plan3.sh` handled `INT` and `TERM` with
+`trap 'exit 130' INT` and `trap 'exit 143' TERM`, which exited with the conventional code of
+the signal but reported no reason token and no correlation identifier. The cleanup of an
+interrupted run downgraded a failing teardown to a bare prose warning. Both are closed: an
+`INT` reports `PLAN3_INTERRUPTED` and exits 130, a `TERM` reports `PLAN3_TERMINATED` and
+exits 143, a stack that the interrupted run could not stop reports
+`PLAN3_STACK_TEARDOWN_FAILED`, and each carries the correlation identifier of the run. The
+exit codes 130 and 143 are unchanged. The envelopes go to the stderr that the aggregate had
+before a step redirected it into its own log; without that, an interrupt that arrived while
+a step was running would have left the envelope in the log of that step, which the aggregate
+deletes on the way out.
+
+**What changed in the code.** `scripts/check-plan3.sh` gained the saved stderr, the
+`signal_error` helper and the two signal traps, and the cleanup of an interrupted run now
+reports a failing teardown as an envelope. `tests/Plan3/aggregate-reporting.sh` grew from
+nine to twelve cases: an interrupted run that must report a reason token and a correlation
+identifier, a terminated run that must do the same, and a failing teardown of an interrupted
+run that must be a failure envelope. Each asserts the signal exit code and the teardown of
+the stack as well.
+
+**Coverage.** The three new cases were run against the unchanged implementation and all
+three failed, because the envelope and the correlation identifier were missing while the
+exit codes 130 and 143 were already correct. The implementation of the signal paths and of
+the cleanup was then reverted to the state of `66c4523` with the new cases kept, and all
+three failed again: the cases test the behaviour, not the wording.
+
+**Verification.** The reporting harness passed 12 of 12 cases in 3m18.845s and the
+negative-case harness passed 3 of 3 cases in 3m28.570s, both with exit 0 and with the
+unchanged reason tokens `SDK_GENERATED_MISMATCH`, `CONTRACT_BASE_UNAVAILABLE` and
+`CONTRACT_POLICY_REVIEW_REQUIRED`. `python3 scripts/contracts/check.py` returned exit 0 with
+`SDK_GENERATED_CURRENT` and a correlation identifier. `bash scripts/check-plan3.sh
+--base-ref` without a value returned exit 2 with `PLAN3_ARGUMENT_INVALID` and a correlation
+identifier, and the same script with Node 26.13.0 on the `PATH` returned exit 1 with
+`PLAN3_TOOLCHAIN_MISMATCH` and a correlation identifier.
+
+**Known limitations.** The 87-case contract suite, the 70-case .NET non-Compose suite, the
+full clean export with the browser and the full 10-step working-tree aggregate were **not**
+re-run in this round. This round changed the aggregate gate, one shell harness and two
+Markdown documents; it changed no canonical contract, no backend source and no container
+configuration, so the runtime evidence of the earlier rounds stands and is not presented as
+a run of this round.
+
+**Still open.** The three Plan 3 harnesses are still executed by no automated runner; Plan 4
+owns that wiring. Wave 0/P0 acceptance, remote DemoModule end-to-end, tenant isolation,
+outage/recovery and restore drills and remote CI remain **OPEN** and are not claimed here.

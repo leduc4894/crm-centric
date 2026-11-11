@@ -14,7 +14,10 @@
 # directory; the source digest is compared before and after the run.
 #
 # Every closed error path of this script produces a reason token and the
-# correlation identifier of the run.
+# correlation identifier of the run. This includes the signal paths: an
+# interrupted run reports PLAN3_INTERRUPTED and exits 130, a terminated run
+# reports PLAN3_TERMINATED and exits 143, and a stack that the interrupted run
+# could not stop reports PLAN3_STACK_TEARDOWN_FAILED.
 #
 # Usage:
 #   bash scripts/check-plan3.sh --base-ref <ref> [--with-browser]
@@ -31,7 +34,9 @@
 #                      the step is recorded as "not run"; it is never silently
 #                      skipped.
 #
-# Exit codes: 0 every step passed, 1 a step failed, 2 the arguments were invalid.
+# Exit codes: 0 every step passed, 1 a step failed, 2 the arguments were
+# invalid, 130 the run was interrupted (SIGINT), 143 the run was terminated
+# (SIGTERM).
 set -uo pipefail
 
 # The correlation identifier of this run. It accompanies every closed error
@@ -47,12 +52,31 @@ new_correlation() {
 }
 correlation=$(new_correlation)
 
+# The stderr of the aggregate, saved before a step redirects it into its own
+# log. A signal handler and the cleanup of an interrupted run must reach the
+# operator, not the log of the step that happened to be running when the
+# signal arrived.
+exec 9>&2
+
 # A closed error path of the aggregate: a reason token, a safe detail and the
-# correlation identifier of this run. No payload, no secret.
+# correlation identifier of this run. No payload, no secret. The envelope goes
+# to the saved stderr, so that it reaches the operator even when the closed
+# error path is reached while a step had redirected stderr into its own log.
 closed_error() {
   local reason="$1" detail="$2" code="$3"
   printf '{"reason": "%s", "detail": "%s", "correlationId": "%s"}\n' \
-    "$reason" "$detail" "$correlation" >&2
+    "$reason" "$detail" "$correlation" >&9
+  exit "$code"
+}
+
+# A closed error path that a signal reached. The envelope goes to the saved
+# stderr, because the step that was running when the signal arrived had
+# redirected stderr into its own log. The exit code is the conventional one of
+# the signal: 130 for INT and 143 for TERM.
+signal_error() {
+  local reason="$1" detail="$2" code="$3"
+  printf '{"reason": "%s", "detail": "%s", "correlationId": "%s"}\n' \
+    "$reason" "$detail" "$correlation" >&9
   exit "$code"
 }
 
@@ -71,7 +95,7 @@ EOF
 
 argument_error() {
   printf '{"reason": "PLAN3_ARGUMENT_INVALID", "detail": "%s", "correlationId": "%s"}\n' \
-    "$1" "$correlation" >&2
+    "$1" "$correlation" >&9
   usage >&2
   exit 2
 }
@@ -112,16 +136,22 @@ stack_started=0
 cleanup() {
   local status=$?
   if [ "$stack_started" -eq 1 ]; then
-    printf 'plan3 aggregate: stopping the local stack of the interrupted run\n' >&2
-    bash scripts/dev-down.sh >/dev/null 2>&1 ||
-      printf 'plan3 aggregate: the local stack was not stopped cleanly\n' >&2
+    printf 'plan3 aggregate: stopping the local stack of the interrupted run\n' >&9
+    if ! bash scripts/dev-down.sh >/dev/null 2>&1; then
+      # A teardown that fails is a closed error path of its own: it is
+      # reported as an envelope with a reason token and the correlation
+      # identifier, not as a bare warning. The exit code of the run is the one
+      # of the signal that interrupted it.
+      printf '{"reason": "PLAN3_STACK_TEARDOWN_FAILED", "detail": "the local stack of the interrupted run was not stopped cleanly", "correlationId": "%s"}\n' \
+        "$correlation" >&9
+    fi
   fi
   rm -rf "$logs"
   return "$status"
 }
 trap cleanup EXIT
-trap 'exit 130' INT
-trap 'exit 143' TERM
+trap 'signal_error PLAN3_INTERRUPTED "the run was interrupted" 130' INT
+trap 'signal_error PLAN3_TERMINATED "the run was terminated" 143' TERM
 
 step_names=()
 step_commands=()

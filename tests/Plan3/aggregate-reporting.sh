@@ -15,7 +15,10 @@
 #   N-1  a stack that fails to start must be torn down, never orphaned;
 #   N-2  every closed error path carries a reason token and a correlation id;
 #   N-3  a file that is staged in the index but absent from HEAD is covered by
-#        the source digest.
+#        the source digest;
+#   R-1  the signal paths of the aggregate (INT, TERM) and the failing teardown
+#        of the interrupted cleanup carry a reason token and a correlation id
+#        instead of closing silently.
 #
 # The sandbox is a copy of the checkout with a read-only Git object context
 # (objects/info/alternates) so that a base revision resolves without a fetch.
@@ -178,6 +181,30 @@ run_gate() {
 
 has_correlation() {
   printf '%s' "$1" | grep -Eq '"correlationId"[[:space:]]*:[[:space:]]*"[^"]{8,}"'
+}
+
+# Asserts that the output carries a JSON error envelope with the given reason
+# token and a correlation identifier on the same line. A correlation identifier
+# printed on its own, without an envelope, does not satisfy this.
+has_envelope() {
+  printf '%s' "$1" |
+    grep -E "\"reason\"[[:space:]]*:[[:space:]]*\"$2\"" |
+    grep -Eq "\"correlationId\"[[:space:]]*:[[:space:]]*\"[^\"]{8,}\""
+}
+
+# The correlation identifier of the run, as printed in its header.
+run_correlation() {
+  printf '%s' "$1" | sed -n 's/^plan3 aggregate: correlation //p' | head -n 1
+}
+
+# Asserts that the envelope of the given reason token carries the correlation
+# identifier of this very run, and not an identifier of another run.
+envelope_carries_the_run_correlation() {
+  local output="$1" reason="$2" correlation="$3"
+  [ -n "$correlation" ] || return 1
+  printf '%s' "$output" |
+    grep -E "\"reason\"[[:space:]]*:[[:space:]]*\"$reason\"" |
+    grep -Eq "\"correlationId\"[[:space:]]*:[[:space:]]*\"$correlation\""
 }
 
 step_is_not_run() {
@@ -352,6 +379,153 @@ case_interrupt_tears_the_stack_down() {
   pass "interrupt (exit $status, the stack teardown ran)"
 }
 
+# Starts the aggregate gate in the sandbox, interrupts it with the given
+# signal while the stack smoke step is running and waits for it to finish.
+# The exit code and the output of the run are left in gate_status and
+# gate_output.
+run_interrupted_gate() {
+  local dir="$1" signal="$2"
+  local out="$work/interrupt-$signal.out"
+  # A background job inherits SIGINT as ignored, so the disposition is reset
+  # before the gate is executed; otherwise the interrupt would never reach it.
+  setsid python3 -c 'import os, signal, sys; signal.signal(signal.SIGINT, signal.SIG_DFL); os.execvp(sys.argv[1], sys.argv[1:])' \
+    bash "$dir/scripts/check-plan3.sh" --base-ref "$base_ref" --with-browser > "$out" 2>&1 &
+  local pid=$!
+  local waited=0
+  while [ ! -f "$dir/.smoke-pid" ] && [ "$waited" -lt 300 ]; do
+    sleep 0.2
+    waited=$((waited + 1))
+  done
+  if [ ! -f "$dir/.smoke-pid" ]; then
+    kill -TERM "$pid" 2>/dev/null
+    wait "$pid" 2>/dev/null
+    return 1
+  fi
+  local smoke_pid pgid
+  smoke_pid=$(cat "$dir/.smoke-pid")
+  pgid=$(ps -o pgid= -p "$smoke_pid" 2>/dev/null | tr -d ' ')
+  if [ -n "$pgid" ]; then
+    kill "-$signal" -- "-$pgid" 2>/dev/null
+  else
+    kill "-$signal" "$smoke_pid" 2>/dev/null
+  fi
+  wait "$pid" 2>/dev/null
+  gate_status=$?
+  gate_output=$(cat "$out")
+  return 0
+}
+
+# Prepares a sandbox whose stack smoke step blocks, so that the run can be
+# interrupted while the local stack is up.
+make_interruptible_sandbox() {
+  local dir="$1"
+  make_sandbox "$dir"
+  stub_driven_tools "$dir"
+  printf '#!/usr/bin/env bash\nprintf "%%s" "$$" > "%s/.smoke-pid"\nsleep 30\n' "$dir" > "$dir/scripts/dev-smoke.sh"
+  printf '#!/usr/bin/env bash\ntouch "%s/.teardown-marker"\nexit 0\n' "$dir" > "$dir/scripts/dev-down.sh"
+  chmod +x "$dir/scripts/dev-smoke.sh" "$dir/scripts/dev-down.sh"
+}
+
+# The INT path is a closed error path: it must carry a reason token and the
+# correlation identifier of the run, and it must still tear the stack down.
+case_interrupt_emits_a_reason_envelope() {
+  log "case  an interrupted run emits a reason token and a correlation id"
+  cases=$((cases + 1))
+  local dir="$work/interrupt-envelope"
+  make_interruptible_sandbox "$dir"
+  if ! run_interrupted_gate "$dir" INT; then
+    fail "interrupt envelope" "the run never reached the stack smoke step"
+    return
+  fi
+  if [ "$gate_status" -ne 130 ]; then
+    fail "interrupt envelope" "expected exit 130, got $gate_status"
+    return
+  fi
+  if ! has_envelope "$gate_output" PLAN3_INTERRUPTED; then
+    fail "interrupt envelope" \
+      "the envelope PLAN3_INTERRUPTED with a correlation id is missing: $(printf '%s' "$gate_output" | tail -n 3)"
+    return
+  fi
+  if ! envelope_carries_the_run_correlation "$gate_output" PLAN3_INTERRUPTED \
+    "$(run_correlation "$gate_output")"; then
+    fail "interrupt envelope" \
+      "the envelope PLAN3_INTERRUPTED does not carry the correlation id of the run"
+    return
+  fi
+  if [ ! -f "$dir/.teardown-marker" ]; then
+    fail "interrupt envelope" "the stack teardown did not run after the interrupt (exit $gate_status)"
+    return
+  fi
+  pass "interrupt envelope (exit 130, PLAN3_INTERRUPTED, correlation id present, the stack teardown ran)"
+}
+
+# The TERM path is the symmetric closed error path of the INT path.
+case_terminate_emits_a_reason_envelope() {
+  log "case  a terminated run emits a reason token and a correlation id"
+  cases=$((cases + 1))
+  local dir="$work/terminate-envelope"
+  make_interruptible_sandbox "$dir"
+  if ! run_interrupted_gate "$dir" TERM; then
+    fail "terminate envelope" "the run never reached the stack smoke step"
+    return
+  fi
+  if [ "$gate_status" -ne 143 ]; then
+    fail "terminate envelope" "expected exit 143, got $gate_status"
+    return
+  fi
+  if ! has_envelope "$gate_output" PLAN3_TERMINATED; then
+    fail "terminate envelope" \
+      "the envelope PLAN3_TERMINATED with a correlation id is missing: $(printf '%s' "$gate_output" | tail -n 3)"
+    return
+  fi
+  if ! envelope_carries_the_run_correlation "$gate_output" PLAN3_TERMINATED \
+    "$(run_correlation "$gate_output")"; then
+    fail "terminate envelope" \
+      "the envelope PLAN3_TERMINATED does not carry the correlation id of the run"
+    return
+  fi
+  if [ ! -f "$dir/.teardown-marker" ]; then
+    fail "terminate envelope" "the stack teardown did not run after the terminate (exit $gate_status)"
+    return
+  fi
+  pass "terminate envelope (exit 143, PLAN3_TERMINATED, correlation id present, the stack teardown ran)"
+}
+
+# A teardown that fails while the interrupted run cleans up must be surfaced
+# as a failure envelope, not as a bare prose warning.
+case_interrupted_teardown_failure_is_an_envelope() {
+  log "case  a failing teardown of an interrupted run is a failure envelope"
+  cases=$((cases + 1))
+  local dir="$work/interrupt-teardown-failure"
+  make_interruptible_sandbox "$dir"
+  printf '#!/usr/bin/env bash\ntouch "%s/.teardown-marker"\nexit 1\n' "$dir" > "$dir/scripts/dev-down.sh"
+  chmod +x "$dir/scripts/dev-down.sh"
+  if ! run_interrupted_gate "$dir" INT; then
+    fail "interrupted teardown failure" "the run never reached the stack smoke step"
+    return
+  fi
+  if [ "$gate_status" -ne 130 ]; then
+    fail "interrupted teardown failure" "expected exit 130, got $gate_status"
+    return
+  fi
+  if ! has_envelope "$gate_output" PLAN3_STACK_TEARDOWN_FAILED; then
+    fail "interrupted teardown failure" \
+      "the envelope PLAN3_STACK_TEARDOWN_FAILED with a correlation id is missing: $(printf '%s' "$gate_output" | tail -n 3)"
+    return
+  fi
+  if ! envelope_carries_the_run_correlation "$gate_output" PLAN3_STACK_TEARDOWN_FAILED \
+    "$(run_correlation "$gate_output")"; then
+    fail "interrupted teardown failure" \
+      "the envelope PLAN3_STACK_TEARDOWN_FAILED does not carry the correlation id of the run"
+    return
+  fi
+  if [ ! -f "$dir/.teardown-marker" ]; then
+    fail "interrupted teardown failure" "the teardown of the interrupted run did not run at all"
+    return
+  fi
+  pass "interrupted teardown failure (exit 130, PLAN3_STACK_TEARDOWN_FAILED, correlation id present)"
+}
+
 case_clean_export_refuses_a_used_target() {
   log "case  the clean export refuses a target directory that is not empty"
   cases=$((cases + 1))
@@ -517,6 +691,9 @@ run_case toolchain_mismatch
 run_case steps_after_failure_are_recorded
 run_case teardown_failure
 run_case interrupt_tears_the_stack_down
+run_case interrupt_emits_a_reason_envelope
+run_case terminate_emits_a_reason_envelope
+run_case interrupted_teardown_failure_is_an_envelope
 run_case clean_export_refuses_a_used_target
 run_case failed_stack_start_tears_the_stack_down
 run_case staged_file_mutation_is_detected
