@@ -4,8 +4,15 @@ import pathlib
 import subprocess
 import unittest
 
+import prerequisites
+
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 
+# The packaged consumers need the installed node_modules and the pinned .NET
+# image in the local docker image store. A checkout without those prerequisites
+# skips this module with the reason of the missing prerequisite; it never fails
+# for a missing tool it never provisioned.
+@unittest.skipUnless(prerequisites.CONSUMERS[0], prerequisites.CONSUMERS[1])
 class PackagedConsumers(unittest.TestCase):
     def test_independent_packaged_consumers(self):
         result = subprocess.run(['bash', str(ROOT / 'tests/ClientConsumers/run.sh')], cwd=ROOT,

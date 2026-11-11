@@ -21,6 +21,11 @@
 #        instead of closing silently;
 #   N-R3-1  a teardown that fails in a run that was never interrupted is
 #        reported exactly once, without wording that calls the run interrupted.
+#   C-1  a CI-like checkout without the pinned local tooling and without an
+#        installed node_modules keeps the contract suite green: the Plan 3
+#        tests are skipped with a visible reason, the pre-existing tests pass;
+#   C-2  a comparator that cannot load the typescript module closes with a
+#        reason token and a correlation identifier instead of a stack trace.
 #
 # The sandbox is a copy of the checkout with a read-only Git object context
 # (objects/info/alternates) so that a base revision resolves without a fetch.
@@ -723,6 +728,70 @@ case_harness_argument_envelopes() {
   pass "harness argument error (exit 2, PLAN3_ARGUMENT_INVALID, correlation id present)"
 }
 
+# The contract suite is the only suite the live CI workflow of the repository
+# runs. This case simulates a CI checkout of it: without the pinned local tool
+# artifacts below .local/plan3-tools and without an installed node_modules, the
+# Plan 3 tests must be skipped with a visible reason and the pre-existing tests
+# must keep passing, so that the workflow stays green.
+case_ci_checkout_keeps_the_contract_suite_green() {
+  log "case  a CI-like checkout keeps the contract suite green"
+  cases=$((cases + 1))
+  local out="$work/ci-environment.out"
+  ( cd "$root" && bash "$root/tests/Plan3/ci-environment.sh" ) > "$out" 2>&1
+  local status=$?
+  local output
+  output=$(cat "$out")
+  if [ "$status" -ne 0 ]; then
+    fail "ci checkout" "the simulated CI run exited $status, expected 0" \
+      "$(printf '%s' "$output" | tail -n 10)"
+    return
+  fi
+  if ! printf '%s' "$output" | grep -q '87 tests, 55 skipped with a reason, 32 passed'; then
+    fail "ci checkout" "the simulated CI run did not report the expected counts" \
+      "$(printf '%s' "$output" | tail -n 5)"
+    return
+  fi
+  pass "ci checkout (exit 0, 87 tests, 55 skipped with a reason, 32 passed)"
+}
+
+# A comparator that cannot load the typescript module must close with the
+# ordinary envelope: a reason token, a correlation identifier and no raw stack
+# trace on stderr.
+case_missing_typescript_is_a_closed_error() {
+  log "case  a comparator without typescript closes with a reason token and a correlation id"
+  cases=$((cases + 1))
+  local dir="$work/no-typescript"
+  mkdir -p "$dir"
+  cp "$root/tools/contracts/surface/compare-typescript.cjs" "$dir/"
+  printf 'export interface Thing { id: string }\n' > "$dir/base.d.ts"
+  cp "$dir/base.d.ts" "$dir/candidate.d.ts"
+  local out="$work/no-typescript.out"
+  local err="$work/no-typescript.err"
+  # The comparator runs outside the checkout, so the typescript module of the
+  # repository is not resolvable for it.
+  ( cd "$dir" && node --no-global-search-paths "$dir/compare-typescript.cjs" \
+    "$dir/base.d.ts" "$dir/candidate.d.ts" ) > "$out" 2> "$err"
+  local status=$?
+  if [ "$status" -eq 0 ]; then
+    fail "missing typescript" "the comparator exited 0 although it cannot load typescript"
+    return
+  fi
+  if [ -s "$err" ]; then
+    fail "missing typescript" "the comparator printed on stderr: $(head -n 3 "$err")"
+    return
+  fi
+  if ! grep -Eq '"error"[[:space:]]*:[[:space:]]*"SDK_SURFACE_UNAVAILABLE"' "$out"; then
+    fail "missing typescript" "the reason token SDK_SURFACE_UNAVAILABLE is missing" \
+      "output: $(cat "$out")"
+    return
+  fi
+  if ! grep -Eq '"correlationId"[[:space:]]*:[[:space:]]*"[^"]{8,}"' "$out"; then
+    fail "missing typescript" "no correlation id in: $(cat "$out")"
+    return
+  fi
+  pass "missing typescript (exit $status, SDK_SURFACE_UNAVAILABLE, correlation id present, no stack trace)"
+}
+
 run_case() {
   local name="$1"
   [ -z "$only" ] || [ "$only" = "$name" ] || return 0
@@ -742,6 +811,8 @@ run_case clean_export_refuses_a_used_target
 run_case failed_stack_start_tears_the_stack_down
 run_case staged_file_mutation_is_detected
 run_case harness_argument_envelopes
+run_case ci_checkout_keeps_the_contract_suite_green
+run_case missing_typescript_is_a_closed_error
 
 log ""
 if [ "$failures" -ne 0 ]; then

@@ -573,16 +573,33 @@ aggregate reporting cases: 6 of 6 passed
 
 #### The Plan 3 harnesses are not yet executed by an automated runner
 
-The three harnesses of this slice — `tests/Plan3/negative-cases.sh`,
-`tests/Plan3/aggregate-reporting.sh` and `tests/Plan3/clean-export.sh` — are **not**
-executed by `unittest discover -s tests/Contract`, by `npm test`, by any `package.json`
-script or by a continuous integration pipeline. The repository does have CI, but it is
-**contract-only**: `.github/workflows/contracts.yml` runs the Python contract suite
+The four harnesses of this slice — `tests/Plan3/negative-cases.sh`,
+`tests/Plan3/aggregate-reporting.sh`, `tests/Plan3/clean-export.sh` and
+`tests/Plan3/ci-environment.sh` — are **not** executed by `unittest discover -s
+tests/Contract`, by `npm test`, by any `package.json` script or by a continuous
+integration pipeline. The repository does have CI, but it is **contract-only**:
+`.github/workflows/contracts.yml` runs the Python contract suite
 (`python -m unittest discover -s tests/Contract -v`) on push and pull_request, and it does
-not run these three harnesses. Wiring the harnesses into an automated runner is Plan 4's
+not run these four harnesses. Wiring the harnesses into an automated runner is Plan 4's
 job. A regression that deletes or neuters one of these harnesses would therefore not fail
 any suite that runs today. This is the honest state of the slice, not a claim that the
 harnesses are covered.
+
+**This branch also adds 55 tests into the directory the live CI workflow does execute.**
+`tests/Contract/test_compatibility.py` (39 tests), `tests/Contract/test_generated_check.py`
+(9), `tests/Contract/test_sdk_surface.py` (6) and `tests/Contract/test_sdk_consumers.py`
+(1) are discovered and run by `.github/workflows/contracts.yml`, but they cannot pass in a
+CI checkout today: they need the git-ignored pinned tool artifacts below
+`.local/plan3-tools/` (the oasdiff 1.37.0 binary and the `corvus.json.cli.5.8.8.nupkg`
+package), an installed `node_modules` with a resolvable `typescript` module, Docker with
+the pinned .NET image and access to the NuGet flat container — **none of which the current
+workflow provisions**. The prerequisite guard of `tests/Contract/prerequisites.py`
+therefore **skips those 55 tests explicitly, with a visible reason**, in a CI-like
+checkout, while the 32 pre-existing contract tests keep passing and the workflow stays
+green. Wherever the prerequisites are present the 55 tests **run for real**: 87 tests,
+0 skipped, on a prepared host. Wiring the prerequisites into CI is **Plan 4's** job. The
+regression protection for that interaction is `tests/Plan3/ci-environment.sh`, which
+simulates the CI checkout and asserts the counts, the skip reasons and the exit code.
 
 The exact commands a human must run, from the root of the checkout, with the pinned Node
 24.22.2 on the `PATH` and the Chromium shared libraries available to the browser suite:
@@ -590,11 +607,12 @@ The exact commands a human must run, from the root of the checkout, with the pin
 | Harness | Command | What it proves |
 |---|---|---|
 | fail-closed negative cases | `bash tests/Plan3/negative-cases.sh --base-ref 408ded6` | the gate stops with `SDK_GENERATED_MISMATCH`, `CONTRACT_BASE_UNAVAILABLE` and `CONTRACT_POLICY_REVIEW_REQUIRED` and never reports a compatible verdict |
-| aggregate reporting regressions (13 cases) | `bash tests/Plan3/aggregate-reporting.sh --base-ref 408ded6` | the error envelopes, the accounting of all ten steps, the teardown of a failed stack start, the interrupted and the terminated run, the source-mutation guard and the case added in fix round 4: a failing teardown of an ordinary, never-interrupted run is reported exactly once, with the correlation identifier of the run, without the misleading "interrupted run" wording |
+| aggregate reporting regressions (15 cases) | `bash tests/Plan3/aggregate-reporting.sh --base-ref 408ded6` | the error envelopes, the accounting of all ten steps, the teardown of a failed stack start, the interrupted and the terminated run, the source-mutation guard, the case added in fix round 4: a failing teardown of an ordinary, never-interrupted run is reported exactly once, with the correlation identifier of the run, without the misleading "interrupted run" wording, and the two cases added in fix round 6: a CI-like checkout keeps the contract suite green, and a comparator without `typescript` closes with a reason token and a correlation identifier instead of a stack trace |
 | clean exact-SHA export | `bash tests/Plan3/clean-export.sh --sha <sha> --base-ref <ref> [--with-browser]` | the exported commit passes the aggregate on its own, in a tree without local artifacts |
+| CI-like checkout of the contract suite | `bash tests/Plan3/ci-environment.sh` | without `.local/plan3-tools` and without `node_modules`, `python -m unittest discover -s tests/Contract -v` exits 0, reports the 55 Plan 3 tests as skipped with a visible reason and the 32 pre-existing tests as passed |
 
 The base revision must be a revision that the local clone already has; the harnesses never
-fetch. Plan 4 owns the wiring of these three commands into the continuous integration path.
+fetch. Plan 4 owns the wiring of these four commands into the continuous integration path.
 Until that happens they are run by hand, and their results are recorded in this document and
 in the handoff.
 
@@ -608,16 +626,18 @@ The second library path is a local prerequisite of this host, not a repository s
 **Every row names the round that measured it.** A row labelled *(fix round 1)* is the
 measurement of the first fix round of Task 7 and was **not** re-run afterwards; it is
 reused as historical evidence, because the code it measured is unchanged. A row labelled
-*(fix round 5)* was measured in fix round 5, on the tree of this round, and is the current
+*(fix round 5)* was measured in fix round 5, on the tree of that round. A row labelled
+*(fix round 6)* was measured in fix round 6, on the tree of this round, and is the current
 evidence.
 
 | Suite | Command | Result |
 |---|---|---|
-| Contract + tooling | `PATH=<Node-24.22.2>/bin:$PATH LD_LIBRARY_PATH=/tmp/plan3-libs .venv/bin/python -m unittest discover -s tests/Contract -v` | exit 0, **87 tests**, 1064.566 s, OK (fix round 1) |
+| Contract + tooling | `PATH=<Node-24.22.2>/bin:$PATH LD_LIBRARY_PATH=/tmp/plan3-libs .venv/bin/python -m unittest discover -s tests/Contract -v` | exit 0, **87 tests**, **0 skipped**, 1099.784 s, OK — on a prepared host every test runs for real; in a CI-like checkout without `.local/plan3-tools` and without `node_modules` the same command exits 0 with the 55 Plan 3 tests **skipped with a visible reason** and the 32 pre-existing tests passed (fix round 6) |
 | Local Python | `PATH=<Node-24.22.2>/bin:$PATH LD_LIBRARY_PATH=/tmp/plan3-libs .venv/bin/python -m unittest discover -s tests/Local -v` | exit 0, **20 tests**, 4.544 s, OK (fix round 1) |
 | Backend, non-Compose | `DOTNET_ROOT=/tmp/crm-dotnet-10.0.403 dotnet restore CrmPlatform.sln --locked-mode` → `dotnet build CrmPlatform.sln -c Release --no-restore` → `dotnet test CrmPlatform.sln -c Release --no-build --no-restore --filter 'Category!=Compose'` | restore exit 0 (2.748 s); build exit 0, 0 warnings, 0 errors (10.64 s); test exit 0, **70 passed, 0 failed, 0 skipped**, 6 m 48 s (fix round 1) |
-| Negative cases | `bash tests/Plan3/negative-cases.sh --base-ref 408ded6` | exit 0, **3 of 3 cases**, 3m33.104s (fix round 5) |
-| Aggregate reporting regressions | `bash tests/Plan3/aggregate-reporting.sh --base-ref 408ded6` | exit 0, **13 of 13 cases**, 3m33.250s (fix round 5) |
+| Negative cases | `bash tests/Plan3/negative-cases.sh --base-ref 408ded6` | exit 0, **3 of 3 cases**, 4m11.666s (fix round 6) |
+| Aggregate reporting regressions | `bash tests/Plan3/aggregate-reporting.sh --base-ref 408ded6` | exit 0, **15 of 15 cases**, 3m27.236s (fix round 6) |
+| CI-like checkout of the contract suite | `bash tests/Plan3/ci-environment.sh` | exit 0, **87 tests**, **55 skipped with a visible reason**, **32 passed**, 2.619s (fix round 6) |
 | Aggregate, working tree | `bash scripts/check-plan3.sh --base-ref 408ded6` | exit 0, 4m16.339s, nine steps exit 0, browser step recorded as `not run`, source digest unchanged (fix round 5) |
 | Aggregate, clean export | `bash tests/Plan3/clean-export.sh --sha 599ad545113b9e07dee4f776f154ee5cd60cc5d1 --base-ref 408ded6 --with-browser` | exit 0, 6m00.310s, all ten steps exit 0 including the browser suite, source digest unchanged (fix round 5) |
 
@@ -633,7 +653,11 @@ therefore stays valid as exact-SHA historical evidence for the unchanged runtime
 `34342cbb4f77458560759d6d644925ab1cecf702`). It is **not** presented as a run of this task.
 The .NET non-Compose suite and the Local Python suite of the table above were executed fresh
 in **fix round 1** of Task 7 and are labelled with that round; they were not re-run in fix
-round 5, which changed Markdown only.
+round 5, which changed Markdown only, nor in fix round 6, which changed the contract
+prerequisite guard, the TypeScript comparator and the harnesses. The working-tree aggregate
+and the clean exact-SHA export of the table above were measured in fix round 5 and were
+**not** re-run in fix round 6; they keep that label and are not presented as a run of this
+round.
 
 #### Versions and digests
 
@@ -1029,7 +1053,8 @@ and no `PASS`. A clean tree is unaffected: the index of a clean tree holds the t
 of `HEAD` and nothing else.
 
 **N-4 — the harnesses are wired to nothing.** `tests/Plan3/aggregate-reporting.sh`,
-`tests/Plan3/negative-cases.sh` and `tests/Plan3/clean-export.sh` are **not** executed by
+`tests/Plan3/negative-cases.sh`, `tests/Plan3/clean-export.sh` and
+`tests/Plan3/ci-environment.sh` are **not** executed by
 `unittest discover -s tests/Contract`, by any `package.json` script or by a CI pipeline:
 the CI of the repository is contract-only (`.github/workflows/contracts.yml` runs the
 Python contract suite) and does not run these harnesses; wiring them into an automated
@@ -1037,6 +1062,22 @@ runner is Plan 4's job. A regression that deletes or neuters one of them would n
 any suite that runs today. The section *The Plan 3 harnesses are not yet
 executed by an automated runner* above names the exact command a human must run for each of
 them and assigns the wiring to Plan 4.
+
+**The same branch adds 55 tests into the directory the live CI workflow does execute.**
+`tests/Contract/test_compatibility.py` (39), `tests/Contract/test_generated_check.py` (9),
+`tests/Contract/test_sdk_surface.py` (6) and `tests/Contract/test_sdk_consumers.py` (1)
+are run by `.github/workflows/contracts.yml`. They need the git-ignored pinned tool
+artifacts below `.local/plan3-tools/`, an installed `node_modules` with a resolvable
+`typescript` module, Docker with the pinned .NET image and access to the NuGet flat
+container, none of which the workflow provisions. The prerequisite guard of
+`tests/Contract/prerequisites.py` skips those 55 tests **explicitly, with a visible
+reason**, in a CI-like checkout — never a failure, never a silently absent test — so the
+workflow stays green; wherever the prerequisites are present the 55 tests run for real
+(87 tests, 0 skipped, on a prepared host). Wiring the prerequisites into CI is **Plan 4's**
+job. `tests/Plan3/ci-environment.sh` simulates the CI checkout and asserts the exit code,
+the counts and the skip reasons; it is a case of
+`tests/Plan3/aggregate-reporting.sh` and was observed RED against the tree of `907e675`
+(the simulated CI run exited 1 with 43 failures and 6 errors) and GREEN after the guard.
 
 **N-5 — wording and a hardcoded version.** The `PLAN3_SOURCE_MUTATED` detail now says
 "a step modified a tracked, staged or untracked file of the worktree", which is the real
@@ -1318,3 +1359,94 @@ evidence of fix round 1 stands and is not presented as a run of this round. The 
 above were taken on the tree of this round; the documentation-only commits that follow them
 change the tracked Markdown, so a later run reports a different source digest value, and the
 invariant that matters is the verdict, `unchanged during the run`.
+
+### Fix round 6 — the CI interaction of the contract suite, the CI disclosure and the comparator envelope (review pending)
+
+The final review of Task 7 left one Important and two Minor findings. This round closes
+exactly those three. The round changes the contract prerequisite guard, the TypeScript
+surface comparator, the Plan 3 harnesses and the documentation. No canonical contract, no
+backend source, no container configuration and no stack lifecycle changed.
+
+**F-1 (Important) — the live CI workflow of the branch would have gone red.**
+`.github/workflows/contracts.yml` runs `python -m unittest discover -s tests/Contract -v`
+on every push and pull request. This branch adds four test modules directly under
+`tests/Contract/`: `test_compatibility.py` (39 tests), `test_generated_check.py` (9),
+`test_sdk_surface.py` (6) and `test_sdk_consumers.py` (1) — 55 tests in the directory the
+workflow does execute. They need the pinned oasdiff binary and the pinned
+`corvus.json.cli.5.8.8.nupkg` package below the git-ignored `.local/plan3-tools/`, an
+installed `node_modules` with a resolvable `typescript` module, Docker with the pinned
+.NET image and access to the NuGet flat container. The workflow provisions none of them,
+so the workflow would have failed on the branch.
+
+`tests/Contract/prerequisites.py` probes exactly those prerequisites and returns an
+`(available, reason)` pair for each. The pinned versions and digests are read from
+`tools/contracts/toolchain.json` and `tools/contracts/oasdiff.json`; no version and no
+digest is hardcoded in the helper. The probes check that a prerequisite is genuinely
+usable, not merely present: the oasdiff binary must exist **and execute**
+(`--version` must exit 0), the corvus package must exist **and match** the pinned
+SHA-256, `typescript` must **resolve** from the repository root, the docker daemon must
+answer **and hold** the pinned .NET image. Each of the four modules carries a class-level
+`unittest.skipUnless` with the reason string as its second argument, so the whole module
+skips together with a visible reason. A skipped test is reported as skipped by unittest;
+it is never silently absent from discovery, and a prerequisite that is available never
+causes a skip for any other reason.
+
+The regression protection is `tests/Plan3/ci-environment.sh`: it copies the checkout into
+a scratch directory without `.local` and without `node_modules`, runs
+`python -m unittest discover -s tests/Contract -v` there and asserts the exit code 0, the
+87 reported tests, the 55 skipped tests **with their reasons** and the 32 passed
+pre-existing tests. It needs neither docker, nor the network, nor the pinned .NET image,
+and it removes the scratch copy on exit. It is a case of
+`tests/Plan3/aggregate-reporting.sh`.
+
+**RED before the fix.** The harness was run against the pre-fix tree — a scratch copy of
+`907e675` with the new harness and nothing else — and it **failed**: the simulated CI run
+exited 1 with **43 failures and 6 errors**, no test was skipped, and the harness reported
+`PLAN3_CI_SIMULATION_FAILED` with its correlation identifier. After the guard the same
+harness exits 0 with "87 tests, 55 skipped with a reason, 32 passed".
+
+**F-2 (Minor) — the CI disclosure was accurate but incomplete.** The section *The Plan 3
+harnesses are not yet executed by an automated runner* above and the corresponding block
+of the handoff named the three Plan 3 harnesses, but not the 55 new tests in the very
+directory the workflow does execute, nor the fact that they cannot pass in a CI checkout
+today. Both places now state that the branch adds 55 new tests under `tests/Contract/`
+which `.github/workflows/contracts.yml` discovers and runs; that they need the git-ignored
+pinned tool artifacts, an installed `node_modules`, Docker with the pinned .NET image and
+the NuGet flat container, none of which the workflow provisions; that they are therefore
+**explicitly skipped with a visible reason** in a CI-like checkout and **run for real**
+wherever the prerequisites are present (87 tests, 0 skipped, on a prepared host); and that
+wiring the prerequisites into CI is **Plan 4's** job. The "Suites executed on this branch"
+table carries the correct count, the skip behaviour and the round label.
+
+**F-3 (Minor, ruled "must fix before merge") — the comparator printed a raw stack trace.**
+`require('typescript')` sat outside the try/catch envelope of
+`tools/contracts/surface/compare-typescript.cjs`, so a checkout without a resolvable
+`typescript` module printed a Node stack trace on stderr with no reason token and no
+correlation identifier. The compiler is loaded inside the guarded region now: the
+comparator emits `{"compatible":false,"error":"SDK_SURFACE_UNAVAILABLE","cause":"typescript-unavailable","correlationId":…}`
+on stdout, exits 1 and leaves stderr empty. The reason token `SDK_SURFACE_UNAVAILABLE`
+and the exit code are unchanged; the new cause is a tool failure and is mapped by
+`scripts/contracts/sdk_surface.py` to `SDK_TOOLCHAIN_REVIEW_REQUIRED`, as every cause
+other than `no-declarations` already is. The covering case is *a comparator without
+typescript closes with a reason token and a correlation id* of
+`tests/Plan3/aggregate-reporting.sh`.
+
+**The commands of round 6 and their real results.** Every number in this table is a
+measurement of **fix round 6**:
+
+| Command | Result |
+|---|---|
+| `PATH=<Node-24.22.2>/bin:$PATH LD_LIBRARY_PATH=/tmp/plan3-libs .venv/bin/python -m unittest discover -s tests/Contract -v` | exit 0, **87 tests**, **0 skipped**, 1099.784 s, OK — every test really runs on a prepared host |
+| `bash tests/Plan3/ci-environment.sh` | exit 0, **87 tests**, **55 skipped with a visible reason**, **32 passed**, 2.619 s — the simulated CI checkout stays green |
+| `bash tests/Plan3/aggregate-reporting.sh --base-ref 408ded6` | exit 0, **15 of 15 cases**, 3m27.236s, including the two cases this round added |
+| `bash tests/Plan3/negative-cases.sh --base-ref 408ded6` | exit 0, **3 of 3 cases**, 4m11.666s, the tokens `SDK_GENERATED_MISMATCH`, `CONTRACT_BASE_UNAVAILABLE` and `CONTRACT_POLICY_REVIEW_REQUIRED` unchanged |
+| `python3 scripts/contracts/check.py` | exit 0, `SDK_GENERATED_CURRENT`, correlation identifier present |
+| `npm run test -w apps/crm-web` | exit 0, **54 tests** passed |
+
+**Limitations of round 6.** The 70-case .NET non-Compose suite, the Local Python suite,
+the full ten-step working-tree aggregate and the clean exact-SHA export with the browser
+suite were **not** re-run in this round; their rows in the summary table keep the label of
+the round that measured them and are not presented as a run of this round. The contract
+suite of this round was measured on a prepared host: on a host without the pinned
+prerequisites the same command reports 87 tests with 55 of them skipped, which is the
+state the CI simulation asserts.

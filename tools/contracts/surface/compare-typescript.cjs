@@ -1,5 +1,4 @@
 'use strict';
-const ts = require('typescript');
 const { randomUUID } = require('node:crypto');
 
 // A declaration file without a module symbol exposes no public surface at all.
@@ -9,7 +8,7 @@ function envelope(cause) {
   return JSON.stringify({ compatible: false, error: 'SDK_SURFACE_UNAVAILABLE', cause, correlationId: randomUUID() });
 }
 
-function compare(base, candidate) {
+function compare(ts, base, candidate) {
   const program = ts.createProgram([base, candidate], { strict: true, noEmit: true, skipLibCheck: false, target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.NodeNext, moduleResolution: ts.ModuleResolutionKind.NodeNext });
   if (ts.getPreEmitDiagnostics(program).some(d => d.category === ts.DiagnosticCategory.Error)) {
     return { exit: 1, output: envelope('unreadable-declarations') };
@@ -54,10 +53,17 @@ function compare(base, candidate) {
 }
 
 try {
-  const result = compare(process.argv[2], process.argv[3]);
+  // The compiler is loaded inside the guarded region: a checkout without a
+  // resolvable typescript module is a closed error path with a reason token
+  // and a correlation identifier, never a raw Node stack trace.
+  const ts = require('typescript');
+  const result = compare(ts, process.argv[2], process.argv[3]);
   process.stdout.write(result.output);
   process.exitCode = result.exit;
 } catch (error) {
-  process.stdout.write(envelope(error instanceof NoDeclarations ? 'no-declarations' : 'comparison-failed'));
+  const cause = error && error.code === 'MODULE_NOT_FOUND'
+    ? 'typescript-unavailable'
+    : error instanceof NoDeclarations ? 'no-declarations' : 'comparison-failed';
+  process.stdout.write(envelope(cause));
   process.exitCode = 1;
 }

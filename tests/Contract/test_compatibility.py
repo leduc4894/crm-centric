@@ -10,10 +10,16 @@ import unittest
 
 import yaml
 
+import prerequisites
+
 ROOT = Path(__file__).resolve().parents[2]
 CLI = ROOT / 'scripts/contracts/compatibility.py'
 FIXTURE = ROOT / 'tests/Contract/fixtures/compatibility/base.openapi.yaml'
 
+# The compatibility gate runs the pinned oasdiff binary. A checkout without the
+# pinned local tooling skips this module with the reason of the missing
+# prerequisite; it never fails for a missing tool it never provisioned.
+@unittest.skipUnless(prerequisites.OASDIFF[0], prerequisites.OASDIFF[1])
 class CompatibilityTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()

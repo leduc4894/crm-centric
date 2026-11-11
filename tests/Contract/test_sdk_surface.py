@@ -6,8 +6,15 @@ import subprocess
 import tempfile
 import unittest
 
+import prerequisites
+
 ROOT = Path(__file__).resolve().parents[2]
 
+# The surface comparison runs the real TypeScript compiler and the pinned .NET
+# image. A checkout without the pinned prerequisites skips this module with the
+# reason of the missing prerequisite; it never fails for a missing tool it
+# never provisioned.
+@unittest.skipUnless(prerequisites.SDK_SURFACE[0], prerequisites.SDK_SURFACE[1])
 class TypeScriptSurfaceTests(unittest.TestCase):
     def compare(self, old, new):
         with tempfile.TemporaryDirectory() as directory:
@@ -68,6 +75,7 @@ class TypeScriptSurfaceTests(unittest.TestCase):
             self.assertEqual(report['error'], 'SDK_SURFACE_UNAVAILABLE')
             self.assertTrue(report['correlationId'])
 
+@unittest.skipUnless(prerequisites.SDK_SURFACE[0], prerequisites.SDK_SURFACE[1])
 class DotnetSurfaceTests(unittest.TestCase):
     def test_additive_members_pass_but_removed_or_changed_members_fail(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -11,6 +11,8 @@ from pathlib import Path
 
 from scripts.contracts.check import check_generated_tree, check_local_refs
 
+import prerequisites
+
 
 def tree_hash(root):
     digest = hashlib.sha256()
@@ -21,6 +23,11 @@ def tree_hash(root):
     return digest.hexdigest()
 
 
+# The generation and the gate need the pinned corvus.json.cli package. A
+# checkout without the pinned local tooling skips this module with the reason
+# of the missing prerequisite; it never fails for a missing tool it never
+# provisioned.
+@unittest.skipUnless(prerequisites.CORVUS[0], prerequisites.CORVUS[1])
 class GeneratedCheckTests(unittest.TestCase):
     def test_generated_code_uses_checkout_stable_newlines(self):
         root = Path(__file__).resolve().parents[2]
@@ -59,6 +66,11 @@ class GeneratedCheckTests(unittest.TestCase):
                     self.assertEqual(check_local_refs({'items': {'$ref': ref}}), 'CONTRACT_NONLOCAL_REF')
 
 
+# The generation and the gate need the pinned corvus.json.cli package. A
+# checkout without the pinned local tooling skips this module with the reason
+# of the missing prerequisite; it never fails for a missing tool it never
+# provisioned.
+@unittest.skipUnless(prerequisites.CORVUS[0], prerequisites.CORVUS[1])
 class GeneratedGateIntegrationTests(unittest.TestCase):
     def test_actual_gate_is_read_only_and_rejects_tampering(self):
         root = Path(__file__).resolve().parents[2]
@@ -153,6 +165,11 @@ class GeneratedGateIntegrationTests(unittest.TestCase):
             self.assertEqual(snapshots[0]['inputHashes']['platform-operations.openapi.yaml'], snapshots[1]['inputHashes']['platform-operations.openapi.yaml'])
 
 
+# The generation and the gate need the pinned corvus.json.cli package. A
+# checkout without the pinned local tooling skips this module with the reason
+# of the missing prerequisite; it never fails for a missing tool it never
+# provisioned.
+@unittest.skipUnless(prerequisites.CORVUS[0], prerequisites.CORVUS[1])
 class SafeToolFailuresTests(unittest.TestCase):
     def test_missing_python_dependencies_are_safe_json(self):
         root = Path(__file__).resolve().parents[2]
@@ -190,6 +207,11 @@ class SafeToolFailuresTests(unittest.TestCase):
                     self.assertEqual(result.stderr, '')
 
 
+# The generation and the gate need the pinned corvus.json.cli package. A
+# checkout without the pinned local tooling skips this module with the reason
+# of the missing prerequisite; it never fails for a missing tool it never
+# provisioned.
+@unittest.skipUnless(prerequisites.CORVUS[0], prerequisites.CORVUS[1])
 class LocalReferenceTests(unittest.TestCase):
     def test_local_file_refs_cannot_escape_or_hide_remote_refs(self):
         from scripts.contracts.check import check_ref_files
@@ -206,6 +228,11 @@ class LocalReferenceTests(unittest.TestCase):
             self.assertEqual(check_ref_files(main, root), 'CONTRACT_NONLOCAL_REF')
 
 
+# The generation and the gate need the pinned corvus.json.cli package. A
+# checkout without the pinned local tooling skips this module with the reason
+# of the missing prerequisite; it never fails for a missing tool it never
+# provisioned.
+@unittest.skipUnless(prerequisites.CORVUS[0], prerequisites.CORVUS[1])
 class CanonicalRuleFixtureTests(unittest.TestCase):
     def test_rule_variants_and_invalid_action_use_canonical_schema(self):
         import yaml
