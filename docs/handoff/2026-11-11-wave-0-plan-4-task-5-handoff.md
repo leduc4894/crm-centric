@@ -82,3 +82,32 @@ Ignored local scanner installs/downloads and normalized rehearsals are under mod
 are deleted automatically. Full CI process result is in the safe
 `.local/task5/ci-suite-result.json`; private raw log must not be published. Parent
 must review final report and any still-running rehearsal before handing off.
+
+## Round 1 review corrections
+Parent requested two Important fixes after `154901c`: archive export substitution
+changed candidate bytes, and dependency discovery omitted unsupported YAML locks
+or standalone unlocked manifests when another lock was supported. Both reproduced
+as RED assertions before implementation. Archive extraction now checks the Git
+blob object identity of every file before yielding it; substitution fails
+`CI_SCAN_INCOMPLETE`. Manifest discovery independently tracks supported locks and
+project coverage: pnpm/Yarn/Bun/other known unsupported locks, unsupported manifests,
+unlocked .NET projects and unpinned Python inputs produce coverage gaps. npm
+workspace packages require a matching ancestor lock entry with the same name,
+version and dependency declarations; an unrelated root lock cannot cover them.
+
+Actual review-fix verification:
+- Required Python3.15.2 `python -m unittest discover -s tests/CI -p test_scan.py -v`:
+  PASS20,0skips,0.290s. RED covered export-subst, pnpm YAML, unrelated supported lock
+  plus standalone package manifest, changed workspace dependencies and requirements.in.
+- `python -m unittest discover -s tests/Security -v`: PASS8,0skips,18.344s with
+  actual pinned scanners. New real tests close export-subst before Gitleaks and
+  prove a real vulnerable-lock scan cannot erase either additional discovery gap.
+- py_compile and git diff --check: PASS. Full CI/job/remote suite NOT RERUN for
+  this correction; earlier full-suite result remains historical as above.
+
+Changed review-fix files: scripts/ci/scan.py, tests/CI/test_scan.py,
+tests/Security/test_real_scanners.py, tools/ci/README.md and this handoff.
+Commit subject `fix(ci): verify archived blobs and discover dependency gaps`;
+exact SHA recorded in Task5 report. No remote changes/approvals, public contract
+changes, new exceptions or gap suppressions. All existing security acceptance,
+tool coverage, SBOM, runtime provisioning and independent-trust blockers persist.

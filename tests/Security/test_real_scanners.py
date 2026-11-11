@@ -13,7 +13,7 @@ import tempfile
 import unittest
 
 from scripts.ci.scan import (ScannerConfig, ScanInput, run_scanner, candidate_tree,
-                             _history, ScanError)
+                             _history, ScanError, dependency_inputs, combine_scans, ScanSummary)
 from scripts.ci.summary import RunIdentity
 
 REPO=Path(__file__).resolve().parents[2]
@@ -85,6 +85,32 @@ class RealScannerTests(unittest.TestCase):
             root=Path(directory);base=initialize(root)
             run=RunIdentity('42','1',base,'f'*40,None)
             self.assertEqual('incomplete',run_scanner(config('gitleaks'),ScanInput(root),run).status)
+
+    def test_export_subst_candidate_is_incomplete_before_secret_scan(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);base=initialize(root)
+            (root/'.gitattributes').write_text('a.ts export-subst\n')
+            (root/'a.ts').write_text('export const hash = "$Format:%H$";\n')
+            git(root,'add','.');git(root,'commit','-qm','export substitution fixture')
+            run=RunIdentity('42','1',git(root,'rev-parse','HEAD'),base,None)
+            result=run_scanner(config('gitleaks'),ScanInput(root),run)
+            self.assertEqual('incomplete',result.status)
+            self.assertEqual('CI_SCAN_INCOMPLETE',result.reason_token)
+
+    def test_real_dependency_scan_cannot_erase_unsupported_or_unlocked_project(self):
+        for extra,content in [('pnpm-lock.yaml','lockfileVersion: 9.0\n'),('standalone/package.json','{"name":"standalone","dependencies":{"unlocked":"1.0.0"}}')]:
+            with self.subTest(extra=extra),tempfile.TemporaryDirectory() as directory:
+                root=Path(directory)
+                (root/'package-lock.json').write_text(json.dumps({'lockfileVersion':3,'packages':{'node_modules/lodash':{'version':'4.17.19','license':'MIT'}}}))
+                path=root/extra;path.parent.mkdir(parents=True,exist_ok=True);path.write_text(content)
+                run=RunIdentity('42','1','a'*40,'b'*40,None)
+                with dependency_inputs(root) as inputs:
+                    result=run_scanner(config('trivy'),ScanInput(inputs.root,inputs.expected_inventory,inputs.expected_packages),run)
+                    self.assertEqual('blocked',result.status)
+                    self.assertTrue(any(f['kind']=='vulnerability' for f in result.findings))
+                    other=ScanSummary(run,'pass','CI_SCAN_OK','00000000-0000-4000-8000-000000000000',scanned_count=1)
+                    combined=combine_scans({'trivy':result,'semgrep':other,'gitleaks':other},inputs.gaps,run)
+                    self.assertEqual('incomplete',combined.status)
 
     def test_merge_only_secret_then_deleted_is_in_complete_range(self):
         with tempfile.TemporaryDirectory() as directory:

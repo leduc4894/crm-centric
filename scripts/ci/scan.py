@@ -230,14 +230,15 @@ def candidate_tree(root, run):
     following external content or silently losing committed paths.
     """
     _history(root,run)
-    expected=set()
+    expected={}
     for entry in _git(root,'ls-tree','-rz','--full-tree',run.candidate_sha).split('\0'):
         if not entry: continue
         header,name=entry.split('\t',1)
-        mode,kind,_=header.split(' ')
+        mode,kind,object_id=header.split(' ')
         if mode not in ('100644','100755') or kind!='blob' or not re.fullmatch('[A-Za-z0-9_.@/+-]+',name) or '..' in Path(name).parts or name.startswith('/'):
             raise ScanError()
-        expected.add(name)
+        if not re.fullmatch('[a-f0-9]{40}',object_id): raise ScanError()
+        expected[name]=object_id
     with tempfile.TemporaryDirectory(prefix='ci-tree-') as directory:
         target=Path(directory)
         with private_command(['/usr/bin/git','-C',str(root),'archive','--format=tar',run.candidate_sha]) as result:
@@ -248,6 +249,9 @@ def candidate_tree(root, run):
                         if member.isdir(): continue
                         if not member.isfile() or member.name not in expected or member.name in files or member.size>32*1024*1024:
                             raise ScanError()
+                        content=archive.extractfile(member).read()
+                        blob=hashlib.sha1(b'blob '+str(len(content)).encode()+b'\0'+content).hexdigest()
+                        if blob!=expected[member.name]: raise ScanError()
                         files.add(member.name)
                     require_inventory(expected,files)
                     archive.extractall(target, filter='data')
@@ -270,7 +274,7 @@ def dependency_inputs(tree):
     """
     import shutil
     with tempfile.TemporaryDirectory(prefix='ci-deps-') as directory:
-        target=Path(directory);expected=set();gaps=set();packages={}
+        target=Path(directory);expected=set();gaps=dependency_gaps(tree);packages={}
         for source in tree.rglob('*'):
             if not source.is_file(): continue
             relative=source.relative_to(tree)
@@ -282,7 +286,7 @@ def dependency_inputs(tree):
                 output=Path('ci-normalized')/relative.parent/source.stem/'requirements.txt'
             elif name in ('dotnet-tools.json','toolchain.json'):
                 gaps.add('CI_TOOL_DEPENDENCY_COVERAGE')
-            elif name.endswith('.lock') and name != 'corvusjson-openapi.lock':
+            elif (name.endswith(('.lock','.lockb','-lock.yaml','.lock.json')) or name=='npm-shrinkwrap.json') and name != 'corvusjson-openapi.lock':
                 gaps.add('CI_ECOSYSTEM_COVERAGE')
             if output is not None:
                 destination=target/output
@@ -389,3 +393,48 @@ def source_inputs(root, expected):
             destination.parent.mkdir(parents=True,exist_ok=True)
             shutil.copyfile(source,destination)
         yield target
+
+
+
+def dependency_gaps(tree):
+    """Account for manifests even when an unrelated supported lock is present.
+
+    Unsupported ecosystems close the gate rather than pretending their manifests
+    were covered by another project's lock. npm workspace manifests require an
+    exact corresponding package entry, with the same declared dependency sets.
+    """
+    gaps=set()
+    unsupported={'pyproject.toml','setup.py','setup.cfg','Pipfile','go.mod','go.sum',
+                 'Cargo.toml','composer.json','Gemfile','pom.xml','build.gradle',
+                 'build.gradle.kts','packages.config','pnpm-workspace.yaml',
+                 'deno.json','deno.jsonc','Package.swift','Package.resolved','pubspec.yaml'}
+    for manifest in tree.rglob('*'):
+        if not manifest.is_file(): continue
+        if manifest.name in unsupported or (manifest.name.startswith('requirements') and manifest.suffix in ('.in','.txt') and manifest.name!='requirements.txt'):
+            gaps.add('CI_ECOSYSTEM_COVERAGE')
+        elif manifest.suffix in ('.csproj','.fsproj','.vbproj'):
+            if not (manifest.parent/'packages.lock.json').is_file():
+                gaps.add('CI_UNLOCKED_DEPENDENCIES')
+        elif manifest.name=='package.json' and not node_manifest_locked(tree,manifest):
+            gaps.add('CI_UNLOCKED_DEPENDENCIES')
+    return gaps
+
+
+def node_manifest_locked(tree, manifest):
+    declared=_json(manifest)
+    directory=manifest.parent
+    while directory.is_relative_to(tree):
+        lock=directory/'package-lock.json'
+        if lock.is_file():
+            raw=_json(lock)
+            if raw.get('lockfileVersion') not in (2,3) or not isinstance(raw.get('packages'),dict): raise ScanError()
+            relative=manifest.parent.relative_to(directory).as_posix()
+            entry=raw['packages'].get('' if relative=='.' else relative)
+            if entry is not None:
+                if not isinstance(entry,dict): raise ScanError()
+                for key in ('dependencies','devDependencies','optionalDependencies','peerDependencies'):
+                    if declared.get(key,{}) != entry.get(key,{}): return False
+                return all(key not in declared or declared[key]==entry.get(key) for key in ('name','version'))
+        if directory==tree: break
+        directory=directory.parent
+    return False

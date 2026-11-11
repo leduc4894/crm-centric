@@ -196,3 +196,13 @@ Official sources checked: [Semgrep language support](https://semgrep.dev/docs/su
 [Trivy DB](https://github.com/aquasecurity/trivy-db),
 [Gitleaks release](https://github.com/gitleaks/gitleaks/releases/tag/v8.30.1),
 [Trivy release](https://github.com/aquasecurity/trivy/releases/tag/v0.76.2).
+
+Archive path inventory alone is insufficient: each extracted regular file also
+must match its committed Git blob object ID. In particular, `.gitattributes`
+`export-subst` changes are rejected as incomplete before any scanner sees changed
+bytes. Dependency manifests are discovered separately from supported locks. A
+pnpm YAML lock, an unsupported ecosystem manifest, or an independent package.json
+without a matching lock contributes a blocking coverage gap even alongside a
+fully scanned npm/NuGet/Python lock. npm workspace manifests must match the ancestor
+lock's exact package entry and dependency declarations. Unsupported projects and
+unpinned Python inputs require coverage; unrelated application locks never imply it.

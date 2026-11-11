@@ -145,6 +145,42 @@ class SafeExecutionTests(unittest.TestCase):
                 self.assertEqual(('CI_TOOL_DEPENDENCY_COVERAGE',),staged.gaps)
                 self.assertTrue((staged.root/'ci-normalized/requirements-contracts/requirements.txt').exists())
 
+    def test_export_subst_cannot_change_committed_scanner_input(self):
+        import subprocess
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            for args in [['init','-q'],['config','user.name','test'],['config','user.email','test@example.invalid']]:
+                subprocess.run(['/usr/bin/git','-C',str(root),*args],check=True,capture_output=True)
+            (root/'.gitattributes').write_text('a.ts export-subst\n')
+            (root/'a.ts').write_text('export const hash = "$Format:%H$";\n')
+            subprocess.run(['/usr/bin/git','-C',str(root),'add','.'],check=True,capture_output=True)
+            subprocess.run(['/usr/bin/git','-C',str(root),'commit','-qm','fixture'],check=True,capture_output=True)
+            sha=subprocess.check_output(['/usr/bin/git','-C',str(root),'rev-parse','HEAD'],text=True).strip()
+            with self.assertRaises(scan.ScanError):
+                with scan.candidate_tree(root,RunIdentity('42','1',sha,sha,None)): pass
+
+    def test_unsupported_yaml_lock_or_unlocked_node_project_never_disappears(self):
+        for extra,content in [('pnpm-lock.yaml','lockfileVersion: 9.0\n'),('standalone/package.json','{"name":"standalone","dependencies":{"example":"1.0.0"}}'),('requirements.in','example>=1.0.0\n'),('pyproject.toml','[project]\nname = "example"\n'),('standalone/Example.csproj','<Project />')]:
+            with self.subTest(extra=extra),tempfile.TemporaryDirectory() as directory:
+                root=Path(directory)
+                (root/'requirements.txt').write_text('requests==2.0.0\n')
+                path=root/extra;path.parent.mkdir(parents=True,exist_ok=True);path.write_text(content)
+                with scan.dependency_inputs(root) as inputs:
+                    self.assertTrue(inputs.gaps)
+                    report=scan.ScanSummary(RUN,'pass','CI_SCAN_OK','00000000-0000-4000-8000-000000000000',scanned_count=1)
+                    self.assertEqual('incomplete',scan.combine_scans({name:report for name in ['semgrep','trivy','gitleaks']},inputs.gaps,RUN).status)
+
+    def test_node_workspace_manifest_requires_exact_lock_entry(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);(root/'workspace').mkdir()
+            manifest={'name':'workspace','version':'1.0.0','dependencies':{'example':'1.0.0'}}
+            (root/'workspace/package.json').write_text(json.dumps(manifest))
+            (root/'package-lock.json').write_text(json.dumps({'lockfileVersion':3,'packages':{'workspace':manifest,'node_modules/example':{'version':'1.0.0'}}}))
+            with scan.dependency_inputs(root) as inputs: self.assertFalse(inputs.gaps)
+            manifest['dependencies']['extra']='1.0.0'
+            (root/'workspace/package.json').write_text(json.dumps(manifest))
+            with scan.dependency_inputs(root) as inputs: self.assertIn('CI_UNLOCKED_DEPENDENCIES',inputs.gaps)
+
     def test_candidate_archive_does_not_follow_untracked_or_symlink_inputs(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory)
