@@ -673,10 +673,11 @@ tooling itself before use.
 | W0P3-11 | 2, 5, 6 | `npm run scan:leaks -w apps/crm-web`, `tests/ClientConsumers/audit.py`, the credential strip in `apps/crm-web/config/healthProxy.ts` | leak scan exit 0: no sentinel, secret, credential or local metadata leak in 5 artifact files, 3 browser console messages or the process log; package boundary audit exit 0 | a local scan with synthetic sentinels, not a CI secret scanner |
 | W0P3-12 | 7 | this section, the clean exact-SHA exports below (fix round 1 and fix round 5), and the suite table above | the export passes the aggregate with all ten steps, including the browser smoke against a test-owned stack; base SHA `408ded6b01f1373dfaff92a663f2f80347475f55` | local only: no remote CI, no Wave 0/P0 closure |
 
-The counts in this mapping are the measurements of the round named in the row. The contract
-suite, the Local Python suite, the .NET non-Compose suite, the packaged consumers and the
-clean export of `ac69dc7` are the measurements of **fix round 1**; they are reused as
-historical evidence because the code they measured is unchanged. The aggregate rows and the
+The counts in this mapping are the measurements of the task named in the row; the round that
+measured them is named in the two sentences below. The contract suite, the Local Python
+suite, the .NET non-Compose suite, the packaged consumers and the clean export of
+`ac69dc7` are the measurements of **fix round 1**; they are reused as historical evidence
+because the code they measured is unchanged. The aggregate rows and the
 two harness rows were measured again in **fix round 5**, on the tree of that round.
 
 #### Clean exact-SHA export

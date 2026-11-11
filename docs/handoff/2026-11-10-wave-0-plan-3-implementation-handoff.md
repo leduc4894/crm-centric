@@ -10,13 +10,13 @@ Branch `feat/wave-0-plan-3-frontend-contract-toolchain`, base `5257abf`. Tasks 1
 implemented and committed. The recorded HEAD SHA is
 `ccce8d4ba58803a0a2139794f487bc25957c50f2`
 (`docs: record the fix round 5 verification measurements`), the commit that carries the fix
-round 5 of the independent review of Task 7. The commit on top of it changes only the
-recorded HEAD SHA in this header and in the round-5 "Branch and state" block below, and
-carries no source change: a commit cannot carry its own SHA. The commit that recorded the
-fix round 4 HEAD SHA, `651de9bf1364ea10062c09645f3a6e52356d677f`, changed the recorded
-HEAD SHA in this header and the round-4 "Branch and state" block below, and carried no
-source change either. The working tree is clean, with no uncommitted work.
-The detailed per-task history is below, newest last. The generator
+round 5 of the independent review of Task 7. The commits on top of it change only the
+recorded HEAD SHA of this document and the wording of this document and of the Plan 3
+verification document; they carry no source change: a commit cannot carry its own SHA. The
+commit that recorded the fix round 4 HEAD SHA, `651de9bf1364ea10062c09645f3a6e52356d677f`,
+changed the recorded HEAD SHA in this header and the round-4 "Branch and state" block
+below, and carried no source change either. The working tree is clean, with no uncommitted
+work. The detailed per-task history is below, newest last. The generator
 selection, pinned artifacts, prerequisites, coverage and current evidence are in [Plan 3
 verification](../engineering/07-WAVE-0-PLAN-3-VERIFICATION.md). Corvus.Json.Cli 5.8.8 supplies
 C# generated clients; openapi-typescript 7.13.0 plus openapi-fetch 0.17.0 supplies typed TS
@@ -644,9 +644,10 @@ contract changed.
 **Branch and state.** Branch `feat/wave-0-plan-3-frontend-contract-toolchain`, base
 `5257abf`. The documentation refresh of this round is the commit
 `ccce8d4ba58803a0a2139794f487bc25957c50f2` — `docs: record the fix round 5 verification
-measurements`; the commit that follows it rewrites only the recorded HEAD SHA of this
-document and of this block, and changes nothing else. The working tree contains only the
-intended changes of this round and no uncommitted source work. No merge, push, deploy,
+measurements`; the commits that follow it change only the recorded HEAD SHA of this
+document and the wording of this document and of the Plan 3 verification document, and
+nothing else. The working tree contains only the intended changes of this round and no
+uncommitted source work. No merge, push, deploy,
 publication or database migration is authorized or performed.
 
 **M-1 — the description of the top commit was false.** The "Current state" header said that
