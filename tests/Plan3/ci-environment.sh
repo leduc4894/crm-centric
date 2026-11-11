@@ -47,6 +47,12 @@ closed_error() {
 root=$(cd "$(dirname "$0")/../.." && pwd) ||
   closed_error PLAN3_WORKSPACE_UNAVAILABLE "the checkout could not be located" 1
 
+# The scratch of this harness is unlinked through an absolute rm binary, never
+# through a PATH-resolved one: a recoverable-delete shim on the PATH would copy
+# a multi-gigabyte scratch tree into the trash of the user instead of freeing
+# it.
+. "$root/scripts/lib/scratch-cleanup.sh"
+
 command -v python3 >/dev/null 2>&1 ||
   closed_error PLAN3_PYTHON_UNAVAILABLE "python3 is not available" 1
 
@@ -68,7 +74,7 @@ expected_passed=32
 
 work=$(mktemp -d) ||
   closed_error PLAN3_TEMP_DIRECTORY_UNAVAILABLE "a temporary directory could not be created" 1
-cleanup() { rm -rf "$work"; }
+cleanup() { scratch_remove "$work"; }
 trap cleanup EXIT
 
 log() { printf '%s\n' "$*"; }

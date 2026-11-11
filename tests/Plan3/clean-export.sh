@@ -41,6 +41,11 @@ closed_error() {
 
 root=$(cd "$(dirname "$0")/../.." && pwd) ||
   closed_error PLAN3_WORKSPACE_UNAVAILABLE "the checkout could not be located" 1
+# The scratch of this harness is unlinked through an absolute rm binary, never
+# through a PATH-resolved one: a recoverable-delete shim on the PATH would copy
+# a multi-gigabyte scratch tree into the trash of the user instead of freeing
+# it.
+. "$root/scripts/lib/scratch-cleanup.sh"
 git_dir=$(git -C "$root" rev-parse --absolute-git-dir) ||
   closed_error PLAN3_GIT_UNAVAILABLE "the local clone could not be resolved" 1
 
@@ -119,7 +124,7 @@ fi
 
 cleanup() {
   if [ "$created_target" -eq 1 ] && [ "$keep" -eq 0 ]; then
-    rm -rf "$target"
+    scratch_remove "$target"
   fi
 }
 trap cleanup EXIT

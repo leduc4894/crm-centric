@@ -36,6 +36,11 @@ closed_error() {
 
 root=$(cd "$(dirname "$0")/../.." && pwd) ||
   closed_error PLAN3_WORKSPACE_UNAVAILABLE "the checkout could not be located" 1
+# The scratch of this harness is unlinked through an absolute rm binary, never
+# through a PATH-resolved one: a recoverable-delete shim on the PATH would copy
+# a multi-gigabyte scratch tree into the trash of the user instead of freeing
+# it.
+. "$root/scripts/lib/scratch-cleanup.sh"
 base_ref="408ded6"
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -48,7 +53,7 @@ done
 
 work=$(mktemp -d) ||
   closed_error PLAN3_TEMP_DIRECTORY_UNAVAILABLE "a temporary directory could not be created" 1
-trap 'rm -rf "$work"' EXIT
+trap 'scratch_remove "$work"' EXIT
 
 failures=0
 cases=0
@@ -93,7 +98,7 @@ PY
 # Creates a sandbox copy of the checkout with a read-only Git object context.
 make_sandbox() {
   local dir="$1"
-  rm -rf "$dir"
+  scratch_remove "$dir"
   mkdir -p "$dir"
   tar -C "$root" -cf - \
     --exclude='./.git' \

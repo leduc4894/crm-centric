@@ -11,8 +11,10 @@ implemented and committed. The recorded HEAD SHA is
 `907e675` (`docs: clarify the round labels of the Plan 3 verification mapping`); the
 commit on top of it carries **fix round 6** of the final review of Task 7 — the contract
 prerequisite guard, the CI-simulation harness, the TypeScript comparator envelope and
-the documentation of this round. Its own SHA is not recorded here, because a commit
-cannot carry its own SHA. The commits on top of the fix round 5 documentation change
+the documentation of this round; the commit on top of that one carries **fix round 7** —
+the scratch cleanup of the Plan 3 harnesses and the documentation of that round. Neither
+SHA is recorded here, because a commit cannot carry its own SHA. The commits on top of the
+fix round 5 documentation change
 only the recorded HEAD SHA of this document and the wording of this document and of the
 Plan 3 verification document; they carry no source change. The commit that recorded the
 fix round 4 HEAD SHA, `651de9bf1364ea10062c09645f3a6e52356d677f`,
@@ -418,13 +420,13 @@ new cases kept, all three failed again — the orphaned stack process, the fail-
 and the missing reason token.
 
 **The harnesses are not yet wired into any runner.** `tests/Plan3/aggregate-reporting.sh`,
-`tests/Plan3/negative-cases.sh`, `tests/Plan3/clean-export.sh` and
-`tests/Plan3/ci-environment.sh` are not executed by
+`tests/Plan3/negative-cases.sh`, `tests/Plan3/clean-export.sh`,
+`tests/Plan3/ci-environment.sh` and `tests/Plan3/scratch-cleanup.sh` are not executed by
 `unittest discover -s tests/Contract`, by any `package.json` script or by a CI pipeline.
 The repository does have CI, but it is **contract-only**: `.github/workflows/contracts.yml`
 runs the Python contract suite (`python -m unittest discover -s tests/Contract -v`) on push
-and pull_request, and it does not run these four harnesses. **Plan 4 owns the wiring** of
-these four commands into the continuous integration path. Until then a human must run,
+and pull_request, and it does not run these five harnesses. **Plan 4 owns the wiring** of
+these five commands into the continuous integration path. Until then a human must run,
 from the root of the checkout:
 
 ```
@@ -432,6 +434,7 @@ bash tests/Plan3/negative-cases.sh --base-ref 408ded6
 bash tests/Plan3/aggregate-reporting.sh --base-ref 408ded6
 bash tests/Plan3/clean-export.sh --sha <sha> --base-ref <ref> [--with-browser]
 bash tests/Plan3/ci-environment.sh
+bash tests/Plan3/scratch-cleanup.sh
 ```
 
 The base revision must be a revision the local clone already has; the harnesses never
@@ -803,8 +806,9 @@ and 0 skipped** — the new tests really run on a prepared host. The CI simulati
 `python3 scripts/contracts/check.py` returned exit 0 with `SDK_GENERATED_CURRENT` and a
 correlation identifier. The negative-case harness passed 3 of 3 cases with the unchanged
 reason tokens `SDK_GENERATED_MISMATCH`, `CONTRACT_BASE_UNAVAILABLE` and
-`CONTRACT_POLICY_REVIEW_REQUIRED`. The reporting harness passed 15 of 15 cases, including
-the two new ones. `npm run test -w apps/crm-web` passed 54 tests. The canonical
+`CONTRACT_POLICY_REVIEW_REQUIRED`. The reporting harness passed 15 of 15 cases in that
+round, including the two new ones; it has 16 of 16 cases since fix round 7, which added the
+scratch-cleanup case. `npm run test -w apps/crm-web` passed 54 tests. The canonical
 contracts are unchanged: `git diff --name-only 907e675..HEAD -- docs/contracts/` is
 empty.
 
@@ -824,4 +828,114 @@ reports 87 tests with 55 of them skipped.
 **Still open.** The four Plan 3 harnesses are still executed by no automated runner, and
 the prerequisites of the 55 contract tests are still not provisioned by the workflow;
 Plan 4 owns both. Wave 0/P0 acceptance, remote DemoModule end-to-end, tenant isolation,
+outage/recovery and restore drills and remote CI remain **OPEN** and are not claimed here.
+
+## Task 7, fix round 7 — the scratch cleanup of the Plan 3 harnesses (review pending)
+
+**Objective.** Change one mechanism and nothing else: how the scratch directories of this
+slice are deleted. A scratch directory that a script created itself, minutes ago, must be
+**unlinked**. It must never be moved into a recoverable trash. Some agent runtimes put a
+recoverable-delete shim named `rm` on the `PATH`; on Linux that helper moves its target into
+the trash of the user (the XDG Trash spec) instead of unlinking it, so a bare `rm -rf` of a
+multi-gigabyte scratch tree **copies** it into the trash instead of freeing the disk: 207 runs
+had deposited about 55 GB in `~/.local/share/Trash`, the largest single scratch trees being
+about 3.7 GB (a NuGet package cache plus npm-installed SDK tarballs inside a `mktemp -d`
+directory). A normal developer machine has no such shim, so the scripts were not broken for
+developers. No assertion, no printed message, no reason token, no correlation identifier, no
+exit code and no order of operations changed in this round.
+
+**Branch and state.** Branch `feat/wave-0-plan-3-frontend-contract-toolchain`, base
+`5257abf`. The fix of this round is the commit on top of the fix round 6 commit; it carries
+the helper, the new harness, the new case and this documentation. Its own SHA is not recorded
+here, because a commit cannot carry its own SHA. No merge, push, deploy, publication or
+database migration is authorized or performed.
+
+**The change.** The new shared helper `scripts/lib/scratch-cleanup.sh` resolves the rm binary
+to an **absolute** path: `/bin/rm` first, then `/usr/bin/rm`, and only a host without both
+falls back to the rm of the `PATH`, which is resolved to an absolute path as well. The helper
+prints nothing when it is sourced and writes nothing to stdout. Every scratch deletion of the
+slice now goes through the resolved binary, with the end-of-options separator so that a
+target that starts with a dash cannot be read as an option:
+
+| File | Scratch deletion |
+|---|---|
+| `scripts/check-plan3.sh` | the log directory of the run |
+| `tests/Plan3/aggregate-reporting.sh` | the work directory of the harness and the sandbox of a case |
+| `tests/Plan3/ci-environment.sh` | the scratch checkout of the simulation |
+| `tests/Plan3/clean-export.sh` | the export directory |
+| `tests/Plan3/negative-cases.sh` | the work directory of the harness and the sandbox of a case |
+| `tests/ClientConsumers/run.sh` | the temporary directory of the consumer build |
+
+The helper is sourced through `$root`, so the change survives a copy of the checkout into a
+sandbox.
+
+**The regression protection is `tests/Plan3/scratch-cleanup.sh`.** It runs the fastest Plan 3
+harness (`tests/Plan3/ci-environment.sh`) in a child shell whose `PATH` carries a **fake rm**
+first. The fake rm behaves like the recoverable-delete shim: it records that it was called and
+it moves its target into the trash of a **controlled** `XDG_DATA_HOME` instead of unlinking
+it. The child also runs with a **controlled** `TMPDIR`, so its scratch lands inside the
+controlled directories of the harness and the trash of the user is never touched. The harness
+asserts that the child exited 0, that the fake rm was never invoked, that the controlled data
+home stayed empty and that the controlled `TMPDIR` is empty afterwards. The harness is
+self-contained: it resolves the rm binary for its own scratch by itself and does not use the
+helper under test, so it can be run against a tree that does not have the helper at all. It
+is a case of `tests/Plan3/aggregate-reporting.sh`, which grew from 15 to 16 cases.
+
+**RED before the fix.** The new case was run against the **pre-fix tree** — a scratch copy of
+`40a7c91` with the new helper, the new harness and the new case, and nothing else — and it
+**failed**:
+
+```
+case  a scratch directory is unlinked instead of being moved to a trash
+FAIL  scratch cleanup
+      the scratch cleanup harness exited 1, expected 0
+      FAIL  scratch cleanup
+      the PATH-resolved rm was invoked
+      -rf /tmp/tmp.ZSOS2V4Gmv/tmp/tmp.1zdi2mnhAR
+FAIL  scratch cleanup
+      the scratch was moved into a recoverable trash instead of being unlinked
+      tmp.1zdi2mnhAR
+
+scratch cleanup cases: 2 failed
+{"reason": "PLAN3_SCRATCH_CLEANUP_FAILED", "detail": "2 assertions failed", "correlationId": "ed05f69c-3b21-4d29-8944-2c92adc9fd39"}
+
+aggregate reporting cases: 1 of 1 failed
+{"reason": "PLAN3_REGRESSION_CASES_FAILED", "detail": "1 of 1 cases failed", "correlationId": "a38cd107-5d33-4a82-8e6c-f0f304cd71f9"}
+```
+
+The bare `rm -rf` of the pre-fix `tests/Plan3/ci-environment.sh` reached the fake rm, the
+scratch survived in the fake trash, and the case failed for that reason. After the fix the
+same case passes.
+
+**Verification.** The commands of this round and their real results:
+
+| Command | Result |
+|---|---|
+| `PATH=<Node-24.22.2>/bin:$PATH LD_LIBRARY_PATH=/tmp/plan3-libs .venv/bin/python -m unittest discover -s tests/Contract -v` | exit 0, **87 tests**, **0 skipped**, 1078.090 s, OK |
+| `bash tests/Plan3/aggregate-reporting.sh --base-ref 408ded6 --only scratch_cleanup_unlinks_the_scratch` | exit 0, **1 of 1 case**, 2.782 s |
+| `bash tests/Plan3/aggregate-reporting.sh --base-ref 408ded6` | exit 0, **16 of 16 cases**, 4m5.715s |
+| `bash tests/Plan3/negative-cases.sh --base-ref 408ded6` | exit 0, **3 of 3 cases**, 3m30.213s |
+| `bash tests/Plan3/ci-environment.sh` | exit 0, **87 tests**, **55 skipped with a visible reason**, **32 passed**, 2.729 s |
+| `bash tests/Plan3/scratch-cleanup.sh` | exit 0, the scratch of the child was unlinked, the `PATH`-resolved rm was never invoked |
+| `python3 scripts/contracts/check.py` | exit 0, `SDK_GENERATED_CURRENT`, correlation identifier present, 11.651 s |
+| `npm run test -w apps/crm-web` | exit 0, **54 tests** passed |
+
+**Changed files.** `scripts/lib/scratch-cleanup.sh` (new),
+`tests/Plan3/scratch-cleanup.sh` (new), `scripts/check-plan3.sh`,
+`tests/Plan3/aggregate-reporting.sh`, `tests/Plan3/ci-environment.sh`,
+`tests/Plan3/clean-export.sh`, `tests/Plan3/negative-cases.sh`,
+`tests/ClientConsumers/run.sh`, `docs/engineering/07-WAVE-0-PLAN-3-VERIFICATION.md` and
+this document.
+
+**Known limitations.** The 70-case .NET non-Compose suite, the Local Python suite, the clean
+exact-SHA export with the browser suite and the full ten-step working-tree aggregate were
+**not** re-run in this round; the rows of the summary table that they measured keep their fix
+round 5 label and are not presented as a run of this round. The residual leak of the
+`tempfile.TemporaryDirectory` directories of `scripts/contracts/*.py` when a process is
+SIGKILLed is **known** and **unchanged** by this round: those directories are removed by
+`shutil.rmtree` and never reach a trash, so they are out of scope here.
+
+**Still open.** The five Plan 3 harnesses are still executed by no automated runner, and the
+prerequisites of the 55 contract tests are still not provisioned by the workflow; Plan 4 owns
+both. Wave 0/P0 acceptance, remote DemoModule end-to-end, tenant isolation,
 outage/recovery and restore drills and remote CI remain **OPEN** and are not claimed here.

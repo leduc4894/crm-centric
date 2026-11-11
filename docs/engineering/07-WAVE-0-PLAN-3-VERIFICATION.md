@@ -551,8 +551,8 @@ The harness now resets the SIGINT disposition before the gate is executed and as
 the run was actually interrupted, and the case fails for the right reason.
 
 GREEN, after the fix, `bash tests/Plan3/aggregate-reporting.sh --base-ref 408ded6`,
-1m14.035s wall clock, exit 0 — **fix round 1**; the harness grew in fix rounds 2, 3 and 4 and
-has 13 cases today:
+1m14.035s wall clock, exit 0 — **fix round 1**; the harness grew in fix rounds 2, 3, 4, 6
+and 7 and has 16 cases today:
 
 ```
 case  argument error carries a reason token and a correlation id
@@ -573,14 +573,15 @@ aggregate reporting cases: 6 of 6 passed
 
 #### The Plan 3 harnesses are not yet executed by an automated runner
 
-The four harnesses of this slice — `tests/Plan3/negative-cases.sh`,
-`tests/Plan3/aggregate-reporting.sh`, `tests/Plan3/clean-export.sh` and
-`tests/Plan3/ci-environment.sh` — are **not** executed by `unittest discover -s
+The five harnesses of this slice — `tests/Plan3/negative-cases.sh`,
+`tests/Plan3/aggregate-reporting.sh`, `tests/Plan3/clean-export.sh`,
+`tests/Plan3/ci-environment.sh` and `tests/Plan3/scratch-cleanup.sh` — are **not** executed
+by `unittest discover -s
 tests/Contract`, by `npm test`, by any `package.json` script or by a continuous
 integration pipeline. The repository does have CI, but it is **contract-only**:
 `.github/workflows/contracts.yml` runs the Python contract suite
 (`python -m unittest discover -s tests/Contract -v`) on push and pull_request, and it does
-not run these four harnesses. Wiring the harnesses into an automated runner is Plan 4's
+not run these five harnesses. Wiring the harnesses into an automated runner is Plan 4's
 job. A regression that deletes or neuters one of these harnesses would therefore not fail
 any suite that runs today. This is the honest state of the slice, not a claim that the
 harnesses are covered.
@@ -607,9 +608,10 @@ The exact commands a human must run, from the root of the checkout, with the pin
 | Harness | Command | What it proves |
 |---|---|---|
 | fail-closed negative cases | `bash tests/Plan3/negative-cases.sh --base-ref 408ded6` | the gate stops with `SDK_GENERATED_MISMATCH`, `CONTRACT_BASE_UNAVAILABLE` and `CONTRACT_POLICY_REVIEW_REQUIRED` and never reports a compatible verdict |
-| aggregate reporting regressions (15 cases) | `bash tests/Plan3/aggregate-reporting.sh --base-ref 408ded6` | the error envelopes, the accounting of all ten steps, the teardown of a failed stack start, the interrupted and the terminated run, the source-mutation guard, the case added in fix round 4: a failing teardown of an ordinary, never-interrupted run is reported exactly once, with the correlation identifier of the run, without the misleading "interrupted run" wording, and the two cases added in fix round 6: a CI-like checkout keeps the contract suite green, and a comparator without `typescript` closes with a reason token and a correlation identifier instead of a stack trace |
+| aggregate reporting regressions (16 cases) | `bash tests/Plan3/aggregate-reporting.sh --base-ref 408ded6` | the error envelopes, the accounting of all ten steps, the teardown of a failed stack start, the interrupted and the terminated run, the source-mutation guard, the case added in fix round 4: a failing teardown of an ordinary, never-interrupted run is reported exactly once, with the correlation identifier of the run, without the misleading "interrupted run" wording, the two cases added in fix round 6: a CI-like checkout keeps the contract suite green, and a comparator without `typescript` closes with a reason token and a correlation identifier instead of a stack trace, and the case added in fix round 7: a scratch directory that a script created itself is unlinked instead of being moved into a recoverable trash by a recoverable-delete shim on the `PATH` |
 | clean exact-SHA export | `bash tests/Plan3/clean-export.sh --sha <sha> --base-ref <ref> [--with-browser]` | the exported commit passes the aggregate on its own, in a tree without local artifacts |
 | CI-like checkout of the contract suite | `bash tests/Plan3/ci-environment.sh` | without `.local/plan3-tools` and without `node_modules`, `python -m unittest discover -s tests/Contract -v` exits 0, reports the 55 Plan 3 tests as skipped with a visible reason and the 32 pre-existing tests as passed |
+| scratch cleanup of the Plan 3 harnesses | `bash tests/Plan3/scratch-cleanup.sh` | the scratch of the Plan 3 harnesses is unlinked through an absolute rm binary; a `PATH`-resolved rm is never invoked, so a recoverable-delete shim on the `PATH` cannot copy a multi-gigabyte scratch tree into the trash of the user |
 
 The base revision must be a revision that the local clone already has; the harnesses never
 fetch. Plan 4 owns the wiring of these four commands into the continuous integration path.
@@ -627,17 +629,18 @@ The second library path is a local prerequisite of this host, not a repository s
 measurement of the first fix round of Task 7 and was **not** re-run afterwards; it is
 reused as historical evidence, because the code it measured is unchanged. A row labelled
 *(fix round 5)* was measured in fix round 5, on the tree of that round. A row labelled
-*(fix round 6)* was measured in fix round 6, on the tree of this round, and is the current
-evidence.
+*(fix round 6)* was measured in fix round 6. A row labelled *(fix round 7)* was measured in
+fix round 7, on the tree of this round, and is the current evidence.
 
 | Suite | Command | Result |
 |---|---|---|
-| Contract + tooling | `PATH=<Node-24.22.2>/bin:$PATH LD_LIBRARY_PATH=/tmp/plan3-libs .venv/bin/python -m unittest discover -s tests/Contract -v` | exit 0, **87 tests**, **0 skipped**, 1099.784 s, OK — on a prepared host every test runs for real; in a CI-like checkout without `.local/plan3-tools` and without `node_modules` the same command exits 0 with the 55 Plan 3 tests **skipped with a visible reason** and the 32 pre-existing tests passed (fix round 6) |
+| Contract + tooling | `PATH=<Node-24.22.2>/bin:$PATH LD_LIBRARY_PATH=/tmp/plan3-libs .venv/bin/python -m unittest discover -s tests/Contract -v` | exit 0, **87 tests**, **0 skipped**, 1078.090 s, OK — on a prepared host every test runs for real; in a CI-like checkout without `.local/plan3-tools` and without `node_modules` the same command exits 0 with the 55 Plan 3 tests **skipped with a visible reason** and the 32 pre-existing tests passed (fix round 7) |
 | Local Python | `PATH=<Node-24.22.2>/bin:$PATH LD_LIBRARY_PATH=/tmp/plan3-libs .venv/bin/python -m unittest discover -s tests/Local -v` | exit 0, **20 tests**, 4.544 s, OK (fix round 1) |
 | Backend, non-Compose | `DOTNET_ROOT=/tmp/crm-dotnet-10.0.403 dotnet restore CrmPlatform.sln --locked-mode` → `dotnet build CrmPlatform.sln -c Release --no-restore` → `dotnet test CrmPlatform.sln -c Release --no-build --no-restore --filter 'Category!=Compose'` | restore exit 0 (2.748 s); build exit 0, 0 warnings, 0 errors (10.64 s); test exit 0, **70 passed, 0 failed, 0 skipped**, 6 m 48 s (fix round 1) |
-| Negative cases | `bash tests/Plan3/negative-cases.sh --base-ref 408ded6` | exit 0, **3 of 3 cases**, 4m11.666s (fix round 6) |
-| Aggregate reporting regressions | `bash tests/Plan3/aggregate-reporting.sh --base-ref 408ded6` | exit 0, **15 of 15 cases**, 3m27.236s (fix round 6) |
-| CI-like checkout of the contract suite | `bash tests/Plan3/ci-environment.sh` | exit 0, **87 tests**, **55 skipped with a visible reason**, **32 passed**, 2.619s (fix round 6) |
+| Negative cases | `bash tests/Plan3/negative-cases.sh --base-ref 408ded6` | exit 0, **3 of 3 cases**, 3m30.213s (fix round 7) |
+| Aggregate reporting regressions | `bash tests/Plan3/aggregate-reporting.sh --base-ref 408ded6` | exit 0, **16 of 16 cases**, 4m5.715s, including the case that fix round 7 added (fix round 7) |
+| CI-like checkout of the contract suite | `bash tests/Plan3/ci-environment.sh` | exit 0, **87 tests**, **55 skipped with a visible reason**, **32 passed**, 2.729s (fix round 7) |
+| Scratch cleanup of the Plan 3 harnesses | `bash tests/Plan3/scratch-cleanup.sh` | exit 0, the scratch of the child was unlinked, the `PATH`-resolved rm was never invoked (fix round 7) |
 | Aggregate, working tree | `bash scripts/check-plan3.sh --base-ref 408ded6` | exit 0, 4m16.339s, nine steps exit 0, browser step recorded as `not run`, source digest unchanged (fix round 5) |
 | Aggregate, clean export | `bash tests/Plan3/clean-export.sh --sha 599ad545113b9e07dee4f776f154ee5cd60cc5d1 --base-ref 408ded6 --with-browser` | exit 0, 6m00.310s, all ten steps exit 0 including the browser suite, source digest unchanged (fix round 5) |
 
@@ -654,10 +657,11 @@ therefore stays valid as exact-SHA historical evidence for the unchanged runtime
 The .NET non-Compose suite and the Local Python suite of the table above were executed fresh
 in **fix round 1** of Task 7 and are labelled with that round; they were not re-run in fix
 round 5, which changed Markdown only, nor in fix round 6, which changed the contract
-prerequisite guard, the TypeScript comparator and the harnesses. The working-tree aggregate
+prerequisite guard, the TypeScript comparator and the harnesses, nor in fix round 7, which
+changed the cleanup of the scratch directories. The working-tree aggregate
 and the clean exact-SHA export of the table above were measured in fix round 5 and were
-**not** re-run in fix round 6; they keep that label and are not presented as a run of this
-round.
+**not** re-run in fix round 6 nor in fix round 7; they keep that label and are not presented
+as a run of this round.
 
 #### Versions and digests
 
@@ -1053,8 +1057,8 @@ and no `PASS`. A clean tree is unaffected: the index of a clean tree holds the t
 of `HEAD` and nothing else.
 
 **N-4 — the harnesses are wired to nothing.** `tests/Plan3/aggregate-reporting.sh`,
-`tests/Plan3/negative-cases.sh`, `tests/Plan3/clean-export.sh` and
-`tests/Plan3/ci-environment.sh` are **not** executed by
+`tests/Plan3/negative-cases.sh`, `tests/Plan3/clean-export.sh`,
+`tests/Plan3/ci-environment.sh` and `tests/Plan3/scratch-cleanup.sh` are **not** executed by
 `unittest discover -s tests/Contract`, by any `package.json` script or by a CI pipeline:
 the CI of the repository is contract-only (`.github/workflows/contracts.yml` runs the
 Python contract suite) and does not run these harnesses; wiring them into an automated
@@ -1438,7 +1442,7 @@ measurement of **fix round 6**:
 |---|---|
 | `PATH=<Node-24.22.2>/bin:$PATH LD_LIBRARY_PATH=/tmp/plan3-libs .venv/bin/python -m unittest discover -s tests/Contract -v` | exit 0, **87 tests**, **0 skipped**, 1099.784 s, OK — every test really runs on a prepared host |
 | `bash tests/Plan3/ci-environment.sh` | exit 0, **87 tests**, **55 skipped with a visible reason**, **32 passed**, 2.619 s — the simulated CI checkout stays green |
-| `bash tests/Plan3/aggregate-reporting.sh --base-ref 408ded6` | exit 0, **15 of 15 cases**, 3m27.236s, including the two cases this round added |
+| `bash tests/Plan3/aggregate-reporting.sh --base-ref 408ded6` | exit 0, **16 of 16 cases** (the harness had 15 cases in this round; fix round 7 added the scratch-cleanup case), 3m27.236s, including the two cases this round added |
 | `bash tests/Plan3/negative-cases.sh --base-ref 408ded6` | exit 0, **3 of 3 cases**, 4m11.666s, the tokens `SDK_GENERATED_MISMATCH`, `CONTRACT_BASE_UNAVAILABLE` and `CONTRACT_POLICY_REVIEW_REQUIRED` unchanged |
 | `python3 scripts/contracts/check.py` | exit 0, `SDK_GENERATED_CURRENT`, correlation identifier present |
 | `npm run test -w apps/crm-web` | exit 0, **54 tests** passed |
@@ -1450,3 +1454,100 @@ the round that measured them and are not presented as a run of this round. The c
 suite of this round was measured on a prepared host: on a host without the pinned
 prerequisites the same command reports 87 tests with 55 of them skipped, which is the
 state the CI simulation asserts.
+
+### Fix round 7 — the scratch cleanup of the Plan 3 harnesses (review pending)
+
+This round changes one mechanism and nothing else: how the scratch directories of this slice
+are deleted. No assertion, no printed message, no reason token, no correlation identifier, no
+exit code and no order of operations changed. No canonical contract, no backend source, no
+container configuration, no stack lifecycle and no CI workflow changed.
+
+**The problem.** Some agent runtimes put a recoverable-delete shim named `rm` on the `PATH`.
+On Linux that helper moves its target into the trash of the user (the XDG Trash spec) instead
+of unlinking it. The Plan 3 harnesses and the aggregate gate deleted their own scratch trees
+with a bare `rm -rf`, so under such a runtime every run **copied** its scratch tree into the
+trash of the user instead of freeing the disk: 207 runs had deposited about 55 GB in
+`~/.local/share/Trash`, the largest single scratch trees being about 3.7 GB (a NuGet package
+cache plus npm-installed SDK tarballs inside a `mktemp -d` directory). A normal developer
+machine has no such shim, so the scripts were not broken for developers — but a scratch
+directory that a script created itself, minutes ago, must be **unlinked**, not copied into a
+trash.
+
+**The change.** The new shared helper `scripts/lib/scratch-cleanup.sh` resolves the rm binary
+to an **absolute** path: `/bin/rm` first, then `/usr/bin/rm`, and only a host without both
+falls back to the rm of the `PATH`, which is resolved to an absolute path as well. The helper
+prints nothing when it is sourced and writes nothing to stdout. Every scratch deletion of the
+slice now goes through the resolved binary, with the end-of-options separator so that a
+target that starts with a dash cannot be read as an option:
+
+| File | Scratch deletion |
+|---|---|
+| `scripts/check-plan3.sh` | the log directory of the run |
+| `tests/Plan3/aggregate-reporting.sh` | the work directory of the harness and the sandbox of a case |
+| `tests/Plan3/ci-environment.sh` | the scratch checkout of the simulation |
+| `tests/Plan3/clean-export.sh` | the export directory |
+| `tests/Plan3/negative-cases.sh` | the work directory of the harness and the sandbox of a case |
+| `tests/ClientConsumers/run.sh` | the temporary directory of the consumer build |
+
+The helper is sourced through `$root`, so the change survives a copy of the checkout into a
+sandbox.
+
+**The regression protection is `tests/Plan3/scratch-cleanup.sh`.** It runs the fastest Plan 3
+harness (`tests/Plan3/ci-environment.sh`) in a child shell whose `PATH` carries a **fake rm**
+first. The fake rm behaves like the recoverable-delete shim: it records that it was called and
+it moves its target into the trash of a **controlled** `XDG_DATA_HOME` instead of unlinking
+it. The child also runs with a **controlled** `TMPDIR`, so its scratch lands inside the
+controlled directories of the harness and the trash of the user is never touched. The harness
+asserts that the child exited 0, that the fake rm was never invoked, that the controlled data
+home stayed empty and that the controlled `TMPDIR` is empty afterwards. The harness is
+self-contained: it resolves the rm binary for its own scratch by itself and does not use the
+helper under test, so it can be run against a tree that does not have the helper at all. It
+is a case of `tests/Plan3/aggregate-reporting.sh`, which grew from 15 to 16 cases.
+
+**RED before the fix.** The new case was run against the **pre-fix tree** — a scratch copy of
+`40a7c91` with the new helper, the new harness and the new case, and nothing else — and it
+**failed**:
+
+```
+case  a scratch directory is unlinked instead of being moved to a trash
+FAIL  scratch cleanup
+      the scratch cleanup harness exited 1, expected 0
+      FAIL  scratch cleanup
+      the PATH-resolved rm was invoked
+      -rf /tmp/tmp.ZSOS2V4Gmv/tmp/tmp.1zdi2mnhAR
+FAIL  scratch cleanup
+      the scratch was moved into a recoverable trash instead of being unlinked
+      tmp.1zdi2mnhAR
+
+scratch cleanup cases: 2 failed
+{"reason": "PLAN3_SCRATCH_CLEANUP_FAILED", "detail": "2 assertions failed", "correlationId": "ed05f69c-3b21-4d29-8944-2c92adc9fd39"}
+
+aggregate reporting cases: 1 of 1 failed
+{"reason": "PLAN3_REGRESSION_CASES_FAILED", "detail": "1 of 1 cases failed", "correlationId": "a38cd107-5d33-4a82-8e6c-f0f304cd71f9"}
+```
+
+The bare `rm -rf` of the pre-fix `tests/Plan3/ci-environment.sh` reached the fake rm, the
+scratch survived in the fake trash, and the case failed for that reason. After the fix the
+same case passes.
+
+**The commands of round 7 and their real results.** Every number in this table is a
+measurement of **fix round 7**:
+
+| Command | Result |
+|---|---|
+| `PATH=<Node-24.22.2>/bin:$PATH LD_LIBRARY_PATH=/tmp/plan3-libs .venv/bin/python -m unittest discover -s tests/Contract -v` | exit 0, **87 tests**, **0 skipped**, 1078.090 s, OK — every test really runs on a prepared host |
+| `bash tests/Plan3/aggregate-reporting.sh --base-ref 408ded6 --only scratch_cleanup_unlinks_the_scratch` | exit 0, **1 of 1 case**, 2.782 s — the new case in isolation |
+| `bash tests/Plan3/aggregate-reporting.sh --base-ref 408ded6` | exit 0, **16 of 16 cases**, 4m5.715s, including the case this round added |
+| `bash tests/Plan3/negative-cases.sh --base-ref 408ded6` | exit 0, **3 of 3 cases**, 3m30.213s, the tokens `SDK_GENERATED_MISMATCH`, `CONTRACT_BASE_UNAVAILABLE` and `CONTRACT_POLICY_REVIEW_REQUIRED` unchanged |
+| `bash tests/Plan3/ci-environment.sh` | exit 0, **87 tests**, **55 skipped with a visible reason**, **32 passed**, 2.729 s — the simulated CI checkout stays green |
+| `bash tests/Plan3/scratch-cleanup.sh` | exit 0, the scratch of the child was unlinked, the `PATH`-resolved rm was never invoked |
+| `python3 scripts/contracts/check.py` | exit 0, `SDK_GENERATED_CURRENT`, correlation identifier present, 11.651 s |
+| `npm run test -w apps/crm-web` | exit 0, **54 tests** passed |
+
+**Limitations of round 7.** The 70-case .NET non-Compose suite, the Local Python suite, the
+full ten-step working-tree aggregate and the clean exact-SHA export with the browser suite were
+**not** re-run in this round; their rows in the summary table keep the label of the round that
+measured them and are not presented as a run of this round. The residual leak of the
+`tempfile.TemporaryDirectory` directories of `scripts/contracts/*.py` when a process is
+SIGKILLed is **known** and **unchanged** by this round: those directories are removed by
+`shutil.rmtree` and never reach a trash, so they are out of scope here.

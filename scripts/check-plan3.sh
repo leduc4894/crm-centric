@@ -133,6 +133,12 @@ root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd) ||
   closed_error PLAN3_WORKSPACE_UNAVAILABLE "the checkout could not be located" 1
 cd "$root" || closed_error PLAN3_WORKSPACE_UNAVAILABLE "the checkout could not be entered" 1
 
+# The scratch of this run is unlinked through an absolute rm binary, never
+# through a PATH-resolved one: a recoverable-delete shim on the PATH would copy
+# a multi-gigabyte scratch tree into the trash of the user instead of freeing
+# it.
+. "$root/scripts/lib/scratch-cleanup.sh"
+
 usage() {
   cat <<'EOF'
 Usage: bash scripts/check-plan3.sh --base-ref <ref> [--with-browser]
@@ -203,7 +209,7 @@ cleanup() {
       report_conditions
     fi
   fi
-  rm -rf "$logs"
+  scratch_remove "$logs"
   return "$status"
 }
 trap cleanup EXIT

@@ -26,6 +26,9 @@
 #        tests are skipped with a visible reason, the pre-existing tests pass;
 #   C-2  a comparator that cannot load the typescript module closes with a
 #        reason token and a correlation identifier instead of a stack trace.
+#   S-1  a scratch directory that a script created itself is unlinked instead
+#        of being moved into a recoverable trash by a recoverable-delete shim
+#        on the PATH.
 #
 # The sandbox is a copy of the checkout with a read-only Git object context
 # (objects/info/alternates) so that a base revision resolves without a fetch.
@@ -57,6 +60,11 @@ closed_error() {
 
 root=$(cd "$(dirname "$0")/../.." && pwd) ||
   closed_error PLAN3_WORKSPACE_UNAVAILABLE "the checkout could not be located" 1
+# The scratch of this harness is unlinked through an absolute rm binary, never
+# through a PATH-resolved one: a recoverable-delete shim on the PATH would copy
+# a multi-gigabyte scratch tree into the trash of the user instead of freeing
+# it.
+. "$root/scripts/lib/scratch-cleanup.sh"
 base_ref="408ded6"
 only=""
 while [ $# -gt 0 ]; do
@@ -73,7 +81,7 @@ done
 
 work=$(mktemp -d) ||
   closed_error PLAN3_TEMP_DIRECTORY_UNAVAILABLE "a temporary directory could not be created" 1
-trap 'rm -rf "$work"' EXIT
+trap 'scratch_remove "$work"' EXIT
 
 failures=0
 cases=0
@@ -125,7 +133,7 @@ PY
 # Creates a sandbox copy of the checkout with a read-only Git object context.
 make_sandbox() {
   local dir="$1"
-  rm -rf "$dir"
+  scratch_remove "$dir"
   mkdir -p "$dir"
   tar -C "$root" -cf - \
     --exclude='./.git' \
@@ -792,6 +800,34 @@ case_missing_typescript_is_a_closed_error() {
   pass "missing typescript (exit $status, SDK_SURFACE_UNAVAILABLE, correlation id present, no stack trace)"
 }
 
+# A scratch directory that a script created itself must be unlinked, never moved
+# into a recoverable trash. A recoverable-delete shim on the PATH would copy a
+# multi-gigabyte scratch tree into the trash of the user instead of freeing it.
+# The harness of the case runs the fastest Plan 3 harness in a child shell
+# whose PATH carries a fake rm first, and asserts that the fake rm was never
+# invoked, that the trash of the controlled data home stayed empty and that the
+# scratch of the child is gone.
+case_scratch_cleanup_unlinks_the_scratch() {
+  log "case  a scratch directory is unlinked instead of being moved to a trash"
+  cases=$((cases + 1))
+  local out="$work/scratch-cleanup.out"
+  ( cd "$root" && bash "$root/tests/Plan3/scratch-cleanup.sh" ) > "$out" 2>&1
+  local status=$?
+  local output
+  output=$(cat "$out")
+  if [ "$status" -ne 0 ]; then
+    fail "scratch cleanup" "the scratch cleanup harness exited $status, expected 0" \
+      "$(printf '%s' "$output" | tail -n 10)"
+    return
+  fi
+  if ! printf '%s' "$output" | grep -q 'the PATH-resolved rm was never invoked'; then
+    fail "scratch cleanup" "the scratch cleanup harness did not report its expected result" \
+      "$(printf '%s' "$output" | tail -n 5)"
+    return
+  fi
+  pass "scratch cleanup (exit 0, the scratch was unlinked, the PATH-resolved rm was never invoked)"
+}
+
 run_case() {
   local name="$1"
   [ -z "$only" ] || [ "$only" = "$name" ] || return 0
@@ -813,6 +849,7 @@ run_case staged_file_mutation_is_detected
 run_case harness_argument_envelopes
 run_case ci_checkout_keeps_the_contract_suite_green
 run_case missing_typescript_is_a_closed_error
+run_case scratch_cleanup_unlinks_the_scratch
 
 log ""
 if [ "$failures" -ne 0 ]; then

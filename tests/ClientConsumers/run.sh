@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 root=$(cd "$(dirname "$0")/../.." && pwd)
+# The scratch of this script is unlinked through an absolute rm binary, never
+# through a PATH-resolved one: a recoverable-delete shim on the PATH would copy
+# a multi-gigabyte scratch tree into the trash of the user instead of freeing
+# it.
+. "$root/scripts/lib/scratch-cleanup.sh"
 tmp=$(mktemp -d)
-trap 'rm -rf "$tmp"' EXIT
+trap 'scratch_remove "$tmp"' EXIT
 mkdir -p "$tmp"/{typescript,packages,sdk}
 cp -R "$root/sdks/typescript/." "$tmp/sdk/"
 ln -s "$root/node_modules" "$tmp/sdk/node_modules"
