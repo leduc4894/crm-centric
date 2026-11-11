@@ -189,3 +189,34 @@ Final `python3 -m py_compile scripts/ci/completion.py scripts/ci/publication.py 
 Fix commit subject: `fix(ci): reconstruct completion publication envelopes`.
 All five listed implementation/test/doc files are staged together; ignored Task7
 report is updated locally. No other uncommitted work expected after commit.
+
+
+## Review fix round 2: initial-read SIGTERM
+Resumed clean at `fadc2a96cbc78e86bb8db4718c07daee537c7fbf` on the same branch;
+reviewer identified raw-file exposure if SIGTERM arrives during the initial read.
+Round1 interruption coverage occurred after unlink and did not cover this window.
+Completed same-filesystem atomic rename into an owner-only adjacent temporary
+quarantine directory BEFORE stat/read, outside the exact workflow upload paths.
+No signal handler/finally cleanup is relied on for this guarantee. Abrupt termination
+can leave private quarantined bytes; workspace cleanup is still necessary. A helper
+that never starts or terminates before rename cannot protect the producer artifact.
+README now states these limits rather than a blanket interruption guarantee.
+
+New subprocess test sends real SIGTERM from the first payload read, checks exit-15,
+empty stdout/stderr and absent original upload path. RED against round1: completion
+7 ran,1 assertion failure0errors0skips0.571s (original present). Initial edit test run
+failed with IndentationError; corrected before final verification. Final pinned
+commands, both prefixed `LD_LIBRARY_PATH="$PWD/.local/ci-python315/lib"`:
+- `.local/ci-venv315/bin/python -m unittest discover -s tests/CI -p test_completion.py`:
+ 7 PASS,0skips0.736s.
+- `.local/ci-venv315/bin/python -m unittest discover -s tests/CI -p test_aggregate.py`:
+ 7 PASS,0skips0.447s.
+Changed: completion helper, completion tests, CI README, this handoff; ignored local
+Task7 report updated. No public contract/migration/trust-policy changes. No remote
+changes, subagents or service acceptance reruns; original blockers remain OPEN.
+Next: review fix, continue security/image/trust remediation and authorized remote
+acceptance. Rollback: revert this round2 fix commit.
+
+Final syntax compilation and `git diff --check`: PASS. Commit subject:
+`fix(ci): quarantine raw completion reports before reading`. All round2 tracked
+changes staged together; ignored local report retained.

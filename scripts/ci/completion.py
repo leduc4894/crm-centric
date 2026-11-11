@@ -5,6 +5,7 @@ missing workflow is converted into success by this diagnostic helper.
 """
 import json
 import os
+import tempfile
 from pathlib import Path
 import uuid
 from scripts.ci.jobs import atomic_write
@@ -16,15 +17,17 @@ from scripts.ci.scan import ScanError
 def complete(job, output, steps, expected=None):
     token='CI_STEP_NON_SUCCESS'
     try:
-        # Withhold the original before parsing/normalization, including on
-        # interruption. Only reconstructed bytes may reappear at the upload path.
+        # Atomic same-filesystem quarantine precedes every payload read. A hard
+        # termination during stat/read cannot leave raw bytes at the upload path.
         payload=None
-        try:
-            if expected is not None:
-                if output.stat().st_size>8*1024*1024: raise ReportError()
-                payload=output.read_bytes()
+        if expected is not None:
+            with tempfile.TemporaryDirectory(prefix='.ci-completion-input-',dir=output.parent) as directory:
+                private=Path(directory)/'report.json'
+                output.replace(private)
+                if private.stat().st_size>8*1024*1024: raise ReportError()
+                payload=private.read_bytes()
                 if len(payload)>8*1024*1024: raise ReportError()
-        finally:
+        else:
             output.unlink(missing_ok=True)
         if not isinstance(steps,dict): raise ValueError()
         outcomes={key:value['outcome'] for key,value in steps.items()}
@@ -33,7 +36,6 @@ def complete(job, output, steps, expected=None):
         elif outcomes.get('revision')=='failure': token='CI_REVISION_FAILED'
         elif any(value=='failure' for value in outcomes.values()): token='CI_ACTION_FAILED'
         if expected is not None and outcomes.get('gate') in ('success','failure'):
-            import tempfile
             with tempfile.TemporaryDirectory(prefix='ci-completion-input-') as directory:
                 private=Path(directory)/'report.json';private.write_bytes(payload)
                 parsed=parse_report('normalized',private,expected)
@@ -43,7 +45,6 @@ def complete(job, output, steps, expected=None):
                 clean=normalized_report(raw,parsed,expected)
                 # Revalidate the reconstructed artifact privately before replacing
                 # the upload path. Input parser acceptance alone authorizes no bytes.
-                import tempfile
                 with tempfile.TemporaryDirectory(prefix='ci-completion-') as directory:
                     private=Path(directory)/'report.json'
                     private.write_text(json.dumps(clean))

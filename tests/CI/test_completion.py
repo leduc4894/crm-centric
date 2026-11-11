@@ -116,3 +116,28 @@ class CompletionTests(unittest.TestCase):
             with patch('scripts.ci.summary.POLICY_PATH',policy),patch('scripts.ci.completion.normalized_report',side_effect=KeyboardInterrupt):
                 with self.assertRaises(KeyboardInterrupt):complete('backend',output,{'gate':{'outcome':'success'}},IDENTITY)
             self.assertFalse(output.exists(),'CI_UNVALIDATED_ARTIFACT_LEFT_UPLOADABLE')
+
+    def test_sigterm_during_initial_read_has_no_uploadable_original(self):
+        import signal,subprocess,sys
+        with tempfile.TemporaryDirectory() as directory:
+            output=Path(directory)/'backend.json'
+            output.write_text('synthetic-initial-read-private-sentinel')
+            # Kill the real subprocess at its first payload read, before any
+            # Python finally block or signal handler could remove the original.
+            script='''
+import os,signal,sys
+from pathlib import Path
+from scripts.ci.completion import complete
+from scripts.ci.summary import RunIdentity
+def terminated_read(path):
+    os.kill(os.getpid(),signal.SIGTERM)
+    raise AssertionError('SIGTERM did not terminate process')
+Path.read_bytes=terminated_read
+complete('backend',Path(sys.argv[1]),{'gate':{'outcome':'success'}},
+         RunIdentity('1','1','a'*40,'b'*40,None))
+'''
+            result=subprocess.run([sys.executable,'-c',script,str(output)],capture_output=True,text=True,timeout=20)
+            self.assertEqual(result.returncode,-signal.SIGTERM)
+            self.assertEqual(result.stdout,'')
+            self.assertEqual(result.stderr,'')
+            self.assertFalse(output.exists(),'CI_INITIAL_READ_ORIGINAL_UPLOADABLE')

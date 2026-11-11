@@ -311,8 +311,12 @@ successful test report. Valid reports are reconstructed through an explicit
 publication allowlist for both success and failure: native test diagnostics,
 unknown fields, arbitrary artifact paths and nested scanner/SBOM extensions are
 removed; identity, test outcomes and normalized inventory are revalidated before
-publication. The original upload path is withheld during processing, including
-interruption. This projection does not detect secrets disguised as valid package
+publication. Before reading the payload, completion atomically moves the original
+into an owner-only directory on the same filesystem, outside the exact upload
+allowlist. SIGTERM during that read leaves no original at the upload path. Abrupt
+termination may leave private quarantined bytes for workspace cleanup. This helper
+cannot protect a producer artifact if completion never starts or terminates before
+the quarantine rename. This projection does not detect secrets disguised as valid package
 or test identities; producer secret scans and known-value guards remain required.
 `wave0-required` has explicit `needs`, runs with `always()`
 and downloads each of the five named same-run summaries independently. Its parser
