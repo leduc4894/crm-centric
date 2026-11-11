@@ -40,6 +40,52 @@ def tool_versions():
             'docker':execute(['docker','version','--format','{{.Server.Version}}']),
             'compose':execute(['docker','compose','version','--short'])}
 
+def plan3_commands(identity):
+    return [
+        ['bash','tests/Plan3/aggregate-reporting.sh','--base-ref',identity.base_sha],
+        ['bash','tests/Plan3/ci-environment.sh'],
+        ['bash','tests/Plan3/clean-export.sh','--sha',identity.candidate_sha,
+         '--base-ref',identity.base_sha,'--with-browser'],
+        ['bash','tests/Plan3/negative-cases.sh','--base-ref',identity.base_sha],
+        ['bash','tests/Plan3/scratch-cleanup.sh'],
+    ]
+
+
+def atomic_write(output, report):
+    """Only sanitized reports may reach the exact artifact path, atomically."""
+    output.parent.mkdir(parents=True,exist_ok=True)
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(mode='w', dir=output.parent,
+                prefix='.'+output.stem+'-', suffix='.tmp', delete=False) as stream:
+            temporary = Path(stream.name)
+            json.dump(report,stream)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary,output)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
+
+def publish_report(report, output, identity):
+    from scripts.ci.summary import parse_cases
+    # The validation input contains native diagnostic payloads. Keep it private
+    # and outside the always-uploaded artifact tree even on cancellation.
+    with tempfile.TemporaryDirectory(prefix='ci-private-validation-') as directory:
+        private = Path(directory)/'native.json'
+        private.write_text(json.dumps(report))
+        parsed = parse_report('normalized',private,identity)
+    for suite in report['suites']:
+        if 'format' in suite:
+            name = suite['name']
+            cases = parse_cases(suite['format'],suite['report'])
+            suite.clear(); suite.update(name=name, tests=cases)
+    report.update(passed=parsed.passed,failed=parsed.failed,skipped=parsed.skipped,total=parsed.total)
+    atomic_write(output,report)
+    return parsed
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('job', choices=['backend','compose','contracts-sdk','web-browser'])
@@ -93,8 +139,9 @@ def main():
                     execute([sys.executable,'scripts/contracts/check.py'])
                     execute(['bash','tests/ClientConsumers/run.sh'])
                     execute([sys.executable,'scripts/contracts/compatibility.py','--base-ref',identity.base_sha])
-                    for harness in sorted(Path('tests/Plan3').glob('*.sh')):
-                        execute(['bash',str(harness)])
+                    execute(['npm','exec','--workspace','apps/crm-web','--','playwright','install','--with-deps','chromium'])
+                    for command in plan3_commands(identity):
+                        execute(command)
                 else:
                     execute(['npm','exec','--workspace','apps/crm-web','--','playwright','install','--with-deps','chromium'])
                     vitest = scratch/'vitest.json'; browser = scratch/'browser.json'
@@ -110,17 +157,7 @@ def main():
                         {'name':'browser','format':'playwright','report':json.loads(browser.read_text())}])
         report['status'] = 'success'
         report['elapsed_seconds'] = time.monotonic()-started
-        args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(json.dumps(report))
-        parsed = parse_report('normalized', args.output, identity)
-        # Publish only normalized identities and outcomes, never native payloads.
-        from scripts.ci.summary import parse_cases
-        for suite in report['suites']:
-            if 'format' in suite:
-                cases = parse_cases(suite['format'],suite['report'])
-                name = suite['name']
-                suite.clear(); suite.update(name=name, tests=cases)
-        report.update(passed=parsed.passed,failed=parsed.failed,skipped=parsed.skipped,total=parsed.total)
+        publish_report(report,args.output,identity)
         token = 'CI_JOB_COMPLETE'
     except (JobError, ReportError, ValueError, KeyError, OSError) as failure:
         report['status'] = 'failure'
@@ -141,8 +178,7 @@ def main():
                   skipped=sum(c['outcome']=='skipped' for c in cases), total=len(cases))
     report['reason_token'] = token
     report['elapsed_seconds'] = time.monotonic()-started
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(report))
+    atomic_write(args.output,report)
     print(json.dumps({'job':args.job,'status':report['status'],'reasonToken':token,'correlationId':correlation}))
     return 0 if report['status'] == 'success' else 1
 
