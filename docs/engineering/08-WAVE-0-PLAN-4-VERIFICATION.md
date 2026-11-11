@@ -59,3 +59,15 @@ Proposed workflow `Wave 0` jobs/check names: `backend`, `compose`, `contracts-sd
 Review the full baseline..413601e diff and Task8 documentation diff. No public contract/schema change, database migration, deployment or image/package publication. Revert scoped workflow/config/code commits for rollback; preserve required-check context compatibility and inspect governance before any authorized remote change. Do not waive findings, relax baselines or reset database volumes to obtain green. Policy reversal requires separately reviewed reverse transition; no operational transition route is enabled.
 
 Remediate private secret/license/vulnerability findings and dependency coverage; provision independent verifier/key/inventory/isolation with separate authorization; prove hosted tool installs. Diagnose the original backend/Compose failures and rerun the complete exact final candidate gates with fresh DB evidence and secret-safe artifacts. Only after separate remote authorization run PR/main/fork/failure/cancellation scenarios, bind reviewed candidate/tree/merge method to final main SHA and review all W0P4 IDs. Remote DemoModule E2E, concurrent duplicate, tenant isolation, outage/recovery and restore drills remain P0/RT-* work; this ledger closes none of them.
+
+## Final local review corrections
+
+The final review adds a producer-to-completion regression for allowed Trivy license
+rows. Successful source scans and completion now share strict validation of opaque
+finding IDs, known non-secret kinds and `pass` verdicts; blocked, unknown and
+malformed records remain rejected. npm/NuGet inventories retain meaningful dots
+and underscores, so NuGet SBOM purls preserve package identity and punctuation-
+distinct scanner inventory is rejected. PyPI punctuation folding remains scoped
+to Python requirements. These are local correctness fixes, not new clearance of
+repository findings, independent trust or any W0P4/P0 acceptance. Actual commands
+and results are recorded in the [final-review handoff](../handoff/2026-11-11-wave-0-plan-4-final-review-handoff.md).

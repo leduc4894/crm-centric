@@ -299,9 +299,10 @@ def dependency_inputs(tree):
         yield DependencyInput(target,frozenset(expected),tuple(sorted(gaps)),packages)
 
 
-def _package_name(name):
+def _package_name(name, target):
+    # PyPI folds punctuation; npm/NuGet only fold case, retaining distinct IDs.
     if not isinstance(name,str) or not name: raise ScanError()
-    return re.sub('[-_.]+','-',name).lower()
+    return (re.sub('[-_.]+','-',name) if Path(target).name=='requirements.txt' else name).lower()
 
 
 def lock_packages(source):
@@ -314,19 +315,19 @@ def lock_packages(source):
                 if not path or package.get('link'): continue
                 name=package.get('name') or path.rsplit('node_modules/',1)[-1]
                 if 'version' not in package: continue
-                packages.add((_package_name(name),package['version']))
+                packages.add((_package_name(name,source.name),package['version']))
         elif source.name=='packages.lock.json':
             for framework in _json(source)['dependencies'].values():
                 for name,package in framework.items():
                     if package.get('type')=='Project': continue
-                    packages.add((_package_name(name),package['resolved']))
+                    packages.add((_package_name(name,source.name),package['resolved']))
         else:
             for line in source.read_text().splitlines():
                 line=line.strip()
                 if not line or line.startswith('#'): continue
                 match=re.fullmatch(r'([A-Za-z0-9_.-]+)==([^ ;]+)(?: --hash=sha256:[a-f0-9]{64})*',line)
                 if not match: raise ScanError()
-                packages.add((_package_name(match[1]),match[2]))
+                packages.add((_package_name(match[1],'requirements.txt'),match[2]))
         if not packages: raise ScanError()
         return frozenset(packages)
     except (KeyError,TypeError,ValueError,OSError): raise ScanError() from None
@@ -338,16 +339,27 @@ def require_package_inventory(raw, expected):
         for result in raw['Results']:
             if result.get('Class')!='lang-pkgs': continue
             if result['Target'] in actual: raise ScanError()
-            actual[result['Target']]={(_package_name(p['Name']),p['Version']) for p in result['Packages']}
+            actual[result['Target']]={(_package_name(p['Name'],result['Target']),p['Version']) for p in result['Packages']}
         require_inventory(set(expected),set(actual))
         for target,packages in expected.items(): require_inventory(packages,actual[target])
     except (KeyError,TypeError,ValueError): raise ScanError() from None
 
 
+def safe_pass_findings(rows):
+    """Accept only normalized, non-secret pass records at every success boundary."""
+    return isinstance(rows,(list,tuple)) and all(
+        isinstance(row,dict) and set(row)=={'finding_id','kind','verdict'}
+        and isinstance(row['finding_id'],str) and re.fullmatch('[a-f0-9]{64}',row['finding_id'])
+        and row['kind'] in ('license','vulnerability','sast') and row['verdict']=='pass'
+        for row in rows)
+
+
 def combine_scans(reports, gaps, run):
     correlation=str(uuid.uuid4())
     if (gaps or set(reports)!={'semgrep','gitleaks','trivy'}
-            or any(r.identity!=run or r.status not in ('pass','blocked') or r.scanned_count<=0 for r in reports.values())):
+            or any(r.identity!=run or r.status not in ('pass','blocked') or r.scanned_count<=0
+                   or (r.status=='pass' and not safe_pass_findings(r.findings))
+                   for r in reports.values())):
         return ScanSummary(run,'incomplete','CI_SCAN_INCOMPLETE',correlation)
     findings=tuple(f for report in reports.values() for f in report.findings)
     blocked=any(r.status=='blocked' for r in reports.values())

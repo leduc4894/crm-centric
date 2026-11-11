@@ -80,10 +80,11 @@ def parse_report(kind, path, expected):
                 or not isinstance(data['artifacts'],list)):
             raise ReportError()
         if job=='security' and data['status']=='success':
+            from scripts.ci.scan import safe_pass_findings
             scan=data.get('security_evidence')
             if (not isinstance(scan,dict) or RunIdentity(**scan.get('identity',{}))!=identity
                     or scan.get('status')!='pass' or type(scan.get('scanned_count')) is not int
-                    or scan['scanned_count']<=0 or scan.get('findings')!=[]
+                    or scan['scanned_count']<=0 or not safe_pass_findings(scan.get('findings'))
                     or scan.get('reason_token')!='CI_SCAN_OK'):
                 raise ReportError('CI_SCAN_INCOMPLETE')
             import hashlib

@@ -71,6 +71,25 @@ class SecurityPolicyTests(unittest.TestCase):
         raw['Results'][0]['Packages'].append({'Name':'transitive','Version':'1.0.0'})
         scan.require_package_inventory(raw,expected)
 
+    def test_ecosystem_package_names_preserve_punctuation_and_sbom_identity(self):
+        from scripts.ci.sbom import source_sbom
+        cases=[('package-lock.json',{'lockfileVersion':3,'packages':{'node_modules/example.pkg':{'version':'1.0.0'}}},'example.pkg','example-pkg','npm'),
+               ('packages.lock.json',{'dependencies':{'net10.0':{'Microsoft.EntityFrameworkCore.Abstractions':{'resolved':'1.0.0'}}}},'microsoft.entityframeworkcore.abstractions','microsoft-entityframeworkcore-abstractions','nuget')]
+        for filename,raw,name,wrong,kind in cases:
+            with self.subTest(kind=kind),tempfile.TemporaryDirectory() as directory:
+                path=Path(directory)/filename;path.write_text(json.dumps(raw))
+                expected=scan.lock_packages(path)
+                self.assertEqual(expected,frozenset({(name,'1.0.0')}))
+                sbom=source_sbom({filename:expected},RUN,'1.0.0')
+                self.assertEqual(sbom['components'][0]['purl'],'pkg:'+kind+'/'+name+'@1.0.0')
+                report={'Results':[{'Class':'lang-pkgs','Target':filename,'Packages':[{'Name':wrong,'Version':'1.0.0'}]}]}
+                with self.assertRaises(scan.ScanError):scan.require_package_inventory(report,{filename:expected})
+                report['Results'][0]['Packages'][0]['Name']=name.upper()
+                scan.require_package_inventory(report,{filename:expected})
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory)/'requirements.txt';path.write_text('Example_Pkg.Name==1.0.0\n')
+            self.assertEqual(scan.lock_packages(path),frozenset({('example-pkg-name','1.0.0')}))
+
     def test_trivy_separate_license_sections_do_not_hide_packages(self):
         raw={'SchemaVersion':2,'Results':[
             {'Target':'package-lock.json','Class':'lang-pkgs','Packages':[{'Name':'example','Version':'1.0.0','Licenses':['GPL-3.0-only']}], 'Vulnerabilities':[{'Severity':'HIGH'}]},

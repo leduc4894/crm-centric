@@ -104,6 +104,35 @@ class CompletionTests(unittest.TestCase):
                 clean=json.loads(output.read_text())
                 self.assertEqual(clean['source_evidence']['sbom'],source_sbom({'package-lock.json':{('safe','1.0.0')}},run,'1.0.0'))
 
+    def test_allowed_license_producer_survives_completion_and_unsafe_rows_fail(self):
+        import copy, hashlib
+        from scripts.ci import scan
+        from scripts.ci.completion import complete
+        from scripts.ci.sbom import source_sbom
+        from scripts.ci.summary import parse_report
+        from test_scan import RUN
+        rows,_=scan.parse_findings('trivy',{'SchemaVersion':2,'Results':[{'Class':'lang-pkgs','Target':'package-lock.json','Packages':[{'Name':'safe','Version':'1.0.0','Licenses':['MIT']}]}]})
+        reports={kind:scan.ScanSummary(RUN,'pass','CI_SCAN_OK','00000000-0000-4000-8000-000000000000',tuple(rows) if kind=='trivy' else (),1) for kind in ('semgrep','trivy','gitleaks')}
+        combined=scan.combine_scans(reports,(),RUN)
+        self.assertEqual(combined.status,'pass')
+        sbom=source_sbom({'package-lock.json':{('safe','1.0.0')}},RUN,'1.0.0')
+        data={'identity':vars(RUN),'job':'security','command_id':'security','status':'success','tools':{'trivy':'0.76.2'},'artifacts':[],'elapsed_seconds':1,
+              'security_evidence':combined.to_dict(),'source_evidence':{'identity':vars(RUN),'status':'inventory-only','coverageGaps':[],'lockCount':1,'sbom':sbom,'sbomSha256':hashlib.sha256(json.dumps(sbom,sort_keys=True,separators=(',',':')).encode()).hexdigest()},
+              'suites':[{'name':'security','tests':[{'id':'repository-security','outcome':'passed'}]}]}
+        mutations=[{'verdict':v} for v in ('blocked','incomplete','review-required','unknown')]+[{'kind':'unknown'},{'kind':'secret'},{'finding_id':'invalid'},{'extra':'untrusted'}]
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory)/'security.json';path.write_text(json.dumps(data))
+            self.assertEqual(complete('security',path,{'gate':{'outcome':'success'}},RUN),'CI_JOB_COMPLETE')
+            self.assertEqual(parse_report('normalized',path,RUN).status,'success')
+            self.assertEqual(json.loads(path.read_text())['security_evidence']['findings'],rows)
+            for mutation in mutations:
+                bad=copy.deepcopy(data);bad['security_evidence']['findings'][0].update(mutation)
+                unsafe=scan.ScanSummary(RUN,'pass','CI_SCAN_OK','00000000-0000-4000-8000-000000000000',tuple(bad['security_evidence']['findings']),1)
+                self.assertEqual(scan.combine_scans({**reports,'trivy':unsafe},(),RUN).status,'incomplete')
+                path.write_text(json.dumps(bad))
+                with self.subTest(mutation=mutation):
+                    self.assertNotEqual(complete('security',path,{'gate':{'outcome':'success'}},RUN),'CI_JOB_COMPLETE')
+
     def test_interruption_withholds_original_report_from_always_upload(self):
         from unittest.mock import patch
         from scripts.ci.completion import complete
