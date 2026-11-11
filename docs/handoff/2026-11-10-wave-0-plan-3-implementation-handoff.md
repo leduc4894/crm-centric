@@ -13,10 +13,10 @@ commit on top of it is `40a7c91` and carries **fix round 6** of the final review
 — the contract prerequisite guard, the CI-simulation harness, the TypeScript comparator
 envelope and the documentation of that round; the commit on top of that one is
 `88f5542` and carries **fix round 7** — the scratch cleanup of the Plan 3 harnesses and
-the documentation of that round; the commit on top of that one carries the record of the
-scoped re-review of both rounds and the three documentation corrections that the review
-asked for. That last SHA is not recorded here, because a commit cannot carry its own SHA.
-The commits on top of the
+the documentation of that round; the commit on top of that one is `5e87961` and carries
+the record of the scoped re-review of both rounds and the three documentation
+corrections that the review asked for. That last SHA is not recorded here, because a
+commit cannot carry its own SHA. The commits on top of the
 fix round 5 documentation change
 only the recorded HEAD SHA of this document and the wording of this document and of the
 Plan 3 verification document; they carry no source change. The commit that recorded the
