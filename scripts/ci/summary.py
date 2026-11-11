@@ -79,6 +79,21 @@ def parse_report(kind, path, expected):
                 or not isinstance(data['tools'],dict) or not data['tools']
                 or not isinstance(data['artifacts'],list)):
             raise ReportError()
+        if job=='security' and data['status']=='success':
+            scan=data.get('security_evidence')
+            if (not isinstance(scan,dict) or RunIdentity(**scan.get('identity',{}))!=identity
+                    or scan.get('status')!='pass' or type(scan.get('scanned_count')) is not int
+                    or scan['scanned_count']<=0 or scan.get('findings')!=[]
+                    or scan.get('reason_token')!='CI_SCAN_OK'):
+                raise ReportError('CI_SCAN_INCOMPLETE')
+            import hashlib
+            source=data.get('source_evidence',{})
+            if (RunIdentity(**source.get('identity',{}))!=identity
+                    or source.get('status')!='inventory-only' or source.get('coverageGaps')!=[]
+                    or type(source.get('lockCount')) is not int or source['lockCount']<=0
+                    or not source.get('sbom',{}).get('components')
+                    or source.get('sbomSha256')!=hashlib.sha256(json.dumps(source['sbom'],sort_keys=True,separators=(',',':')).encode()).hexdigest()):
+                raise ReportError('CI_SCAN_INCOMPLETE')
         if job in ('backend','compose','web-browser') and data['status']=='success':
             from scripts.ci.image_identity import verify_job_evidence
             from scripts.ci.scan import ScanError

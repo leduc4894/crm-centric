@@ -301,3 +301,30 @@ argument-override fixture sentinel). Extraction results travel only over private
 helper stdin and reach the existing recursive sentinel guard; they do
 not enter argv, logs or reports. Testcontainers already supplied their generated
 passwords. Secretless commands keep an empty known-value set.
+
+### Task 7 aggregate and untrusted execution boundary
+
+Every required job has a completion step that observes GitHub step outcomes and
+emits only safe reason/correlation fields when setup/actions fail or the gate did
+not run. Missing/invalid evidence remains failure; diagnostic fallback is not a
+successful test report. `wave0-required` has explicit `needs`, runs with `always()`
+and downloads each of the five named same-run summaries independently. Its parser
+requires platform success plus complete identity-bound nonempty test/image/source
+security evidence. Whole-workflow cancellation or an unscheduled aggregate cannot
+emit success; remote scheduler cancellation is still unverified.
+
+The security job now runs actual Semgrep/Gitleaks/Trivy adapters and guarded source
+inventory. A dedicated hash-locked CPython 3.12.12 Semgrep environment is requested
+without replacing the Python 3.15.2 job runtime. Hosted provisioning remains
+unproven until a remote run. Coverage gaps and actual findings still fail; source
+inventory alone never proves clearance. Candidate-measured Semgrep launcher hash
+is provenance only, not independent attestation. `CI_TRUST_NOT_PROVISIONED` remains
+an unconditional blocking step. No candidate-owned policy grants itself authority.
+
+Workflow lint rejects privilege/environment overrides, repository secret and PR
+expression interpolation, caches, unknown actions, and uploads outside exact
+normalized summary/source-SBOM paths with seven-day retention. No privileged job
+consumes candidate artifacts. Fork approval, remote action failures/timeouts,
+merge-queue enablement and required-check governance remain UNKNOWN/OPEN; merge
+queues must not be enabled against these checks until reviewed `merge_group`
+revision validation and event coverage exist. No remote changes were made.

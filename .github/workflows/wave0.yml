@@ -10,7 +10,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - id: checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -23,14 +24,22 @@ jobs:
       - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1
         with:
           dotnet-version: '10.0.403'
-      - name: Verify immutable event revisions
+      - id: revision
+        name: Verify immutable event revisions
         run: python -m scripts.ci.revision --event-file "$GITHUB_EVENT_PATH" > revision.json
-      - name: Provision locked tools
+      - id: setup
+        name: Provision locked tools
         run: bash scripts/ci/setup.sh backend
-      - name: Run backend gate
+      - id: gate
+        name: Run backend gate
         env:
           CI_SCANNER_ROOT: ${{ github.workspace }}/.local/ci-scanners
         run: python -m scripts.ci.jobs backend --revision revision.json --output .local/ci/backend.json
+      - name: Normalize completion diagnostics
+        if: always()
+        env:
+          CI_STEPS: ${{ toJSON(steps) }}
+        run: python -m scripts.ci.completion backend --output .local/ci/backend.json
       - name: Publish safe summary
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -43,7 +52,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - id: checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -56,14 +66,22 @@ jobs:
       - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1
         with:
           dotnet-version: '10.0.403'
-      - name: Verify immutable event revisions
+      - id: revision
+        name: Verify immutable event revisions
         run: python -m scripts.ci.revision --event-file "$GITHUB_EVENT_PATH" > revision.json
-      - name: Provision locked tools
+      - id: setup
+        name: Provision locked tools
         run: bash scripts/ci/setup.sh compose
-      - name: Run compose gate
+      - id: gate
+        name: Run compose gate
         env:
           CI_SCANNER_ROOT: ${{ github.workspace }}/.local/ci-scanners
         run: python -m scripts.ci.jobs compose --revision revision.json --output .local/ci/compose.json
+      - name: Normalize completion diagnostics
+        if: always()
+        env:
+          CI_STEPS: ${{ toJSON(steps) }}
+        run: python -m scripts.ci.completion compose --output .local/ci/compose.json
       - name: Publish safe summary
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -76,7 +94,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - id: checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -89,12 +108,20 @@ jobs:
       - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1
         with:
           dotnet-version: '10.0.403'
-      - name: Verify immutable event revisions
+      - id: revision
+        name: Verify immutable event revisions
         run: python -m scripts.ci.revision --event-file "$GITHUB_EVENT_PATH" > revision.json
-      - name: Provision locked tools
+      - id: setup
+        name: Provision locked tools
         run: bash scripts/ci/setup.sh contracts-sdk
-      - name: Run contracts-sdk gate
+      - id: gate
+        name: Run contracts-sdk gate
         run: python -m scripts.ci.jobs contracts-sdk --revision revision.json --output .local/ci/contracts-sdk.json
+      - name: Normalize completion diagnostics
+        if: always()
+        env:
+          CI_STEPS: ${{ toJSON(steps) }}
+        run: python -m scripts.ci.completion contracts-sdk --output .local/ci/contracts-sdk.json
       - name: Publish safe summary
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -107,7 +134,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - id: checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -120,14 +148,22 @@ jobs:
       - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1
         with:
           dotnet-version: '10.0.403'
-      - name: Verify immutable event revisions
+      - id: revision
+        name: Verify immutable event revisions
         run: python -m scripts.ci.revision --event-file "$GITHUB_EVENT_PATH" > revision.json
-      - name: Provision locked tools
+      - id: setup
+        name: Provision locked tools
         run: bash scripts/ci/setup.sh web-browser
-      - name: Run web-browser gate
+      - id: gate
+        name: Run web-browser gate
         env:
           CI_SCANNER_ROOT: ${{ github.workspace }}/.local/ci-scanners
         run: python -m scripts.ci.jobs web-browser --revision revision.json --output .local/ci/web-browser.json
+      - name: Normalize completion diagnostics
+        if: always()
+        env:
+          CI_STEPS: ${{ toJSON(steps) }}
+        run: python -m scripts.ci.completion web-browser --output .local/ci/web-browser.json
       - name: Publish safe summary
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -140,7 +176,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - id: checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -153,14 +190,29 @@ jobs:
       - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1
         with:
           dotnet-version: '10.0.403'
-      - name: Verify immutable event revisions
+      - id: scanner-python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12.12'
+          update-environment: false
+      - id: revision
+        name: Verify immutable event revisions
         run: python -m scripts.ci.revision --event-file "$GITHUB_EVENT_PATH" > revision.json
-      - name: Provision locked tools
+      - id: setup
+        name: Provision locked tools
+        env:
+          CI_SEMGREP_PYTHON: ${{ steps.scanner-python.outputs.python-path }}
         run: bash scripts/ci/setup.sh security
-      - name: Inventory exact committed source dependencies
+      - id: gate
+        name: Run real repository security gate
         env:
           CI_SCANNER_ROOT: ${{ github.workspace }}/.local/ci-scanners
-        run: python -m scripts.ci.sbom --revision revision.json --output .local/ci-sbom/source.json
+        run: python -m scripts.ci.security --revision revision.json --output .local/ci/security.json
+      - name: Normalize completion diagnostics
+        if: always()
+        env:
+          CI_STEPS: ${{ toJSON(steps) }}
+        run: python -m scripts.ci.completion security --output .local/ci/security.json
       - name: Publish normalized source inventory
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -169,10 +221,6 @@ jobs:
           path: .local/ci-sbom/source.json
           if-no-files-found: error
           retention-days: 7
-      - name: Security implementation pending
-        run: |
-          python -c 'import json,uuid; print(json.dumps({"reasonToken":"CI_SECURITY_NOT_PROVISIONED","correlationId":str(uuid.uuid4())}))'
-          exit 1
       - name: Publish safe summary
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -187,19 +235,46 @@ jobs:
     needs: [backend, compose, contracts-sdk, web-browser, security]
     if: always()
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - id: checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
           python-version: '3.15.2'
-      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
+      - id: backend
+        if: always()
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
         with:
-          pattern: '*-summary'
+          name: backend-summary
           path: .local/ci
-          merge-multiple: true
-      - name: Aggregate every required result
+      - id: compose
+        if: always()
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
+        with:
+          name: compose-summary
+          path: .local/ci
+      - id: contracts-sdk
+        if: always()
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
+        with:
+          name: contracts-sdk-summary
+          path: .local/ci
+      - id: web-browser
+        if: always()
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
+        with:
+          name: web-browser-summary
+          path: .local/ci
+      - id: security
+        if: always()
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
+        with:
+          name: security-summary
+          path: .local/ci
+      - id: aggregate
+        name: Aggregate every required result
         if: always()
         env:
           CI_NEEDS: ${{ toJSON(needs) }}

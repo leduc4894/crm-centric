@@ -86,3 +86,19 @@ class AggregateTests(unittest.TestCase):
                 summary=parse_report('normalized',report,IDENTITY)
             evidence=[summary]+self.evidence()[1:]
             self.assertFalse(aggregate(dict.fromkeys(INVENTORY,'success'),evidence,IDENTITY).success)
+
+    def test_every_actual_workflow_job_is_authoritative_and_zero_tests_fail(self):
+        import yaml
+        workflow=yaml.safe_load((Path(__file__).resolve().parents[2]/'.github/workflows/wave0.yml').read_text())
+        actual=set(workflow['jobs'])-{'wave0-required'}
+        self.assertEqual(actual,set(INVENTORY))
+        for job in actual:
+            for outcome in ('failure','skipped','cancelled',None):
+                needs=dict.fromkeys(actual,'success');needs[job]=outcome
+                with self.subTest(job=job,outcome=outcome):
+                    self.assertFalse(aggregate(needs,self.evidence(),IDENTITY).success)
+            evidence=[replace(item,total=0,passed=0) if item.job==job else item for item in self.evidence()]
+            self.assertFalse(aggregate(dict.fromkeys(actual,'success'),evidence,IDENTITY).success)
+        # A scheduler that never runs the aggregator emits no successful check;
+        # no synthetic outcome may substitute for cancelled/missing prerequisites.
+        self.assertFalse(aggregate({},[],IDENTITY).success)

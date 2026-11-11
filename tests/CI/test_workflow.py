@@ -68,3 +68,41 @@ class TrustBootstrapTests(unittest.TestCase):
             pins=[step['with']['python-version'] for step in workflow['jobs'][job]['steps']
                   if step.get('uses','').startswith('actions/setup-python@')]
             self.assertEqual(pins,['3.15.2'])
+
+class IsolationMutationTests(unittest.TestCase):
+    def test_untrusted_workflow_mutations_are_rejected(self):
+        from scripts.ci.workflow import validate
+        source=yaml.safe_load((ROOT/'.github/workflows/wave0.yml').read_text())
+        mutations=[
+            lambda w:w['jobs']['security'].update(permissions={'contents':'write'}),
+            lambda w:w['jobs']['security'].update(secrets='inherit'),
+            lambda w:w['jobs']['security'].update(environment='production'),
+            lambda w:w['jobs']['security']['steps'].append({'run':'echo ${{ secrets.TEST }}'}),
+            lambda w:w['jobs']['security']['steps'].append({'run':'echo ${{ github.event.pull_request.title }}'}),
+            lambda w:w['jobs']['security']['steps'].append({'uses':'actions/cache@'+'a'*40}),
+            lambda w:w['jobs']['security']['steps'].append({'uses':'actions/upload-artifact@'+'a'*40,'with':{'name':'raw','path':'.local/**','retention-days':90}}),
+            lambda w:w['jobs']['wave0-required']['steps'].append({'run':'echo unsafe','if':'always()'}),
+        ]
+        for mutate in mutations:
+            bad=copy.deepcopy(source);mutate(bad)
+            with self.subTest(mutation=mutate),self.assertRaises(ValueError):validate(bad)
+
+    def test_security_is_real_and_all_jobs_have_completion_diagnostics(self):
+        workflow=yaml.safe_load((ROOT/'.github/workflows/wave0.yml').read_text())
+        for name,job in workflow['jobs'].items():
+            commands=[step.get('run','') for step in job['steps']]
+            if name!='wave0-required':
+                self.assertTrue(any('scripts.ci.completion' in command for command in commands),name)
+        commands=[step.get('run','') for step in workflow['jobs']['security']['steps']]
+        self.assertTrue(any('scripts.ci.security' in command for command in commands))
+        self.assertFalse(any('CI_SECURITY_NOT_PROVISIONED' in command for command in commands))
+
+    def test_security_provisions_hash_locked_supported_semgrep_runtime(self):
+        workflow=yaml.safe_load((ROOT/'.github/workflows/wave0.yml').read_text())
+        steps=workflow['jobs']['security']['steps']
+        runtimes=[s for s in steps if s.get('id')=='scanner-python']
+        self.assertEqual(len(runtimes),1)
+        self.assertEqual(runtimes[0]['with'],{'python-version':'3.12.12','update-environment':False})
+        setup=(ROOT/'scripts/ci/setup.sh').read_text()
+        self.assertIn('--require-hashes',setup)
+        self.assertIn('semgrep-requirements.lock',setup)
