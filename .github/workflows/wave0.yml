@@ -59,6 +59,8 @@ jobs:
       - name: Provision locked tools
         run: bash scripts/ci/setup.sh compose
       - name: Run compose gate
+        env:
+          CI_SCANNER_ROOT: ${{ github.workspace }}/.local/ci-scanners
         run: python -m scripts.ci.jobs compose --revision revision.json --output .local/ci/compose.json
       - name: Publish safe summary
         if: always()
@@ -121,6 +123,8 @@ jobs:
       - name: Provision locked tools
         run: bash scripts/ci/setup.sh web-browser
       - name: Run web-browser gate
+        env:
+          CI_SCANNER_ROOT: ${{ github.workspace }}/.local/ci-scanners
         run: python -m scripts.ci.jobs web-browser --revision revision.json --output .local/ci/web-browser.json
       - name: Publish safe summary
         if: always()

@@ -206,3 +206,46 @@ without a matching lock contributes a blocking coverage gap even alongside a
 fully scanned npm/NuGet/Python lock. npm workspace manifests must match the ancestor
 lock's exact package entry and dependency declarations. Unsupported projects and
 unpinned Python inputs require coverage; unrelated application locks never imply it.
+
+## Image evidence (Task 6)
+
+`ImageIdentity(job, runId, imageId, platform, manifestDigest)` records the Docker
+config ID read from a started container's `Image` field and verifies it against
+`docker image inspect <config-ID>`. Local IDs never become registry digests;
+`manifestDigest` is null because RepoDigests can identify a multiarch index and
+no platform descriptor chain is verified here. Raw inspect/history are not artifacts.
+
+Compose and browser job runners set a fresh private evidence directory. The local
+stack readiness path observes the started API, completed migrator, PostgreSQL and
+Keycloak containers before returning to service tests, scans those exact immutable
+IDs using Trivy's Docker-only image source, and caches only validated evidence for
+that job/run/image. Both the job and normalized-summary parser require all four
+roles, matching tested/scanned identities, fresh databases, nonempty inventories,
+and a recomputed SBOM hash. Missing scanner, missing roles, unknown severities,
+findings or mismatches close the gate. Workflow scanner path is explicitly
+`.local/ci-scanners`; hosted provisioning for it is **not implemented** and therefore
+fails closed. A local rehearsal may instead supply `CI_SCANNER_ROOT=.local/task5`.
+
+Trivy verifies executable checksum/version, successfully updates both vulnerability
+and Java DBs, and checks each upstream `UpdatedAt` against the existing 24h maximum
+before and after scanning. `DownloadedAt` is never a freshness substitute. Java
+DB publishing cadence can exceed this maximum; that is a blocker to review, not an
+automatically granted age exemption. Only normalized findings and a reduced
+CycloneDX 1.6 inventory are written: package name/version, tool version, and image
+identity properties. Unversioned application grouping entries are omitted, but
+versioned package inventory must remain nonempty. Descriptions, arbitrary properties,
+paths, URLs, matches and raw scanner metadata are not copied. Runtime secret-file
+values are compared privately against the normalized artifact before writing it.
+
+No OCI archives are shared or uploaded and no registry image is published. Existing
+artifact upload remains restricted to normalized job JSON (including validated
+image evidence on successful Compose/browser jobs), with 7-day retention.
+
+**Limits:** This is candidate-owned verification, not independent policy authority.
+Backend `ContainerImages`/direct Docker and Testcontainers image coverage is not
+wired into this local-stack hook. No new exact-SHA full Compose/browser rehearsal,
+source-dependency SBOM, hosted scan provisioning, or remote execution has passed.
+Historical locally available runtime-image scans found real blocking vulnerabilities;
+PostgreSQL also has unknown-severity findings and remains incomplete. Security tool
+coverage, source/dependency findings, independent trust and acceptance drills remain
+open. Never describe wrapper tests or nonempty SBOMs as passing image security.

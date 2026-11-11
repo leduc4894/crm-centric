@@ -79,6 +79,13 @@ def parse_report(kind, path, expected):
                 or not isinstance(data['tools'],dict) or not data['tools']
                 or not isinstance(data['artifacts'],list)):
             raise ReportError()
+        if job in ('compose','web-browser') and data['status']=='success':
+            from scripts.ci.image_identity import verify_job_evidence
+            from scripts.ci.scan import ScanError
+            try:
+                verify_job_evidence(data.get('image_evidence',[]),job,identity.run_id)
+            except (ScanError,KeyError,TypeError,ValueError):
+                raise ReportError('CI_IMAGE_EVIDENCE_INCOMPLETE') from None
         suites = data['suites']
         names = [suite['name'] for suite in suites]
         if len(names) != len(set(names)) or set(names) != set(policy['jobs'][job]):

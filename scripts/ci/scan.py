@@ -438,3 +438,48 @@ def node_manifest_locked(tree, manifest):
         if directory==tree: break
         directory=directory.parent
     return False
+
+
+def scan_image(scanner, identity):
+    """Scan Docker config ID only, never a mutable tag or registry fallback.
+
+    Return normalized evidence and an allowlisted CycloneDX inventory. All raw
+    reports/inspect remain in private_command temporary storage and are deleted.
+    """
+    from dataclasses import asdict
+    from scripts.ci.image_identity import validate, from_inspect
+    from scripts.ci.sbom import normalize_sbom
+    result={'identity':asdict(identity),'status':'incomplete','reason_token':'CI_IMAGE_SCAN_INCOMPLETE',
+            'correlation_id':str(uuid.uuid4()),'packages':0,'sbomSha256':None}
+    try:
+        validate(identity)
+        if scanner.kind!='trivy' or scanner.cache is None: raise ScanError()
+        _verify_tool(scanner)
+        inspected=_run_json(['docker','image','inspect',identity.imageId])
+        if len(inspected)!=1 or from_inspect(identity.job,identity.runId,inspected[0])!=identity: raise ScanError()
+        with private_command([str(scanner.executable),'image','--cache-dir',str(scanner.cache.resolve()),'--download-db-only'],timeout=300): pass
+        metadata=_json(scanner.cache/'db/metadata.json'); require_fresh(metadata)
+        # Java archives in Keycloak need the independent Java index too.
+        with private_command([str(scanner.executable),'image','--cache-dir',str(scanner.cache.resolve()),'--download-java-db-only'],timeout=300): pass
+        java_metadata=_json(scanner.cache/'java-db/metadata.json'); require_fresh(java_metadata)
+        common=[str(scanner.executable),'image','--image-src=docker','--cache-dir',str(scanner.cache.resolve()),'--skip-db-update','--skip-java-db-update','--offline-scan','--disable-telemetry']
+        raw=_run_json(common+['--scanners=vuln','--list-all-pkgs','--format=json',identity.imageId],timeout=600)
+        if raw['SchemaVersion']!=2 or raw['Metadata']['ImageID']!=identity.imageId or not raw['Results']: raise ScanError()
+        findings=[]; packages=0
+        for section in raw['Results']:
+            if section.get('Class') not in ('os-pkgs','lang-pkgs'): raise ScanError()
+            for package in section.get('Packages',[]):
+                if not package.get('Name') or not package.get('Version'): raise ScanError()
+                packages+=1
+            for record in section.get('Vulnerabilities') or []:
+                findings.append(_finding('vulnerability',record,record['Severity']))
+        if packages<=0: raise ScanError()
+        sbom=normalize_sbom(_run_json(common+['--format=cyclonedx',identity.imageId],timeout=600),identity,scanner.version)
+        require_fresh(java_metadata)
+        require_fresh(metadata) # long scans cannot silently age out their DB
+        states={finding['verdict'] for finding in findings}
+        status='incomplete' if 'incomplete' in states else 'blocked' if 'blocked' in states else 'pass'
+        result.update(status=status,reason_token={'pass':'CI_IMAGE_SCAN_OK','blocked':'CI_IMAGE_FINDINGS','incomplete':'CI_IMAGE_SCAN_INCOMPLETE'}[status],packages=packages,
+                      findings=findings,sbom=sbom,sbomSha256=hashlib.sha256(json.dumps(sbom,sort_keys=True,separators=(',',':')).encode()).hexdigest(),databaseUpdatedAt=metadata['UpdatedAt'],javaDatabaseUpdatedAt=java_metadata['UpdatedAt'])
+    except (ScanError,SafeProcessError,OSError,KeyError,TypeError,ValueError,AttributeError): pass
+    return result
