@@ -1034,3 +1034,57 @@ before this run; the pinned Node 24.22.2 needs no `libatomic` workaround.
 the prerequisites of the 55 contract tests are still not provisioned by the workflow; Plan 4
 owns both. Wave 0/P0 acceptance, remote DemoModule end-to-end, tenant isolation,
 outage/recovery and restore drills and remote CI remain **OPEN** and are not claimed here.
+
+## Task 7, the base revision of the aggregate after fix round 6
+
+**The finding.** The scoped re-review did not run the ten-step working-tree aggregate; the
+controller ran it at the final tree and it **failed**:
+
+```
+compatibility        1        0         CONTRACT_POLICY_REVIEW_REQUIRED
+frontend-typecheck   not run  -         not run: an earlier step failed
+...
+plan3 aggregate: FAIL at compatibility (CONTRACT_POLICY_REVIEW_REQUIRED)
+```
+
+**The cause.** Fix round 6 changed `tools/contracts/surface/compare-typescript.cjs` — the
+TypeScript surface comparator, which the compatibility gate treats as a **policy-like**
+file. `scripts/contracts/compatibility.py` refuses to compare a candidate against a base
+whose policy-like files differ: it raises `CONTRACT_POLICY_REVIEW_REQUIRED` instead of
+reporting a verdict. The file set was verified directly: the base `408ded6` and the
+current tree agree on `tools/contracts/oasdiff.json`, and the only differing policy file is
+the comparator, exactly the file of the F-3 fix.
+
+**This is the gate working as designed, not a defect.** The comparison against a base whose
+policy tooling differs is not comparable, so the gate demands a review. The change was
+reviewed — it is the fix of the finding F-3 of the final review of Task 7, and the scoped
+re-review of fix rounds 6 and 7 returned READY. The consequence for the operator is that the
+**base revision of the aggregate is now part of the contract of the command**: a base at or
+after `40a7c91` (the commit that carries the reviewed comparator change) is required for a
+run that is expected to pass.
+
+**The measurement with the policy-compatible base.**
+
+| Command | Result |
+|---|---|
+| `python3 scripts/contracts/compatibility.py --base-ref 408ded6` | exit 1, `CONTRACT_POLICY_REVIEW_REQUIRED`, `classification: policy-review-required` |
+| `python3 scripts/contracts/compatibility.py --base-ref 40a7c91` | exit 0, `CONTRACT_COMPATIBLE`, `classification: compatible`, identical base and current input hashes over the same twelve contract files |
+| `python3 scripts/contracts/compatibility.py --base-ref 88f5542` | exit 0, `CONTRACT_COMPATIBLE`, `classification: compatible` |
+| `bash scripts/check-plan3.sh --base-ref 40a7c91` | exit 0, **5m33.919s**, nine steps exit 0, the browser step recorded as `not run: the browser suite needs the local Docker stack; pass --with-browser to run it`, source digest `da73ad0b3fccf2b5f5267ee3db03b64f804f6728a53ed02873c5204cedb9e770` unchanged during the run |
+
+**What was NOT changed.** No gate code was touched, no threshold was relaxed and no waiver
+was introduced: the policy review remains exactly as strict as before. The `tests/Plan3/*`
+harnesses keep their default base `408ded6`; their cases assert the **failure** paths of
+the gate and none of them asserts that the aggregate reaches a compatible verdict, so they
+are unaffected — the reviewer measured 16 of 16, 3 of 3 and 87/55/32 with that base after
+fix round 6. The case `a staged file that a step rewrites is detected` was checked
+separately for a false pass: it still reports `PLAN3_SOURCE_MUTATED`, because the
+source-mutation guard fires after the `sdk-consumers` step and therefore before the
+compatibility step reaches its own verdict — it does not pass because the policy review
+stopped the run. The merge base of the branch remains the revision a reviewer compares the
+candidate against; only the **self-test** base of the aggregate moved.
+
+**Still open.** Unchanged by this record: the five Plan 3 harnesses are executed by no
+automated runner and the prerequisites of the 55 contract tests are not provisioned by the
+workflow; Plan 4 owns both. Wave 0/P0 acceptance, remote DemoModule end-to-end, tenant
+isolation, outage/recovery and restore drills and remote CI remain **OPEN**.

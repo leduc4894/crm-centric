@@ -624,7 +624,11 @@ The exact commands a human must run, from the root of the checkout, with the pin
 | scratch cleanup of the Plan 3 harnesses | `bash tests/Plan3/scratch-cleanup.sh` | the scratch of the Plan 3 harnesses is unlinked through an absolute rm binary; a `PATH`-resolved rm is never invoked, so a recoverable-delete shim on the `PATH` cannot copy a multi-gigabyte scratch tree into the trash of the user |
 
 The base revision must be a revision that the local clone already has; the harnesses never
-fetch. Plan 4 owns the wiring of these five commands into the continuous integration path.
+fetch. It must also be a revision whose policy-like files match the current ones, which
+after fix round 6 means **at or after `40a7c91`** — see the paragraph on the base revision of
+the aggregate below. The harnesses default to the Plan 3 base `408ded6`; their cases assert
+the failure paths of the gate, and they are unaffected by the policy review of the
+comparator. Plan 4 owns the wiring of these five commands into the continuous integration path.
 Until that happens they are run by hand, and their results are recorded in this document and
 in the handoff.
 
@@ -653,7 +657,31 @@ fix round 7, on the tree of this round, and is the current evidence.
 | Scratch cleanup of the Plan 3 harnesses | `bash tests/Plan3/scratch-cleanup.sh` | exit 0, the scratch of the child was unlinked, the `PATH`-resolved rm was never invoked (fix round 7) |
 | Browser suite, against the real local stack | `bash scripts/dev-up.sh` → `bash scripts/dev-smoke.sh` → `npm run test:e2e -w apps/crm-web` → `bash scripts/dev-down.sh` | dev-up exit 0, project `crm-local-91859983f1e0`, API `http://localhost:5080`; dev-smoke exit 0; **4 browser tests passed, 9.4 s**, exit 0; dev-down exit 0, the stack stopped and no container was left (scoped re-review of fix rounds 6 and 7) |
 | Aggregate, working tree | `bash scripts/check-plan3.sh --base-ref 408ded6` | exit 0, 4m16.339s, nine steps exit 0, browser step recorded as `not run`, source digest unchanged (fix round 5) |
+| Aggregate, working tree, policy-compatible base | `bash scripts/check-plan3.sh --base-ref 40a7c91` | exit 0, **5m33.919s**, nine steps exit 0, browser step recorded as `not run: the browser suite needs the local Docker stack; pass --with-browser to run it`, source digest `da73ad0b3fccf2b5f5267ee3db03b64f804f6728a53ed02873c5204cedb9e770` unchanged during the run (scoped re-review of fix rounds 6 and 7) |
 | Aggregate, clean export | `bash tests/Plan3/clean-export.sh --sha 599ad545113b9e07dee4f776f154ee5cd60cc5d1 --base-ref 408ded6 --with-browser` | exit 0, 6m00.310s, all ten steps exit 0 including the browser suite, source digest unchanged (fix round 5) |
+
+**The base revision of the aggregate is now part of the contract of the command.** Fix round 6
+changed `tools/contracts/surface/compare-typescript.cjs` — the TypeScript surface comparator,
+which the compatibility gate treats as a **policy-like** file. A policy-like file may not
+differ between the base and the candidate without an explicit review, so the gate now stops
+the run against the Plan 3 base `408ded6`:
+
+```
+$ python3 scripts/contracts/compatibility.py --base-ref 408ded6
+{"baseSha": "408ded6b01f1373dfaff92a663f2f80347475f55", "classification": "policy-review-required",
+ "correlationId": "07514346-2329-4081-bdfb-93decc7aba07", "reason": "CONTRACT_POLICY_REVIEW_REQUIRED"}
+```
+
+and `bash scripts/check-plan3.sh --base-ref 408ded6` fails at the `compatibility` step with
+the same reason, the six steps after it recorded as `not run`. This is the gate behaving as
+designed: the comparison against a base whose policy tooling differs is not comparable, so it
+demands a review instead of reporting a verdict. The change was reviewed — it is the fix of
+the finding F-3 of the final review of Task 7 — so the run that proves the slice uses a base
+that already contains it: `--base-ref 40a7c91` returns `CONTRACT_COMPATIBLE` with identical
+base and current input hashes over the same twelve contract files, and the aggregate passes
+end to end. `--base-ref 88f5542` behaves the same. A future base must therefore be at or
+after `40a7c91`, and the merge base of the branch remains the revision a reviewer compares
+the candidate against.
 
 **Reused as historical evidence, not re-run.** Plan 2's Compose-category suite (14 cases)
 was **not** re-run in this task. Plan 3 changed no backend source, no container
@@ -672,7 +700,9 @@ prerequisite guard, the TypeScript comparator and the harnesses, nor in fix roun
 changed the cleanup of the scratch directories. The working-tree aggregate
 and the clean exact-SHA export of the table above were measured in fix round 5 and were
 **not** re-run in fix round 6 nor in fix round 7; they keep that label and are not presented
-as a run of this round.
+as a run of this round. The working-tree aggregate **was** run again at the final tree with
+the policy-compatible base `40a7c91`, and that row carries its own label; the row measured
+in fix round 5 keeps the label of its round.
 
 #### Versions and digests
 
