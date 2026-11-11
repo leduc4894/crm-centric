@@ -10,6 +10,10 @@
 
 **Spec:** `docs/superpowers/specs/2026-11-11-wave-0-plan-4-ci-wave-exit-design.md`.
 
+## Execution status — 2026-11-11
+
+Tasks 1–7 local implementation has task-level review/evidence; Task 8 documentation consolidates actual results in [verification](../../engineering/08-WAVE-0-PLAN-4-VERIFICATION.md). Checkbox requirements below remain unchecked where they combine unfulfilled acceptance; do not infer every planned action was completed. Backend/Compose failures, security/image/coverage findings and independent trust remain blocking; remote PR/main/fork/cancellation evidence NOT RUN. Wave 0/P0 OPEN. Scope authorization during execution allowed local commits and read-only governance inspection, no push/merge/settings/secrets/deploy.
+
 ## Global Constraints
 
 - Không runtime business/auth/tenant implementation, production deployment, package/image publication hoặc thay đổi contracts để gate pass.

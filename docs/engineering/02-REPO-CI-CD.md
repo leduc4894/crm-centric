@@ -19,7 +19,7 @@ crm-platform/
   docs/
 ```
 
-## Hiện trạng kiểm chứng (2026-11-10)
+## Hiện trạng kiểm chứng (2026-11-11)
 
 Backend scaffold/locked restore/build, real PostgreSQL integration, SDK-free Compose
 clean-source lifecycle, safe JSON logs/Activity và test-only fake issuer đã có local
@@ -37,7 +37,7 @@ React + TypeScript strict, Vite, TanStack Router, TanStack Query, Tailwind CSS, 
 .NET 10 LTS, C# 14 when compatible, ASP.NET Core, EF Core 10, FluentValidation or explicit validators, OpenTelemetry, structured logging, problem details error contract; xUnit + Testcontainers. Native AOT only after compatibility/profiling assessment.
 
 ## CI pipeline
-Hiện có contract-only CI tại `.github/workflows/contracts.yml` và tooling lock `requirements-contracts.lock`; các bước application/security/SDK/diff bên dưới là Wave 0+ chưa triển khai. Không xem contract CI xanh là MVP CI hoàn chỉnh.
+Local Plan 4 replaces `contracts.yml` with `.github/workflows/wave0.yml`: backend, Compose, contracts/SDK, web/browser, security and required aggregate. Implementation is reviewable, but backend/Compose, actual security/image findings, dependency coverage, independent trust and remote evidence remain OPEN/BLOCKED. See [Plan 4 verification](08-WAVE-0-PLAN-4-VERIFICATION.md). Proposed required check names and migration/rollback are recorded there; no rules/settings changes or remote runs were performed. The sequence below includes future runtime/deployment work and is not a claim of implemented acceptance.
 
 1. Format/lint/TS typecheck, .NET build, dependency license + vulnerability scan.
 2. Unit tests + static analysis/security scan, secret scan.

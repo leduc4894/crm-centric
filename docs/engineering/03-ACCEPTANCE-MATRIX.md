@@ -33,7 +33,8 @@
   breaking/security/schema gate tại base Git, aggregate gate fail-closed và negative cases.
   [W0P3-01→12 mapping và commands/counts](07-WAVE-0-PLAN-3-VERIFICATION.md).
   Đây là bằng chứng local của toolchain, không phải runtime acceptance.
-- OPEN: dependency/secret/container CI scans, remote CI run, và toàn bộ RT-* runtime bên dưới.
+- Plan 4 local CI/security implementation and [W0P4-01→12 evidence](08-WAVE-0-PLAN-4-VERIFICATION.md): actual scans ran and rejected current inputs; backend/Compose original jobs failed. Independent trust, source/tool coverage, security/image findings, final-SHA full jobs and remote acceptance remain OPEN/BLOCKED. Governance UNKNOWN/OPEN; no enforcement claim.
+- OPEN: passing dependency/secret/container gates, remote CI run, và toàn bộ RT-* runtime bên dưới.
   Runtime sentinel audits đã pass local; không thay thế CI scanner gate.
 - Plan 1 không đóng RT-* ở trên: OIDC/tenant/business/remote E2E/restore vẫn OPEN; database outage/recovery không phải DR drill.
 - Chưa có consumer production; fixtures không thay compatibility proof cho released consumer. SDK compilation và breaking diff phải pin/gate trước release đầu.

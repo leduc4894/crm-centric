@@ -1,6 +1,6 @@
 # Wave 0 — Plan 4: CI, security gates và bằng chứng đóng wave
 
-Ngày 2026-11-11. Trạng thái: đề xuất để review; chưa phê duyệt implementation. Khảo sát `main` tại `df993ae`.
+Ngày 2026-11-11. Original design surveyed `main` at `df993ae`. Local implementation subsequently authorized and reviewed task-by-task; acceptance remains OPEN/BLOCKED. [Actual Plan 4 evidence](../../engineering/08-WAVE-0-PLAN-4-VERIFICATION.md) records failures and missing independent trust/remote runs. No remote write/settings/deployment authorization is implied.
 
 ## Mục tiêu
 
