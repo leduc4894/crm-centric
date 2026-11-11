@@ -235,3 +235,37 @@ Final round2 guarded source rehearsal on committed a5cf17b: actual pinned Gitlea
 checked original lock bytes and normalized output; safe artifact produced with
 INCOMPLETE10locks/444components, preserving existing coverage gaps. This is local
 precommit guard evidence, not final-SHA/remote acceptance.
+
+## Review round 3: application argument override sentinel
+Parent identified the existing ContainerRuntimeTests argument override fixture
+passes a generated sentinel through `--ConnectionStrings:Platform=<sentinel>`.
+Verified clean starting workspace at4279ee5 and read current handoff. Extraction
+covered files/env but omitted that application argument, leaving the guard without
+this known sentinel. Added case-insensitive `--ConnectionStrings:...=...` value
+extraction into the existing frozen private list; no application behavior changed.
+
+TDD/actual verification:
+- Added .NET regression reproducing the actual Docker argument shape for API and
+  migrator. Observed RED2failed/2passed,0skips,71ms, safe fixed reason only.
+- `dotnet test tests/Integration/Integration.csproj -c Release --no-restore --filter FullyQualifiedName~Integration.ImageEvidenceSecretTests --logger trx;LogFileName=secrets.trx --results-directory .local/task6-r3-secret-tests`
+  under documented pinned .NET/Node/native runtime: PASS4,0skips,60ms.
+- `dotnet test tests/Integration/Integration.csproj -c Release --no-build --no-restore --filter 'FullyQualifiedName~Integration.ContainerRuntimeTests.Arguments_cannot_override_file_configuration|FullyQualifiedName~Integration.ImageEvidenceSecretTests' --logger trx;LogFileName=arguments.trx --results-directory .local/task6-r3-argument-tests`:
+  PASS6,0skips,5s, including the existing actual API/migrator Docker override
+  cases. CI_IMAGE_EVIDENCE was unset for those service regressions; full real-image
+  gate remains blocked by existing findings. This is not passing image acceptance.
+- Python direct-evidence guard regression supplies generated32hex-style sentinel
+  as the frozen known value; a matching package field denies artifact before write.
+  Pinned Python3.15.2 `-m unittest discover -s tests/CI -p test_image_identity.py -v`:
+  PASS22,0skips,0.246s.
+- `python3 -m unittest discover -s tests/Security -v`: PASS12,0skips,25.237s,
+  actual pinned scanners and secret-safe source/image fixtures.
+- Workflow contract, actionlint and git diff --check PASS; full CI/service/remote
+  suite NOT RUN (parent requests relevant checks without blocking on long suite).
+
+Changed: ContainerImages.FixtureSecretValues; .NET extraction tests; Python direct
+artifact guard regression; README and this handoff. No tokens or sentinel values
+added to output/logs/artifacts, no public API/schema/database/remote changes, no
+new suppressions/exceptions/authority. Commit subject:
+`fix(ci): include argument override sentinel in image guard`.
+All real image findings, coverage gaps, hosted availability and independent trust
+remain OPEN/BLOCKED; no Wave0/P0 acceptance claim.

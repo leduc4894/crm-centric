@@ -125,6 +125,11 @@ public sealed class ContainerImages : IAsyncLifetime
             else if (arg.StartsWith("--mount=", StringComparison.Ordinal)) Mount(arg[8..]);
             else if (arg is "--env" or "-e" && index + 1 < arguments.Length) EnvironmentValue(arguments[++index]);
             else if (arg.StartsWith("--env=", StringComparison.Ordinal)) EnvironmentValue(arg[6..]);
+            else if (arg.StartsWith("--ConnectionStrings:", StringComparison.OrdinalIgnoreCase))
+            {
+                var separator = arg.IndexOf('=');
+                if (separator >= 0) Add(arg[(separator + 1)..]);
+            }
             else if (arg is "--volume" or "-v" && index + 1 < arguments.Length)
             {
                 var mount = arguments[++index].Split(':');

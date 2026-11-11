@@ -21,6 +21,20 @@ public sealed class ImageEvidenceSecretTests
         Assert.True(values.Any(value => value.StartsWith("Host=localhost;", StringComparison.Ordinal)), "CI_SECRET_EXTRACTION_INCOMPLETE");
     }
 
+    [Theory]
+    [InlineData("api-fixture")]
+    [InlineData("migrator-fixture")]
+    public void Argument_override_fixture_sentinel_reaches_private_guard(string image)
+    {
+        using var fixture = new LocalSecretFixture();
+        var sentinel = Guid.NewGuid().ToString("N");
+        var values = ContainerImages.FixtureSecretValues([
+            "run", "--rm", "--mount", $"type=bind,source={fixture.ApplicationFile},target=/run/secrets/platform,readonly",
+            "--env", "PLATFORM_CONNECTION_FILE=/run/secrets/platform", image,
+            "--ConnectionStrings:Platform=" + sentinel]);
+        Assert.True(values.Contains(sentinel), "CI_SECRET_EXTRACTION_INCOMPLETE");
+    }
+
     [Fact]
     public void Secretless_docker_command_has_no_invented_sentinel()
     {

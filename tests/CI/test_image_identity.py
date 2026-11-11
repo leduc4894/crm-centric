@@ -216,3 +216,18 @@ class SourceCliSecretTests(unittest.TestCase):
             self.assertNotEqual(0,result.returncode)
             self.assertNotIn('synthetic-sentinel',result.stdout+result.stderr)
             self.assertFalse(output.exists())
+
+class CommandLineFixtureGuardTests(unittest.TestCase):
+    def test_generated_argument_sentinel_blocks_direct_image_artifact(self):
+        import tempfile
+        from pathlib import Path
+        from unittest.mock import patch
+        identity=replace(ImageTests().identity(),job='backend')
+        sentinel='a'*32
+        report=evidence(identity)
+        report['sbom']['components'][0]['name']=sentinel
+        report['sbomSha256']=hashlib.sha256(json.dumps(report['sbom'],sort_keys=True,separators=(',',':')).encode()).hexdigest()
+        with tempfile.TemporaryDirectory() as directory:
+            with patch('scripts.ci.image_identity.observe_container',return_value=identity),patch('scripts.ci.scan.scan_image',return_value=report):
+                with self.assertRaises(ScanError): images.record_container('d'*64,'backend','42',directory,None,secrets=(sentinel,))
+            self.assertFalse(list(Path(directory).glob('*.json')))

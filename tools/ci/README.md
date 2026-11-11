@@ -295,7 +295,9 @@ or independent policy authority. Existing security/trust blockers remain.
 
 Direct Docker evidence now freezes known fixture values before launching the
 container: bind-mounted /run/secrets file contents, sensitive environment values,
-and passwords parsed from connection strings. These values travel only over the
-private helper stdin and reach the existing recursive sentinel guard; they do
+passwords parsed from connection strings, and explicit
+`--ConnectionStrings:...=...` application argument values (including the generated
+argument-override fixture sentinel). Extraction results travel only over private
+helper stdin and reach the existing recursive sentinel guard; they do
 not enter argv, logs or reports. Testcontainers already supplied their generated
 passwords. Secretless commands keep an empty known-value set.
