@@ -7,6 +7,8 @@ candidate evaluators. Semantic evaluation belongs in a separate unprivileged job
 from dataclasses import dataclass
 import hashlib
 import json
+import os
+import subprocess
 from pathlib import PurePosixPath
 import re
 import time
@@ -26,6 +28,10 @@ class CompatibilityResult:
     evaluations: tuple = ()
     attestation_identity: str | None = None
     correlation_id: str | None = None
+    old_policy_hashes: tuple = ()
+    new_policy_hashes: tuple = ()
+    base_contract_hashes: tuple = ()
+    candidate_contract_hashes: tuple = ()
 
 
 @dataclass(frozen=True)
@@ -57,6 +63,73 @@ def _snapshot(items):
 
 def _hashes(snapshot):
     return {name: hashlib.sha256(content).hexdigest() for name, content in snapshot}
+
+
+@dataclass(frozen=True)
+class GitSnapshotCapability:
+    """Locally read immutable objects; caller still provisions verifier and scope.
+
+    No worktree reads, lazy fetch, replace objects or candidate script execution.
+    Construction is a trusted-coordinator operation, not proof of independent CI.
+    """
+    verify: object
+    candidate_tree: str
+    merge_method: str
+    old_policy: tuple
+    new_policy: tuple
+    base_contracts: tuple
+    candidate_contracts: tuple
+
+    @classmethod
+    def from_git(cls, repo, revision, verifier, merge_method, policy_paths):
+        try:
+            if not callable(verifier) or merge_method not in ('merge', 'squash', 'rebase'):
+                raise TransitionError()
+            paths = set(policy_paths)
+            if not paths:
+                raise TransitionError()
+            for path in paths:
+                _snapshot(((path, b''),))
+            def git(*args):
+                proc = subprocess.run(['git', '--no-replace-objects', *args], cwd=repo,
+                                      capture_output=True, timeout=15,
+                                      env={**os.environ, 'GIT_NO_LAZY_FETCH': '1',
+                                           'GIT_TERMINAL_PROMPT': '0'})
+                if proc.returncode:
+                    raise TransitionError()
+                return proc.stdout
+            def snapshot(commit):
+                if not isinstance(commit, str) or not re.fullmatch('[0-9a-f]{40}', commit):
+                    raise TransitionError()
+                if git('cat-file', '-t', commit).strip() != b'commit':
+                    raise TransitionError()
+                policy, contracts = [], []
+                for entry in git('ls-tree', '-r', '-z', commit).split(b'\0'):
+                    if not entry:
+                        continue
+                    meta, name = entry.split(b'\t', 1)
+                    name = name.decode('utf-8')
+                    if name not in paths and not name.startswith('docs/contracts/'):
+                        continue
+                    mode, kind, oid = meta.split()
+                    if mode not in (b'100644', b'100755') or kind != b'blob':
+                        raise TransitionError()
+                    content = git('cat-file', 'blob', oid.decode('ascii'))
+                    if name in paths:
+                        policy.append((name, content))
+                    if name.startswith('docs/contracts/'):
+                        contracts.append((name, content))
+                return tuple(sorted(policy)), _snapshot(contracts)
+            old_policy, base_contracts = snapshot(revision.base_sha)
+            new_policy, candidate_contracts = snapshot(revision.candidate_sha)
+            if {name for name, _ in old_policy + new_policy} != paths:
+                raise TransitionError()
+            return cls(verifier, git('rev-parse', '--verify', revision.candidate_sha + '^{tree}').decode('ascii').strip(),
+                       merge_method, old_policy, new_policy, base_contracts, candidate_contracts)
+        except TransitionError:
+            raise
+        except Exception:
+            raise TransitionError() from None
 
 
 def verify_transition(attestation, trusted_key, revision, old_hashes, new_hashes):
@@ -138,4 +211,7 @@ def evaluate_transition(transition, old_evaluator, new_evaluator):
             reason = 'CONTRACT_TOOL_ERROR'
         outcomes.append(reason)
     reason = 'CONTRACT_COMPATIBLE' if all(x == 'CONTRACT_COMPATIBLE' for x in outcomes) else 'CI_POLICY_TRANSITION_INCOMPATIBLE'
-    return CompatibilityResult(reason, tuple(outcomes), transition.identity, str(uuid.uuid4()))
+    return CompatibilityResult(reason, tuple(outcomes), transition.identity, str(uuid.uuid4()),
+                               transition.old_hashes, transition.new_hashes,
+                               tuple(sorted(_hashes(transition.base_contracts).items())),
+                               tuple(sorted(_hashes(transition.candidate_contracts).items())))

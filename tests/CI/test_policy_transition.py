@@ -3,6 +3,9 @@ from dataclasses import replace
 import hashlib
 import hmac
 import json
+from pathlib import Path
+import subprocess
+import tempfile
 import time
 import unittest
 from scripts.ci.revision import RevisionContext
@@ -74,6 +77,60 @@ class TransitionTests(unittest.TestCase):
         ]:
             with self.assertRaises(GateError):
                 policy_identity_preflight(old, new, revision, proof)
+
+    def test_result_binds_hashes_even_when_evaluator_fails(self):
+        transition = self.verify()
+        for reason in ['CONTRACT_COMPATIBLE', 'CONTRACT_BREAKING']:
+            result = p.evaluate_transition(transition, lambda *a: p.CompatibilityResult(reason),
+                                            lambda *a: p.CompatibilityResult('CONTRACT_COMPATIBLE'))
+            self.assertEqual(dict(result.old_policy_hashes), self.old)
+            self.assertEqual(dict(result.new_policy_hashes), self.new)
+            self.assertEqual(dict(result.base_contract_hashes),
+                             {'docs/contracts/api.openapi.yaml': hashlib.sha256(b'base contracts').hexdigest()})
+            self.assertEqual(dict(result.candidate_contract_hashes),
+                             {'docs/contracts/api.openapi.yaml': hashlib.sha256(b'real candidate contracts').hexdigest()})
+
+    def test_git_adapter_reads_objects_instead_of_dirty_worktree(self):
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp)
+            def git(*args):
+                return subprocess.run(['git', '-c', 'user.name=Fixture', '-c',
+                                       'user.email=fixture@example.invalid', *args], cwd=repo,
+                                      check=True, capture_output=True, text=True).stdout.strip()
+            git('init', '-q')
+            (repo / 'docs/contracts').mkdir(parents=True)
+            (repo / 'tools/contracts').mkdir(parents=True)
+            policy = repo / 'tools/contracts/policy.json'
+            contract = repo / 'docs/contracts/api.openapi.yaml'
+            policy.write_bytes(b'old')
+            contract.write_bytes(b'base contracts')
+            git('add', '.')
+            git('commit', '-qm', 'base')
+            base = git('rev-parse', 'HEAD')
+            policy.write_bytes(b'new')
+            contract.write_bytes(b'real candidate contracts')
+            git('add', '.')
+            git('commit', '-qm', 'candidate')
+            candidate = git('rev-parse', 'HEAD')
+            tree = git('rev-parse', 'HEAD^{tree}')
+            self.rev = RevisionContext(candidate, base, candidate, None, base)
+            policy.write_bytes(b'dirty policy')
+            contract.write_bytes(b'dirty contracts')
+            self.key = p.GitSnapshotCapability.from_git(repo, self.rev, self.key.verify,
+                                                       'merge', tuple(self.old))
+            self.payload.update(base_sha=base, head_sha=candidate, candidate_sha=candidate,
+                                candidate_tree=tree, event='push')
+            transition = self.verify()
+            self.assertEqual(transition.old_policy, (('tools/contracts/policy.json', b'old'),))
+            self.assertEqual(transition.new_policy, (('tools/contracts/policy.json', b'new'),))
+            self.assertEqual(transition.base_contracts, (('docs/contracts/api.openapi.yaml', b'base contracts'),))
+            self.assertEqual(transition.candidate_contracts,
+                             (('docs/contracts/api.openapi.yaml', b'real candidate contracts'),))
+            with self.assertRaises(p.TransitionError):
+                self.verify(self.attestation(candidate_tree='e'*40))
+            for paths in [('../policy',), ('missing',), ()]:
+                with self.assertRaises(p.TransitionError):
+                    p.GitSnapshotCapability.from_git(repo, self.rev, self.key.verify, 'merge', paths)
 
     def test_bad_bindings_and_missing_review_fail_closed(self):
         for field, value in [('base_sha', 'e'*40), ('head_sha', 'e'*40),
