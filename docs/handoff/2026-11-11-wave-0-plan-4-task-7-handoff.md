@@ -106,3 +106,42 @@ initial deny regex. Added mutations, observed RED2, replaced with exact allowed
 expression inventory. Focused workflow9 PASS0skips0.288s, actionlint/workflow/diff
 checks PASS. This changes lint/tests only; it does not resolve any acceptance
 blocker. New code commit and final exact-SHA rehearsal results recorded below.
+
+## Final implementation SHA7a6464b rehearsal
+Code correction commit `7a6464b16a1034f4326b9b10da48438c393459f0` changes only
+workflow expression lint and its tests (plus earlier evidence handoff). Extracted
+fresh exact Git archive, unique project/state/owner, rebuilt and actually started
+all services. Build3.205s, real readiness96.729s, then startup FAIL
+CI_IMAGE_EVIDENCE_INCOMPLETE. No image gate was disabled. Current selective real
+backend/Testcontainers probe FAIL1/1,0skips,18.241s, mandatory scan rejection;
+original full backend/Compose outcomes remain unresolved. Actual repository gate
+FAIL CI_SCAN_INCOMPLETE23.372s; guarded source INCOMPLETE10locks/444components,
+CI_TOOL_DEPENDENCY_COVERAGE + CI_UNLOCKED_DEPENDENCIES. No finding suppression.
+
+Fresh archive npm ci PASS254packages7s. Actual Chromium/Playwright with prepared
+native host libraries PASS4/4,0skips,11.563s including owned real API/PostgreSQL
+requests. This remains diagnostic service evidence after security rejection,
+NOT web-browser job success. Initial b4 launch failure is retained above.
+Latest pinned focused workflow9 PASS0skips0.410s, completion3 PASS0.335s,
+security3 PASS0.186s. Workflow contract, actionlint, py_compile and diff-check PASS.
+Final full CI, independent image retry and scoped cleanup results appended below.
+
+Final verification checkpoint:
+- Full pinned CI109 PASS,0skips,388.397s. Discovery began on b4d70f3 before the
+  lint-only nested-expression correction was committed; final7a6464b focused9
+  independently covers that correction. Do not call the entire run an immutable
+  final-SHA full-service acceptance. No original backend/Compose pass is inferred.
+- Final exact7a6464b four actual images: API BLOCKED106packages/107components,
+  migrator BLOCKED120/121, PostgreSQL INCOMPLETE151/152, Keycloak BLOCKED559/560;
+  blocking/unknown counts unchanged5,5,135+12unknown,6. Initial stack and backend
+  scan failures remain recorded, not overwritten by independent retries.
+- Final stack down PASS; exact owner-label cleanup and reinspection:0containers,
+  0networks,0volumes. Existing foreign resources untouched. No verification/job
+  process intentionally left running. Final workflow/actionlint/diff-check PASS.
+- Final tracked modification after implementation7a6464b is this evidence-only
+  handoff. It changes no workflow, policy, source, lock, test or acceptance rule;
+  reuse of implementation7a evidence is explicitly limited to that identical
+  code. Commit subject `docs: record Task 7 exact revision rehearsal`.
+
+All blockers above remain. No Task7/Wave0/P0 acceptance, remote-green or enforcement
+claim. No remote changes. Concrete next step is review/remediation, not waiver.
