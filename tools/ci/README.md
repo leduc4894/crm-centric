@@ -112,3 +112,87 @@ only matching resources. Non-CI `local` labels are ineligible. This covers the
 Compose manifest, not arbitrary resources created without that label; Testcontainers
 keeps its own Ryuk lifecycle. Abrupt SIGKILL cannot run finalizers, so hosted runner
 isolation and remote cancellation verification remain necessary.
+
+## Task 5 scanner adapters (security job remains blocked)
+
+`scripts/ci/scan.py` supplies `run_scanner(ScannerConfig, ScanInput, RunIdentity)`
+and `run_repository(scanners, root, run)`. `run_safe.py` captures subprocess output
+in mode-0700 temporary directories / mode-0600 files, clears inherited credentials
+and scanner configuration, kills command-owned process groups on exit, and destroys
+raw reports after parsing. Published summaries contain fixed status/reason fields,
+run identity, opaque SHA-256 finding IDs/kinds/verdicts and counts. Do not upload
+raw JSON/SARIF/logs, paths, matches, messages, traces or the ignored rehearsal files.
+Summary retention remains seven days. A parser/process failure produces
+`CI_SCAN_INCOMPLETE` and a correlation ID; it never reproduces scanner diagnostics.
+This does not defend against candidate code modifying its workflow or verifier.
+
+Tool versions/archive and executable checksums are recorded in `toolchain.json`.
+Semgrep CE 1.185.0 uses the local `semgrep.yml` with C# SQL-command concatenation
+and TypeScript dynamic-eval rules. This is limited intrafile syntactic coverage,
+not a comprehensive rule pack or cross-file analysis. All committed `.cs`, `.ts`
+and `.tsx`, including generated SDKs and test source, must appear in parsed-file
+inventory. A private source-only staging tree neutralizes default and candidate
+ignore files; `nosemgrep` comments do not suppress findings. Missing files or parse
+errors fail. No registry auto-config, paid analyzer, or online provider credential
+verification is used. Semgrep's wheel is LGPL-2.1-or-later; Gitleaks is MIT and
+Trivy Apache-2.0. The scanner's own license is not a legal approval for project
+redistribution.
+
+Semgrep runs in a **separate supported Python 3.12 environment**: its pinned wheel
+supports Python 3.10–3.14, whereas existing CI uses 3.15.2. The full resolved set
+of 67 wheel versions/hashes is in `semgrep-requirements.lock`; installation must
+use `pip install --require-hashes --only-binary=:all: -r` with that file in the
+dedicated environment. This lock is Linux x86-64/glibc/Python-3.12 specific.
+Hosted runtime provisioning and immutable runtime/launcher attestation remain OPEN.
+The local real-suite launcher hash is measured at runtime because its shebang
+contains the installation path; it is not an independent authenticity claim.
+Gitleaks/Trivy archives were downloaded from the official releases, verified
+against upstream SHA-256 asset digests, then extracted without executing installers.
+No scanner or setup command has been wired to the hosted security placeholder yet.
+
+Gitleaks scans an exact committed candidate archive and every commit reachable
+in trusted `base..candidate`, including separate merge-parent diffs. Base must be
+an ancestor, HEAD must match, a shallow checkout is rejected, and all reachable
+objects must be readable. Archives reject symlinks, submodules, export-ignore loss,
+unsafe members and oversize members. Explicit trusted config uses embedded default
+rules, disables inline allow comments, and ignores candidate `.gitleaksignore`.
+Every finding blocks, including unverified/offline/revoked. Test fixtures create
+synthetic values in private temporary repositories; no real credentials are used.
+
+Trivy 0.76.2 scans complete npm/NuGet/Python locks with npm development dependencies
+included. Nonstandard pip lock names are copied to Trivy's supported
+`requirements.txt` convention without resolving/installing candidate dependencies.
+Expected lock targets and package name/version sets must exactly match scanner
+inventory, including transitives. A real DB update command must succeed and the
+DB's upstream `UpdatedAt` must be present, timezone-aware, not future-dated and
+at most 24 hours old. `DownloadedAt` is never freshness evidence. Unknown severity
+fails incomplete; HIGH/CRITICAL block. Every package needs an explicitly allowed
+license; restricted, absent, or unrecognized license expressions require review.
+The explicit allowed/denied/unknown policy is in `security-policy.json`. This policy
+is conservative, not a legal interpretation of compound SPDX expressions.
+
+`dependency_inputs` marks `dotnet-tools.json` and external `toolchain.json` as
+`CI_TOOL_DEPENDENCY_COVERAGE`; their executable/transitive dependencies and licenses
+are not proven by application lock scans. `run_repository` propagates every such
+gap as incomplete. Unknown `.lock` formats also block. These gaps, source/image
+SBOM production, container/image identity binding (Task 6), independent trust,
+and hosted scanner provisioning remain OPEN. An application scan alone cannot
+close this security job or the Wave 0 acceptance requirement.
+
+`exceptions.json` is empty. The exception-policy adapter requires the exact finding
+ID, owner, reason, future expiry, and an independently authenticated approval digest
+bound to every field; changing any field invalidates that approval. Candidate JSON
+or a matching digest alone is not authentication. No exception is applied by the
+current runner, and no independent approvals have been provisioned.
+
+Focused wrapper verification: `python -m unittest discover -s tests/CI -p test_scan.py -v`.
+Actual scanner positives: `CI_SCANNER_ROOT=<private-directory> python -m unittest
+discover -s tests/Security -v`; the directory contains `bin/gitleaks`, `bin/trivy`,
+`semgrep/bin/semgrep` and `trivy-cache`. Missing prerequisites fail; no skips.
+Official sources checked: [Semgrep language support](https://semgrep.dev/docs/supported-languages),
+[Semgrep release](https://github.com/semgrep/semgrep/releases/tag/v1.185.0),
+[Gitleaks usage and config](https://github.com/gitleaks/gitleaks),
+[Trivy language coverage](https://trivy.dev/latest/docs/coverage/language/),
+[Trivy DB](https://github.com/aquasecurity/trivy-db),
+[Gitleaks release](https://github.com/gitleaks/gitleaks/releases/tag/v8.30.1),
+[Trivy release](https://github.com/aquasecurity/trivy/releases/tag/v0.76.2).
