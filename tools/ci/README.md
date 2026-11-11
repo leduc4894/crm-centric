@@ -307,7 +307,14 @@ passwords. Secretless commands keep an empty known-value set.
 Every required job has a completion step that observes GitHub step outcomes and
 emits only safe reason/correlation fields when setup/actions fail or the gate did
 not run. Missing/invalid evidence remains failure; diagnostic fallback is not a
-successful test report. `wave0-required` has explicit `needs`, runs with `always()`
+successful test report. Valid reports are reconstructed through an explicit
+publication allowlist for both success and failure: native test diagnostics,
+unknown fields, arbitrary artifact paths and nested scanner/SBOM extensions are
+removed; identity, test outcomes and normalized inventory are revalidated before
+publication. The original upload path is withheld during processing, including
+interruption. This projection does not detect secrets disguised as valid package
+or test identities; producer secret scans and known-value guards remain required.
+`wave0-required` has explicit `needs`, runs with `always()`
 and downloads each of the five named same-run summaries independently. Its parser
 requires platform success plus complete identity-bound nonempty test/image/source
 security evidence. Whole-workflow cancellation or an unscheduled aggregate cannot

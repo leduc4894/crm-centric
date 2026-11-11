@@ -8,12 +8,24 @@ import os
 from pathlib import Path
 import uuid
 from scripts.ci.jobs import atomic_write
-from scripts.ci.summary import RunIdentity, parse_report, ReportError
+from scripts.ci.summary import RunIdentity, parse_report, ReportError, _object
+from scripts.ci.publication import normalized_report
+from scripts.ci.scan import ScanError
 
 
 def complete(job, output, steps, expected=None):
     token='CI_STEP_NON_SUCCESS'
     try:
+        # Withhold the original before parsing/normalization, including on
+        # interruption. Only reconstructed bytes may reappear at the upload path.
+        payload=None
+        try:
+            if expected is not None:
+                if output.stat().st_size>8*1024*1024: raise ReportError()
+                payload=output.read_bytes()
+                if len(payload)>8*1024*1024: raise ReportError()
+        finally:
+            output.unlink(missing_ok=True)
         if not isinstance(steps,dict): raise ValueError()
         outcomes={key:value['outcome'] for key,value in steps.items()}
         if 'cancelled' in outcomes.values(): token='CI_COMMAND_CANCELLED'
@@ -21,14 +33,24 @@ def complete(job, output, steps, expected=None):
         elif outcomes.get('revision')=='failure': token='CI_REVISION_FAILED'
         elif any(value=='failure' for value in outcomes.values()): token='CI_ACTION_FAILED'
         if expected is not None and outcomes.get('gate') in ('success','failure'):
-            parsed=parse_report('normalized',output,expected)
+            import tempfile
+            with tempfile.TemporaryDirectory(prefix='ci-completion-input-') as directory:
+                private=Path(directory)/'report.json';private.write_bytes(payload)
+                parsed=parse_report('normalized',private,expected)
             if parsed.job!=job: raise ValueError()
-            if all(value=='success' for value in outcomes.values()) and parsed.status=='success':
-                return 'CI_JOB_COMPLETE'
-            # Preserve already normalized failed evidence, including discovered
-            # counts, only after validating its identity and complete inventory.
-            if parsed.status=='failure': return 'CI_JOB_FAILED'
-    except (OSError,ValueError,TypeError,KeyError,ReportError):
+            if (all(value=='success' for value in outcomes.values()) and parsed.status=='success') or parsed.status=='failure':
+                raw=json.loads(payload,object_pairs_hook=_object)
+                clean=normalized_report(raw,parsed,expected)
+                # Revalidate the reconstructed artifact privately before replacing
+                # the upload path. Input parser acceptance alone authorizes no bytes.
+                import tempfile
+                with tempfile.TemporaryDirectory(prefix='ci-completion-') as directory:
+                    private=Path(directory)/'report.json'
+                    private.write_text(json.dumps(clean))
+                    if parse_report('normalized',private,expected)!=parsed: raise ReportError()
+                atomic_write(output,clean)
+                return 'CI_JOB_COMPLETE' if parsed.status=='success' else 'CI_JOB_FAILED'
+    except (OSError,ValueError,TypeError,KeyError,AttributeError,IndexError,RecursionError,OverflowError,ReportError,ScanError):
         pass
     atomic_write(output,{'job':job,'status':'failure','reason_token':token,
                          'correlation_id':str(uuid.uuid4()),'suites':[],

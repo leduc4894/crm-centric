@@ -29,3 +29,90 @@ class CompletionTests(unittest.TestCase):
             self.assertEqual(result.stderr,'')
             self.assertNotIn('sensitive-sentinel',result.stdout)
             self.assertTrue(json.loads(result.stdout)['reasonToken'].startswith('CI_'))
+
+    def test_valid_native_success_and_failure_are_republished_without_diagnostics(self):
+        from unittest.mock import patch
+        from scripts.ci.completion import complete
+        from scripts.ci.summary import parse_report
+        from test_summary import report,IDENTITY
+        from xml.sax.saxutils import quoteattr
+        sentinel='synthetic-completion-private-sentinel'
+        for status in ('success','failure'):
+            with self.subTest(status=status),tempfile.TemporaryDirectory() as directory:
+                root=Path(directory);output=root/'backend.json';policy=root/'policy.json'
+                policy.write_text(json.dumps({'jobs':{'backend':['local']},'suites':{'local':{'minimum':1,'required':['required']}}}))
+                data=report();data['status']=status
+                outcome='Passed' if status=='success' else 'Failed'
+                passed=int(status=='success');failed=1-passed
+                trx='<TestRun><Results><UnitTestResult testName="required" outcome='+quoteattr(outcome)+'><Output>'+sentinel+'</Output></UnitTestResult></Results><ResultSummary outcome="Completed"><Counters total="1" passed="'+str(passed)+'" failed="'+str(failed)+'" /></ResultSummary><Output>'+sentinel+'</Output></TestRun>'
+                data.update(raw_diagnostics=sentinel,artifacts=[sentinel],reason_token=sentinel,correlation_id=sentinel)
+                data['tools']['raw_diagnostics']=sentinel
+                data['suites']=[{'name':'local','format':'trx','report':trx,'raw_diagnostics':sentinel}]
+                data['image_evidence'][0]['raw_diagnostics']=sentinel
+                data['image_evidence'][0]['scan']['raw_diagnostics']=sentinel
+                if status=='failure':
+                    # Failed reports also contain scanner-native nested extensions.
+                    import hashlib
+                    scan=data['image_evidence'][0]['scan']
+                    scan.update(status='blocked',findings=[{'kind':'vulnerability','finding_id':'d'*64,'verdict':'blocked','raw_diagnostics':sentinel}])
+                    scan['sbom']['components'][0]['description']=sentinel
+                    scan['sbom']['metadata']['raw_diagnostics']=sentinel
+                    scan['sbom']['metadata']['tools']['components'][0]['raw_diagnostics']=sentinel
+                    scan['sbomSha256']=hashlib.sha256(json.dumps(scan['sbom'],sort_keys=True,separators=(',',':')).encode()).hexdigest()
+                output.write_text(json.dumps(data))
+                with patch('scripts.ci.summary.POLICY_PATH',policy):
+                    # Parser acceptance is deliberately insufficient for publication.
+                    before=parse_report('normalized',output,IDENTITY)
+                    token=complete('backend',output,{'gate':{'outcome':status}},IDENTITY)
+                    payload=output.read_text()
+                    self.assertTrue(sentinel not in payload,'CI_PUBLICATION_DIAGNOSTICS_EXPOSED')
+                    self.assertNotIn('<TestRun>',payload)
+                    self.assertEqual(parse_report('normalized',output,IDENTITY),before)
+                clean=json.loads(payload)
+                self.assertEqual(token,'CI_JOB_COMPLETE' if status=='success' else 'CI_JOB_FAILED')
+                self.assertEqual(clean['artifacts'],[])
+                self.assertEqual(clean['suites'],[{'name':'local','tests':[{'id':'required','outcome':'passed' if passed else 'failed'}]}])
+
+    def test_security_nested_evidence_is_rebuilt_before_publication(self):
+        import hashlib
+        from scripts.ci.completion import complete
+        from scripts.ci.sbom import source_sbom
+        from scripts.ci.summary import RunIdentity,parse_report
+        run=RunIdentity('7','1','a'*40,'b'*40,None)
+        sentinel='synthetic-nested-completion-private-sentinel'
+        for status in ('success','failure'):
+            with self.subTest(status=status),tempfile.TemporaryDirectory() as directory:
+                output=Path(directory)/'security.json'
+                sbom=source_sbom({'package-lock.json':{('safe','1.0.0')}},run,'1.0.0')
+                sbom['components'][0]['description']=sentinel
+                sbom['metadata']['raw_diagnostics']=sentinel
+                sbom['metadata']['tools']['components'][0]['raw_diagnostics']=sentinel
+                source={'identity':vars(run),'status':'inventory-only','coverageGaps':[],'lockCount':1,
+                        'sbom':sbom,'sbomSha256':hashlib.sha256(json.dumps(sbom,sort_keys=True,separators=(',',':')).encode()).hexdigest(),'raw_diagnostics':sentinel}
+                scan={'identity':vars(run),'status':'pass','scanned_count':1,'findings':[],'reason_token':'CI_SCAN_OK','raw_diagnostics':sentinel}
+                if status=='failure':
+                    scan.update(status='blocked',findings=[{'kind':'secret','finding_id':'c'*64,'verdict':'blocked','raw_diagnostics':sentinel}])
+                data={'identity':vars(run),'job':'security','command_id':'security','status':status,
+                      'tools':{'semgrep':'1.185.0'},'artifacts':[],'elapsed_seconds':1,
+                      'security_evidence':scan,'source_evidence':source,'raw_diagnostics':sentinel,
+                      'suites':[{'name':'security','tests':[{'id':'repository-security','outcome':'passed' if status=='success' else 'failed','raw_diagnostics':sentinel}]}]}
+                output.write_text(json.dumps(data));before=parse_report('normalized',output,run)
+                token=complete('security',output,{'gate':{'outcome':status}},run)
+                self.assertTrue(sentinel not in output.read_text(),'CI_PUBLICATION_DIAGNOSTICS_EXPOSED')
+                self.assertEqual(token,'CI_JOB_COMPLETE' if status=='success' else 'CI_JOB_FAILED')
+                self.assertEqual(parse_report('normalized',output,run),before)
+                clean=json.loads(output.read_text())
+                self.assertEqual(clean['source_evidence']['sbom'],source_sbom({'package-lock.json':{('safe','1.0.0')}},run,'1.0.0'))
+
+    def test_interruption_withholds_original_report_from_always_upload(self):
+        from unittest.mock import patch
+        from scripts.ci.completion import complete
+        from test_summary import report,IDENTITY
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);output=root/'backend.json';policy=root/'policy.json'
+            policy.write_text(json.dumps({'jobs':{'backend':['local']},'suites':{'local':{'minimum':1,'required':['required']}}}))
+            data=report();data['raw_diagnostics']='synthetic-interruption-private-sentinel'
+            output.write_text(json.dumps(data))
+            with patch('scripts.ci.summary.POLICY_PATH',policy),patch('scripts.ci.completion.normalized_report',side_effect=KeyboardInterrupt):
+                with self.assertRaises(KeyboardInterrupt):complete('backend',output,{'gate':{'outcome':'success'}},IDENTITY)
+            self.assertFalse(output.exists(),'CI_UNVALIDATED_ARTIFACT_LEFT_UPLOADABLE')

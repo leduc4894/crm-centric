@@ -145,3 +145,47 @@ Final verification checkpoint:
 
 All blockers above remain. No Task7/Wave0/P0 acceptance, remote-green or enforcement
 claim. No remote changes. Concrete next step is review/remediation, not waiver.
+
+
+## Review fix round 1: completion publication boundary
+Resumed on `feat/wave-0-plan-4-ci` at `5694296`, preserving unfinished completion,
+publication and sentinel-test changes from the previous agent. Verified reviewer
+finding: parser acceptance previously preserved unknown fields and raw native
+and nested diagnostics in both successful and failed artifacts. No remote action,
+worktree or subagent authorized/performed during this fix.
+
+Completed: reconstruct an explicit publication envelope, project native tests to
+identity/outcome, rebuild nested image scans/source SBOM/security findings,
+regenerate bounded reason/correlation values, and revalidate reconstructed reports.
+Original upload path is removed before processing; interruption leaves no original
+artifact to always-upload. Unknown fields and arbitrary artifact paths are dropped.
+Producer secret scanning and known-value guards remain required: projection alone
+cannot recognize secrets disguised as syntactically valid package/test identities.
+Changed files: `scripts/ci/completion.py`, new `scripts/ci/publication.py`,
+`tests/CI/test_completion.py`, `tools/ci/README.md`, this handoff. No public contract,
+database migration or trust-policy change. Rollback: revert this fix commit.
+
+Actual verification:
+- RED: temporarily tested against HEAD completion helper, then restored unfinished
+  fix safely. Completion6 ran, four sentinel-leakage assertion failures plus one
+  missing-new-hook error; exit1. Success/failure and nested source/native diagnostic
+  cases reproduce the Important finding. Added failed-image nested SBOM extensions.
+- System `python3 -m unittest discover -s tests/CI -p test_completion.py`:6 PASS,
+ 0skips0.312s; aggregate7 PASS0.322s; security_job3 PASS0.129s.
+- Initial pinned Python attempts failed to launch (missing libpython shared-library
+  search path), exit127. Repeated with existing library directory configured:
+  `LD_LIBRARY_PATH="$PWD/.local/ci-python315/lib" .local/ci-venv315/bin/python -m
+  unittest discover -s tests/CI -p '<pattern>'`: completion6 PASS0.317s,
+  aggregate7 PASS0.337s, security_job3 PASS0.139s, summary10 PASS0.032s,
+  image_identity22 PASS0.265s; all0skips.
+- Full CI/service/remote acceptance NOT RUN for this review fix; earlier failures
+  and all Task7/Wave0/P0 blockers remain unresolved. This fixes artifact publication
+  only. Final syntax/diff checks and commit recorded by this session below.
+
+Next: review this fix, continue original security/coverage/image/trust remediation
+and separately authorized remote acceptance. No acceptance waiver or green claim.
+
+Final `python3 -m py_compile scripts/ci/completion.py scripts/ci/publication.py tests/CI/test_completion.py` and `git diff --check`: PASS.
+Fix commit subject: `fix(ci): reconstruct completion publication envelopes`.
+All five listed implementation/test/doc files are staged together; ignored Task7
+report is updated locally. No other uncommitted work expected after commit.
