@@ -185,3 +185,34 @@ JSON/hash or static direct-reference checks cannot supply it. No implementation,
 new tests or policy relaxation; existing empty locks remain fail-closed. Details
 and required evidence boundary are in the remediation handoff's empty-lock
 implementation feasibility follow-up. Full gates and remote/acceptance NOT RUN.
+
+PostgreSQL feasibility follow-up (2026-11-12, starting94c6d68): official Debian
+krb5 tracker confirms CVE-2026-107364 unfixed in bookworm/trixie; separate gosu
+binary is outside dpkg and upstream module retains x/sys0.1.0. Actual local
+Alpine18.6 immutable-base derivative with signed-repository krb5/libxslt upgrades
+built and scanned successfully as a diagnostic: config
+`sha256:ca74c5a1c6938418c2a6872ecbd8352f2a904592a24b35e6dadd0fb937cb6f68`,
+57 packages,25 HIGH/1 CRITICAL/2 UNKNOWN; all28 remaining rows in gosu stdlib/x/sys.
+Command `python3 -u .local/remediation/image-triage/alpine_patch_probe.py` exit0,
+pinned Trivy0.76.2 skip-update cache; no freshness/gate clearance implied. No
+candidate adopted; package inputs were not snapshotted and compatibility untested.
+Detailed sources, three options, build/test prerequisites and source discrepancy
+are in the same-day remediation handoff. No production/default/policy change.
+Full CI/backend/Compose/remote/restore NOT RUN; Wave0/P0/RT-* remain OPEN.
+
+Further actual PostgreSQL source-build spike supersedes feasibility-only status:
+verified stable Go1.27.4 archive, upstream gosu1.20 commit29b939a, checksum-verified
+x/sys0.44.0 closure, honest VCS metadata. Online wrapper config15e8a307 passed
+actual `scan_image` (57 packages;1 MEDIUM zlib); first-init/restart, UID/GID/drop,
+failed identity, exit/signal propagation, missing-secret and restricted idp-role
+checks PASS. Exact12-APK checksum manifest and offline no-network build PASS;
+offline config recorded in [review artifact](../ci/candidates/postgres-alpine18/README.md)
+passed actual `scan_image`,57 packages,zero vulnerabilities, fresh DBs,SBOM
+`61a40fc89115b1f972bb42193393bdbcd03c55c6efed3860a0922a2f14d1c5dd`.
+Offline image lacks local wrapper and did not receive online-wrapper tests.
+Separate full license scan71 rows/15 identifiers require review; no license or
+full acceptance clearance. Parent directed no runtime adoption until compatibility
+and license established. Source artifact is diagnostic only; reproducibility,
+existing-volume/musl collation migration, full integration/restore/rollback and
+remote tests remain NOT PROVEN. Same-day handoff records initial failed diagnostic
+harnesses as well as final passes. Default and policy unchanged; Wave0/P0/RT-* OPEN.

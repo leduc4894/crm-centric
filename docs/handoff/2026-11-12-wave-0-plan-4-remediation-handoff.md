@@ -622,3 +622,160 @@ that assertions ran, and in-VM status/JSON remains untrusted. Added planned test
 for permitted local networking, denied external access and hostile daemon access
 attempting to forge supervisor completion. These tests were NOT RUN; no service or
 authority was provisioned. Documentation-only `git diff --check`: PASS.
+
+## PostgreSQL patched-image feasibility — 2026-11-12
+
+Resumed current branch `feat/wave-0-plan-4-ci` at `94c6d68`; read AGENTS.md,
+this handoff, verification ledger and existing normalized image probes. Preserved
+unrelated untracked Plan 3 handoff. Local diagnosis only, no subagents/worktree,
+remote writes or production image/default changes. Used systematic debugging,
+verification-before-completion and Tavily source extraction. No suppression,
+waiver, package removal, major-version change or privilege-drop bypass.
+
+Authoritative upstream checks:
+- [PostgreSQL version policy](https://www.postgresql.org/support/versioning/)
+  lists 18.6 as current supported minor for 18, supported until 2030-11-14.
+  Changing major version is not a security shortcut; it requires upgrade evidence.
+- [Official Debian Dockerfile](https://github.com/docker-library/postgres/blob/master/18/bookworm/Dockerfile)
+  installs gosu as a separately downloaded signature-verified binary. It is outside
+  dpkg; apt upgrades cannot patch its Go stdlib or `golang.org/x/sys`.
+- [Debian krb5 tracker](https://security-tracker.debian.org/tracker/CVE-2026-107364)
+  explicitly lists bookworm 1.20.1-2+deb12u5 and trixie 1.21.3-5+deb13u1 as
+  vulnerable, with unstable also unfixed. Thus a gosu-only rebuild plus normal apt
+  upgrade does not establish a clean Debian candidate. This is one confirmed
+  blocker, not an exhaustive adjudication of every distro finding.
+- [Upstream gosu module](https://raw.githubusercontent.com/tianon/gosu/master/go.mod)
+  still requires x/sys v0.1.0. Recompiling unchanged source with a newer Go compiler
+  leaves that dependency finding unresolved. Previous release-binary comparison
+  remains diagnostic, not accepted clearance.
+- Official Alpine 3.23 package pages provide [krb5-libs 1.22.3-r0](https://pkgs.alpinelinux.org/package/v3.23/main/x86_64/krb5-libs)
+  and [libxslt 1.1.43-r4](https://pkgs.alpinelinux.org/package/v3.23/main/x86_64/libxslt).
+  [Official Alpine PostgreSQL Dockerfile](https://raw.githubusercontent.com/docker-library/postgres/master/18/alpine3.23/Dockerfile)
+  retains PostgreSQL 18.6 and gosu1.19, but uses musl and postgres UID70 instead of
+  Debian UID999. That difference needs explicit compatibility/volume testing.
+
+Actual local diagnostic command:
+`python3 -u .local/remediation/image-triage/alpine_patch_probe.py` PASS exit0.
+It built an ephemeral derivative of the previously verified immutable
+`postgres:18.6-alpine@sha256:9ba53c7d41ea093baf5c1ba635ba5434c4f979880527d49bb7d9237d3193085b`
+using only `apk upgrade --no-cache krb5-libs libxslt` against the image's normal
+signed repositories. This is an exploratory build, **not reproducible production
+provenance**: package repository state was not snapshotted/pinned. Own temporary
+Dockerfile was deleted; diagnostic tag removed. Actual output config ID:
+`sha256:ca74c5a1c6938418c2a6872ecbd8352f2a904592a24b35e6dadd0fb937cb6f68`.
+Pinned Trivy0.76.2 scan by config ID, explicit task cache, `--skip-db-update
+--skip-java-db-update --scanners vuln --list-all-pkgs --format json`: **57 packages,
+25 HIGH / 1 CRITICAL / 2 UNKNOWN**. All 28 remaining rows are embedded gosu Go
+stdlib (27) and x/sys (1); previous 19 krb5/libxslt rows disappear. Actual build
+and scan exited0; scanner exit0 is not policy success. Raw output remained in
+private-command temporary storage and was deleted. Skip-update diagnosis makes
+no DB freshness, mandatory image-gate or license-clearance claim.
+
+Concrete options and decision:
+1. Retain Debian pin pending vendor fixes: least compatibility change, still
+   blocked by distro findings and gosu; wait for fixed signed packages and an
+   upstream binary with patched compiler **and** x/sys, then rescan exact digest.
+2. Debian custom rebuild: patched gosu alone is insufficient. Requires reviewed
+   vendor patches/backports for unresolved linked libraries, reproducible signed
+   package inputs/build closure and full compatibility tests. No verified patch
+   set or supported clean artifact was established; do not cherry-pick packages
+   from another Debian release or remove linked features to hide findings.
+3. Alpine18.6 custom rebuild: actual package probe demonstrates a narrower path,
+   but still blocked by gosu28. A candidate needs immutable compiler/base/source
+   and full Go module/checksum closure, reviewed x/sys upgrade to at least the
+   scanner fixed version0.44.0, patched supported Go toolchain selected from the
+   complete current finding set, repeated identical-output builds, SBOM/license
+   coverage and fresh mandatory scans. This would be a maintained downstream
+   build, not an upstream-endorsed replacement. Do not install Alpine gosu1.17
+   blindly; it is an older implementation and no clean scan was established.
+
+Before any adoption, require actual root-to-postgres privilege drop, supplementary
+GID/UID semantics, failed-drop rejection, signal/exit propagation, secret-file
+permissions, first initialization, idempotent restart, existing-volume ownership,
+locale/collation behavior, migration/concurrent tenant tests, outage/recovery,
+backup/restore and remote DemoModule acceptance. Alpine collation/UID differences
+require migration/rollback planning; a clean scan alone cannot establish these.
+No compatibility suite was run because no policy-clean candidate was established.
+
+Source discrepancy retained for independent review: the local Alpine scanner maps
+CVE-2026-87636 to libxslt, while the [Debian tracker](https://security-tracker.debian.org/tracker/CVE-2026-87636)
+associates that ID with Chromium. This does not remove or waive the finding; the
+upgraded local candidate was actually scanned and still blocked. Full source-feed
+adjudication was not completed.
+
+Verification: build/scan probe above PASS as diagnosis; `git diff --check` PASS
+before commit. Unit/integration/full CI, fresh mandatory scans, exact final-SHA
+backend/Compose, remote gates and restore drills NOT RUN in this documentation
+continuation. Changed tracked files: this handoff and verification ledger only.
+Rollback: revert this documentation commit. Wave0/P0/RT-* remain OPEN.
+
+### Actual downstream gosu/source and offline APK continuation
+
+Parent requested an actual source build and subsequently directed retaining the
+runtime default until UID/libc/collation and license compatibility are established.
+The earlier feasibility-only statements above are superseded by these additional
+actual diagnostics; no production image change or adoption was authorized here.
+Reviewable inputs/trade-offs are now in
+[the candidate artifact](../ci/candidates/postgres-alpine18/README.md) and its JSON.
+
+Verified Go1.27.4 stable from official go.dev download JSON, linux-amd64 archive
+SHA256 `7226736c2339719cda28fbf3a54d71aa63bcefe376e98cef00034268dab24840`.
+Resolved upstream gosu1.20 tag through GitHub API to immutable commit
+`29b939aa5bd4dc588af765b8248f6e39150d2565`; no source signature verification claim.
+Actual module tooling upgraded x/sys0.1.0 to0.44.0 and minimum go1.20 to1.25.0;
+`go mod verify` and static compile with that verified Go toolchain PASS. Exact
+module/checksum contents are recorded. Final `-trimpath -buildvcs=true` binary
+SHA256 `732a3a2fbd309eeeb685b3469f970f178a7da17ad92a834a5859d19146f85808`.
+No upstream arbitrary helper/install script was executed. Local source code was
+compiled as explicitly requested; all captured diagnostics remained private.
+
+Initial environment override to private-command was rejected; corrected to an
+explicit minimal owned environment with in-memory subprocess capture. Initial
+`-buildvcs=false` binary scan had zero HIGH/CRITICAL/UNKNOWN but mandatory
+`scan_image` correctly returned INCOMPLETE because main gosu module Version was
+missing. Honest VCS metadata fixed inventory without inventing a version. Two
+initial non-VCS compiles matched bytes; final VCS-aware full reproducibility has
+not been established.
+
+Actual online candidate with repository wrappers, config
+`sha256:15e8a3077bdf3236c98d595cd3b992bcf00dcbf371cba6bd1260c0626545f9f7`:
+mandatory `scan_image` **PASS CI_IMAGE_SCAN_OK**,57 packages, SBOM SHA256
+`ce1b3c1ccfec98bffc65d319f739c870b4be499af61f5a840ac6b6990ea13bee`;
+residual zlib CVE-2026-4738 MEDIUM, installed1.3.2-r1/fixed1.4-r0.
+`gosu_candidate_probe.py` PASS: drop to UID70, reject invalid identity, preserve
+exit17, actual local wrapper first initialization, PostgreSQL18.6 and restart.
+`gosu_compat_probe.py` PASS: primary/supplementary GID70, explicit TERM handler
+receives signal and returns42, missing secret closed, idp bootstrap creates
+restricted keycloak role. Initial naive PID1 sleep signal harness hung because
+PID1 ignores default signals; killed only owned container and corrected the test
+to use an explicit handler. Initial harness FAIL is not a product failure.
+
+Actual signed Alpine12-APK recursive closure fetch/checksum verification PASS,
+manifest recorded in artifact. Offline `docker build --network=none` with only
+those checksum-verified APKs PASS. No `--allow-untrusted` or signature bypass.
+The offline closure also upgrades zlib1.4-r0. Offline image config is recorded in
+artifact; actual repository `scan_image` **PASS CI_IMAGE_SCAN_OK**,57 packages,
+**zero vulnerability findings**, SBOM SHA256
+`61a40fc89115b1f972bb42193393bdbcd03c55c6efed3860a0922a2f14d1c5dd`.
+Both mandatory scans downloaded DBs through normal commands and accepted actual
+UpdatedAt timestamps: vulnerability2026-11-11T19:04:54.958468957Z,
+Java2026-11-12T00:58:04.30813481Z (fresh at scan time). Offline image did not include
+local wrappers and did not receive wrapper compatibility tests; no inference from
+online config is accepted as exact-image test evidence.
+
+Actual separate `--scanners license --license-full` scan:71 license rows,
+15 identifiers outside existing allowlist. No license clearance: GPL/LGPL/MPL,
+ICU, OLDAP, X-11, curl, Zlib and others require existing review rules. Current image
+adapter scans vulnerabilities/SBOM and does not adjudicate license rows. Do not
+call image-gate PASS full license clearance. Mandatory scripts and policy unchanged.
+
+Commands (local ignored image-triage directory): `gosu_build_probe.py` PASS final;
+`gosu_candidate_probe.py` PASS final; `candidate_gate.py` PASS executed against
+both online/offline config IDs; `gosu_compat_probe.py` PASS final;
+`apk_snapshot_probe.py` PASS; `apk_offline_probe.py` PASS. No raw reports published.
+Artifacts retain hashes and authored normalized observations only. New runtime
+implementation/tests NOT added because adoption remains blocked; no TDD GREEN
+claim. Full backend/Compose/tenant/concurrency, existing-volume/collation migration,
+logical restore/rollback and remote acceptance NOT RUN. Next steps and precise
+migration risks are in candidate README. No contract/dependency/default/policy
+change; Wave0/P0/RT-* remain OPEN. Documentation `git diff --check` PASS.
