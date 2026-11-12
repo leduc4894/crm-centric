@@ -154,3 +154,23 @@ Exact commands, immutable candidate IDs, primary-source provenance, verification
 limits, next steps and ownership cleanup are in the
 [remediation handoff](../handoff/2026-11-12-wave-0-plan-4-remediation-handoff.md#exact-runtime-commit-and-remaining-image-diagnosis--2026-11-12).
 Full Compose/final five gates/remote/restore NOT RUN. Wave0/P0/RT-* remain OPEN.
+
+## Dependency coverage isolated probes — 2026-11-12
+
+At `eddaa35`, disposable pinned SDK restore produces a valid Surface lock with
+net10.0/zero packages; real pinned Trivy schema 2 emits zero Results. Existing
+adapter correctly remains fail-closed, and no empty source lock was accepted.
+CorvusProbe inherited restore reproduces NU1008; one diagnostic global property
+`ManagePackageVersionsCentrally=false` makes restore pass with six lock rows.
+Failed restore also writes six rows, so a lock's presence is not successful
+restore evidence. All probe locks were deleted; generated provenance unchanged.
+Corvus CLI archive embeds 238 deps.json libraries, including 34 package libraries;
+these counts do not prove complete tool closure or license clearance.
+
+Actual completed private probe exit 0; initial no-cache Trivy attempt failed,
+then explicit existing-cache skip-update rerun established parser behavior only.
+`python3 -m unittest discover -s tests/CI -p test_scan.py`: PASS 21, 0 skips,
+0.359s. No implementation change/new RED-GREEN/full-suite/final gate/remote run.
+Concrete zero-package attestation, generator/CPM and tool-closure blockers remain
+in the [handoff](../handoff/2026-11-12-wave-0-plan-4-remediation-handoff.md#dependency-coverage-diagnosis--2026-11-12).
+Wave 0/P0/RT-* remain OPEN; no policy or contract change.

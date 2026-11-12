@@ -462,3 +462,63 @@ closure and actual privilege-drop/compatibility tests; await/test supported
 PostgreSQL OS and Keycloak dependency fixes. Retain all blocking/unknown findings
 until valid evidence resolves them. After fixes run full exact-candidate gates;
 remote acceptance still requires separate authorization.
+
+## Dependency coverage diagnosis — 2026-11-12
+
+Resumed current checkout on `feat/wave-0-plan-4-ci` at `eddaa35` with only the
+unrelated untracked Plan 3 resumption handoff; preserved it unchanged. Read
+AGENTS.md, this handoff, scanner adapter/tests, generator and verification ledger.
+Local scope only; no worktree/subagents, remote writes, policy relaxation or
+contract/generated artifact changes. Used systematic debugging and verification
+before completion. No implementation fix is claimed.
+
+Actual isolated probe command: `python3 -u .local/remediation/coverage_probe.py`
+(exit 0 on completed rerun), using pinned `.local/ci-dotnet/dotnet` and pinned
+Trivy 0.76.2 through private-command temporary output. It copies project inputs
+and inherited build/central-management properties into a disposable directory;
+no accepted source lock is created or updated. Results:
+
+- Surface restore PASS: real generated lock has framework `net10.0`, **zero**
+  dependency rows. Real Trivy fs scan with existing task-owned cache,
+  `--skip-db-update --scanners vuln --list-all-pkgs --format json`, returns schema
+  2 and **zero Results**. Existing `lock_packages` rejects this evidence closed.
+  This proves empty lock support needs a distinct verified zero-package evidence
+  path; requiring a nonexistent Trivy target cannot work. Merely omitting the
+  target or relaxing nonempty inventory globally would hide missing dependencies.
+- CorvusProbe normal inherited restore FAIL: actual captured diagnostic contains
+  **NU1008**. Diagnostic restore using the single global property
+  `-p:ManagePackageVersionsCentrally=false` PASS with **6** lock rows. This
+  isolates inherited central management versus generated explicit versioned
+  PackageReference as the cause. Normal failed restore also emits a partial
+  six-row lock; existence/count alone is not valid restore evidence. All probe
+  locks were temporary and deleted. The property was not added to production,
+  workflows, project files or accepted restore commands.
+- The verified Corvus CLI archive contains one `.deps.json`, **238 libraries**,
+  including **34 type=package libraries**. These are diagnostic counts, not
+  established complete scanner/license evidence. Direct tool version manifests
+  do not establish this closure. Dotnet-ef remains a direct manifest pin, while
+  native scanner binaries and pinned toolchain images need their own dependency
+  evidence. Existing `CI_TOOL_DEPENDENCY_COVERAGE` remains enforced.
+
+Initial probe exited 1 at Trivy because private-command's isolated HOME had no
+cache and skip-update cannot retrieve one. Rerun supplied the existing explicit
+cache and completed above. Skip-update evidence establishes parser behavior only;
+no freshness, vulnerability/license clearance or mandatory security job success.
+No raw report or diagnostic payload was published; private-command deletes it.
+
+Verification: `python3 -m unittest discover -s tests/CI -p test_scan.py` PASS,
+**21 tests / 0 skips**, 0.359s, exit 0. No code was changed, so no new RED/GREEN
+cycle or full-suite run is claimed. Full CI, backend/Compose, scanner fixture
+suite, exact final-candidate gates, remote evidence and restore drills NOT RUN
+in this continuation. `git diff --check` PASS before commit.
+
+Concrete blockers and next steps: design/test a zero-package attestation bound to
+successful evaluated restore (including imported/conditional MSBuild inputs),
+while preserving exact nonempty package comparison elsewhere; route central
+management isolation through the generator and regenerate/verify all provenance
+and consumers before accepting a CorvusProbe lock; inventory actual tool package
+closures, bind them to verified artifacts and verify real scanner treatment,
+including native embedded dependencies. No guessed licenses, fabricated empty
+scan records, hand-written package closure or unsupported bypass was accepted.
+Wave 0/P0/RT-* remain OPEN. Changed tracked files are this handoff and the
+verification ledger only; rollback is revert of the documentation commit.
