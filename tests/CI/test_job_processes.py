@@ -2,6 +2,7 @@
 import os
 from pathlib import Path
 import signal
+import subprocess
 import sys
 import tempfile
 import time
@@ -12,13 +13,44 @@ from scripts.ci.jobs import JobError, execute
 
 class ProcessTests(unittest.TestCase):
     def test_timeout_terminates_child_that_ignores_term(self):
+        self.assert_timeout_terminates_ready_child(startup_delay=0)
+
+    def test_timeout_terminates_slow_starting_child_that_ignores_term(self):
+        self.assert_timeout_terminates_ready_child(startup_delay=0.75)
+
+    def assert_timeout_terminates_ready_child(self, startup_delay):
         with tempfile.TemporaryDirectory() as directory:
             pidfile=Path(directory)/'child'
             child="import os,signal,time; signal.signal(signal.SIGTERM,signal.SIG_IGN); open("+repr(str(pidfile))+",'w').write(str(os.getpid())); time.sleep(60)"
-            command=[sys.executable,'-c','import subprocess,time; subprocess.Popen('+repr([sys.executable,'-c',child])+'); time.sleep(60)']
+            command=[sys.executable,'-c','import subprocess,time; time.sleep('+repr(startup_delay)+'); subprocess.Popen('+repr([sys.executable,'-c',child])+'); time.sleep(60)']
+            # Start the timeout only after the real descendant has installed its
+            # SIGTERM handler and published its PID. Slow process startup must
+            # not turn a cleanup assertion into a missing-fixture failure.
+            popen = subprocess.Popen
+            def start_ready(*args, **kwargs):
+                from scripts.ci.jobs import stop_process_group
+                process = popen(*args, **kwargs)
+                deadline = time.monotonic() + 10
+                try:
+                    while time.monotonic() < deadline:
+                        try:
+                            if pidfile.read_text().strip().isdigit():
+                                return process
+                        except FileNotFoundError:
+                            pass
+                        if process.poll() is not None:
+                            self.fail('fixture exited before child readiness')
+                        time.sleep(.01)
+                    self.fail('fixture did not signal child readiness')
+                except BaseException:
+                    stop_process_group(process)
+                    process.communicate()
+                    raise
             try:
-                with self.assertRaises(JobError) as caught: execute(command,timeout=0.5)
+                with patch('scripts.ci.jobs.subprocess.Popen', side_effect=start_ready):
+                    with self.assertRaises(JobError) as caught: execute(command,timeout=0.5)
                 self.assertEqual(caught.exception.token,'CI_COMMAND_TIMEOUT')
+                self.assertTrue(pidfile.exists(), 'child was not ready before timeout')
                 pid=int(pidfile.read_text())
                 for _ in range(100):
                     stat=Path('/proc')/str(pid)/'stat'

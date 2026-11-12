@@ -51,3 +51,60 @@ No finding approved. SAST/license/image/tool hardening, independent verification
 Task 2 committed implementation: `4baea16` (`ci: report MVP security scans and deferred coverage`). Exact committed candidate scan at full SHA `4baea1646a424ab8be03bfecb5c25bf2d413de57`, base `601dde8847cad82d038ea837c01d3da0d7449450`, local run `local-mvp-task2` attempt 1: **FAIL**, exit 1, `CI_SCAN_INCOMPLETE`. Gitleaks BLOCKED, 64 unique secret digests over tree+history; Trivy PASS under unchanged vulnerability policy, 10 locks/6 nonblocking vulnerability records; required `CI_UNLOCKED_DEPENDENCIES` remains. Deferred tool inventory gap and license 271 review-required/508 allowlist-pass records remain OPEN with SAST/images. No classification as false positive or finding approval was made. Safe completion round trip PASS as failure-preservation (`CI_JOB_FAILED`). Durable safe classified digest evidence linked from security triage doc; raw scanner output was neither printed nor retained. Full regression result pending below. Evidence-only follow-up changes require fresh final-candidate scan in Task 3.
 
 Final Task 2 regression: pinned `python -m unittest discover -s tests/CI` PASS, 125 tests, 0 failures/errors/skips, 296.148s, exit 0. The subsequently added actual missing-scanner MVP CLI test passed within the separate 7-test security job run. Final workflow/actionlint/shell/diff and durable evidence-shape/link checks PASS. Regression success proves implementation behavior; it does not clear the actual committed candidate's failed security scan. Task 3 full five-job/final-SHA/remote evidence remains outstanding; remote actions remain unauthorized. See history for evidence-only follow-up commit after `4baea16`; only unrelated untracked Plan 3 handoff remains outside Task 2 commits.
+
+
+## Task 3 rehearsal continuation — 2026-11-12
+
+Objective: full local five-job evidence under the authorized MVP scope, no
+remote action or finding approval. Read this handoff and Task1/2 reports; verified
+branch `feat/wave-0-plan-4-ci` at `5a17535b5da6802dde0548e7fe0aa0bef2a3ca2c`.
+Base `601dde8847cad82d038ea837c01d3da0d7449450`; no merge SHA.
+
+Completed original attempts: backend PASS96/96/436.611s; Compose
+PASS14/14/1400.580s; contracts-sdk FAIL `CI_COMMAND_FAILED`, 87 passing cases
+collected/1140.515s; browser FAIL same token, zero collected/30.681s after native
+library correction; security FAIL `CI_SCAN_INCOMPLETE`/6.379s. Gitleaks64 digests
+BLOCKED, Trivy10 locks/6 existing-policy nonblocking records, unlocked dependency
+coverage still BLOCKED. No exception, severity threshold or approval changed.
+Exact commands/tool versions and compact safe evidence are in
+[ledger08](../engineering/08-WAVE-0-PLAN-4-VERIFICATION.md).
+
+Safe diagnostic wrapper in ignored `.local/ci-task3/diagnose.py` captures raw
+subprocess streams only in memory and publishes fixed classifiers/reason enums.
+Chromium real launch PASS; full browser diagnostic then FAIL at generated-check
+with `SDK_GENERATED_MISMATCH`. Exactly five ignored restore artifacts in
+`sdks/dotnet/Crm.Client/obj` were moved intact to ignored
+`.local/ci-task3/sdk-obj-backup`. No tracked code was changed. Full clean-state contracts rerun PASS87/87, 0 failures/skips, 2070.489s; generated
+check, consumers, compatibility and all five Plan3 harnesses exit0. Exact-SHA
+clean-export with browser PASS327.87s; negative cases PASS224.89s. Full clean-state
+web rerun PASS58/58 (54 Vitest + 4 real Playwright), 0 failures/skips, 303.270s.
+Original failed reports are preserved. Reports `contracts-sdk-diagnostic.json`
+and `web-browser-diagnostic.json` stay in ignored `.local/ci-task3/`; compact
+tracked evidence includes their identities/counts plus required security digest
+findings, approval NONE/owner UNASSIGNED. No runtime fix was needed.
+Initial full pinned CI discovery FAIL125/126,0skip,287.610s, only process
+timeout cleanup test. Original exception UNKNOWN because safe reporter discarded
+traceback; isolated process module PASS4/4/1.507s; full pre-fix diagnostic replay
+PASS126/126,0failure/error/skip,268.910s. Controlled0.75s startup reproduces
+FileNotFoundError in unchanged fixture: timeout0.5 can expire before child PID
+publication. Added slow-start regression RED1 failure/5tests/3.038s, then test
+fixture readiness synchronization GREEN5/5/3.867s. Production execute/timeout
+and actual descendant cleanup assertions unchanged. This proves a fixture race,
+not the exact original unknown exception. Final full post-fix regression PASS127/127,0failures/errors/skips,320.490s,
+exit0. This result includes the new slow-start regression.
+Actual-report completion preserves4testPASS+securityFAIL; local aggregate exits1
+with CI_JOB_NON_SUCCESS. No forged all-green result.
+Next: commit the verified test-fixture fix with this handoff, then finish the
+separate documentation/evidence commit. No selective success replaces the preserved failures.
+
+Current changed files: ledger08, scope09, compact safe rehearsal JSON,
+`tests/CI/test_job_processes.py`, this handoff; ignored task3 report also updated. Unrelated untracked
+`2026-11-12-wave-0-plan-3-resumption-handoff.md` preserved. No Task3 commit existed at the verification boundary; the test-fixture fix and
+this handoff are committed together next, followed by documentation/evidence.
+Static verification PASS: workflow contract, actionlint, setup shell syntax,
+committed diff whitespace. Final full CI regression PASS127/127 as stated; full service reruns bind
+5a17535, while the later test-fixture and evidence commits have no new complete
+five-job rehearsal. No acceptance claim is transferred between these SHAs.
+Remote CI NOT RUN, enforcement UNKNOWN; Wave0/P0/RT-* and deferred hardening OPEN.
+Evidence-only documentation changes require fresh exact-final-SHA evidence
+before any later acceptance claim.
