@@ -305,3 +305,75 @@ be covered; do not add an empty lock or bypass merely to erase its gap token.
 Next steps: review Surface design, obtain accountable per-ID/license review,
 then fresh exact-final-SHA mandatory/full gates. All started verification
 processes finished. Unrelated Plan3 handoff remains untracked/untouched.
+
+## Surface local empty-graph measurement continuation — 2026-11-12
+
+Objective: user-approved locked restore plus actual empty-graph validation and
+import-tamper tests for Surface, within the existing MVP CI trust boundary.
+Started at `a46f6f01664dbdf17e39c5901595db2164304d10`, branch
+`feat/wave-0-plan-4-ci`, current checkout; no worktree, nested delegation or remote
+action. Unrelated untracked Plan3 resumption handoff remains untouched.
+Authority: scope09 and triage10; independent verifier deployment remains deferred
+in `docs/ci/independent-verifier-provisioning.md`. No finding/secret exception,
+severity adjustment, policy-transition change or repository setting approval.
+
+Completed implementation: authentic generated Surface packages.lock.json;
+exact-byte closed profile in `scripts/ci/surface_restore.py`; MVP-only scanner
+integration and bounded descriptive `empty_restores` summary validation in
+scan.py; nine real/fail-closed tests in
+`tests/Security/test_surface_empty_restore.py`; triage/provisioning clarification.
+The profile rejects changed root/global/project/lock bytes, automatic ancestor
+configuration, response files and symlinks. It bounds the complete project
+subtree to Surface.csproj, its lock and optional Program.cs; every other entry,
+including project.user and obj extension imports, fails. Only verified restore
+inputs are reconstructed, with clean environment/home, SDK10.0.403, explicit
+cleared sources, audit off, reviewed props path and automatic targets disabled.
+Debug/Release locked force-evaluated restores must both succeed, preserve lock
+bytes and produce exact net10.0 empty assets/library/dependency/reference groups.
+Other projects, nonempty scanner coverage and default hardening remain strict.
+
+Trust limitation: this is candidate-owned local execution using the existing
+installed SDK trust boundary, not signed/independent evidence. A caller JSON
+receipt is never accepted instead of actual verification. Safe receipts describe
+measurement only and bind fixed profile/target digests and matrix to the existing
+run identity. Independent enforcement remains OPEN, as do all findings/deferred
+license/tool/image coverage and Wave0/P0/RT-* acceptance. Internal MVP summaries
+now require `empty_restores`; historical summaries without it fail closed.
+
+TDD/verification so far: initial import failure corrected into explicit missing
+feature RED4/4; first focused GREEN4/4,7.530s. Added receipt regression caught
+bool-as-zero acceptance RED1, then canonical bounded validation fixed it.
+Early review found project.user/obj implicit imports outside ancestor checks.
+Actual SDK `msbuild -getItem:PackageReference` independently reproduced xunit in
+all three graphs with unchanged empty locks; RED3,23.606s. Complete subtree
+allowlist fixes these rather than extending a guessed import denylist.
+Final focused real SDK PASS9/9,0skips,10.276s:
+`CI_DOTNET=$PWD/.local/ci-dotnet/dotnet python3 -m unittest discover -s tests/Security -p test_surface_empty_restore.py`.
+Python compile and `git diff --check` PASS. Full pinned CI regression and focused
+scanner/summary suites are still running at this paragraph; final actual results
+will follow before handoff. Exact committed-candidate security scan not yet run.
+No runtime/backend/Compose/browser/full-five-job rerun, remote E2E, duplicate,
+tenant, outage or data restore drill; no acceptance claim.
+
+Rollback: revert this scoped Surface profile/lock/scanner/internal-summary change;
+no database migration. Next: finish verification, commit exact implementation,
+run mandatory scan against that SHA and preserve secret blocks, record safe
+receipt and findings without publishing native diagnostics; then fresh final-SHA
+full gates and separately authorized remote evidence. Review any future profile
+byte/tree change before updating hashes; never dynamically accept new imports.
+
+Resumption verification (same scope/date): current workspace verified against
+this handoff, no worktree/delegation/remote action. Fresh real Surface suite
+PASS9/9,0skips,9.949s; real pinned scanner suite PASS9/9,0skips,32.202s
+(`CI_SCANNER_ROOT=.local/task5 python3 -m unittest discover -s tests/Security -p test_real_scanners.py`).
+Scanner policy PASS24/24,0skips,0.374s; summary PASS11/11,0skips,0.033s
+(`python3 -m unittest discover -s tests/CI -p test_scan.py` and
+`python3 -m unittest discover -s tests/CI -p test_summary.py`). Profile digest
+check, Python compilation, Markdown relative links and `git diff --check` PASS.
+Full pinned CI rerun is in progress; result follows before commit.
+
+Final fresh pinned CI regression PASS128/128,0failures/0skips,285.392s,exit0:
+`LD_LIBRARY_PATH=.local/ci-python315/lib .local/ci-venv315/bin/python .local/ci-task3/unit.py`.
+All started verification processes have completed. Implementation is ready for
+scoped commit and exact committed-SHA mandatory scan; this passing regression
+is not security clearance or full five-job/P0 acceptance.

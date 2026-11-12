@@ -122,6 +122,22 @@ closed with a reason token and correlation ID. No HMAC test key becomes producti
    duplicate/conflicting evidence fails. Publish only normalized allowlisted
    fields; private raw reports are deleted, not uploaded.
 
+## Local MVP measurement and independent proof
+
+The MVP adapter now implements a bounded **candidate-owned** Surface measurement
+in `scripts/ci/surface_restore.py`; see the [triage record](../engineering/10-WAVE-0-MVP-SECURITY-TRIAGE.md#surface-bounded-local-restore-coverage--2026-11-12).
+It verifies a literal input profile, reconstructs those bytes and runs real locked
+offline restores under the pinned SDK. Its `measured-local` summary is descriptive
+CI output, never independent evidence or a caller-supplied authorization. The
+candidate-owned MVP adapter accepts no JSON assertion in place of running that
+measurement. Arbitrary project restores and unknown empty locks remain unsupported.
+This does not provision any service, key, authenticated producer or enforcement.
+
+The independent profile/worker/evidence implementation below remains planned.
+The requirement to implement a producer before extending the **independent**
+adapter still applies. Local MVP measurement does not satisfy that requirement
+and cannot enable the deferred trusted adapter or policy transition.
+
 ## Surface empty-lock proof
 
 An isolated execution of arbitrary candidate MSBuild is insufficient: it can

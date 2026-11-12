@@ -270,9 +270,10 @@ class DependencyInput:
     expected_inventory: frozenset[str]
     gaps: tuple[str,...]
     expected_packages: dict = field(default_factory=dict)
+    empty_restores: tuple = ()
 
 @contextmanager
-def dependency_inputs(tree):
+def dependency_inputs(tree, *, measure_surface=False):
     """Stage all recognized locks, exposing unsupported tool locks as blockers.
 
     Rename complete pinned pip lockfiles to Trivy's supported requirements.txt
@@ -281,10 +282,16 @@ def dependency_inputs(tree):
     import shutil
     with tempfile.TemporaryDirectory(prefix='ci-deps-') as directory:
         target=Path(directory);expected=set();gaps=dependency_gaps(tree);packages={}
+        measured_empty=None
+        if measure_surface and (tree/'tools/contracts/surface/dotnet/packages.lock.json').is_file():
+            from scripts.ci.surface_restore import verify, SurfaceRestoreError
+            try: measured_empty=verify(tree)
+            except SurfaceRestoreError: raise ScanError() from None
         for source in tree.rglob('*'):
             if not source.is_file(): continue
             relative=source.relative_to(tree)
             name=source.name
+            if relative.as_posix()==measured_empty: continue
             output=None
             if name in ('package-lock.json','packages.lock.json','requirements.txt'):
                 output=relative
@@ -302,7 +309,9 @@ def dependency_inputs(tree):
                 expected.add(output.as_posix())
                 packages[output.as_posix()]=lock_packages(source)
         if not expected: raise ScanError()
-        yield DependencyInput(target,frozenset(expected),tuple(sorted(gaps)),packages)
+        from scripts.ci.surface_restore import measurement_metadata
+        receipts=(measurement_metadata(),) if measured_empty else ()
+        yield DependencyInput(target,frozenset(expected),tuple(sorted(gaps)),packages,receipts)
 
 
 def _package_name(name, target):
@@ -521,35 +530,36 @@ def combine_mvp_scans(reports, gaps, run):
                        findings,sum(r.scanned_count for r in reports.values()))
 
 
-def mvp_evidence(reports, gaps, run):
+def mvp_evidence(reports, gaps, run, empty_restores=()):
     return {'identity':asdict(run),'required':{kind:report.to_dict() for kind,report in reports.items()},
-            'coverage_gaps':list(gaps),
+            'coverage_gaps':list(gaps),'empty_restores':list(empty_restores),
             'deferred':{kind:{'status':'OPEN','findings':[
                 f for report in reports.values() for f in report.deferred_findings if f['kind']==kind]}
                         for kind in ('sast','license','image','tool_inventory')}}
 
 
 def run_repository_mvp(scanners, root, run):
-    reports={};gaps=[]
+    reports={};gaps=[];empty_restores=()
     try:
         if set(scanners)!={'gitleaks','trivy'}: raise ScanError()
         # Scan both required classes independently, preserving findings even if
         # another class or package coverage is incomplete.
         reports['gitleaks']=run_scanner(scanners['gitleaks'],ScanInput(root),run,mode='mvp')
         with candidate_tree(root,run) as tree:
-            with dependency_inputs(tree) as inputs:
+            with dependency_inputs(tree,measure_surface=True) as inputs:
+                empty_restores=inputs.empty_restores
                 gaps.extend(inputs.gaps)
                 reports['trivy']=run_scanner(scanners['trivy'],ScanInput(
                     inputs.root,inputs.expected_inventory,inputs.expected_packages),run,mode='mvp')
     except (ScanError,SafeProcessError,OSError,ValueError,TypeError,KeyError,AttributeError,RecursionError):
         gaps.append('CI_SCAN_INCOMPLETE')
-    return combine_mvp_scans(reports,gaps,run),mvp_evidence(reports,gaps,run)
+    return combine_mvp_scans(reports,gaps,run),mvp_evidence(reports,gaps,run,empty_restores)
 
 
 def validate_mvp_evidence(raw, run, require_pass=False):
     """Validate and reconstruct only safe enums/digests; no candidate waivers."""
     from scripts.ci.publication import findings
-    if set(raw)!={'identity','required','coverage_gaps','deferred'} or raw['identity']!=asdict(run): raise ScanError()
+    if set(raw)!={'identity','required','coverage_gaps','deferred','empty_restores'} or raw['identity']!=asdict(run): raise ScanError()
     if set(raw['deferred'])!={'sast','license','image','tool_inventory'}: raise ScanError()
     reports={}
     for kind,row in raw['required'].items():
@@ -562,7 +572,10 @@ def validate_mvp_evidence(raw, run, require_pass=False):
         reports[kind]=ScanSummary(run,row['status'],row['reason_token'],row['correlation_id'],tuple(safe),row['scanned_count'],tuple(deferred))
     gaps=raw['coverage_gaps']
     if not isinstance(gaps,list) or any(g not in ('CI_TOOL_DEPENDENCY_COVERAGE','CI_UNLOCKED_DEPENDENCIES','CI_ECOSYSTEM_COVERAGE','CI_SCAN_INCOMPLETE') for g in gaps): raise ScanError()
-    clean=mvp_evidence(reports,gaps,run)
+    from scripts.ci.surface_restore import measurement_metadata
+    empty=raw['empty_restores']
+    if json.dumps(empty,sort_keys=True,separators=(',',':')) not in ('[]',json.dumps([measurement_metadata()],sort_keys=True,separators=(',',':'))): raise ScanError()
+    clean=mvp_evidence(reports,gaps,run,empty)
     if raw['deferred']!=clean['deferred']: raise ScanError()
     if require_pass and combine_mvp_scans(reports,gaps,run).status!='pass': raise ScanError()
     return clean
