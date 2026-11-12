@@ -37,10 +37,11 @@ public sealed class ContainerImages : IAsyncLifetime
     }
 
     public static Task<Capture> Docker(params string[] args) => Docker(true, args);
-    public static async Task<Capture> Docker(bool requireSuccess, params string[] args)
+    public static Task<Capture> Docker(bool requireSuccess, params string[] args) => Docker(requireSuccess, args, null);
+    public static async Task<Capture> Docker(bool requireSuccess, string[] args, IReadOnlyDictionary<string, string>? fixtureSecretFiles)
     {
         var evidence = Environment.GetEnvironmentVariable("CI_IMAGE_EVIDENCE") is not null && args[0] == "run";
-        var fixtureSecrets = evidence ? FixtureSecretValues(args) : Array.Empty<string>();
+        var fixtureSecrets = evidence ? FixtureSecretValues(args, fixtureSecretFiles) : Array.Empty<string>();
         var removeAfter = evidence && args.Contains("--rm");
         var cid = evidence ? Path.Combine(Path.GetTempPath(), "crm-ci-container-" + Guid.NewGuid().ToString("N")) : null;
         if (evidence) args = new[] { "run", "--cidfile", cid! }.Concat(args.Skip(1).Where(arg => arg != "--rm")).ToArray();
@@ -82,7 +83,7 @@ public sealed class ContainerImages : IAsyncLifetime
         return result;
     }
 
-    public static string[] FixtureSecretValues(string[] arguments)
+    public static string[] FixtureSecretValues(string[] arguments, IReadOnlyDictionary<string, string>? fixtureSecretFiles = null)
     {
         var values = new HashSet<string>(StringComparer.Ordinal);
         void Add(string? value)
@@ -102,6 +103,21 @@ public sealed class ContainerImages : IAsyncLifetime
                 }
             }
         }
+        void SecretFile(string source)
+        {
+            // Negative fixtures can deliberately revoke access after creating a
+            // secret. Preserve their explicit pre-revocation snapshot privately;
+            // also capture current bytes whenever readable. Never change modes.
+            string? snapshot = null;
+            fixtureSecretFiles?.TryGetValue(Path.GetFullPath(source), out snapshot);
+            Add(snapshot);
+            try { Add(File.ReadAllText(source)); }
+            catch (Exception failure) when (failure is IOException or UnauthorizedAccessException)
+            {
+                if (string.IsNullOrWhiteSpace(snapshot))
+                    throw new InvalidOperationException("CI_SECRET_EXTRACTION_INCOMPLETE correlation=" + Guid.NewGuid().ToString("N"));
+            }
+        }
         void Mount(string mount)
         {
             var parts = mount.Split(',').Select(part => part.Split('=', 2))
@@ -109,7 +125,7 @@ public sealed class ContainerImages : IAsyncLifetime
             if (parts.GetValueOrDefault("type") == "bind" &&
                 parts.GetValueOrDefault("target", parts.GetValueOrDefault("dst", "")).StartsWith("/run/secrets/", StringComparison.Ordinal) &&
                 parts.GetValueOrDefault("source", parts.GetValueOrDefault("src", "")) is { } source && File.Exists(source))
-                Add(File.ReadAllText(source));
+                SecretFile(source);
         }
         void EnvironmentValue(string entry)
         {
@@ -134,7 +150,7 @@ public sealed class ContainerImages : IAsyncLifetime
             {
                 var mount = arguments[++index].Split(':');
                 if (mount.Length >= 2 && mount[1].StartsWith("/run/secrets/", StringComparison.Ordinal) && File.Exists(mount[0]))
-                    Add(File.ReadAllText(mount[0]));
+                    SecretFile(mount[0]);
             }
         }
         return values.ToArray();

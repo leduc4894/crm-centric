@@ -99,7 +99,8 @@ public sealed class ContainerRuntimeTests(ContainerImages images)
             var args = new List<string> { "run", "--rm", "--env", "PLATFORM_CONNECTION_FILE=/run/secrets/platform" };
             if (state != "missing") args.AddRange(["--mount", Mount(file, "/run/secrets/platform")]);
             args.Add(image);
-            var capture = await ContainerImages.Docker(false, args.ToArray());
+            var capture = await ContainerImages.Docker(false, args.ToArray(),
+                state == "unreadable" ? new Dictionary<string, string> { [file] = sentinel } : null);
             Assert.NotEqual(0, capture.ExitCode);
             AssertAbsent(sentinel, capture.Output + capture.Error);
             using var json = JsonDocument.Parse(capture.Error);

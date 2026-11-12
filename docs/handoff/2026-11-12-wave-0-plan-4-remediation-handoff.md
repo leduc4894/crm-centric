@@ -171,3 +171,63 @@ Next: finish full CI verification, review/commit correction, rerun exact-SHA
 backend/probes and localize the additional permission failure without touching
 foreign resources. Full final-candidate gates, security findings, independent
 trust and remote acceptance remain blocked/not proven.
+
+
+### Committed image correction and permission-fixture follow-up
+
+Image identity correction commit: `6562e89e2ed5b979974432eb0a0ea56ab05f0b00`.
+Exact committed-SHA full backend rerun, fresh task-owned scanner cache: FAIL
+`CI_COMMAND_FAILED`, 213.523s. Native 74 executed = 27 passed / 47 failed /
+0 skipped; all timeout/error/aborted/notExecuted counters zero. 46 native failures
+were explicit image-gate rejection. Actual normalized image records now collect
+inventories: API 106 packages / 5 blocking; migrator 120 / 5; Keycloak 559 / 6;
+PostgreSQL (two tested config IDs) 151 / 135 blocking + 12 unknown severity.
+The original class mismatch is corrected; findings correctly keep the gate closed.
+
+The remaining failure is
+`Integration.ContainerRuntimeTests.Unreadable_or_missing_secret_fails_closed`: its
+intentional chmod-000 secret was read by the new fixture evidence adapter before
+Docker launch, yielding UnauthorizedAccessException/IOException. Parent explicitly
+requested a narrow TDD fix retaining actual unreadable-file behavior and no bypass.
+
+Follow-up working-tree correction: the Docker test helper accepts an explicit
+file-bound fixture snapshot captured before permission revocation. It always
+retains the snapshot for secret guarding and adds current bytes when readable;
+only an explicitly supplied nonempty snapshot handles an unreadable bound file.
+Unknown read failures close with `CI_SECRET_EXTRACTION_INCOMPLETE` plus fresh
+correlation ID, with no raw exception/inner payload. File modes remain unchanged,
+and the normal image capture/scan path remains mandatory. The unreadable negative
+fixture supplies its own generated sentinel; other fixtures keep default extraction.
+
+Actual follow-up verification:
+- Original committed backend run above is RED for the existing unreadable test.
+  New focused regression first failed to compile (CS1501, missing snapshot
+  overload); this is a compile RED, not a claim that assertions executed.
+- `dotnet test tests/Integration/Integration.csproj -c Release --no-restore
+  --filter FullyQualifiedName~Integration.ImageEvidenceSecretTests`: GREEN
+  6 passed / 0 failed / 0 skipped, 44ms. Includes mode preservation and safe
+  unknown-unreadable error/correlation checks.
+- Actual four-state runtime configuration probe with mandatory image evidence:
+  FAIL `CI_COMMAND_FAILED`, 15.859s; 4 executed / 4 failed / 0 skipped, all four
+  now explicit image-gate rejections; no other or permission-extraction failures.
+- Separate real API and migrator unreadable-file diagnostic: both applications
+  returned nonzero with `LOCAL_CONFIGURATION_INVALID`, correct service and valid
+  correlation, no generated sentinel in output, and source mode remained 000.
+  Each actual started container was then scanned through the mandatory image
+  evidence helper and each gate was rejected. These application negative checks
+  do not constitute a passing service/security job. Task-owned tags/containers
+  were cleaned; an initial diagnostic could not use already-disposed fixture
+  images, so it was rerun with freshly built task-owned tags. No foreign tag or
+  resource was removed.
+- `git diff --check`: PASS. Full exact follow-up SHA backend/Compose diagnostics
+  will follow after the scoped commit; full final gate set/acceptance remains
+  NOT RUN/blocked. Full Python CI 116 and real scanner 12 results above predate
+  this C# test-helper-only correction; Python implementation did not change.
+
+Changed follow-up files: `tests/Integration/Fixtures/ContainerImages.cs`,
+`tests/Integration/ContainerRuntimeTests.cs`,
+`tests/Integration/ImageEvidenceSecretTests.cs`, this handoff. No API/schema,
+production runtime, migration, dependency or security-policy change. Rollback is
+revert of this fixture correction. Continue exact-SHA evidence and review actual
+image findings/unknown severities without suppressions; remote actions remain
+unauthorized and all Wave 0/P0/RT-* acceptance stays OPEN.

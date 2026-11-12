@@ -6,6 +6,32 @@ namespace Integration;
 public sealed class ImageEvidenceSecretTests
 {
     [Fact]
+    public void Unreadable_bound_fixture_retains_snapshot_without_changing_permissions()
+    {
+        using var fixture = new LocalSecretFixture();
+        var sentinel = File.ReadAllText(fixture.ApplicationFile).Trim();
+        File.SetUnixFileMode(fixture.ApplicationFile, UnixFileMode.None);
+        var args = new[] { "run", "--mount", $"type=bind,source={fixture.ApplicationFile},target=/run/secrets/platform,readonly", "fixture" };
+        var snapshots = new Dictionary<string, string> { [fixture.ApplicationFile] = sentinel };
+        var values = ContainerImages.FixtureSecretValues(args, snapshots);
+        Assert.True(values.Contains(sentinel), "CI_SECRET_EXTRACTION_INCOMPLETE");
+        Assert.Equal(UnixFileMode.None, File.GetUnixFileMode(fixture.ApplicationFile));
+    }
+
+    [Fact]
+    public void Unknown_unreadable_fixture_closes_with_safe_reason_and_correlation()
+    {
+        using var fixture = new LocalSecretFixture();
+        var sentinel = File.ReadAllText(fixture.ApplicationFile).Trim();
+        File.SetUnixFileMode(fixture.ApplicationFile, UnixFileMode.None);
+        var failure = Assert.Throws<InvalidOperationException>(() => ContainerImages.FixtureSecretValues([
+            "run", "--mount", $"type=bind,source={fixture.ApplicationFile},target=/run/secrets/platform,readonly", "fixture"]));
+        Assert.StartsWith("CI_SECRET_EXTRACTION_INCOMPLETE correlation=", failure.Message);
+        Assert.True(Guid.TryParseExact(failure.Message.Split('=')[1], "N", out _));
+        Assert.False(failure.Message.Contains(sentinel), "CI_SECRET_GUARD_LEAK");
+    }
+
+    [Fact]
     public void Direct_docker_mount_and_environment_values_reach_private_guard()
     {
         using var fixture = new LocalSecretFixture();
