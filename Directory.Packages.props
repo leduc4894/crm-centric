@@ -1,6 +1,8 @@
 <Project>
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <!-- The standalone generated client owns explicit pinned package versions. -->
+    <ManagePackageVersionsCentrally Condition="'$(MSBuildProjectDirectory)' == '$(MSBuildThisFileDirectory)sdks/dotnet/Crm.Client'">false</ManagePackageVersionsCentrally>
   </PropertyGroup>
   <ItemGroup>
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.14" />

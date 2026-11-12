@@ -219,3 +219,69 @@ tenant/duplicate/outage/restore drills; no acceptance closure. Next: accountable
 per-ID review and trusted decisions, project-isolation/lock remediation with
 consumer tests, then fresh exact-final-SHA full gates. Existing Plan3 untracked
 handoff remains untouched. No running verification process is handed off.
+
+## CorvusProbe lock remediation continuation — 2026-11-12
+
+Parent authorized continuing the two demonstrated coverage gaps, with no public
+contract/generator changes or finding approval. Started at
+`e26c324f85d5d75ffe2a09ab6756fc8e766fc9a2`; same branch/current checkout,
+no worktree/subagents/remote action. Preserved unrelated Plan3 handoff.
+
+Implemented CorvusProbe non-central package configuration and its authentic
+NuGet lock (five NuGet packages plus referenced project node). NuGet graph
+restore ignored ProjectReference AdditionalProperties: real normal restore
+still failed NU1008. Removed that ineffective metadata. Root
+Directory.Packages.props now opts out only the exact generated Crm.Client
+project directory; generated/public contract files and generator are unchanged.
+Real project-evaluation test confirms Platform.Api remains centrally managed,
+fixture/CRM SDK isolated. No application package/version declaration changed.
+
+TDD: new real lock/consumer tests RED2/2 missing lock,0.223s. After isolation and
+real generated lock, focused GREEN2/2,34.352s: locked restore, no-restore build,
+actual AutomationRule JSON roundtrip, corrupted resolved lock rejected.
+Final expanded real test suite PASS3/3,0skips,62.738s, command
+`CI_DOTNET=/home/leduc/crm-centric/.local/ci-dotnet/dotnet python3 -m unittest discover -s tests/Security -p test_dotnet_lockfiles.py`.
+The SDK is pinned by unchanged global.json10.0.403. Consumer output/native
+restore diagnostics captured privately; no matched secrets/tokens published.
+
+Surface deliberately remains OPEN: actual throwaway empty lock generation and
+locked restore PASS; adding a centrally pinned PackageReference with that lock
+fails closed NU1004. However mandatory `lock_packages` rejects the empty package
+inventory, and no Trivy empty-target coverage proof was established. Adding a
+file alone would exchange an unlocked blocker for incomplete scanner coverage.
+No empty lock, parser exemption, inventory fabrication or policy change adopted.
+Supporting a verified empty inventory needs a separately reviewed input-closure
+and scanner-inventory design; transitive tool inventory remains explicitly OPEN.
+Initial private Surface probe failed import-path setup before tool execution;
+rerun with PYTHONPATH=. produced the actual results above.
+
+Own root restore artifacts from generated SDK obj were moved to ignored
+`.local/mvp-triage/coverage-obj-backup`; no tracked generated SDK bytes changed.
+Packaged consumers PASS1/1,0skips,88.919s. Full SDK surface/generated parity and
+pinned CI regression still RUNNING at this paragraph; final results follow.
+
+Final existing-consumer checks: packaged consumers PASS1/1,88.919s; SDK public
+surface PASS6/6,60.307s; actual generated parity PASS
+`SDK_GENERATED_CURRENT`,10.525s, all0skips. Used pinned Node/Python/.NET toolchain
+and the private capture runner `.local/mvp-triage/consumer_verify.py`.
+XML parsing and five-package `lock_packages` inventory PASS; Markdown links,
+Python compile and `git diff --check` PASS.
+
+Surface follow-up diagnostic resolves the earlier scanner uncertainty: pinned
+Trivy0.76.2 against the exact lock-only input shape used by dependency_inputs
+reports0language targets for the empty lock. A first whole-export diagnostic
+reported11package declarations from root Directory.Packages.props, not packages
+in Surface's dependency closure; it cannot establish empty-project coverage.
+The final lock-only diagnostic, cached DB/no freshness claim, proves the target
+is omitted. Restore/lock-tamper checks still PASS/NU1004 closed. No zero-inventory
+acceptance or scanner relaxation adopted. Required Surface blocker stays OPEN.
+
+Final pinned CI regression PASS128/128,0failures/0skips,359.107s,exit0:
+`LD_LIBRARY_PATH=.local/ci-python315/lib .local/ci-venv315/bin/python .local/ci-task3/unit.py`.
+Scope changed: root Directory.Packages.props, CorvusProbe project/lock,
+`tests/Security/test_dotnet_lockfiles.py`, triage10 and this handoff. No public
+contract/generator/dependency-version change, no database migration. Rollback:
+revert the scoped fixture/build-isolation commit. Commit this verified work,
+then record fresh exact-SHA mandatory security output separately. Full five-job
+candidate rehearsal, remote E2E/duplicate/tenant/outage/restore NOT RUN; no
+security finding approval or P0/Wave0 closure. Surface remains required blocker.

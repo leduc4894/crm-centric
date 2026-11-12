@@ -122,3 +122,23 @@ exactly match the stable review proposals; zero unmatched current findings.
 Safe completion preserves failure (`CI_JOB_FAILED`). No finding was approved.
 Later evidence-only commits have no full exact-candidate gate evidence; full
 five-job/remote acceptance remains OPEN.
+
+## CorvusProbe coverage remediation; Surface blocker — 2026-11-12
+
+CorvusProbe now has an authentic lock for five NuGet packages plus its project
+reference. The fixture opts out of central package versions, and the root props
+isolate only the exact generated CRM client directory, whose project owns
+explicit versions. Application central package management is retained and
+verified by real project evaluation. Public contracts, generated SDK content and
+the generator are unchanged. Real tests require locked restore, consumer build,
+AutomationRule roundtrip and rejection of a corrupted lock; no empty-lock
+shortcut or scanner exception was added.
+
+Surface remains uncovered. In a throwaway export, an authentic empty lock
+restores in locked mode and rejects an added package with `NU1004`. Mandatory
+inventory parsing rejects its zero packages. Actual pinned Trivy0.76.2 scanning
+the lock-only staged input reports zero language targets, so the required
+lock-target inventory cannot honestly be satisfied. No Surface lock was adopted: accepting an empty list as
+package coverage without complete evaluated input closure would weaken the
+required gate. The MVP tool-inventory deferral does not authorize a project
+coverage exemption. See the handoff for actual tests and exact committed scan.
