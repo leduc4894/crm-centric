@@ -779,3 +779,107 @@ claim. Full backend/Compose/tenant/concurrency, existing-volume/collation migrat
 logical restore/rollback and remote acceptance NOT RUN. Next steps and precise
 migration risks are in candidate README. No contract/dependency/default/policy
 change; Wave0/P0/RT-* remain OPEN. Documentation `git diff --check` PASS.
+
+## Keycloak supported-remediation continuation — 2026-11-12
+
+Scope: local current checkout, no worktree/subagent/remote writes or changes to
+runtime defaults, policy or acceptance. Started `feat/wave-0-plan-4-ci` at
+`01aef5c7177b3e5f3761efa4a2dec85ca75a54c9`; preserved unrelated untracked Plan3
+resumption handoff. Read AGENTS, this handoff, Plan4 design and PG candidate.
+
+Completed actual checks: pinned original Keycloak26.8.2 digest pull and private
+Trivy0.76.2 vulnerability/full-license scans PASS as diagnostics:559 packages,
+6 HIGH (OpenJDK1/SQLite4/Guava1),52 license rows/20 identifiers requiring existing
+policy review. No license clearance. Official Keycloak downloads still26.8.2;
+26.8.3 actual registry lookup failed. Verified official Guava33.7.2 release fixes
+CVE-2026-102554; changing the base/JDK alone retains the vulnerable33.6.0 JAR.
+
+Actual GPG-enabled normal UBI9.8 signed-repository upgrade/install plus the exact
+pinned distribution build PASS; scan by actual config ID:722 packages,36 HIGH,
+including all original six. Broader UBI diagnostic is not a minimal-rootfs proof;
+normal refresh did not fix this installed Java/SQLite set. No clean supported
+candidate established. `build_probe.py` and final `baseline_probe.py` PASS;
+initial baseline inspect failed because exact original digest was absent locally,
+then explicit pull corrected the prerequisite. No raw logs/scans published.
+Scans used `--skip-db-update --skip-java-db-update`; no freshness or mandatory
+image-gate claim. Probe tag/Dockerfile removed; no foreign cleanup.
+
+[Review artifact](../ci/candidates/keycloak26/README.md) and normalized JSON record
+immutable identities, official source links, licenses, viable next investigation
+options and required exact-image auth/DB/rollback checks. No vendor-binary JAR replacement, production default change or support claim;
+no TDD GREEN claim. Source feasibility work is recorded below. Vendor candidate
+not verified.
+
+Changed files: candidate README/JSON, this handoff, verification ledger. Rollback:
+revert documentation commit. Full CI/backend/Compose, candidate auth/tenant/PKCE,
+DB migration/restore/recovery and remote acceptance NOT RUN. Those remain required
+before adoption; Wave0/P0/RT-* OPEN. Next: review options, establish a complete
+reproducible downstream dependency/build closure or obtain a supported upstream
+fixed distribution, then fresh exact-image scans/license review and actual full
+compatibility suites. Do not suppress findings or swap JARs blindly.
+
+### Follow-up source rebuild and supported minimal/JDK experiments
+
+Parent explicitly requested actual official-source Guava rebuild feasibility and
+supported minimal UBI/JDK alternatives before concluding; kept all defaults.
+Actual unchanged upstream26.8.2 `ubi-null.sh` signed-repository rebuild:
+JDK21 559 packages/6 HIGH; JDK25 560/7 HIGH (Java CA in two RPMs, SQLite4,Guava1).
+Simple installroot-only probe602/24 HIGH; full UBI722/36. No OS fix established.
+Minimal probes used versioned micro9.8 final tag, not digest-pinned in their
+Dockerfiles; contemporaneous lookup/output identities are recorded, no immutable
+input-closure/reproducibility claim. Final source-runtime probe below pins both
+base digests. All own runtime probe tags/Dockerfiles removed; no foreign cleanup.
+
+Actual supported Temurin25.0.5+8 Noble JRE image:108 packages/zero reported HIGH,
+but actual Java25.0.5 is present while Trivy types contain only Ubuntu and no
+Java/JDK/JRE package. Demonstrated runtime coverage gap; this is not accepted as
+remediation. Initial mutable-tag probe failed; explicit version/digest pull/scan
+succeeded. No tar-installed JVM switch used to evade RPM-visible findings.
+
+Official source tag resolved to `e514445f9dcdabc5bdcf67cab56c1e49655de067`;
+archive hash recorded, no tag-signature verification claim. Added reviewable
+root dependencyManagement patch33.7.2-jre, not vendor-binary JAR swap. Maven3.9.16
+archive matches published SHA512 and project wrapper version; Guava JAR/POM match
+Maven Central SHA256. Immutable Maven/Temurin25 base used. Source attempts failed
+177.007/54.551/68.281s with no distribution; last private diagnostic identified
+frontend pnpm/Kiota termination in GlobalizationMode. Actual builder ICU absent.
+Normal signed Ubuntu build-only libicu74 74.2-1ubuntu3.1 installation, no invariant
+mode or compiler/license/dependency-check bypass. Earlier failed attempts lack
+retained diagnostics for independent identical-cause attribution.
+
+Actual documented server-only reactor with `-DskipTests` then PASS224.962s,
+produced tar.gz/zip;811MiB Maven cache. Fresh source distribution into digest-pinned
+upstream-style UBI21/micro runtime: build and postgres/health augmentation PASS;
+actual config `sha256:443fdd6d39e1e0cce5b0760936a67fc76213cf19a39d91d1d764d423604aa538`
+scan559 packages/**5 HIGH**, honestly inventoried Guava33.7.2-jre, prior Guava
+finding absent. Java1/SQLite4 remain blocking. Review artifact records archive,
+patch, tools and observed483-JAR hashes. This demonstrates component remediation,
+not a supported complete downstream release or passing security gate. No complete
+Maven/tool lock, repeated final output, fresh mandatory scan_image, full source
+runtime license review, upstream tests or auth/DB/restore acceptance were run.
+Full upstream suite documented as potentially several hours. Own ICU build tag,
+runtime tags and private build diagnostic log removed; source/cache retained
+ignored locally. Raw scanner reports remain ephemeral/deleted.
+
+Verification: source patch `git apply --check` PASS; diagnostic JSON parsed and
+consistency checks PASS; `git diff --check` PASS. No new production implementation
+or tests; actual original scan provides the component RED and source scan proves
+only its removal, not overall GREEN. Changed files additionally include authored
+source patch and observed JAR manifest. Commit records this review artifact only;
+source/runtime defaults, CI policy and contracts unchanged. Next: use this patch
+as one input to a reviewed reproducible downstream build only after OS/JVM fixes,
+complete dependency/license closure and exact final-image compatibility evidence.
+Wave0/P0/RT-* remain OPEN.
+
+Final checkpoint on `feat/wave-0-plan-4-ci`: evidence commit subject
+`docs: record Keycloak source and supported JDK remediation probes`, parent
+`01aef5c7177b3e5f3761efa4a2dec85ca75a54c9`. Intended tracked artifact files are
+candidate README/diagnostic results/source patch/runtime JAR hashes plus this
+handoff and ledger; unrelated Plan3 handoff remains untracked and untouched.
+Final normalized-manifest/patch checksum consistency and absence of own probe
+containers/tags PASS; final whitespace check PASS. No full test-suite result is
+claimed for this documentation/prototype session.
+
+The first staged whitespace check caught a literal blank context line in the
+new patch artifact; changed its context without changing source semantics,
+rechecked patch application and checksum binding, and amended the evidence commit.

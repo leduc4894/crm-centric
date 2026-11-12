@@ -1,0 +1,835 @@
+{
+  "observedDate": "2026-11-12",
+  "status": "diagnostic-only-not-adopted",
+  "scannerVersion": "0.76.2",
+  "freshnessClaim": false,
+  "baseline": {
+    "input": "quay.io/keycloak/keycloak:26.8.2@sha256:3879c623248408de29a5303178b5816c77e8dfef3890c361f8c0bbeaa979ba3b",
+    "config": "sha256:3879c623248408de29a5303178b5816c77e8dfef3890c361f8c0bbeaa979ba3b",
+    "packages": 559,
+    "findings": [
+      {
+        "VulnerabilityID": "CVE-2026-91403",
+        "PkgName": "java-21-openjdk-headless",
+        "InstalledVersion": "1:21.0.13.0.9-1.2.el9",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "will_not_fix"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-119373",
+        "PkgName": "sqlite-libs",
+        "InstalledVersion": "3.34.1-11.el9_8",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-119374",
+        "PkgName": "sqlite-libs",
+        "InstalledVersion": "3.34.1-11.el9_8",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-119379",
+        "PkgName": "sqlite-libs",
+        "InstalledVersion": "3.34.1-11.el9_8",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-119586",
+        "PkgName": "sqlite-libs",
+        "InstalledVersion": "3.34.1-11.el9_8",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-102554",
+        "PkgName": "com.google.guava:guava",
+        "InstalledVersion": "33.6.0-jre",
+        "FixedVersion": "33.7.2",
+        "Severity": "HIGH",
+        "Status": "fixed"
+      }
+    ],
+    "licenseRows": 52,
+    "licenseReviewNames": [
+      "GPL-2.0-only",
+      "Public Domain",
+      "GPLv3+",
+      "MIT AND GPL-2.0-or-later",
+      "LGPL-2.1-or-later",
+      "LGPL-2.1-or-later AND SunPro AND LGPL-2.1-or-later WITH GCC-exception-2.0 AND BSD-3-Clause AND GPL-2.0-or-later AND LGPL-2.1-or-later WITH GNU-compiler-exception AND GPL-2.0-only AND ISC AND LicenseRef-Fedora-Public-Domain AND HPND AND CMU-Mach AND LGPL-2.0-or-later AND Unicode-3.0 AND GFDL-1.1-or-later AND GPL-1.0-or-later AND FSFUL AND MIT AND Inner-Net-2.0 AND X11 AND GPL-2.0-or-later WITH GCC-exception-2.0 AND GFDL-1.3-only AND GFDL-1.1-only AND GPL-3.0-or-later AND GPL-3.0-or-later WITH Autoconf-exception-generic-3.0 AND GPL-3.0-or-later WITH Texinfo-exception",
+      "ASL 1.1 and ASL 2.0 and BSD and BSD with advertising and GPL+ and GPLv2 and GPLv2 with exceptions and IJG and LGPLv2+ and MIT and MPLv2.0 and Public Domain and W3C and zlib and ISC and FTL and RSA",
+      "LGPLv2+",
+      "BSD or GPLv2",
+      "GPLv3+ and GPLv3+ with exceptions and GPLv2+ with exceptions and LGPLv2+ and BSD",
+      "GPLv2+",
+      "GPLv3+ and LGPLv2+",
+      "GPLv2 and GPLv2+ and LGPLv2 and MIT",
+      "MPLv2.0",
+      "BSD",
+      "GPLv2",
+      "zlib and Boost",
+      "GPL-2.0",
+      "LGPL-2.1",
+      "MPL-2.0"
+    ]
+  },
+  "signedRepositoryUpgradeProbe": {
+    "config": "sha256:798f4829620fe5f5b0b36b6f314fde3f42c03b2238411c15b4f7c33bfcf951c4",
+    "packages": 722,
+    "findings": [
+      {
+        "VulnerabilityID": "CVE-2026-115506",
+        "PkgName": "expat",
+        "InstalledVersion": "2.5.0-9.el9_9.4",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-76641",
+        "PkgName": "expat",
+        "InstalledVersion": "2.5.0-9.el9_9.4",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-121994",
+        "PkgName": "gdb-gdbserver",
+        "InstalledVersion": "17.2-4.el9_9",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-121995",
+        "PkgName": "gdb-gdbserver",
+        "InstalledVersion": "17.2-4.el9_9",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-121996",
+        "PkgName": "gdb-gdbserver",
+        "InstalledVersion": "17.2-4.el9_9",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-121997",
+        "PkgName": "gdb-gdbserver",
+        "InstalledVersion": "17.2-4.el9_9",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-91403",
+        "PkgName": "java-21-openjdk-headless",
+        "InstalledVersion": "1:21.0.13.0.9-1.2.el9",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "will_not_fix"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-120194",
+        "PkgName": "json-glib",
+        "InstalledVersion": "1.6.6-1.el9",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-107364",
+        "PkgName": "krb5-libs",
+        "InstalledVersion": "1.21.1-10.el9_8.1",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-112315",
+        "PkgName": "krb5-libs",
+        "InstalledVersion": "1.21.1-10.el9_8.1",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-112316",
+        "PkgName": "krb5-libs",
+        "InstalledVersion": "1.21.1-10.el9_8.1",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-112317",
+        "PkgName": "krb5-libs",
+        "InstalledVersion": "1.21.1-10.el9_8.1",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-112318",
+        "PkgName": "krb5-libs",
+        "InstalledVersion": "1.21.1-10.el9_8.1",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-112319",
+        "PkgName": "krb5-libs",
+        "InstalledVersion": "1.21.1-10.el9_8.1",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-112320",
+        "PkgName": "krb5-libs",
+        "InstalledVersion": "1.21.1-10.el9_8.1",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-112321",
+        "PkgName": "krb5-libs",
+        "InstalledVersion": "1.21.1-10.el9_8.1",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-112322",
+        "PkgName": "krb5-libs",
+        "InstalledVersion": "1.21.1-10.el9_8.1",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-112323",
+        "PkgName": "krb5-libs",
+        "InstalledVersion": "1.21.1-10.el9_8.1",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-118380",
+        "PkgName": "krb5-libs",
+        "InstalledVersion": "1.21.1-10.el9_8.1",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-119079",
+        "PkgName": "krb5-libs",
+        "InstalledVersion": "1.21.1-10.el9_8.1",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-71199",
+        "PkgName": "krb5-libs",
+        "InstalledVersion": "1.21.1-10.el9_8.1",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-71200",
+        "PkgName": "krb5-libs",
+        "InstalledVersion": "1.21.1-10.el9_8.1",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-53615",
+        "PkgName": "libblkid",
+        "InstalledVersion": "2.37.4-28.el9_9.1",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-53615",
+        "PkgName": "libfdisk",
+        "InstalledVersion": "2.37.4-28.el9_9.1",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-53615",
+        "PkgName": "libmount",
+        "InstalledVersion": "2.37.4-28.el9_9.1",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-53615",
+        "PkgName": "libsmartcols",
+        "InstalledVersion": "2.37.4-28.el9_9.1",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-53615",
+        "PkgName": "libuuid",
+        "InstalledVersion": "2.37.4-28.el9_9.1",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-57585",
+        "PkgName": "python3-pip-wheel",
+        "InstalledVersion": "21.3.1-2.el9_8",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-119373",
+        "PkgName": "sqlite-libs",
+        "InstalledVersion": "3.34.1-11.el9_8",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-119374",
+        "PkgName": "sqlite-libs",
+        "InstalledVersion": "3.34.1-11.el9_8",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-119379",
+        "PkgName": "sqlite-libs",
+        "InstalledVersion": "3.34.1-11.el9_8",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-119586",
+        "PkgName": "sqlite-libs",
+        "InstalledVersion": "3.34.1-11.el9_8",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-53615",
+        "PkgName": "util-linux",
+        "InstalledVersion": "2.37.4-28.el9_9.1",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-53615",
+        "PkgName": "util-linux-core",
+        "InstalledVersion": "2.37.4-28.el9_9.1",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-43961",
+        "PkgName": "vim-minimal",
+        "InstalledVersion": "2:8.2.2637-43.el9_9",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-102554",
+        "PkgName": "com.google.guava:guava",
+        "InstalledVersion": "33.6.0-jre",
+        "FixedVersion": "33.7.2",
+        "Severity": "HIGH",
+        "Status": "fixed"
+      }
+    ]
+  },
+  "registryLookups": {
+    "registry.access.redhat.com/ubi9:9.8": {
+      "digest": "sha256:87f66688da4e206d5a1877088626c542288a5ccd97898cf363b588d57817e6be"
+    },
+    "registry.access.redhat.com/ubi9:latest": {
+      "digest": "sha256:8b212f75a0e5a156ac28b1c5c030d2e8a07715254e19d522286118279399af81"
+    },
+    "quay.io/keycloak/keycloak:26.8.3": {
+      "status": "lookup-failed"
+    }
+  },
+  "minimalInstallrootProbe": {
+    "config": "sha256:6b01baed71142839b0f0844b5481fcf29516bc466914515f6bd62fac00c5680c",
+    "packages": 602,
+    "findings": [
+      {
+        "VulnerabilityID": "CVE-2026-115506",
+        "PkgName": "expat",
+        "InstalledVersion": "2.5.0-9.el9_9.4",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-76641",
+        "PkgName": "expat",
+        "InstalledVersion": "2.5.0-9.el9_9.4",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-91403",
+        "PkgName": "java-21-openjdk-headless",
+        "InstalledVersion": "1:21.0.13.0.9-1.2.el9",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "will_not_fix"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-107364",
+        "PkgName": "krb5-libs",
+        "InstalledVersion": "1.21.1-10.el9_8.1",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-112315",
+        "PkgName": "krb5-libs",
+        "InstalledVersion": "1.21.1-10.el9_8.1",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-112316",
+        "PkgName": "krb5-libs",
+        "InstalledVersion": "1.21.1-10.el9_8.1",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-112317",
+        "PkgName": "krb5-libs",
+        "InstalledVersion": "1.21.1-10.el9_8.1",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-112318",
+        "PkgName": "krb5-libs",
+        "InstalledVersion": "1.21.1-10.el9_8.1",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-112319",
+        "PkgName": "krb5-libs",
+        "InstalledVersion": "1.21.1-10.el9_8.1",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-112320",
+        "PkgName": "krb5-libs",
+        "InstalledVersion": "1.21.1-10.el9_8.1",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-112321",
+        "PkgName": "krb5-libs",
+        "InstalledVersion": "1.21.1-10.el9_8.1",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-112322",
+        "PkgName": "krb5-libs",
+        "InstalledVersion": "1.21.1-10.el9_8.1",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-112323",
+        "PkgName": "krb5-libs",
+        "InstalledVersion": "1.21.1-10.el9_8.1",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-118380",
+        "PkgName": "krb5-libs",
+        "InstalledVersion": "1.21.1-10.el9_8.1",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-119079",
+        "PkgName": "krb5-libs",
+        "InstalledVersion": "1.21.1-10.el9_8.1",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-71199",
+        "PkgName": "krb5-libs",
+        "InstalledVersion": "1.21.1-10.el9_8.1",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-71200",
+        "PkgName": "krb5-libs",
+        "InstalledVersion": "1.21.1-10.el9_8.1",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-53615",
+        "PkgName": "libuuid",
+        "InstalledVersion": "2.37.4-28.el9_9.1",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-57585",
+        "PkgName": "python3-pip-wheel",
+        "InstalledVersion": "21.3.1-2.el9_8",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-119373",
+        "PkgName": "sqlite-libs",
+        "InstalledVersion": "3.34.1-11.el9_8",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-119374",
+        "PkgName": "sqlite-libs",
+        "InstalledVersion": "3.34.1-11.el9_8",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-119379",
+        "PkgName": "sqlite-libs",
+        "InstalledVersion": "3.34.1-11.el9_8",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-119586",
+        "PkgName": "sqlite-libs",
+        "InstalledVersion": "3.34.1-11.el9_8",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-102554",
+        "PkgName": "com.google.guava:guava",
+        "InstalledVersion": "33.6.0-jre",
+        "FixedVersion": "33.7.2",
+        "Severity": "HIGH",
+        "Status": "fixed"
+      }
+    ]
+  },
+  "upstreamMinimalJdk21Probe": {
+    "config": "sha256:e3191dde33670ba6314fb16278ea9b8e579297e3dcc9ea30db27d2a20d3cf401",
+    "packages": 559,
+    "findings": [
+      {
+        "VulnerabilityID": "CVE-2026-91403",
+        "PkgName": "java-21-openjdk-headless",
+        "InstalledVersion": "1:21.0.13.0.9-1.2.el9",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "will_not_fix"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-119373",
+        "PkgName": "sqlite-libs",
+        "InstalledVersion": "3.34.1-11.el9_8",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-119374",
+        "PkgName": "sqlite-libs",
+        "InstalledVersion": "3.34.1-11.el9_8",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-119379",
+        "PkgName": "sqlite-libs",
+        "InstalledVersion": "3.34.1-11.el9_8",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-119586",
+        "PkgName": "sqlite-libs",
+        "InstalledVersion": "3.34.1-11.el9_8",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-102554",
+        "PkgName": "com.google.guava:guava",
+        "InstalledVersion": "33.6.0-jre",
+        "FixedVersion": "33.7.2",
+        "Severity": "HIGH",
+        "Status": "fixed"
+      }
+    ]
+  },
+  "upstreamMinimalJdk25Probe": {
+    "config": "sha256:2e124b72612b48839acdb70c15301780cb18d44318803c6449c792245c593b53",
+    "packages": 560,
+    "findings": [
+      {
+        "VulnerabilityID": "CVE-2026-91403",
+        "PkgName": "java-25-openjdk-crypto-adapter",
+        "InstalledVersion": "1:25.0.5.0.8-1.0.el9",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "will_not_fix"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-91403",
+        "PkgName": "java-25-openjdk-headless",
+        "InstalledVersion": "1:25.0.5.0.8-1.0.el9",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "will_not_fix"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-119373",
+        "PkgName": "sqlite-libs",
+        "InstalledVersion": "3.34.1-11.el9_8",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-119374",
+        "PkgName": "sqlite-libs",
+        "InstalledVersion": "3.34.1-11.el9_8",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-119379",
+        "PkgName": "sqlite-libs",
+        "InstalledVersion": "3.34.1-11.el9_8",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-119586",
+        "PkgName": "sqlite-libs",
+        "InstalledVersion": "3.34.1-11.el9_8",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-102554",
+        "PkgName": "com.google.guava:guava",
+        "InstalledVersion": "33.6.0-jre",
+        "FixedVersion": "33.7.2",
+        "Severity": "HIGH",
+        "Status": "fixed"
+      }
+    ]
+  },
+  "temurinJreProbe": {
+    "input": "eclipse-temurin:25.0.5_8-jre-noble@sha256:e3b6f7887a50f20d8f07abf279d8a81a5953fb398a9555bd9edd56b9bd15968c",
+    "config": "sha256:e3b6f7887a50f20d8f07abf279d8a81a5953fb398a9555bd9edd56b9bd15968c",
+    "packages": 108,
+    "findings": [],
+    "inventoryTypes": [
+      "ubuntu"
+    ],
+    "javaNamedPackages": [],
+    "javaVersionObserved": "25.0.5"
+  },
+  "probeLimitations": {
+    "onlinePackageRepositoriesSnapshotted": false,
+    "minimalFinalMicroBaseTagDigestPinnedInDockerfile": false,
+    "micro98LookupDigest": "sha256:d3499a0896e2d6a1642f922615831bc5c2fd513bbb34f3446cabba530d9d54a2",
+    "finalOutputConfigScannedByImmutableId": true
+  },
+  "sourceBuildInputs": {
+    "commit": "e514445f9dcdabc5bdcf67cab56c1e49655de067",
+    "archiveSha256": "54a8e07ffc587d95596c6449f90a44ec1d9435407709b8ab393d8f9a489da44f",
+    "mavenVersion": "3.9.16",
+    "mavenArchiveSha512": "ed41650d42485cfc243fad22158caf9cbb5dc408ce7a09ddb94dd42a019de929ca43065bfa450612cf12bf78b5cafa3884b96c090de326ff590448c933454af3",
+    "patchedPomSha256": "d61bb172600129e876a1a6fb4e90c9bdc01c0e768ca6e322a5e728495e64b431",
+    "guavaVersion": "33.7.2-jre",
+    "buildImage": "sha256:4f9782f4a20c24168d9555a88efc5c7ae6a6e68e4492e2a8c9ae0c76191e5c5f",
+    "elapsedSeconds": 224.962,
+    "distributions": [
+      "quarkus/dist/target/keycloak-26.8.2.zip",
+      "quarkus/dist/target/keycloak-26.8.2.tar.gz"
+    ],
+    "buildToolBaseImage": "maven:3.9.11-eclipse-temurin-25@sha256:407c4423cec0cf2981055bc2c6c0dc211d9605b6669279b95997f2d1c7e91e2c",
+    "sourcePatchSha256": "99a9598cb4613bd8f2d0698a6ed3acea39faca460584accebf7dc1ca23b91e9b",
+    "attempts": [
+      {
+        "seconds": 177.007,
+        "status": "fail",
+        "testsSkipped": true
+      },
+      {
+        "seconds": 54.551,
+        "status": "fail",
+        "testsSkipped": true
+      },
+      {
+        "seconds": 68.281,
+        "status": "fail",
+        "testsSkipped": true
+      },
+      {
+        "seconds": 224.962,
+        "status": "pass-after-icu-prerequisite",
+        "testsSkipped": true
+      }
+    ]
+  },
+  "guavaCentralSha256": {
+    "guava-33.7.2-jre.jar": "b530942257fb935f8b2cfaa5f8eb5bd59c555fd8e8d01b8ce98912e077ea606c",
+    "guava-33.7.2-jre.pom": "5d1501a97230f90df54ea33164831a61c6714a8b2a4c6a04e90bb729581bbabc"
+  },
+  "guavaCentralChecksumVerification": {
+    "guava-33.7.2-jre.jar": "SHA256_MATCH",
+    "guava-33.7.2-jre.pom": "SHA256_MATCH"
+  },
+  "buildOnlyIcu": {
+    "config": "sha256:4f9782f4a20c24168d9555a88efc5c7ae6a6e68e4492e2a8c9ae0c76191e5c5f",
+    "libicu74Version": "74.2-1ubuntu3.1"
+  },
+  "sourceRebuiltRuntimeProbe": {
+    "config": "sha256:443fdd6d39e1e0cce5b0760936a67fc76213cf19a39d91d1d764d423604aa538",
+    "distributionArchiveSha256": "e163c9a37ca00559cfb712f0991014ecaa53662190ba9a2969a54d9da92e9454",
+    "jarCount": 483,
+    "packages": 559,
+    "findings": [
+      {
+        "VulnerabilityID": "CVE-2026-91403",
+        "PkgName": "java-21-openjdk-headless",
+        "InstalledVersion": "1:21.0.13.0.9-1.2.el9",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "will_not_fix"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-119373",
+        "PkgName": "sqlite-libs",
+        "InstalledVersion": "3.34.1-11.el9_8",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-119374",
+        "PkgName": "sqlite-libs",
+        "InstalledVersion": "3.34.1-11.el9_8",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-119379",
+        "PkgName": "sqlite-libs",
+        "InstalledVersion": "3.34.1-11.el9_8",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      },
+      {
+        "VulnerabilityID": "CVE-2026-119586",
+        "PkgName": "sqlite-libs",
+        "InstalledVersion": "3.34.1-11.el9_8",
+        "FixedVersion": "",
+        "Severity": "HIGH",
+        "Status": "affected"
+      }
+    ],
+    "guavaInventory": [
+      {
+        "Name": "com.google.guava:guava",
+        "Version": "33.7.2-jre"
+      }
+    ]
+  },
+  "sourceBuildChecks": {
+    "sourcePatchApplication": "pass",
+    "mavenCentralGuavaSha256": "pass",
+    "kcBuildPostgresHealth": "pass",
+    "upstreamTests": "not-run",
+    "authDbTests": "not-run",
+    "mandatoryFreshScanImage": "not-run",
+    "fullLicenseReview": "not-run",
+    "repeatReproducibility": "not-run",
+    "completeBuildDependencyLock": "not-established"
+  }
+}

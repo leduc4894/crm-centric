@@ -216,3 +216,30 @@ and license established. Source artifact is diagnostic only; reproducibility,
 existing-volume/musl collation migration, full integration/restore/rollback and
 remote tests remain NOT PROVEN. Same-day handoff records initial failed diagnostic
 harnesses as well as final passes. Default and policy unchanged; Wave0/P0/RT-* OPEN.
+
+### Keycloak remediation investigation (2026-11-12)
+
+At01aef5c local baseline exact pinned26.8.2 private Trivy0.76.2 diagnostics:
+559 packages/6 HIGH, full license52 rows/20 identifiers outside current allowlist.
+Normal GPG-enabled UBI9.8 upgrade/install with same distribution built successfully;
+actual immutable config scan722 packages/36 HIGH including original six. Broader
+UBI package set is not a minimal-rootfs equivalence claim. Explicit skip-DB-update
+diagnostics do not establish freshness or mandatory gate success. Official current
+Keycloak download26.8.2; registry26.8.3 lookup failed. Official Guava33.7.2 fixes
+embedded Guava CVE; base/JDK alone cannot clear it. No policy-clean supported
+candidate or license clearance established; default remains blocked unchanged.
+[Inputs, official sources, tradeoffs and next tests](../ci/candidates/keycloak26/README.md).
+Probe own tag/Dockerfile removed, no foreign cleanup or remote operation.
+Full CI/auth/DB/restore/acceptance NOT RUN; Wave0/P0/RT-* OPEN.
+
+Keycloak follow-up: unchanged official minimal packaging JDK21 actual559/6 HIGH;
+supported UBI JDK25 actual560/7 HIGH. Temurin25 Noble actual108/0 reported HIGH
+but no JVM in scanner inventory despite actual Java25.0.5: runtime coverage gap,
+not clearance. Actual official-source26.8.2 server rebuild with source Guava33.7.2
+management patch PASS224.962s after normal signed build-only ICU prerequisite.
+Source tar/patch/tool checksums and observed483 runtime JAR hashes recorded in
+candidate artifact. Exact built UBI21 source runtime postgres/health augmentation
+PASS; vulnerability scan559 packages/**5 HIGH**, Guava correctly33.7.2-jre with
+finding removed. Remaining Java1/SQLite4 block. Tests explicitly skipped for
+feasibility build; complete Maven lock/reproducibility, fresh mandatory image gate,
+full license/auth/DB/restore/acceptance NOT RUN/unproven. No default/policy change.
