@@ -608,3 +608,17 @@ with synthetic authority first. Actual independent source/service/App/keys,
 remote shadow runs and ruleset/enforcement require separate authorization. Never
 remove the local trust failure before reviewed independent evidence and explicit
 migration. Wave 0/P0/RT-* remain OPEN.
+
+
+### Trust proposal review clarification
+
+Read-only review identified ambiguous worker networking and supervisor placement.
+Clarified the proposal: actual tests retain isolated job-local service networking;
+external egress, metadata/controller/signing and cross-run access are denied by an
+external boundary. Surface restore still has no network. Candidate rootful Docker
+access makes the entire worker VM untrusted; the trusted supervisor and completion
+credentials are outside that VM. External lifecycle status alone does not establish
+that assertions ran, and in-VM status/JSON remains untrusted. Added planned tests
+for permitted local networking, denied external access and hostile daemon access
+attempting to forge supervisor completion. These tests were NOT RUN; no service or
+authority was provisioned. Documentation-only `git diff --check`: PASS.

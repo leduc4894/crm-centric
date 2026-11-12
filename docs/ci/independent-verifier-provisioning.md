@@ -44,7 +44,7 @@ The provisioner must supply and review this external configuration before releas
 | `check_publisher` | dedicated App installation credential accessible only by final publisher, with repository contents read and checks write; configuration verification must confirm effective scope |
 | `evidence_store` | immutable object storage location, object digest/size limits and service authentication, seven-day normalized evidence retention; no candidate URL fetching |
 | `limits` | 30-minute restore, 60-minute semantic job, 10-minute evidence lifetime after completion; retry creates new run/nonce |
-| `network` | supervisor fetches immutable Git objects and reviewed tool/package objects; execution sandbox has no network |
+| `network` | external supervisor fetches immutable Git objects and reviewed tool/package objects; workers deny external egress, controller/metadata/signing APIs and other runs, while permitting isolated job-local service networking; Surface restore process has no network |
 
 Repository/installation IDs, release SHAs/digests, account/service names, trust
 anchors, profile file hashes, bootstrap ADR and evidence-store endpoint are
@@ -91,13 +91,25 @@ closed with a reason token and correlation ID. No HMAC test key becomes producti
    separate disposable VMs with no repository secrets, signing/App credentials,
    host mounts, host Docker socket, shared cache or cross-run writable state.
    Any required Docker daemon is confined to that disposable worker VM; no daemon
-   or elevated capabilities in the verifier host. Bound CPU/memory/disk/time and
-   capture private diagnostics. Workers cannot reach controller/signing APIs.
-4. Trusted supervisor outside the execution sandbox measures input objects, starts
-   pinned commands and captures completion. Treat all worker outputs as hostile:
+   or elevated capabilities in the verifier host. Candidate access to a rootful
+   daemon makes the entire worker VM untrusted, including its filesystem and
+   in-VM agents. The trusted supervisor runs outside that VM, under a distinct
+   host/service identity; its status channel and credentials are never mounted
+   into the VM. Bound CPU/memory/disk/time and capture private diagnostics. Allow
+   isolated job-local API/database/OIDC service connections needed by actual
+   tests; deny external egress, cloud metadata, controller/signing APIs and
+   cross-run traffic at a boundary the worker cannot reconfigure.
+4. Trusted external supervisor measures input objects, starts pinned execution
+   and captures completion through its own worker lifecycle boundary. Treat all
+   worker outputs as hostile:
    bounded data-only parsing, no symlink traversal, no deserialization hooks or
    script execution. Supervisor authenticates a completion channel unavailable to
-   sandbox code. A compromised sandbox must not manufacture supervisor status.
+   sandbox code. A compromised worker VM must not manufacture supervisor status.
+   External lifecycle completion alone does not prove test assertions ran: the
+   independently pinned harness must also validate expected case inventories and
+   trustworthy execution evidence. Untrusted in-VM agent messages or candidate
+   JSON cannot be promoted to authoritative success. Surface proof runs separately
+   with its reviewed profile, no candidate daemon and no candidate code execution.
 5. For policy changes use the existing strict transition payload/dual evaluation
    contract. Signing authority validates actual ADR, reviewer and immutable
    consumer-evidence objects, not merely nonempty strings. The production trusted
@@ -213,6 +225,11 @@ refactor, small commits, actual verification/handoff at each boundary.
 - [ ] Add immutable object/event coordinator and isolated supervisor transport.
   RED: wrong merge parents/base/tree, forced push, stale PR, missing object,
   malicious archive path/symlink, forged worker status and callback replay.
+  Prove required job-local services can communicate while external egress,
+  metadata, controller/signing APIs and other runs are unreachable. Give a
+  synthetic hostile worker rootful Docker access and prove it cannot alter the
+  external supervisor or forge authenticated completion; in-VM agent success
+  strings alone must fail evidence verification.
   Implement no candidate execution in controller; test with sentinel secrets.
 - [ ] Add reviewed Surface profile builder and pinned-SDK real worker tests.
   RED: unchanged empty lock plus changed imported PackageReference, new ancestor
