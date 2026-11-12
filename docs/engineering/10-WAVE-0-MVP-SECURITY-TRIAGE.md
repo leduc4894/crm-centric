@@ -24,3 +24,17 @@ Only the named tool-inventory gap is deferred. `CI_ECOSYSTEM_COVERAGE` and `CI_U
 No specific finding, severity exception or false positive is approved. Scanner-reported secrets, vulnerabilities and licenses must be reviewed against private evidence; a digest or fixture resemblance alone cannot establish a false positive. Secret review owner and vulnerability remediation owner are unassigned security/platform reviewers until explicitly assigned. Review must record finding ID, evidence, accountable owner, decision and any expiry before a blocked finding can become non-blocking. Candidate-authored JSON is not trusted approval.
 
 Actual local scan evidence is appended below after scanning a committed candidate. Full five-job rehearsal and authorized remote evidence remain separate work.
+
+## Committed candidate scan — 2026-11-12
+
+Candidate `4baea1646a424ab8be03bfecb5c25bf2d413de57`; base `601dde8847cad82d038ea837c01d3da0d7449450`; merge SHA absent; local run `local-mvp-task2`, attempt 1. Command above used `.local/ci-task2/revision.json`, output `.local/ci-task2/security.json`, and `CI_SCANNER_ROOT=.local/task5`. Actual exit **1 / failure / CI_SCAN_INCOMPLETE**. Safe completion preserved failure and all required/deferred evidence (`CI_JOB_FAILED`). No remote job ran.
+
+| Required evidence | Actual result | Classification and decision |
+| --- | --- | --- |
+| Gitleaks 8.30.1 | BLOCKED; 2 scan surfaces; 64 unique secret finding digests | Scanner-reported secret, unreviewed; every record remains blocked, owner unassigned, no waiver |
+| Trivy 0.76.2 | PASS under existing vulnerability policy; 10 locks; 6 vulnerability records | Existing-policy nonblocking severity, no exception or severity change; findings retained for review |
+| Dependency coverage | `CI_UNLOCKED_DEPENDENCIES` | Required blocker; project manifests without corresponding locks remain uncovered |
+| Tool inventory | `CI_TOOL_DEPENDENCY_COVERAGE` | Explicit deferred hardening; OPEN, no tool-closure claim |
+| License | 271 review-required + 508 allowlist-pass records | OPEN; this is neither full clearance nor approval for restricted/unknown licenses |
+
+[Safe classified digest evidence](evidence/2026-11-12-mvp-security-4baea16.json) records each required finding digest and review-required license digest, fixed verdict, reason/correlation and run identity without scanner-owned strings. `approval=NONE` and `review_owner=UNASSIGNED` deliberately record missing review. The six Trivy records are nonblocking according to the unchanged existing policy, not a newly approved risk threshold. SAST/image/tool/license status remains OPEN; historical image findings in ledger 08 are unchanged. This scan targets the implementation commit; subsequent evidence-only commits and the eventual final candidate need their own Task 3 scan.
