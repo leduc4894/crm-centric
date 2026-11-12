@@ -365,3 +365,100 @@ Rollback: revert runtime pin/default and assertion changes; no data rollback.
 Next: run exact committed-SHA full backend with mandatory image scans; preserve
 PostgreSQL/Keycloak rejection, localize the Go binary, and evaluate supported
 upstream release/base candidates against full compatibility and image evidence.
+
+
+## Exact runtime commit and remaining image diagnosis — 2026-11-12
+
+Resumed on `feat/wave-0-plan-4-ci` at
+`bf2921f16a37617dda2a781652ab8866fca2a50f`; verified actual completed process
+records rather than assuming its outcome. Preserved unrelated untracked
+`docs/handoff/2026-11-12-wave-0-plan-3-resumption-handoff.md` unchanged. Scope:
+local diagnostics/documentation only, no worktree/subagents or remote writes.
+Systematic debugging and verification-before-completion instructions used.
+
+### Exact committed backend outcome
+
+The full actual backend runner started at that clean SHA completed with FAIL
+`CI_COMMAND_FAILED`, **218.563s**, run 1211/attempt 1. Native TRX counters:
+**76 executed = 36 passed + 40 failed, 0 skipped**; error, timeout, aborted and
+notExecuted all zero. All 40 failures explicitly reject mandatory image evidence;
+there are no other exception categories in normalized failure records. Strict
+failed-summary parsing correctly retains zero outer job cases. This is a failed
+backend job, not acceptance closure.
+
+Actual enforced scans: API PASS `CI_IMAGE_SCAN_OK` / 106 packages; migrator PASS /
+120; each zero blocking/unknown. PostgreSQL (both observed local config IDs)
+INCOMPLETE / 151 packages / 135 blocking + 12 unknown. Keycloak BLOCKED / 559 /
+6 blocking. These completed records are in ignored owner-only diagnostic storage
+under `.local/remediation/image-triage/full/` (revision, normalized job, native
+failure metadata and image counts); no raw payload/report was published. The
+invocation was the existing pinned-environment `python .../full/run.py backend`
+observer around the real `scripts.ci.jobs` backend entrypoint, with full discovery.
+
+### PostgreSQL binary provenance and supported candidates
+
+Pinned Trivy identifies the Go target as `usr/local/bin/gosu` (`gobinary`). An
+actual network-disabled disposable container from the pinned Bookworm image
+reports `1.19 (go1.24.6 on linux/amd64; gc)`. Its SHA256 is
+`52c8749d0142edd234e9d6bd5237dff2d81e71f43537e2f4f66f75dd4b243dd0`, exactly
+matching a separately downloaded upstream `1.19/gosu-amd64` release. `dpkg-query
+-S /usr/local/bin/gosu` reports no owning package (expected lookup exit 1).
+The [official Dockerfile](https://github.com/docker-library/postgres/blob/master/18/bookworm/Dockerfile)
+installs gosu 1.19 from signed upstream release assets, rather than a Debian
+package. [Upstream 1.19](https://github.com/tianon/gosu/releases/tag/1.19)
+confirms Go 1.24.6 and x/sys 0.1.0. No inference that an apt Go upgrade changes
+this statically bundled binary.
+
+[Latest gosu 1.20](https://github.com/tianon/gosu/releases/tag/1.20) still lists
+Go 1.24.6 and x/sys 0.1.0. It updates moby/sys/user, so version advancement alone
+provides no evidence of fixing the scanner's Go findings. The
+[upstream security guidance](https://github.com/tianon/gosu/blob/1.20/SECURITY.md)
+requests reachable-function analysis with its govulncheck wrapper. That guidance
+is not an accepted finding-bound independent review, suppression or waiver here;
+no reachability clearance was performed. No replacement binary was installed.
+
+Additionally resolved/pulled/scanned official same-server candidate
+`postgres:18.6-alpine@sha256:9ba53c7d41ea093baf5c1ba635ba5434c4f979880527d49bb7d9237d3193085b`:
+**57 packages, 43 HIGH / 1 CRITICAL / 3 UNKNOWN**. It retains Go 1.24.6/x/sys
+0.1.0 findings plus krb5/libxslt findings. Not adopted: it fails policy and would
+require musl/entrypoint/volume compatibility evidence. Previous Trixie candidate
+also remains rejected. No supported tested image candidate clears PostgreSQL.
+
+### Keycloak same-version rebuild check
+
+[Official downloads](https://www.keycloak.org/downloads) still list 26.8.2.
+Registry tag 26.8.2 now resolves to a different immutable manifest:
+`sha256:723b1d6e254c0fc96d5cffec860c7e0744d6a3277822b865bb538cf891575e41`.
+Pulled and privately scanned that exact candidate: **559 packages / 6 HIGH**,
+with the same Java21/sqlite/Guava package versions and findings as the current
+pin. Not adopted: the rebuild does not clear any of those findings. Official
+[container guidance](https://www.keycloak.org/server/containers) describes
+customized builds and RPM addition, but does not establish that arbitrarily
+replacing its bundled Guava is supported. No JAR or vendor-runtime substitution.
+
+### Verification limits, workspace and next steps
+
+Candidate scans above used pinned Trivy 0.76.2 with
+`--skip-db-update --skip-java-db-update --scanners vuln --list-all-pkgs --format json`
+and the existing task-owned cache. They are package diagnosis, not fresh mandatory
+gate clearance. Commands ran via `private_command` (exit 0 for candidate scans,
+pulls and manifest resolution); raw reports were deleted on context exit. Normalized
+allowlisted results remain ignored locally. Upstream release-asset downloads
+completed; their bytes were hashed in memory and not installed. No code change,
+new test, contract, migration, lock/default or policy change in this continuation.
+Actual additional-candidate command: `python3 .local/remediation/image-triage/additional_candidates.py`
+(exit 0); full backend observer results predated resumption and were inspected,
+not rerun. Unit/integration/scanner fixture suites NOT RUN in this documentation-only
+continuation. Full Compose/five-job final gates, remote evidence and restore drills NOT RUN.
+
+Docker ownership reinspection: zero containers/networks/volumes with
+`io.crm-centric.ci-owner` label; no foreign resources removed. `git diff --check`
+PASS before this documentation update, and rerun before commit. Documentation
+rollback is revert of this follow-up commit. Wave 0/P0/RT-* remain OPEN.
+
+Next: independently assess the exact gosu finding set through the existing review
+process or design a reproducible supported patched build with full dependency
+closure and actual privilege-drop/compatibility tests; await/test supported
+PostgreSQL OS and Keycloak dependency fixes. Retain all blocking/unknown findings
+until valid evidence resolves them. After fixes run full exact-candidate gates;
+remote acceptance still requires separate authorization.

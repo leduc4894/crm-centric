@@ -129,3 +129,28 @@ JAR swapping, CVE suppression or unknown-severity downgrade. Detailed normalized
 root causes, primary-source links, actual commands/results and next steps are in
 [remediation handoff](../handoff/2026-11-12-wave-0-plan-4-remediation-handoff.md#image-dependency-remediation--2026-11-12).
 Wave 0/P0/RT-* remain OPEN; source/security/trust/remote acceptance blockers persist.
+
+
+## Exact bf2921f backend and upstream image follow-up — 2026-11-12
+
+Verified completed full backend at `bf2921f16a37617dda2a781652ab8866fca2a50f`:
+FAIL CI_COMMAND_FAILED / 218.563s, native 76 executed = 36 passed + 40 failed,
+0 skipped. All 40 fail mandatory image gates; no other exception category.
+API/migrator actual enforced scans PASS (106/120 packages, no blocking/unknown);
+PostgreSQL INCOMPLETE (151, 135 blocking + 12 unknown); Keycloak BLOCKED (559, 6).
+Strict failed-TRX parsing retains zero outer cases. No backend acceptance pass.
+
+PostgreSQL Go target confirmed as `/usr/local/bin/gosu`, actual upstream 1.19
+binary hash match, built Go1.24.6/x/sys0.1.0; not dpkg-managed. Latest official
+gosu1.20 retains these compiler/dependency versions, so is not a demonstrated
+fix. Official PostgreSQL18.6 Alpine immutable candidate scan: 57 packages,
+43 HIGH/1 CRITICAL/3 UNKNOWN; rejected. Current Keycloak26.8.2 tag resolves to
+new manifest `sha256:723b1d6e254c0fc96d5cffec860c7e0744d6a3277822b865bb538cf891575e41`;
+exact private candidate scan retains 559 packages/6 HIGH with unchanged affected
+versions; rejected. These skip-update candidate scans are diagnosis, not fresh
+gate clearance. No dependency/policy/code change or vendor JAR replacement.
+
+Exact commands, immutable candidate IDs, primary-source provenance, verification
+limits, next steps and ownership cleanup are in the
+[remediation handoff](../handoff/2026-11-12-wave-0-plan-4-remediation-handoff.md#exact-runtime-commit-and-remaining-image-diagnosis--2026-11-12).
+Full Compose/final five gates/remote/restore NOT RUN. Wave0/P0/RT-* remain OPEN.
