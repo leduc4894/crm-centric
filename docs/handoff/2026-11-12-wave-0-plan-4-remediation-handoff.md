@@ -522,3 +522,48 @@ including native embedded dependencies. No guessed licenses, fabricated empty
 scan records, hand-written package closure or unsupported bypass was accepted.
 Wave 0/P0/RT-* remain OPEN. Changed tracked files are this handoff and the
 verification ledger only; rollback is revert of the documentation commit.
+
+### Empty-lock implementation feasibility follow-up
+
+Parent requested safe Surface empty-lock support with actual restore proof,
+malformed/tampered rejection and no candidate self-attestation. Started at
+`491e74c`; unrelated untracked Plan 3 handoff still unchanged. No implementation
+or baseline relaxation was made because the current adapter lacks the required
+trusted input boundary; the following actual counterexample confirms why.
+
+Command `python3 -u .local/remediation/empty_import_probe.py` PASS exit 0:
+using the pinned SDK and a disposable explicitly authored project importing
+`dependencies.props`, initial empty-import restore exits 0 and produces a
+zero-package lock. Changing only that imported props file to add a versioned
+System.Text.Json PackageReference leaves **exactly the same lock bytes**, but
+actual `dotnet restore --locked-mode` exits 1 with **NU1004**. Thus unchanged
+empty lock bytes and no direct PackageReference in the csproj do not establish
+zero dependencies. Temporary inputs/output were deleted; no project source or
+lock changed. This is a diagnostic counterexample, not an implementation RED/GREEN.
+
+Precise architectural blocker: `dependency_inputs` copies recognized lockfiles
+into an isolated Trivy directory and derives `expected_packages` from those same
+candidate bytes. It supplies no project/import graph, evaluated restore outcome,
+trusted producer identity or authenticated binding to candidate SHA/toolchain/
+configuration. `ScanInput`/`DependencyInput` cannot carry such authenticated
+restore evidence. Trivy emits no section for the valid empty case, so its absence
+cannot distinguish this stale/tampered case. Adding a JSON declaration signed or
+hashed only by candidate code would not create the requested independent proof.
+Executing arbitrary candidate MSBuild during scanning also introduces an execution
+boundary; arbitrary targets can alter files/evidence. Static XML detection cannot
+cover imports, conditional items, SDK inference and target execution.
+
+Required next implementation prerequisite: define/provision the independent
+restore-verification producer and isolation policy, binding exact project,
+lock/input closure, pinned SDK and restore configurations to candidate identity;
+require successful locked restore and independently validated empty package assets.
+Then extend the adapter with a separately authenticated empty-evidence channel,
+keep empty targets distinct from scanner-observed nonempty targets, and test
+missing/duplicate/malformed/stale/changed-import/changed-SHA/configuration evidence.
+Current repository explicitly has no independently provisioned verifier; this
+continuation cannot invent one from candidate data. Until that prerequisite,
+empty locks remain unsupported and fail closed. No test or full gate success is
+claimed beyond the actual diagnostic above and previous 21 policy tests; no new
+unit tests were added to mirror unchanged fail-closed behavior. `git diff --check`
+PASS before commit. Changed files remain this handoff and the verification ledger;
+Wave 0/P0/RT-* remain OPEN.

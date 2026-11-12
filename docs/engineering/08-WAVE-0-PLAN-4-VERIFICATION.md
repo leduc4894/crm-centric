@@ -174,3 +174,14 @@ then explicit existing-cache skip-update rerun established parser behavior only.
 Concrete zero-package attestation, generator/CPM and tool-closure blockers remain
 in the [handoff](../handoff/2026-11-12-wave-0-plan-4-remediation-handoff.md#dependency-coverage-diagnosis--2026-11-12).
 Wave 0/P0/RT-* remain OPEN; no policy or contract change.
+
+Empty-lock follow-up at `491e74c`: actual pinned-SDK import-tamper probe exit 0.
+Initial real restore succeeds with empty lock; adding PackageReference through
+an imported props file leaves identical lock bytes while locked restore fails
+NU1004. The lock-only adapter has no authenticated evaluated-restore input, so
+Trivy's absent empty target cannot prove valid zero dependencies. Independent
+restore producer/isolation/input binding is a concrete prerequisite; candidate
+JSON/hash or static direct-reference checks cannot supply it. No implementation,
+new tests or policy relaxation; existing empty locks remain fail-closed. Details
+and required evidence boundary are in the remediation handoff's empty-lock
+implementation feasibility follow-up. Full gates and remote/acceptance NOT RUN.
