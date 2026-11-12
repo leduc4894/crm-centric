@@ -377,3 +377,26 @@ Final fresh pinned CI regression PASS128/128,0failures/0skips,285.392s,exit0:
 All started verification processes have completed. Implementation is ready for
 scoped commit and exact committed-SHA mandatory scan; this passing regression
 is not security clearance or full five-job/P0 acceptance.
+
+Committed Surface implementation:
+`9f1377d9c33958892623441c2e534dc92deb5cb2`. Exact committed-SHA scan:
+`GITHUB_RUN_ID=local-mvp-surface GITHUB_RUN_ATTEMPT=1 CI_SCANNER_ROOT=.local/task5 CI_DOTNET=$PWD/.local/ci-dotnet/dotnet python3 -m scripts.ci.security --mode mvp --revision .local/mvp-triage/surface-revision.json --output .local/mvp-triage/surface-security.json`
+Actual FAIL exit1,11.258s,`CI_SCAN_FINDINGS`. Surface profile measured locally in
+both configurations, one bounded receipt; `CI_UNLOCKED_DEPENDENCIES` removed
+through actual empty-graph verification. Trivy PASS11locks/6existing-policy
+nonblocking vulnerability records. Gitleaks64BLOCKED, all64 IDs match existing
+recomputed-hash review proposals,0new/unclassified current findings; original64
+unmapped IDs remain unresolved. License276review-required/508pass; deferred
+`CI_TOOL_DEPENDENCY_COVERAGE` and all other deferred areas remain OPEN.
+No findings approved. Safe completion roundtrip preserves `CI_JOB_FAILED`;
+normalized JSON preserves exact evidence (tuple/list representation normalized).
+
+Safe digest-only result: [security-9f1377d evidence](../engineering/evidence/2026-11-12-mvp-security-9f1377d.json).
+Final evidence-only follow-up changes this handoff, triage10 and that safe JSON.
+No native scanner/restore diagnostics, secrets or sensitive payloads published.
+No final evidence-commit five-job rerun, remote action or P0/Wave0/RT-* closure.
+Next: accountable per-ID/license review and separately authorized remediation;
+fresh exact-final-SHA full gates and remote E2E/concurrent-duplicate/tenant/
+outage/data-restore evidence remain outstanding. Independent verifier and
+production hardening remain OPEN. No running verification process handed off.
+Unrelated Plan3 handoff remains untracked and untouched.

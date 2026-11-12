@@ -203,3 +203,14 @@ cannot be bypassed remains deferred hardening in the provisioning proposal.
 No secret rule, severity threshold, finding exemption, lock inventory for another
 project, policy transition or remote setting changed. Exact committed-candidate
 scanner evidence and final verification are recorded in the session handoff.
+
+Exact committed Surface candidate
+`9f1377d9c33958892623441c2e534dc92deb5cb2` was scanned under
+`local-mvp-surface` attempt1. [Safe result](evidence/2026-11-12-mvp-security-9f1377d.json):
+FAIL `CI_SCAN_FINDINGS`,64blocked secret IDs matching existing review proposals,
+0new/unclassified current IDs,0approvals. Trivy PASS11nonempty locks,6nonblocking
+vulnerability records, plus one actually measured local Surface empty restore.
+Unlocked coverage gap is resolved for this fixed profile; deferred tool inventory
+remains OPEN. License276review-required/508pass. Completion preserves failure;
+this measurement does not clear secrets, deferred coverage, independent trust,
+full five-job evidence or acceptance.
