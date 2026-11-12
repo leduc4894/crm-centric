@@ -20,3 +20,7 @@ Verification observed:
 - Full service/Compose/browser/contract/security vulnerability gate and remote CI/acceptance drills NOT RUN in this scoped session. No Wave0/P0/RT-* closure.
 
 Blockers: independent policy host/capability and reviewed 64-ID enforcement adapter unprovisioned; independently reviewed/available JAR byte source missing. Python interface does not authenticate its host. Next: independent host design/provisioning and explicit source review, then host tests against candidate-authored forgery and immutable input acquisition; only afterward consider CI integration and actual per-ID review decisions. Never wire this local seam directly into candidate-controlled workflow as approval. Acceptance remains OPEN.
+
+## Post-commit local verification and review
+
+On implementation commit `772364f7b20264885f2b74e1f99839466a80cdfa`, real pinned Gitleaks tree scan returned 64 findings twice with identical multiset; full base-to-candidate history returned zero; no native output was published. Default capability absent leaves all 64 BLOCKED. Read-only scoped re-review found no remaining Critical/Important issues after wrong-parent ambiguity, active-capability mixed-credential, real history and scanner binary identity regressions were added. Local capability tests do not establish an independent host, approval, production enforcement, or actual JAR provenance. Security/aggregate and Wave 0 remain OPEN. No remote action was performed.
