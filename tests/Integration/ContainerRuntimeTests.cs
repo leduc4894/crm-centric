@@ -136,7 +136,8 @@ public sealed class ContainerRuntimeTests(ContainerImages images)
         {
             var capture = await ContainerImages.Docker("run", "--rm", "--entrypoint", "bash", image, "-c",
                 "test ! -d /usr/share/dotnet/sdk && test ! -d /build && test ! -d /src && ! find /app -type f | /usr/bin/grep -E '(Integration|FakeOidcIssuer|TestHost|Testcontainers|xunit|\\.cs$|\\.csproj$)' && dotnet --list-runtimes");
-            Assert.Contains("Microsoft.NETCore.App 10.0.14", capture.Output);
+            Assert.Contains("Microsoft.NETCore.App 10.0.15", capture.Output);
+            Assert.Contains("Microsoft.AspNetCore.App 10.0.15", capture.Output);
         }
     }
 

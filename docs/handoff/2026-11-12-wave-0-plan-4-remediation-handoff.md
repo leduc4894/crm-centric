@@ -279,3 +279,89 @@ PostgreSQL unknown severities through the existing review process, retain fresh
 upstream metadata, remediate source/dependency coverage and trust blockers, then
 run the complete exact-candidate gates. Only separately authorized remote work
 can supply missing PR/main/governance/acceptance evidence.
+
+## Image dependency remediation — 2026-11-12
+
+Continued locally on `feat/wave-0-plan-4-ci` at `2ee7b486f74cec561f79d7fdd318d5b08c032909`.
+Read this handoff, AGENTS.md, the verification ledger, current Dockerfiles and
+image locks. Used systematic debugging, TDD and verification-before-completion.
+No remote writes, services/deployments, exception, severity or freshness changes.
+
+### Diagnosis and scoped fix
+
+Private pinned Trivy scans of the existing four Task 7 images reproduced API and
+migrator 5 HIGH each; PostgreSQL 131 HIGH / 4 CRITICAL / 12 UNKNOWN; Keycloak 6 HIGH.
+These diagnostic scans explicitly used the existing cache with update skipped;
+they classify findings and alone provide no fresh gate clearance. Raw process
+reports were ephemeral and deleted by `private_command`; only allowlisted
+package/version/CVE/severity/status data was retained in ignored owner-only
+`.local/remediation/image-triage/`.
+
+API/migrator findings originate in the shared base: apt and libapt-pkg6.0t64
+2.8.3 (CVE-2026-109518, scanner fix 2.8.4ubuntu0.1), and ASP.NET runtime 10.0.14
+(CVE-2026-114146, CVE-2026-114147, CVE-2026-114149; scanner fix 10.0.15).
+[Microsoft advisory](https://github.com/dotnet/announcements/issues/504) confirms
+runtime 10.0.15 servicing; [Ubuntu advisory](https://ubuntu.com/security/CVE-2026-109518)
+confirms apt impact, but its extracted release table still says vulnerable,
+so it is not represented as independently confirming the scanner's fixed version.
+Official MCR resolved the multi-platform runtime 10.0.15-noble manifest to
+`sha256:bfd912c83295ce66d4b706ebb8541b9f14259b0e76fbb88b2751f58ce2399d2e`.
+A private candidate-base scan collected 99 packages with no HIGH/CRITICAL/UNKNOWN.
+Updated only that runtime lock/default and existing published-image assertions
+for both Microsoft.NETCore.App and Microsoft.AspNetCore.App 10.0.15. SDK and NuGet
+locks remain unchanged; no API/schema or database migration changes.
+
+PostgreSQL's Bookworm OS contributes 119 blocking/unknown rows without fixed
+versions, including util-linux, krb5, sqlite, libxml2, zlib and OpenSSL. Another
+28 rows come from Go dependencies (stdlib v1.24.6 and golang.org/x/sys v0.1.0).
+The official Dockerfile installs gosu 1.19; locating the exact binary remains a
+follow-up before proposing replacement. Unknown IDs are CVE-2026-107496,
+CVE-2026-39824, CVE-2026-88822, CVE-2026-88823, CVE-2026-95691,
+CVE-2026-95692 and CVE-2026-97054 (some repeat by package). Do not infer a waiver
+from vendor affected/fix_deferred/will_not_fix states.
+An official same-server-version alternative `postgres:18.6-trixie` resolved to
+`sha256:e3d24f6906d0760bf4da0dae872415391ededefad23fd471c47dc53b0ddf3c42`;
+private candidate scan: 149 packages, 147 HIGH / 2 CRITICAL / 17 UNKNOWN. It was
+not adopted: it does not clear the gate and changes distro compatibility.
+[Debian util-linux tracker](https://security-tracker.debian.org/tracker/CVE-2026-53613)
+shows a Trixie fix for one family, while
+[Go tracker](https://security-tracker.debian.org/tracker/CVE-2026-97054) still lists
+Bookworm/Trixie Go versions vulnerable. These are partial source checks, not a
+complete independent CVE assessment.
+
+Keycloak: java-21-openjdk-headless 1:21.0.13.0.9-1.2.el9 / CVE-2026-91403
+(will_not_fix); sqlite-libs 3.34.1-11.el9_8 / CVE-2026-119373, -119374, -119379,
+-119586 (affected); Guava 33.6.0-jre / CVE-2026-102554 (scanner fix 33.7.2).
+[Official downloads](https://www.keycloak.org/downloads) and
+[release](https://github.com/keycloak/keycloak/releases/tag/26.8.2) still identify
+26.8.2 as latest; 26.8.3 registry lookup failed (no proof of a supported image).
+[Guava 33.7.2](https://github.com/google/guava/releases/tag/v33.7.2) confirms its
+CVE fix, but no unsupported JAR replacement or custom vendor runtime was applied.
+Keycloak/PostgreSQL gates remain blocked pending supported tested upstream fixes
+or a separately designed fully supported base/build change.
+
+### Actual RED/GREEN checkpoint
+
+- First selected runner attempt: preflight FAIL CI_COMMAND_FAILED, 0.008s, no
+  tests, due missing pinned Node/native-library path; corrected local invocation.
+- RED: existing published-image test with updated runtime assertion and old pin,
+  actual selected backend runner: 1 executed / 1 failed / 0 skipped, mandatory
+  old-image gate rejection, 20.214s. Assertion was not reached; this proves the
+  original security regression, not assertion-level RED.
+- GREEN working-tree diagnostic: same selected test with new pin, 1 executed /
+  1 passed / 0 failed / 0 skipped, plus 20 Local tests passed. Both actual built
+  API/migrator scans PASS CI_IMAGE_SCAN_OK (106/120 packages, no blocked or unknown
+  findings). Runner deliberately reports CI_DISCOVERY_INCOMPLETE at 27.702s because
+  selective execution cannot meet the full backend discovery contract. This is
+  not a passing backend job or exact committed-candidate acceptance evidence.
+- Actual scans performed normal DB updates and freshness enforcement through
+  the mandatory helper. Retained cache metadata: vulnerability DB UpdatedAt
+  2026-11-11T19:04:54.958468957Z; Java DB 2026-11-12T00:58:04.30813481Z; no timestamp
+  edits. Freshness is checked at each scan, not claimed indefinitely.
+- `git diff --check`: PASS. Full backend/Compose and final five gates will be
+  recorded separately if run. Security/source/trust/remote/P0 blockers persist.
+
+Rollback: revert runtime pin/default and assertion changes; no data rollback.
+Next: run exact committed-SHA full backend with mandatory image scans; preserve
+PostgreSQL/Keycloak rejection, localize the Go binary, and evaluate supported
+upstream release/base candidates against full compatibility and image evidence.

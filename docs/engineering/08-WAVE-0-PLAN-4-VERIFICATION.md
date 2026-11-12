@@ -106,3 +106,26 @@ historical Task 4 unknown cause remain recorded. Final owner-labelled resources
 0 containers/0 networks/0 volumes; foreign container preserved. Final subsequent
 commit is documentation only. All original security/coverage/trust/remote and
 Wave 0/P0/RT-* blockers remain; no suppression or remote action occurred.
+
+## 2026-11-12 image remediation checkpoint
+
+Local private pinned triage reproduced API/migrator 5 HIGH each, PostgreSQL
+131 HIGH / 4 CRITICAL / 12 UNKNOWN, Keycloak 6 HIGH. Runtime findings originate
+in apt/libapt and ASP.NET 10.0.14. Official MCR 10.0.15-noble manifest verified
+and pinned in runtime Dockerfile/default; existing published-runtime test now
+asserts both shared frameworks at 10.0.15. No SDK, NuGet, contract or policy change.
+
+Actual selected published-image test: RED 1 failed/0 skipped on old mandatory
+image gate (20.214s); GREEN 1 passed/0 skipped after patch, plus 20 Local passes.
+Built API/migrator mandatory fresh scans each PASS CI_IMAGE_SCAN_OK,
+106/120 packages, zero blocking/unknown. Overall selected runner remains
+CI_DISCOVERY_INCOMPLETE (27.702s), correctly rejecting partial backend coverage.
+This checkpoint is working-tree diagnostic evidence, not exact-SHA full gates.
+
+Same-server PostgreSQL Trixie alternative was privately evaluated and not adopted:
+149 packages, 147 HIGH / 2 CRITICAL / 17 UNKNOWN. Keycloak official latest remains
+26.8.2; no verified supported replacement clears its OS/Guava findings. No vendor
+JAR swapping, CVE suppression or unknown-severity downgrade. Detailed normalized
+root causes, primary-source links, actual commands/results and next steps are in
+[remediation handoff](../handoff/2026-11-12-wave-0-plan-4-remediation-handoff.md#image-dependency-remediation--2026-11-12).
+Wave 0/P0/RT-* remain OPEN; source/security/trust/remote acceptance blockers persist.
