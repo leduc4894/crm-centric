@@ -285,3 +285,23 @@ revert the scoped fixture/build-isolation commit. Commit this verified work,
 then record fresh exact-SHA mandatory security output separately. Full five-job
 candidate rehearsal, remote E2E/duplicate/tenant/outage/restore NOT RUN; no
 security finding approval or P0/Wave0 closure. Surface remains required blocker.
+
+Committed fixture/build-isolation implementation:
+`ab3125aee60157979186dd0516b7a9dfe946eaeb`.
+Fresh exact-SHA command:
+`GITHUB_RUN_ID=local-mvp-coverage GITHUB_RUN_ATTEMPT=1 CI_SCANNER_ROOT=.local/task5 python3 -m scripts.ci.security --mode mvp --revision .local/mvp-triage/coverage-revision.json --output .local/mvp-triage/coverage-security.json`
+Actual FAIL exit1/`CI_SCAN_INCOMPLETE`,7.695s. TrivyPASS11locks/6nonblocking
+records; package inventory now covers the real fixture lock. Gitleaks64blocked
+IDs exactly match prior recomputed-hash review proposals;0new/unclassified
+current findings;original64remain unmapped. No findings approved. License276
+review-required/508allowlist-pass, deferred coverage and tool inventory OPEN.
+Verified exact committed export contains only one unlocked manifest: Surface.
+Safe completion roundtrip PASS as failure-preservation `CI_JOB_FAILED`.
+
+Final evidence-only follow-up: triage10, safe security-ab3125a JSON and this
+handoff. No final evidence-commit five-job rerun/remote acceptance claim.
+Surface requires honest empty-input-closure/scanner target design before it can
+be covered; do not add an empty lock or bypass merely to erase its gap token.
+Next steps: review Surface design, obtain accountable per-ID/license review,
+then fresh exact-final-SHA mandatory/full gates. All started verification
+processes finished. Unrelated Plan3 handoff remains untracked/untouched.

@@ -142,3 +142,16 @@ lock-target inventory cannot honestly be satisfied. No Surface lock was adopted:
 package coverage without complete evaluated input closure would weaken the
 required gate. The MVP tool-inventory deferral does not authorize a project
 coverage exemption. See the handoff for actual tests and exact committed scan.
+
+Exact remediation candidate `ab3125aee60157979186dd0516b7a9dfe946eaeb`,
+same base, run `local-mvp-coverage` attempt1: mandatory MVP security **FAIL**,
+exit1/`CI_SCAN_INCOMPLETE`,7.695s.
+[Safe evidence](evidence/2026-11-12-mvp-security-ab3125a.json) records11 locks
+covered (previously10), Trivy PASS with6 existing-policy nonblocking records,
+64 Gitleaks findings still BLOCKED, all matching the prior recomputed-hash
+review proposals. Zero new/unclassified current secret findings; original64
+unmapped IDs remain unresolved. Exact committed export proves Surface is the
+only remaining unlocked manifest. License276 review-required/508allowlist-pass
+records remain OPEN, as do all deferred areas. Completion preserves failure.
+No finding was approved; later evidence-only commits have no full five-job
+exact-SHA acceptance evidence.
