@@ -38,3 +38,73 @@ Candidate `4baea1646a424ab8be03bfecb5c25bf2d413de57`; base `601dde8847cad82d038e
 | License | 271 review-required + 508 allowlist-pass records | OPEN; this is neither full clearance nor approval for restricted/unknown licenses |
 
 [Safe classified digest evidence](evidence/2026-11-12-mvp-security-4baea16.json) records each required finding digest and review-required license digest, fixed verdict, reason/correlation and run identity without scanner-owned strings. `approval=NONE` and `review_owner=UNASSIGNED` deliberately record missing review. The six Trivy records are nonblocking according to the unchanged existing policy, not a newly approved risk threshold. SAST/image/tool/license status remains OPEN; historical image findings in ledger 08 are unchanged. This scan targets the implementation commit; subsequent evidence-only commits and the eventual final candidate need their own Task 3 scan.
+
+## Private review replay and identity defect — 2026-11-12
+
+Private replay of `4baea1646a424ab8be03bfecb5c25bf2d413de57` against the
+same base reproduced 64 tree findings and zero history findings. All were the
+unchanged `generic-api-key` rule. Each scanner-selected JSON line was verified
+as an exact SHA-256 field, then recomputed against its underlying bytes:
+60 against the retained locally built Keycloak JAR files, four against the exact
+candidate OpenAPI contract blobs. This is stronger evidence than hash shape or
+fixture resemblance. No credential use or provider verification was attempted;
+no raw matched value, native report or token was persisted or published.
+
+A real repeat-scan regression exposed unstable identifiers: Gitleaks `dir` with
+an absolute temporary export path embeds that path in its report. The existing
+full-record digest consequently changed between identical scans. The fix runs
+`gitleaks dir .` with its working directory set to the same verified candidate
+export. It retains every native record field in the digest, both scan surfaces,
+all rules and all blocking verdicts. Different file/rule/location identities
+remain distinct. Report enumeration order is immaterial; repeated findings are
+compared as multisets. This changes finding identities, not security policy.
+
+[Review proposals by stable replay ID](evidence/2026-11-12-mvp-finding-review.json)
+record all 64 independently recomputed observations. Proposed reviewer action:
+review each `RECOMPUTED_JAR_SHA256` or `RECOMPUTED_CONTRACT_SHA256` entry as a
+false-positive candidate using its byte verification, then assign an accountable
+owner and record an explicit decision and expiry through the trusted review
+boundary. `approval=NONE`, `review_owner=UNASSIGNED` and `verdict=blocked` apply
+to every entry. There is no suppression, allowlist, scanner exception or approved
+finding in this change.
+
+The original 64 published opaque IDs cannot be mapped retrospectively: their
+random export directory was not retained and a one-way record hash cannot
+recover it. **Original unmapped/unclassified IDs: 64. Stable replay unclassified
+findings: 0. Approved findings: 0.** Never attach these new observations to an
+old ID by list position or claim the original IDs were adjudicated. Future
+review must use a freshly committed candidate scan with stable IDs.
+
+Reproduction uses pinned Gitleaks 8.30.1 and the repository config: export the
+exact candidate with `git archive`, run `gitleaks dir .` from that export with
+`--redact=100 --ignore-gitleaks-allow --gitleaks-ignore-path=/dev/null
+--exit-code=0 --report-format=json --report-path=/dev/stdout`, and capture stdout
+only in private process memory. Run history separately with the existing
+`--full-history --diff-merges=separate BASE..CANDIDATE` options. Hash the complete
+redacted record using the existing sorted compact JSON `["secret", record]`
+encoding. Repeat and compare record multisets. For each tree finding, parse only
+its selected JSON line, require an exact 64-hex JSON value, and recompute SHA-256
+against the referenced JAR under the original built distribution or the matching
+`docs/contracts` blob. Publish only the authored classification, opaque ID and
+verification enums. Retained JAR bytes remain local diagnostic evidence, not an
+independent upstream attestation or a reproducible-build claim.
+
+Unlocked coverage was narrowed to two exact manifests:
+`tools/contracts/surface/dotnet/Surface.csproj` and
+`tests/Contract/fixtures/sdk/CorvusProbe.csproj`. Neither has a sibling
+`packages.lock.json`. The first has no package references; the second references
+the generated CRM client and therefore needs a real transitive NuGet lock.
+No exception for a tool, fixture or empty project was added. Local throwaway
+restore feasibility and the final committed-candidate scan are recorded in the
+handoff below; neither finding review nor the coverage blocker is cleared here.
+
+Actual throwaway restore evidence: normal Surface restore/locked restore PASS
+with zero package entries; normal CorvusProbe restore FAIL `NU1008`. The latter
+inherits root central package management while its generated SDK reference uses
+explicit package versions. Diagnostic-only restores with
+`-p:ManagePackageVersionsCentrally=false` generated authentic locks for both
+(Surface0/CorvusProbe6 entries), and subsequent `--locked-mode` restores PASS.
+A reviewable remediation is consistent project-level SDK build isolation plus
+these generated locks, followed by normal/locked builds and consumer tests.
+No repository configuration or locks were changed by this diagnostic; mandatory
+coverage still blocks. The centrally managed application projects need no change.

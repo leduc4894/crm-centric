@@ -95,6 +95,8 @@ class RealScannerTests(unittest.TestCase):
             head=git(root,'rev-parse','HEAD');run=RunIdentity('42','1',head,base,None)
             found=run_scanner(config('gitleaks'),ScanInput(root),run)
             self.assertEqual('blocked',found.status)
+            repeated=run_scanner(config('gitleaks'),ScanInput(root),run)
+            self.assertCountEqual(found.findings,repeated.findings)
             (root/'secret.txt').unlink();git(root,'add','-u');git(root,'commit','-qm','delete synthetic fixture')
             head=git(root,'rev-parse','HEAD');run=replace(run,candidate_sha=head)
             deleted=run_scanner(config('gitleaks'),ScanInput(root),run)

@@ -187,7 +187,9 @@ def run_scanner(scanner: ScannerConfig, input: ScanInput, run: RunIdentity, mode
             common=['--config',str(scanner.rules.resolve()),'--no-banner','--redact=100','--ignore-gitleaks-allow','--gitleaks-ignore-path=/dev/null','--exit-code=0','--report-format=json','--report-path=/dev/stdout']
             findings=[]
             with candidate_tree(root,run) as tree:
-                parsed,_=parse_findings('gitleaks',_run_json([str(scanner.executable),'dir',str(tree),*common]))
+                # Relative scan roots keep File/Fingerprint independent of the
+                # ephemeral export directory; all record fields remain hashed.
+                parsed,_=parse_findings('gitleaks',_run_json([str(scanner.executable),'dir','.',*common],cwd=tree))
                 findings.extend(parsed)
             parsed,_=parse_findings('gitleaks',_run_json([str(scanner.executable),'git',str(root),'--log-opts=--full-history --diff-merges=separate '+run.base_sha+'..'+run.candidate_sha,*common]))
             findings.extend(parsed)

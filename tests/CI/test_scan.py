@@ -100,6 +100,13 @@ class SecurityPolicyTests(unittest.TestCase):
         self.assertTrue(any(f['kind']=='vulnerability' and f['verdict']=='blocked' for f in findings))
         self.assertTrue(any(f['kind']=='license' and f['verdict']=='review-required' for f in findings))
 
+    def test_secret_identity_preserves_path_rule_and_location(self):
+        record={'RuleID':'fixture-rule','File':'first.txt','StartLine':1,'Secret':'REDACTED'}
+        records=[record,dict(record,File='second.txt'),dict(record,StartLine=2),dict(record,RuleID='another-rule')]
+        findings,_=scan.parse_findings('gitleaks',records)
+        self.assertEqual(4,len({row['finding_id'] for row in findings}))
+        self.assertTrue(all(row['verdict']=='blocked' for row in findings))
+
     def test_normalization_drops_every_scanner_owned_string(self):
         raw = [{'RuleID':'private\nSENTINEL', 'Secret':'SENTINEL', 'Match':'U0VOVElORUw=', 'File':'SENTINEL', 'StartLine':1, 'Verified':False}]
         findings, inventory = scan.parse_findings('gitleaks', raw)

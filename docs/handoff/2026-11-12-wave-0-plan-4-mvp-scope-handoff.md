@@ -135,3 +135,66 @@ untracked Plan3 resumption handoff is preserved outside these commits. All
 started jobs and regression runs finished; no pending rerun is being handed off.
 The next steps above concern unresolved security/acceptance work, not unfinished
 Task3 execution. Full five-job evidence for this documentation commit NOT RUN.
+
+## MVP finding identity and private triage continuation — 2026-11-12
+
+Objective: privately review 64 blocked IDs and investigate unlocked coverage.
+Authority: parent-directed local remediation on the current branch, no worktree,
+subagents or remote action; no finding approvals or policy relaxation. Read
+AGENTS, this handoff, security triage10, prior Task2/3 reports and verified
+HEAD `71a0bab` on `feat/wave-0-plan-4-ci`. Preserved the unrelated untracked
+Plan3 resumption handoff untouched.
+
+Completed: privately replayed exact4baea16 tree/history. Found64 tree/0history;
+60 JAR digest fields independently match retained local built JAR bytes and four
+SDK provenance digest fields match exact Git OpenAPI blobs. Safe per-ID proposed
+review observations are in `docs/engineering/evidence/2026-11-12-mvp-finding-review.json`.
+All64 new stable IDs remain BLOCKED, approval NONE/owner UNASSIGNED. Original64
+opaque IDs remain unmapped/unclassified because their discarded temporary path
+was part of the hash. No retrospective positional mapping or approval claimed.
+
+Fixed a confirmed ID defect with TDD: initial actual repeated Gitleaks scan RED
+(1 test/1 failure,4.375s); run exact exported tree from cwd with relative `dir .`
+instead of an absolute temporary pathname, retaining the complete record hash.
+GREEN focused test1/1,5.854s. Full real scanner suite initially exposed only
+order-sensitive tuple comparison (9tests/1failure,20.014s); compare multisets,
+then final real scanner suite PASS9/9,0skips,21.469s. Unit path/rule/location
+separation and scan policy suite PASS24/24,0skips,0.348s. No rule, scanner pin,
+severity, baseline, threshold, public contract or runtime default changed.
+
+Unlocked manifests identified precisely: Surface.csproj and CorvusProbe.csproj
+listed in triage10. Private throwaway `dotnet restore --use-lock-file` and
+`--locked-mode` for Surface PASS, empty package inventory; CorvusProbe restore
+FAIL (lock output alone is not successful restore). No lock or project change
+adopted. Review dependency errors before implementing correct transitive locks;
+never exempt tools/fixtures or fabricate empty package coverage.
+
+Changed tracked scope: scan.py, two scanner test files, triage10, safe review
+JSON and this handoff. Reproduction algorithm and limitations are in triage10.
+Initial full CI runner launch failed for missing libpython loader path before
+running tests; retried with explicit pinned Python LD_LIBRARY_PATH. Full pinned
+CI suite is still RUNNING at this paragraph; final result appended below.
+No raw reports/matches/tokens/payloads were printed or committed. Private ignored
+probes under `.local/mvp-triage` retain only authored safe metadata/locations.
+No remote action. Wave0/P0/RT-*, acceptance and deferred hardening stay OPEN.
+
+Additional coverage feasibility: normal CorvusProbe restore failed NU1008 due
+inherited central package management conflicting with explicit versions in the
+generated SDK project. A separate throwaway export restored both projects with
+`dotnet restore --use-lock-file -p:ManagePackageVersionsCentrally=false`, followed
+by `dotnet restore --locked-mode -p:ManagePackageVersionsCentrally=false`: both
+PASS, Surface0 entries/CorvusProbe6 entries. This is an actual diagnostic, not
+adoption or approval. A concrete follow-up can isolate these SDK/tool project
+settings consistently with generator builds, add their authentic generated
+locks, and verify both normal and locked build/consumer flows before committing.
+No empty-lock shortcut for the transitive fixture and no coverage exemption.
+Safe review JSON schema/count/unique-ID/blocked-approval invariants PASS.
+
+Final implementation verification: pinned full CI regression PASS128/128,
+0failures/0skips,298.908s,exit0, using
+`LD_LIBRARY_PATH=.local/ci-python315/lib .local/ci-venv315/bin/python .local/ci-task3/unit.py`.
+Python compilation, Markdown relative links and `git diff --check` PASS.
+This verifies implementation behavior, not security clearance or full five-job
+acceptance. Commit this scoped fix/evidence, then scan its exact SHA and record
+the actual mandatory result separately. Full service/remote/P0 drills NOT RUN.
+Rollback: revert this scoped identity/evidence change; no database migration.
