@@ -15,3 +15,7 @@ Branch `feat/wave-0-plan-4-ci`; resolve current HEAD via git. Các thay đổi p
 ## Status and next steps
 
 Wave 0, P0 và RT-* OPEN. Workflow hiện tại vẫn chặn trust/image/security; không coi việc đổi scope là pass hoặc xóa gate. Viết plan thực thi CI MVP, phân định rõ scanner blocking và quy trình review findings, sau đó triển khai và chạy full local/remote evidence khi được ủy quyền. Hardening vẫn OPEN trước production; verifier không tồn tại không cho phép policy transition bypass. Review governance trước bất kỳ thay đổi repository settings.
+
+## MVP execution continuation
+
+Người dùng yêu cầu viết plan ngắn và triển khai CI MVP. [Plan điều chỉnh](../superpowers/plans/2026-11-12-wave-0-ci-mvp-adjustment.md) phân tách image/trust hardening khỏi thực thi test MVP và giữ secret/dependency scan fail-closed, không tự phê duyệt findings. Tiếp tục thực thi local theo SDD tuần tự; remote operations/settings vẫn cần ủy quyền riêng. Wave 0/P0/RT-* OPEN. Untracked handoff Plan 3 có sẵn được giữ nguyên.
