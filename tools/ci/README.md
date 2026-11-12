@@ -302,6 +302,12 @@ helper stdin and reach the existing recursive sentinel guard; they do
 not enter argv, logs or reports. Testcontainers already supplied their generated
 passwords. Secretless commands keep an empty known-value set.
 
+Unreadable-secret negative fixtures explicitly supply a file-bound snapshot made
+before revoking access. The guard retains that snapshot and also reads current
+bytes when possible; it never changes file modes. An unreadable file without an
+explicit nonempty snapshot fails with `CI_SECRET_EXTRACTION_INCOMPLETE` and a
+correlation ID. This fixture input does not waive image scanning or findings.
+
 ### Task 7 aggregate and untrusted execution boundary
 
 Every required job has a completion step that observes GitHub step outcomes and

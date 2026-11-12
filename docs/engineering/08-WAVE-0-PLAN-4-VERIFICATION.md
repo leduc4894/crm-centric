@@ -71,3 +71,38 @@ distinct scanner inventory is rejected. PyPI punctuation folding remains scoped
 to Python requirements. These are local correctness fixes, not new clearance of
 repository findings, independent trust or any W0P4/P0 acceptance. Actual commands
 and results are recorded in the [final-review handoff](../handoff/2026-11-11-wave-0-plan-4-final-review-handoff.md).
+
+
+## Local backend/Compose remediation — 2026-11-12
+
+No acceptance status changes. [Remediation handoff](../handoff/2026-11-12-wave-0-plan-4-remediation-handoff.md)
+records the actual commands, safe diagnosis, RED/GREEN evidence and limits.
+Commit `6562e89` corrects the CLI/imported dataclass identity mismatch that rejected
+equal image fields before scanning; `a458e20` preserves explicit private fixture
+snapshots when unreadable-secret tests revoke file access, retaining unchanged
+file modes, safe unknown-extraction errors and mandatory scanning. No production
+API/schema, dependency or security-policy change.
+
+Pinned Python CI: 116 PASS/0 skips/333.680s after the Python correction. Real
+scanner fixtures: old-cache FAIL 1/12 (stale Java metadata), then fresh task-owned
+cache PASS 12/0 skips/25.160s. Normal fresh retrieval obtained upstream Java DB
+`2026-11-12T00:58:04.30813481Z` and vulnerability DB
+`2026-11-11T19:04:54.958468957Z`; no timestamps were edited or age limits waived.
+Focused .NET fixture tests after the second correction: 6 PASS/0 skips/44ms.
+These fixture successes do not clear actual findings.
+
+Exact implementation `a458e205ce2e0221f57257b3edfd25efec6e5bd6` full backend
+FAIL `CI_COMMAND_FAILED`/182.334s: native 76 executed = 29 passed + 47 failed,
+0 skips; every failure explicitly rejects mandatory image evidence, with no
+other or permission-extraction failure. Actual API/migrator/Keycloak inventories
+106/120/559 packages remain BLOCKED by 5/5/6 findings; PostgreSQL 151 packages
+remains INCOMPLETE with 135 blocking + 12 unknown. Strict failed-summary parsing
+still emits zero job cases; native diagnostic counts are not passing evidence.
+
+Same exact SHA selective real Compose cold-start probe FAIL 1/1/0 skips/90.013s
+at first API scan (106 packages, 5 blocking). Full final-correction Compose and
+complete final five-job gates were NOT RUN; earlier full Compose failure and
+historical Task 4 unknown cause remain recorded. Final owner-labelled resources
+0 containers/0 networks/0 volumes; foreign container preserved. Final subsequent
+commit is documentation only. All original security/coverage/trust/remote and
+Wave 0/P0/RT-* blockers remain; no suppression or remote action occurred.

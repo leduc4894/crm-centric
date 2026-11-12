@@ -231,3 +231,51 @@ production runtime, migration, dependency or security-policy change. Rollback is
 revert of this fixture correction. Continue exact-SHA evidence and review actual
 image findings/unknown severities without suppressions; remote actions remain
 unauthorized and all Wave 0/P0/RT-* acceptance stays OPEN.
+
+
+### Final local checkpoint
+
+Fixture correction commit: `a458e205ce2e0221f57257b3edfd25efec6e5bd6`.
+The following actual runs were made sequentially against that exact clean SHA,
+with the existing pinned toolchain, normal real services, fresh task-owned
+scanner cache and mandatory image enforcement. The ignored observer wraps only
+native suite collection; the selective Compose run explicitly changes the test
+filter and is never represented as a full Compose job.
+
+- Full backend: FAIL `CI_COMMAND_FAILED`, **182.334s**. Native **76 executed,
+  29 passed, 47 failed, 0 skipped**; all 47 failures are explicitly
+  `CI_IMAGE_EVIDENCE_INCOMPLETE`. No other or permission-extraction failures.
+  Error, timeout, aborted and notExecuted counters are zero. As before, strict
+  outer failed-TRX normalization emits zero collected job cases; these native
+  diagnostic counts are not fabricated successful job evidence.
+- Selective Compose
+  `FullyQualifiedName=Integration.Compose.LocalStackTests.Cold_up_needs_no_host_sdk`:
+  FAIL `CI_COMMAND_FAILED`, **90.013s**, 1 executed / 1 failed / 0 skipped,
+  explicit image-gate rejection. Actual first API image scan: 106 packages,
+  `CI_IMAGE_FINDINGS`, 5 blocking, zero unknown; immutable local config ID
+  `sha256:7936935238564f110a1624be04bf8d50563f87efd2bfe3a9d906c91f6a9a785c`,
+  linux/amd64, manifestDigest null. The gate stops at this first rejected role;
+  this does not prove complete four-role Compose evidence or job success.
+- Final Docker ownership reinspection: 0 labelled containers, 0 networks,
+  0 volumes. Pre-existing foreign Keycloak still running. Diagnostic-owned
+  application tags removed. Fresh ignored scanner cache/tools retained for
+  reproducibility; no foreign cleanup or global prune.
+- Final full five-job gate set, full Compose on the final correction, remote
+  workflows, independent trust provisioning and P0/restore drills: NOT RUN /
+  still blocked. Earlier full Compose failure remains recorded, not replaced by
+  the selective result. Historical Task 4 pre-image-gate cause remains unproven.
+
+Only documentation is changed after the tested implementation SHA: this handoff,
+the verification ledger and the CI README snapshot-boundary explanation. Exact
+commands are the actual `scripts.ci.jobs` backend/compose entrypoints with the
+recorded RunIdentity and native-suite observer in ignored local scripts; backend
+uses its full filter, Compose uses the explicit single-test diagnostic filter
+above. Pinned unit/CI/security commands and earlier RED/GREEN results are recorded
+above. No gate suppression, exception, timestamp edit, policy relaxation, remote
+action or acceptance closure occurred.
+
+Next: review the two scoped corrections, triage actual image vulnerabilities and
+PostgreSQL unknown severities through the existing review process, retain fresh
+upstream metadata, remediate source/dependency coverage and trust blockers, then
+run the complete exact-candidate gates. Only separately authorized remote work
+can supply missing PR/main/governance/acceptance evidence.
