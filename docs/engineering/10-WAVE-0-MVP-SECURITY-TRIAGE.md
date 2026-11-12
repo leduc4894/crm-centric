@@ -108,3 +108,17 @@ A reviewable remediation is consistent project-level SDK build isolation plus
 these generated locks, followed by normal/locked builds and consumer tests.
 No repository configuration or locks were changed by this diagnostic; mandatory
 coverage still blocks. The centrally managed application projects need no change.
+
+## Stable-ID committed scan — 2026-11-12
+
+Exact implementation candidate `d10c225d0fad214ddf54dbf4c46fe3b76a79dc6d`,
+same base `601dde8847cad82d038ea837c01d3da0d7449450`, no merge SHA;
+run `local-mvp-triage`, attempt1. Actual mandatory MVP security command **FAIL**,
+exit1, `CI_SCAN_INCOMPLETE`,8.642s. [Bounded scan evidence](evidence/2026-11-12-mvp-security-d10c225.json)
+retains Gitleaks64 BLOCKED findings over2 surfaces, Trivy10 locks/6 existing-policy
+nonblocking records, required `CI_UNLOCKED_DEPENDENCIES`, deferred tool coverage,
+and license271 review-required/508 allowlist-pass records. All64 Gitleaks IDs
+exactly match the stable review proposals; zero unmatched current findings.
+Safe completion preserves failure (`CI_JOB_FAILED`). No finding was approved.
+Later evidence-only commits have no full exact-candidate gate evidence; full
+five-job/remote acceptance remains OPEN.

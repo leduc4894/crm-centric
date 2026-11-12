@@ -198,3 +198,24 @@ This verifies implementation behavior, not security clearance or full five-job
 acceptance. Commit this scoped fix/evidence, then scan its exact SHA and record
 the actual mandatory result separately. Full service/remote/P0 drills NOT RUN.
 Rollback: revert this scoped identity/evidence change; no database migration.
+
+Committed implementation/evidence SHA:
+`d10c225d0fad214ddf54dbf4c46fe3b76a79dc6d`.
+Actual exact-SHA command:
+`GITHUB_RUN_ID=local-mvp-triage GITHUB_RUN_ATTEMPT=1 CI_SCANNER_ROOT=.local/task5 python3 -m scripts.ci.security --mode mvp --revision .local/mvp-triage/revision.json --output .local/mvp-triage/security.json`
+FAIL exit1,8.642s,`CI_SCAN_INCOMPLETE`. Gitleaks64 blocked/2surfaces;
+TrivyPASS10locks/6existing-policy nonblocking records. Required unlocked gap
+remains. License271review-required/508pass; all deferred coverage OPEN.
+All64 current IDs exactly equal the independently verified stable review IDs;
+zero unmatched/unclassified current findings, zero approvals. Original64 remain
+unmapped/unclassified. Safe completion round trip PASS as failure preservation,
+`CI_JOB_FAILED`; this is not a passing security gate.
+
+Final follow-up changed files: triage10, review JSON adds explicit committed-scan
+binding, new safe security-d10c225 JSON and this handoff. Commit this evidence
+separately; later documentation commit itself has no five-job/final-SHA scan.
+No remote actions. No runtime/backend/Compose/browser reruns, remote E2E,
+tenant/duplicate/outage/restore drills; no acceptance closure. Next: accountable
+per-ID review and trusted decisions, project-isolation/lock remediation with
+consumer tests, then fresh exact-final-SHA full gates. Existing Plan3 untracked
+handoff remains untouched. No running verification process is handed off.

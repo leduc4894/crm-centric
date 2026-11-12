@@ -524,5 +524,20 @@
       "verdict": "blocked",
       "review_owner": "UNASSIGNED"
     }
-  ]
+  ],
+  "committed_scan_binding": {
+    "identity": {
+      "run_id": "local-mvp-triage",
+      "run_attempt": "1",
+      "candidate_sha": "d10c225d0fad214ddf54dbf4c46fe3b76a79dc6d",
+      "base_sha": "601dde8847cad82d038ea837c01d3da0d7449450",
+      "merge_sha": null
+    },
+    "matched_finding_count": 64,
+    "unmatched_finding_count": 0,
+    "status": "failure",
+    "reason_token": "CI_SCAN_INCOMPLETE",
+    "correlation_id": "c6331f73-2ad9-441b-b784-2aeabf5cb6e8",
+    "approval": "NONE"
+  }
 }
