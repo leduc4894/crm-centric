@@ -1,5 +1,7 @@
 # Wave 0 Plan 4 verification — 2026-11-11
 
+> **Cập nhật phạm vi 2026-11-12:** [Quyết định CI MVP](09-WAVE-0-CI-MVP-SCOPE.md) xác định điều kiện exit hiện hành và các mục chuyển sang hardening. Bảng W0P4 bên dưới là evidence lịch sử theo scope cũ; Wave 0 vẫn OPEN và chưa có full gate mới pass.
+
 **Wave 0 OPEN; P0 and every RT-* OPEN.** Local implementation is reviewable; acceptance has not passed. This ledger consolidates recorded Tasks 1–7, not a new execution of their suites. No remote workflow, push, merge, deployment, repository setting or secret change was authorized/performed for Task 8.
 
 ## Revision and review boundary

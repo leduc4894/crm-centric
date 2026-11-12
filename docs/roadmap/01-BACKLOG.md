@@ -1,6 +1,8 @@
 # Phased Delivery Plan / Sprint Backlog
 
 ## Wave 0 — Repo / architecture runway
+
+**Scope cập nhật 2026-11-12:** [CI MVP và hardening trước production](../engineering/09-WAVE-0-CI-MVP-SCOPE.md). Wave 0 vẫn OPEN; workflow hiện tại chưa điều chỉnh theo quyết định này.
 - ADR and module boundary baselines, repo scaffolding, compose local stack.
 - Install .NET 10/EF Core 10 and front-end toolchain versions; CI build/unit tests.
 - Fake OIDC provider for tests, production-ready IdP config documented.

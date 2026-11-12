@@ -1,5 +1,7 @@
 # Wave 0 — Plan 4: CI, security gates và bằng chứng đóng wave
 
+> **Cập nhật phạm vi 2026-11-12:** [Quyết định CI MVP](../../engineering/09-WAVE-0-CI-MVP-SCOPE.md) ưu tiên khi yêu cầu exit bên dưới mâu thuẫn. Các chi tiết hardening cũ được giữ làm tài liệu tham khảo; workflow và acceptance chưa tự động thay đổi hoặc pass.
+
 Ngày 2026-11-11. Original design surveyed `main` at `df993ae`. Local implementation subsequently authorized and reviewed task-by-task; acceptance remains OPEN/BLOCKED. [Actual Plan 4 evidence](../../engineering/08-WAVE-0-PLAN-4-VERIFICATION.md) records failures and missing independent trust/remote runs. No remote write/settings/deployment authorization is implied.
 
 ## Mục tiêu

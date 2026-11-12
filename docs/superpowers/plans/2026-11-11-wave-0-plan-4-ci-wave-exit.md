@@ -1,5 +1,7 @@
 # Wave 0 Plan 4 — CI và wave exit Implementation Plan
 
+> **Cập nhật phạm vi 2026-11-12:** [Quyết định CI MVP](../../engineering/09-WAVE-0-CI-MVP-SCOPE.md) ưu tiên với điều kiện exit; các task gốc giữ lịch sử và backlog hardening. Cần plan thực thi điều chỉnh trước khi sửa workflow; không suy diễn gate hiện tại đã pass.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or superpowers:executing-plans. Thực hiện tuần tự, một coding agent tại một thời điểm; reviewers chỉ đọc. Các checkbox biểu thị kết quả thực tế.
 
 **Goal:** Chạy đầy đủ local/remote CI gates trên đúng revision và cung cấp evidence để đánh giá Wave 0 exit.

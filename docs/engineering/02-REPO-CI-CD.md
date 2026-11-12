@@ -1,5 +1,7 @@
 # Repo layout, CI/CD và chất lượng
 
+> **Phạm vi CI MVP 2026-11-12:** xem [quyết định Plan 4](09-WAVE-0-CI-MVP-SCOPE.md). Workflow hiện tại chưa được điều chỉnh theo scope mới; các blocker và trạng thái thực tế vẫn phải được báo đúng.
+
 ## Gợi ý monorepo
 ```text
 crm-platform/
