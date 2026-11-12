@@ -8,16 +8,17 @@ import time
 import signal
 import uuid
 from scripts.ci.jobs import atomic_write, execute, JobError
-from scripts.ci.scan import ScannerConfig, run_repository, ScanError
+from scripts.ci.scan import ScannerConfig, run_repository, run_repository_mvp, ScanError
 from scripts.ci.summary import RunIdentity
 from scripts.ci.sbom import write_source_evidence
 from scripts.ci.run_safe import SafeProcessError
 
 
-def scanner_configs(root, tools):
+def scanner_configs(root, tools, mode="hardening"):
     pins=json.loads((root/'tools/ci/toolchain.json').read_text())['scanners']
     configs={}
     for kind,pin in pins.items():
+        if mode=="mvp" and kind=="semgrep": continue
         executable=tools/('semgrep/bin/semgrep' if kind=='semgrep' else 'bin/'+kind)
         # Launcher paths vary with the dedicated venv location. This measured
         # hash is provenance only; independent provisioning remains mandatory.
@@ -31,6 +32,7 @@ def main():
     class SafeParser(argparse.ArgumentParser):
         def error(self,message): raise ValueError()
     parser=SafeParser();parser.add_argument('--revision',type=Path,required=True);parser.add_argument('--output',type=Path,required=True)
+    parser.add_argument("--mode",choices=["mvp","hardening"],default="hardening")
     try: args=parser.parse_args()
     except ValueError:
         print(json.dumps({'reasonToken':'CI_JOB_INPUT_INVALID','correlationId':str(uuid.uuid4())}))
@@ -47,13 +49,18 @@ def main():
         run=RunIdentity(os.environ['GITHUB_RUN_ID'],os.environ['GITHUB_RUN_ATTEMPT'],revision['candidate_sha'],revision['base_sha'],revision['merge_sha'])
         report['identity']=vars(run)
         if execute(['git','rev-parse','HEAD'])!=run.candidate_sha: raise JobError('CI_CANDIDATE_UNAVAILABLE')
-        configs=scanner_configs(root,Path(os.environ.get('CI_SCANNER_ROOT',root/'.local/ci-scanners')).resolve())
+        configs=scanner_configs(root,Path(os.environ.get('CI_SCANNER_ROOT',root/'.local/ci-scanners')).resolve(),mode=args.mode)
         report['tools']={kind:config.version for kind,config in configs.items()}
-        scanned=run_repository(configs,root,run)
+        if args.mode=='mvp':
+            scanned,evidence=run_repository_mvp(configs,root,run)
+            report['mvp_security']=evidence
+        else: scanned=run_repository(configs,root,run)
         report['security_evidence']=scanned.to_dict()
-        source=write_source_evidence(root,run,root/'.local/ci-sbom/source.json',configs['gitleaks'])
-        report['source_evidence']=source
-        if scanned.status=='pass' and source['status']=='inventory-only':
+        source=None
+        if args.mode=='hardening':
+            source=write_source_evidence(root,run,root/'.local/ci-sbom/source.json',configs['gitleaks'])
+            report['source_evidence']=source
+        if scanned.status=='pass' and (args.mode=='mvp' or source['status']=='inventory-only'):
             report['status']='success';report['suites'][0]['tests'][0]['outcome']='passed';token='CI_SCAN_OK'
         else: token=scanned.reason_token if scanned.status!='pass' else 'CI_SCAN_INCOMPLETE'
     except (JobError,ScanError,SafeProcessError,OSError,ValueError,TypeError,KeyError) as failure:

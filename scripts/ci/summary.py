@@ -89,9 +89,13 @@ def parse_report(kind, path, expected, mode="hardening"):
                     or scan['scanned_count']<=0 or not safe_pass_findings(scan.get('findings'))
                     or scan.get('reason_token')!='CI_SCAN_OK'):
                 raise ReportError('CI_SCAN_INCOMPLETE')
+            if mode=='mvp':
+                from scripts.ci.scan import validate_mvp_evidence, ScanError
+                try: validate_mvp_evidence(data.get('mvp_security',{}),identity,require_pass=True)
+                except ScanError: raise ReportError('CI_SCAN_INCOMPLETE') from None
             import hashlib
             source=data.get('source_evidence',{})
-            if (RunIdentity(**source.get('identity',{}))!=identity
+            if mode=='hardening' and (RunIdentity(**source.get('identity',{}))!=identity
                     or source.get('status')!='inventory-only' or source.get('coverageGaps')!=[]
                     or type(source.get('lockCount')) is not int or source['lockCount']<=0
                     or not source.get('sbom',{}).get('components')

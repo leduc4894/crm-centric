@@ -43,6 +43,7 @@ class ScanSummary:
     correlation_id: str
     findings: tuple = ()
     scanned_count: int = 0
+    deferred_findings: tuple = ()
     def to_dict(self): return asdict(self)
 
 
@@ -174,9 +175,10 @@ def _history(root,run):
         _git(root,'cat-file','-e',object_id)
 
 
-def run_scanner(scanner: ScannerConfig, input: ScanInput, run: RunIdentity) -> ScanSummary:
+def run_scanner(scanner: ScannerConfig, input: ScanInput, run: RunIdentity, mode="hardening") -> ScanSummary:
     correlation=str(uuid.uuid4())
     try:
+        if mode not in ("mvp","hardening"): raise ScanError()
         _verify_tool(scanner)
         root=input.root.resolve()
         if scanner.kind=='gitleaks':
@@ -209,10 +211,12 @@ def run_scanner(scanner: ScannerConfig, input: ScanInput, run: RunIdentity) -> S
             if input.expected_packages: require_package_inventory(raw,input.expected_packages)
             count=len(inventory)
         else: raise ScanError()
+        deferred=tuple(f for f in findings if mode=='mvp' and f['kind']=='license')
+        findings=[f for f in findings if f not in deferred]
         states={f['verdict'] for f in findings}
         status=('incomplete' if 'incomplete' in states else 'blocked' if states & {'blocked','review-required'} else 'pass')
         token={'incomplete':'CI_SCAN_INCOMPLETE','blocked':'CI_SCAN_FINDINGS','pass':'CI_SCAN_OK'}[status]
-        return ScanSummary(run,status,token,correlation,tuple(findings),count)
+        return ScanSummary(run,status,token,correlation,tuple(findings),count,deferred)
     except (ScanError,SafeProcessError,OSError,ValueError,TypeError,KeyError,AttributeError,RecursionError):
         return ScanSummary(run,'incomplete','CI_SCAN_INCOMPLETE',correlation)
 
@@ -497,3 +501,66 @@ def scan_image(scanner, identity):
                       findings=findings,sbom=sbom,sbomSha256=hashlib.sha256(json.dumps(sbom,sort_keys=True,separators=(',',':')).encode()).hexdigest(),databaseUpdatedAt=metadata['UpdatedAt'],javaDatabaseUpdatedAt=java_metadata['UpdatedAt'])
     except (ScanError,SafeProcessError,OSError,KeyError,TypeError,ValueError,AttributeError): pass
     return result
+
+
+def combine_mvp_scans(reports, gaps, run):
+    """Only explicit tool inventory hardening is deferred; ecosystem gaps fail."""
+    required={'gitleaks','trivy'}
+    if (set(reports)!=required or set(gaps)-{'CI_TOOL_DEPENDENCY_COVERAGE'}
+            or any(r.identity!=run or r.status not in ('pass','blocked') or r.scanned_count<=0
+                   or (r.status=='pass' and not safe_pass_findings(r.findings))
+                   or any(f['kind'] not in ('secret','vulnerability') for f in r.findings)
+                   for r in reports.values())):
+        return ScanSummary(run,'incomplete','CI_SCAN_INCOMPLETE',str(uuid.uuid4()))
+    findings=tuple(f for report in reports.values() for f in report.findings)
+    blocked=any(r.status=='blocked' for r in reports.values())
+    return ScanSummary(run,'blocked' if blocked else 'pass',
+                       'CI_SCAN_FINDINGS' if blocked else 'CI_SCAN_OK',str(uuid.uuid4()),
+                       findings,sum(r.scanned_count for r in reports.values()))
+
+
+def mvp_evidence(reports, gaps, run):
+    return {'identity':asdict(run),'required':{kind:report.to_dict() for kind,report in reports.items()},
+            'coverage_gaps':list(gaps),
+            'deferred':{kind:{'status':'OPEN','findings':[
+                f for report in reports.values() for f in report.deferred_findings if f['kind']==kind]}
+                        for kind in ('sast','license','image','tool_inventory')}}
+
+
+def run_repository_mvp(scanners, root, run):
+    reports={};gaps=[]
+    try:
+        if set(scanners)!={'gitleaks','trivy'}: raise ScanError()
+        # Scan both required classes independently, preserving findings even if
+        # another class or package coverage is incomplete.
+        reports['gitleaks']=run_scanner(scanners['gitleaks'],ScanInput(root),run,mode='mvp')
+        with candidate_tree(root,run) as tree:
+            with dependency_inputs(tree) as inputs:
+                gaps.extend(inputs.gaps)
+                reports['trivy']=run_scanner(scanners['trivy'],ScanInput(
+                    inputs.root,inputs.expected_inventory,inputs.expected_packages),run,mode='mvp')
+    except (ScanError,SafeProcessError,OSError,ValueError,TypeError,KeyError,AttributeError,RecursionError):
+        gaps.append('CI_SCAN_INCOMPLETE')
+    return combine_mvp_scans(reports,gaps,run),mvp_evidence(reports,gaps,run)
+
+
+def validate_mvp_evidence(raw, run, require_pass=False):
+    """Validate and reconstruct only safe enums/digests; no candidate waivers."""
+    from scripts.ci.publication import findings
+    if set(raw)!={'identity','required','coverage_gaps','deferred'} or raw['identity']!=asdict(run): raise ScanError()
+    if set(raw['deferred'])!={'sast','license','image','tool_inventory'}: raise ScanError()
+    reports={}
+    for kind,row in raw['required'].items():
+        if kind not in ('gitleaks','trivy') or row['identity']!=asdict(run): raise ScanError()
+        if row['status'] not in ('pass','blocked','incomplete') or type(row['scanned_count']) is not int or row['scanned_count']<0: raise ScanError()
+        if row['reason_token']!={'pass':'CI_SCAN_OK','blocked':'CI_SCAN_FINDINGS','incomplete':'CI_SCAN_INCOMPLETE'}[row['status']]: raise ScanError()
+        if str(uuid.UUID(row['correlation_id']))!=row['correlation_id']: raise ScanError()
+        safe=findings(row['findings']);deferred=findings(row.get('deferred_findings',[]))
+        if any(f['kind']!='license' for f in deferred): raise ScanError()
+        reports[kind]=ScanSummary(run,row['status'],row['reason_token'],row['correlation_id'],tuple(safe),row['scanned_count'],tuple(deferred))
+    gaps=raw['coverage_gaps']
+    if not isinstance(gaps,list) or any(g not in ('CI_TOOL_DEPENDENCY_COVERAGE','CI_UNLOCKED_DEPENDENCIES','CI_ECOSYSTEM_COVERAGE','CI_SCAN_INCOMPLETE') for g in gaps): raise ScanError()
+    clean=mvp_evidence(reports,gaps,run)
+    if raw['deferred']!=clean['deferred']: raise ScanError()
+    if require_pass and combine_mvp_scans(reports,gaps,run).status!='pass': raise ScanError()
+    return clean

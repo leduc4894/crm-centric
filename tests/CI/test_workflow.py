@@ -106,12 +106,12 @@ class IsolationMutationTests(unittest.TestCase):
         self.assertTrue(any('scripts.ci.security' in command for command in commands))
         self.assertFalse(any('CI_SECURITY_NOT_PROVISIONED' in command for command in commands))
 
-    def test_security_provisions_hash_locked_supported_semgrep_runtime(self):
+    def test_mvp_defers_semgrep_but_hardening_keeps_hash_locked_runtime(self):
         workflow=yaml.safe_load((ROOT/'.github/workflows/wave0.yml').read_text())
         steps=workflow['jobs']['security']['steps']
         runtimes=[s for s in steps if s.get('id')=='scanner-python']
-        self.assertEqual(len(runtimes),1)
-        self.assertEqual(runtimes[0]['with'],{'python-version':'3.12.12','update-environment':False})
+        self.assertEqual(runtimes,[])
         setup=(ROOT/'scripts/ci/setup.sh').read_text()
+        self.assertIn('if [[ "${1:-}" == security && "${2:-hardening}" != mvp ]]; then',setup)
         self.assertIn('--require-hashes',setup)
         self.assertIn('semgrep-requirements.lock',setup)

@@ -22,7 +22,7 @@ if [[ "${2:-hardening}" != mvp || "${1:-}" == security ]]; then
   python -m scripts.ci.provision_scanners --output .local/ci-scanners
   python -m scripts.ci.provision_scanners --kind gitleaks --output .local/ci-scanners
 fi
-if [[ "${1:-}" == security ]]; then
+if [[ "${1:-}" == security && "${2:-hardening}" != mvp ]]; then
   "${CI_SEMGREP_PYTHON:?}" -m venv .local/ci-scanners/semgrep >/dev/null 2>&1
   .local/ci-scanners/semgrep/bin/python -m pip install --require-hashes --only-binary=:all: -r tools/ci/semgrep-requirements.lock >/dev/null 2>&1
   .local/ci-scanners/semgrep/bin/python -m pip check >/dev/null 2>&1

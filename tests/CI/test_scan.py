@@ -233,4 +233,29 @@ class SafeExecutionTests(unittest.TestCase):
             self.assertEqual('CI_SCAN_INCOMPLETE',result.reason_token)
             self.assertNotIn('SENTINEL',json.dumps(result.to_dict()))
 
+
+class MvpScanTests(unittest.TestCase):
+    def report(self, status='pass', findings=()):
+        return scan.ScanSummary(RUN,status,'CI_SCAN_OK' if status=='pass' else 'CI_SCAN_FINDINGS',
+                                '00000000-0000-4000-8000-000000000000',findings,1)
+
+    def test_required_reports_and_only_tool_gap_can_be_deferred(self):
+        reports={kind:self.report() for kind in ('gitleaks','trivy')}
+        result=scan.combine_mvp_scans(reports,('CI_TOOL_DEPENDENCY_COVERAGE',),RUN)
+        self.assertEqual('pass',result.status)
+        for gap in ('CI_ECOSYSTEM_COVERAGE','CI_UNLOCKED_DEPENDENCIES'):
+            self.assertEqual('incomplete',scan.combine_mvp_scans(reports,(gap,),RUN).status)
+        for bad in ({'gitleaks':self.report()},dict(reports,trivy=replace(self.report(),identity=replace(RUN,run_attempt='2'))),dict(reports,trivy=replace(self.report(),status='incomplete'))):
+            self.assertEqual('incomplete',scan.combine_mvp_scans(bad,(),RUN).status)
+
+    def test_unreviewed_findings_and_candidate_waiver_cannot_pass(self):
+        finding={'finding_id':'a'*64,'kind':'secret','verdict':'blocked'}
+        reports={'gitleaks':self.report('blocked',(finding,)),'trivy':self.report()}
+        self.assertEqual('blocked',scan.combine_mvp_scans(reports,(),RUN).status)
+        reports['gitleaks']=self.report('pass',(dict(finding,approval='candidate'),))
+        self.assertEqual('incomplete',scan.combine_mvp_scans(reports,(),RUN).status)
+        reports['gitleaks']=self.report()
+        reports['trivy']=self.report('blocked',({'finding_id':'b'*64,'kind':'vulnerability','verdict':'blocked'},))
+        self.assertEqual('blocked',scan.combine_mvp_scans(reports,(),RUN).status)
+
 if __name__ == '__main__': unittest.main()

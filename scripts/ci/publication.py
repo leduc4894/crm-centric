@@ -127,6 +127,9 @@ def normalized_report(raw,parsed,expected,mode="hardening"):
     if mode=='hardening' and job in ('backend','compose','web-browser') and 'image_evidence' in raw:
         result['image_evidence']=[image_record(row) for row in raw['image_evidence']]
     if job=='security':
+        if mode=='mvp' and 'mvp_security' in raw:
+            from scripts.ci.scan import validate_mvp_evidence
+            result['mvp_security']=validate_mvp_evidence(raw['mvp_security'],expected,require_pass=status=='success')
         if 'security_evidence' in raw:
             scan=raw['security_evidence'];scan_status=scan['status']
             if scan_status not in ('pass','blocked','incomplete'): raise ReportError()

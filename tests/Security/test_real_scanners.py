@@ -61,6 +61,28 @@ class RealScannerTests(unittest.TestCase):
             self.assertEqual('blocked',result.status)
             self.assertTrue(any(f['kind']=='vulnerability' and f['verdict']=='blocked' for f in result.findings))
             self.assertTrue(any(f['kind']=='license' and f['verdict']=='review-required' for f in result.findings))
+            mvp=run_scanner(config('trivy'),ScanInput(root,frozenset({'package-lock.json'})),run,mode='mvp')
+            self.assertEqual('blocked',mvp.status)
+            self.assertTrue(any(f['kind']=='vulnerability' and f['verdict']=='blocked' for f in mvp.findings))
+            self.assertFalse(any(f['kind']=='license' for f in mvp.findings))
+            self.assertTrue(any(f['kind']=='license' and f['verdict']=='review-required' for f in mvp.deferred_findings))
+
+    def test_mvp_license_only_evidence_remains_open_without_required_scan_failure(self):
+        from scripts.ci.scan import combine_mvp_scans,mvp_evidence
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            (root/'package-lock.json').write_text(json.dumps({'lockfileVersion':3,'packages':{
+                'node_modules/synthetic-ci-license-fixture':{'version':'1.0.0','license':'GPL-3.0-only'}}}))
+            run=RunIdentity('42','1','a'*40,'b'*40,None)
+            result=run_scanner(config('trivy'),ScanInput(root,frozenset({'package-lock.json'})),run,mode='mvp')
+            self.assertEqual('pass',result.status)
+            self.assertTrue(result.deferred_findings)
+            secret=ScanSummary(run,'pass','CI_SCAN_OK','00000000-0000-4000-8000-000000000000',scanned_count=2)
+            reports={'gitleaks':secret,'trivy':result}
+            self.assertEqual('pass',combine_mvp_scans(reports,('CI_TOOL_DEPENDENCY_COVERAGE',),run).status)
+            evidence=mvp_evidence(reports,('CI_TOOL_DEPENDENCY_COVERAGE',),run)
+            self.assertEqual('OPEN',evidence['deferred']['license']['status'])
+            self.assertTrue(any(f['verdict']=='review-required' for f in evidence['deferred']['license']['findings']))
 
     def test_secret_tree_and_added_then_deleted_commit_range(self):
         with tempfile.TemporaryDirectory() as directory:

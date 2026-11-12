@@ -116,6 +116,9 @@ class AggregateTests(unittest.TestCase):
                 if job in ('backend','compose','web-browser'):
                     item['image_hardening']={'status':'not-evaluated'}
                 if job=='security':
+                    from scripts.ci.scan import ScanSummary,mvp_evidence
+                    scanned=ScanSummary(IDENTITY,'pass','CI_SCAN_OK','00000000-0000-4000-8000-000000000000',scanned_count=1)
+                    item['mvp_security']=mvp_evidence(dict.fromkeys(('gitleaks','trivy'),scanned),(),IDENTITY)
                     sbom={'components':[{'name':'fixture','version':'1'}]}
                     item['security_evidence']={'identity':vars(IDENTITY),'status':'pass',
                         'scanned_count':1,'findings':[],'reason_token':'CI_SCAN_OK'}

@@ -190,37 +190,22 @@ jobs:
       - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1
         with:
           dotnet-version: '10.0.403'
-      - id: scanner-python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
-        with:
-          python-version: '3.12.12'
-          update-environment: false
       - id: revision
         name: Verify immutable event revisions
         run: python -m scripts.ci.revision --event-file "$GITHUB_EVENT_PATH" > revision.json
       - id: setup
         name: Provision locked tools
-        env:
-          CI_SEMGREP_PYTHON: ${{ steps.scanner-python.outputs.python-path }}
-        run: bash scripts/ci/setup.sh security
+        run: bash scripts/ci/setup.sh security mvp
       - id: gate
         name: Run real repository security gate
         env:
           CI_SCANNER_ROOT: ${{ github.workspace }}/.local/ci-scanners
-        run: python -m scripts.ci.security --revision revision.json --output .local/ci/security.json
+        run: python -m scripts.ci.security --mode mvp --revision revision.json --output .local/ci/security.json
       - name: Normalize completion diagnostics
         if: always()
         env:
           CI_STEPS: ${{ toJSON(steps) }}
-        run: python -m scripts.ci.completion security --output .local/ci/security.json
-      - name: Publish normalized source inventory
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: source-sbom
-          path: .local/ci-sbom/source.json
-          if-no-files-found: error
-          retention-days: 7
+        run: python -m scripts.ci.completion security --mode mvp --output .local/ci/security.json
       - name: Publish safe summary
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
