@@ -29,7 +29,7 @@ Phân loại này không cho phép chạy PR code với secrets/write privilege,
 
 W0P4-01–06, 08–10 có thành phần thuộc CI MVP và thành phần hardening; đánh giá theo yêu cầu cụ thể ở trên, không tự chuyển toàn bộ ID thành PASS. W0P4-07 tách thành secret/dependency scans + triage cho MVP và full image/SAST/license/SBOM coverage theo phạm vi hardening. W0P4-11 giữ remote CI trên revision xác định cho MVP; proof PR/main/merge, fork và cancellation đầy đủ thuộc hardening. W0P4-12 là review exit theo scope mới, vẫn cần actual MVP evidence. Ledger [08](08-WAVE-0-PLAN-4-VERIFICATION.md) giữ nguyên số liệu lịch sử; không thay đổi thất bại thành pass.
 
-**Trạng thái hiện tại: Wave 0 OPEN; P0/RT-* OPEN.** CI hiện tại vẫn có trust blocker và các scanner/image gate fail. Chưa có full exact-final-SHA MVP jobs hoặc remote run theo scope mới; cần sửa implementation và kiểm thử trước khi đánh giá exit.
+**Trạng thái hiện tại: Wave 0 OPEN; P0/RT-* OPEN.** MVP execution/reporting đã tách khỏi deferred image/verifier hardening; policy transition vẫn fail-closed. Full local attempts tại `5a17535` có backend96/96 và Compose14/14 PASS, contracts87/87 và browser58/58 PASS sau clean-state rerun, required security BLOCKED; xem [ledger08](08-WAVE-0-PLAN-4-VERIFICATION.md). Chưa có bộ năm gate PASS tại final SHA hoặc remote run; findings chưa được phê duyệt, không có exit claim.
 
 ## Công việc tiếp theo
 

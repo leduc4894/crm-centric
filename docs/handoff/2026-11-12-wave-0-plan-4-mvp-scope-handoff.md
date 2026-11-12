@@ -108,3 +108,30 @@ five-job rehearsal. No acceptance claim is transferred between these SHAs.
 Remote CI NOT RUN, enforcement UNKNOWN; Wave0/P0/RT-* and deferred hardening OPEN.
 Evidence-only documentation changes require fresh exact-final-SHA evidence
 before any later acceptance claim.
+
+
+Task 3 final boundary: readiness fix/handoff commit
+`1ff6ca3145c4d1b23ec29805ad5e507870b38f36`; final full CI127/127 PASS320.490s
+ran on that test content before commit. Full service/security evidence stays at
+5a17535. Reviewed full MVP implementation/test diff and readiness correction.
+Workflow contract/actionlint/setup shell/Python AST/Markdown links/evidence
+identity-count-digest checks and `git diff --check` PASS. Remaining uncommitted
+Task3 work at this boundary is documentation/evidence/plan status, committed
+separately next; only unrelated untracked Plan3 handoff must remain afterward.
+No public contract, dependency pin, migration or production runtime change.
+
+Next steps after this local task: privately review64 secret digests with an
+accountable reviewer; remediate unlocked dependency coverage; retain license,
+SAST, image, tool inventory and verifier hardening OPEN; select a candidate and
+run fresh full gates before separately authorized remote execution. Do not
+transfer5a17535 rehearsal to later commits or interpret unit success as security
+clearance. Remote CI NOT RUN, enforcement UNKNOWN, Wave0/P0/RT-* OPEN.
+
+
+Final local state: Task3 documentation/evidence/plan status is committed in the
+commit containing this paragraph (`docs: record MVP CI rehearsal and outstanding
+decisions`, following1ff6ca3). No tracked Task3 changes remain. Only the original
+untracked Plan3 resumption handoff is preserved outside these commits. All
+started jobs and regression runs finished; no pending rerun is being handed off.
+The next steps above concern unresolved security/acceptance work, not unfinished
+Task3 execution. Full five-job evidence for this documentation commit NOT RUN.

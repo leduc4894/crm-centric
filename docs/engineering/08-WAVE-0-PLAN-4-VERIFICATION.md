@@ -245,3 +245,102 @@ PASS; vulnerability scan559 packages/**5 HIGH**, Guava correctly33.7.2-jre with
 finding removed. Remaining Java1/SQLite4 block. Tests explicitly skipped for
 feasibility build; complete Maven lock/reproducibility, fresh mandatory image gate,
 full license/auth/DB/restore/acceptance NOT RUN/unproven. No default/policy change.
+
+
+## MVP exact-candidate rehearsal — 2026-11-12
+
+Local candidate `5a17535b5da6802dde0548e7fe0aa0bef2a3ca2c`, base
+`601dde8847cad82d038ea837c01d3da0d7449450`, no merge SHA. Run
+`local-mvp-task3`, attempt 1, on branch `feat/wave-0-plan-4-ci`. These are
+actual full-job attempts using explicit `--mode mvp`; failed or missing stages
+are not converted to success by collected passing cases.
+
+| Job | Actual original result | Counts and duration |
+| --- | --- | --- |
+| backend | PASS | 96/96, 0 failures/skips; 436.611s |
+| compose | PASS | 14/14, 0 failures/skips; 1400.580s |
+| contracts-sdk | FAIL `CI_COMMAND_FAILED` | 87 contract cases passed, 0 failures/skips; job incomplete; 1140.515s |
+| web-browser | FAIL `CI_COMMAND_FAILED` | 0 collected; 30.681s after native-library preparation |
+| security | FAIL `CI_SCAN_INCOMPLETE` | Required scanner blockers remain; 6.379s |
+
+[Compact safe job evidence](evidence/2026-11-12-mvp-rehearsal-5a17535.json)
+binds counts, reason/correlation, tool versions and run identity to that candidate.
+Each test job command is `python -m scripts.ci.jobs JOB --mode mvp --revision
+.local/ci-task3/revision.json --output .local/ci-task3/JOB.json`; security uses
+`python -m scripts.ci.security --mode mvp --revision .local/ci-task3/revision.json
+--output .local/ci-task3/security.json` with `CI_SCANNER_ROOT=.local/task5`.
+Runtime pins: Python 3.15.2, Node 24.22.2, npm 11.19.1, .NET 10.0.403, Docker
+29.9.3, Compose 5.7.0; scanners Gitleaks 8.30.1 and Trivy 0.76.2. Host PATH and
+LD_LIBRARY_PATH use the locally prepared pinned tools and extracted browser
+native libraries. This is local preparation, not proof of hosted provisioning.
+
+Security: Gitleaks BLOCKED 64 unique secret digests across 2 surfaces; Trivy
+PASS under unchanged policy, 10 locks and 6 nonblocking vulnerability records.
+`CI_UNLOCKED_DEPENDENCIES` remains required/blocking; only
+`CI_TOOL_DEPENDENCY_COVERAGE` is deferred. SAST, images, license and tool inventory
+remain OPEN. No finding approval, severity change, suppression or false-positive
+decision was made. See [triage](10-WAVE-0-MVP-SECURITY-TRIAGE.md).
+
+Bounded subprocess diagnosis confirmed the real Chromium launch passes with
+prepared host libraries. The browser job then fails at Plan3 generated-check
+with `SDK_GENERATED_MISMATCH`. Exactly five ignored restore files under
+`sdks/dotnet/Crm.Client/obj` were present after local build activity; they were
+preserved outside the source tree in ignored local scratch. The exact generated
+checker correctly rejects these extras. Full clean-state reruns using the same complete production job path both PASS:
+contracts-sdk 87/87, 0 failures/skips, 2070.489s; web-browser 58/58
+(54 Vitest + 4 real Playwright), 0 failures/skips, 303.270s. Contracts rerun
+completed generated-check (`SDK_GENERATED_CURRENT`), ClientConsumers, compatibility
+(`CONTRACT_COMPATIBLE`) and all five Plan3 harnesses, including exact-SHA
+clean-export with browser. The browser rerun completed the real Plan3 stack
+lifecycle and native-report parsing. Diagnostic execution wraps the existing
+runner subprocess boundary, preserving command order, timeouts and outputs;
+only fixed safe classifiers are printed. These are complete reruns, not selective
+replacements. Original failures remain recorded. No tracked runtime fix was
+needed; local SDK contamination was the cause. Rerun counts/identities and exact
+required scanner finding digests are in the compact safe evidence above.
+
+Static verification: `python3 -m scripts.ci.workflow`, actionlint on
+`.github/workflows/wave0.yml`, `bash -n scripts/ci/setup.sh`, and
+`git diff --check 601dde8..5a17535` PASS. Initial full pinned CI regression FAIL125/126, 0 skips, 287.610s; only
+`test_job_processes.ProcessTests.test_timeout_terminates_child_that_ignores_term`
+failed. The safe reporter discarded its traceback, so its exact original
+exception is UNKNOWN. Isolated process module then PASS4/4/1.507s; full
+pre-fix diagnostic replay PASS126/126, 0 failures/errors/skips, 268.910s.
+
+A controlled 0.75s startup delay reproduces a separate concrete fixture race:
+`execute(timeout=0.5)` correctly terminates the command before child PID
+publication, then the original test raises `FileNotFoundError`. The test
+assumes startup completes within its timeout instead of synchronizing readiness.
+Added slow-start case RED1 failure/5 tests/3.038s; minimal fixture readiness
+synchronization GREEN5/5/3.867s. It wraps real Popen until the real child has
+installed SIGTERM-ignore and published its PID, with a bounded 10s fixture
+readiness deadline and owned-group cleanup on setup failure. Production execute,
+half-second timeout and descendant termination assertions are unchanged.
+This test-only correction does not establish the unknown original exception.
+Final full post-fix CI regression PASS127/127, 0 failures/errors/skips,
+320.490s, exit0. Readiness test fix and handoff committed as
+`1ff6ca3145c4d1b23ec29805ad5e507870b38f36`. The full regression ran on that test-file
+content before commit; full service/security reports remain bound to 5a17535.
+Tasks 1–2 results remain historical separate evidence.
+
+Actual-report local completion roundtrip: backend/Compose/contracts/browser
+`CI_JOB_COMPLETE`, security `CI_JOB_FAILED`. Local aggregation of those five
+reports with corresponding local job outcomes exits1/`CI_JOB_NON_SUCCESS`,
+`success=false`; this is failure-preservation evidence, not remote scheduler
+proof.
+
+No remote PR/main run, protection/settings change, push/merge or deployment was
+performed. Remote CI NOT RUN; repository enforcement UNKNOWN. This evidence
+commit changes HEAD and therefore is not itself covered by the candidate runs.
+Wave 0/P0/RT-* remain OPEN; no wave-exit acceptance is claimed.
+
+
+Task 3 final review: implementation/workflow/fixture/test diff from601dde8 through
+5a17535 and the readiness correction reviewed; no additional runtime change.
+No public contract/schema, lock version or database migration change. Test-fixture
+rollback is a scoped revert of its commit; evidence should remain historical.
+Final workflow/actionlint/shell/Python AST/Markdown-link/JSON identity-count-digest
+checks and `git diff --check` PASS. Final evidence-only commit changes HEAD again;
+its full five-job suite is NOT RUN, and no acceptance is transferred. Concrete
+next work: accountable private finding review, unlocked dependency remediation,
+fresh agreed-candidate full gates and separately authorized remote CI.

@@ -33,9 +33,9 @@
 
 **Interfaces:** Preserve `RunIdentity`, `CiSummary`, five required jobs and their reporting. Image scans may run as optional hardening evidence but cannot be required for MVP test execution; do not claim image clearance. Existing contract policy preflight remains mandatory.
 
-- [ ] Write negative/positive tests for absent deferred image evidence with complete suite passing, mandatory test fail/skip/missing/wrong-SHA failing, real test execution no scanner dependency, and unchanged vs changed policy fail-closed. Run focused tests RED.
-- [ ] Implement explicit MVP mode in job/fixture/report path; remove unconditional `CI_TRUST_NOT_PROVISIONED` only for MVP aggregate, retain existing policy-transition blocker. Keep image hardening evidence optional and honestly marked not evaluated, not passed. No security privileges/caches added.
-- [ ] Run focused tests, workflow lint and relevant real fixture tests; document limits and commit `ci: separate MVP gates from image hardening`.
+- [x] Write negative/positive tests for absent deferred image evidence with complete suite passing, mandatory test fail/skip/missing/wrong-SHA failing, real test execution no scanner dependency, and unchanged vs changed policy fail-closed. Run focused tests RED.
+- [x] Implement explicit MVP mode in job/fixture/report path; remove unconditional `CI_TRUST_NOT_PROVISIONED` only for MVP aggregate, retain existing policy-transition blocker. Keep image hardening evidence optional and honestly marked not evaluated, not passed. No security privileges/caches added.
+- [x] Run focused tests, workflow lint and relevant real fixture tests; document limits and commit `ci: separate MVP gates from image hardening`.
 
 ### Task 2: Required scan evidence and triage
 
@@ -43,14 +43,28 @@
 
 **Interfaces:** Security job produces run-bound safe summary; secret and dependency scan status is separate from deferred SAST/license/image/tool hardening coverage. Fail closed if required scanner fails, history is missing, relevant dependency ecosystem is not covered, or unreviewed finding blocks under existing policy.
 
-- [ ] Test required scanner missing/stale/malformed, unverified secret, introduced-then-deleted secret, vulnerability, missing dependency coverage, and candidate-supplied untrusted waiver all fail; safe findings retain reason/correlation without raw output. Test deferred tool/license/SAST coverage reports OPEN rather than becoming a forged success. RED focused tests.
-- [ ] Implement scoped required-scan path without blanket exception, suppression, weakened severity or modified baseline. Record classified digest findings and unresolved dependency/image/license findings separately; no finding is deemed approved by this task.
-- [ ] Run focused/real scanner fixtures and exact candidate scan; document actual findings and blocking status, commit `ci: report MVP security scans and deferred coverage`.
+- [x] Test required scanner missing/stale/malformed, unverified secret, introduced-then-deleted secret, vulnerability, missing dependency coverage, and candidate-supplied untrusted waiver all fail; safe findings retain reason/correlation without raw output. Test deferred tool/license/SAST coverage reports OPEN rather than becoming a forged success. RED focused tests.
+- [x] Implement scoped required-scan path without blanket exception, suppression, weakened severity or modified baseline. Record classified digest findings and unresolved dependency/image/license findings separately; no finding is deemed approved by this task.
+- [x] Run focused/real scanner fixtures and exact candidate scan; document actual findings and blocking status, commit `ci: report MVP security scans and deferred coverage`.
 
 ### Task 3: Rehearsal and evidence
 
 **Files:** `docs/engineering/08-WAVE-0-PLAN-4-VERIFICATION.md`, `docs/engineering/09-WAVE-0-CI-MVP-SCOPE.md`, `docs/handoff/`, plan status.
 
-- [ ] Run full real local backend, Compose, contracts, browser and required security jobs on exact candidate, capturing counts and failures; do not replace failed/missing jobs with selective tests.
-- [ ] Record SHA, commands, versions, findings, scope/triage and actual per-job status. Remote PR CI, protection and settings remain NOT RUN/UNKNOWN until separately authorized; do not mark Wave 0, P0 or RT-* PASS.
-- [ ] Review entire diff; run appropriate full suite, `git diff --check` and document actual outcomes. Commit `docs: record MVP CI rehearsal and outstanding decisions`.
+- [x] Run full real local backend, Compose, contracts, browser and required security jobs on exact candidate, capturing counts and failures; do not replace failed/missing jobs with selective tests.
+- [x] Record SHA, commands, versions, findings, scope/triage and actual per-job status. Remote PR CI, protection and settings remain NOT RUN/UNKNOWN until separately authorized; do not mark Wave 0, P0 or RT-* PASS.
+- [x] Review entire diff; run appropriate full suite, `git diff --check` and document actual outcomes. Commit `docs: record MVP CI rehearsal and outstanding decisions`.
+
+
+## Local execution status — 2026-11-12
+
+Tasks1–3 executed locally. At exact5a17535, full backend96/96, Compose14/14,
+contracts87/87 and browser58/58 PASS after preserving/removing local ignored SDK
+restore artifacts; original failed attempts retained. Required security FAIL:
+64 secret digests and unlocked dependency coverage remain blocked, no approvals.
+Actual-report aggregation correctly FAILS. A separately reproduced timeout-test
+readiness race was corrected test-first in1ff6ca3; final full CI127/127 PASS.
+See [verification ledger](../../engineering/08-WAVE-0-PLAN-4-VERIFICATION.md)
+and [handoff](../../handoff/2026-11-12-wave-0-plan-4-mvp-scope-handoff.md).
+Later test/evidence commits have no complete five-job rehearsal; remote CI
+NOT RUN/enforcement UNKNOWN. Wave0/P0/RT-* and deferred hardening remain OPEN.
