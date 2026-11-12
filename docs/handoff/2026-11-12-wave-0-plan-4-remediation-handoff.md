@@ -84,3 +84,90 @@ package contents and review the four hash-bound false positives via existing
 trusted approval rules. Keep all blockers in force; rerun fresh exact-candidate
 full gates after concrete fixes. Backend/Compose, image findings and independent
 trust still need their own remediation; Wave 0/P0/RT-* remain OPEN.
+
+
+## Backend/Compose continuation — 2026-11-12
+
+Scope remains local current checkout, one coding agent, no worktree/subagents or
+remote writes. Started clean on `feat/wave-0-plan-4-ci` at
+`7de4e88ef4224e7b003d3dd539c2ab1238df1672`; read this handoff, Task 4/7
+handoffs and the verification ledger. Used systematic debugging, TDD and
+verification-before-completion. Wave 0/P0/RT-* remain OPEN.
+
+### Reproduction and root cause
+
+- Initial actual runner preflight failed `CI_COMMAND_FAILED` in 0.004s before
+  cases: ambient Node 26 could not load libatomic. Reused the already prepared
+  pinned Node 24.22.2 and local libatomic library; no host or source fix implied.
+- At exact clean starting HEAD, ran the actual backend and Compose runners
+  sequentially, with pinned tools, real Docker/Testcontainers/Compose and the
+  mandatory image gate. A private native-suite observer retained only fixed
+  reason tokens/outcomes (no raw test messages or scanner output). Backend
+  failed `CI_COMMAND_FAILED` in 168.697s: 47 failed native results, 46 explicitly
+  image-gate rejections, one other. Compose failed the same token in 932.285s:
+  13 failed native results, all explicit image-gate rejections. The strict TRX
+  parser rejects `ResultSummary outcome=Failed`, so outer failure normalization
+  records zero cases. This explains missing job counts, not historical causes.
+- Existing vulnerability/Java DB timestamps were still fresh at 00:52:22 UTC.
+  After the suite, regular pinned update commands both exited 0, but Java DB
+  retained upstream `2026-11-11T01:07:27.52801824Z`; at 01:09:26 UTC the strict
+  24-hour check correctly rejected it before package scanning. No timestamp,
+  freshness limit, scanner requirement or finding was changed.
+- A fresh task-owned cache retrieved Java DB normally: exit 0, 38.917s, finished
+  01:10:51 UTC, actual upstream `2026-11-12T00:58:04.30813481Z`, fresh. Normal
+  vulnerability DB retrieval yielded upstream `2026-11-11T19:04:54.958468957Z`.
+  Independent actual PostgreSQL image scan then completed package/SBOM stages
+  with 151 packages and remained INCOMPLETE. Fresh retrieval is not clearance.
+- A second full backend run with this fresh cache failed in 147.944s. Native
+  counters: 74 total/executed, 27 passed, 47 failed, zero skipped/notExecuted,
+  error, timeout or aborted. 46 failures were image gate; the other included
+  IOException/UnauthorizedAccessException and remains to be localized.
+- Fresh-cache native helper still emitted zero packages although independent
+  scan collected 151. A narrowly instrumented real migration probe located the
+  difference: `python3 -m scripts.ci.image_identity` creates
+  `__main__.ImageIdentity`, while `scan_image` imports the named-module class.
+  Dataclass equality rejects those distinct Python classes despite equal fields,
+  before DB update/package scanning. This proves the current helper defect; it
+  does not retrospectively prove the original Task 4 pre-image-gate failure.
+
+### Scoped correction and verification checkpoint
+
+Changed `scripts/ci/scan.py` to compare the complete dataclass field mappings
+between observed and requested image identity. Config ID, platform, job/run and
+manifest fields remain checked; no identity/finding/freshness rule is waived.
+Added regression in `tests/CI/test_image_identity.py` loading the actual helper
+file as a distinct module, exercising real scan parsing with external scanner
+I/O fixtures and rejecting a genuinely different config ID.
+
+- RED pinned image suite: 23 tests, one expected failure (valid CLI identity
+  incorrectly INCOMPLETE), 0 errors, 0 skips, 0.411s.
+- GREEN pinned image suite: 23 PASS, 0 skips, 0.266s.
+- Real selective migration probe after correction reaches DB updates, four fresh
+  checks, vulnerability scan and SBOM generation. It still fails the mandatory
+  gate; no backend/service success is claimed. This was working-tree diagnostic
+  evidence, not exact committed-candidate acceptance.
+- Full pinned CI discovery: 116 PASS, 0 skips, 333.680s, exit 0. Command:
+  `PATH=<existing pinned Node24 bin>:$PATH LD_LIBRARY_PATH=<existing Python315
+  lib>:<prepared libatomic> .local/ci-venv315/bin/python -m unittest discover
+  -s tests/CI`. Raw runner output stayed in ignored owner-only local storage.
+- Real scanner fixture suite with old cache: FAIL, 12 tests / 1 failure,
+  24.725s, exit 1. Named failure:
+  `test_real_images.RealImageTests.test_vulnerable_synthetic_image_blocks_with_nonempty_sbom`;
+  expected blocked versus actual incomplete, consistent with the verified stale
+  old Java metadata. Fresh task-owned cache rerun: 12 PASS, 0 skips, 25.160s, exit 0.
+  Fixture success does not clear actual repository/image findings.
+- `git diff --check`: PASS at this checkpoint.
+- Initial backend/Compose owner cleanup verified zero labelled containers,
+  networks and volumes; existing foreign Keycloak untouched. Further runs and
+  cleanup/results will be appended before final handoff.
+
+Ignored owner-only `.local/remediation/backend-compose/` contains diagnostic
+scripts and normalized local records. Scanner raw reports remain ephemeral and
+are deleted by `private_command`; no raw diagnostic is published. No public
+contract/schema, database migration, dependency version or security policy
+change. Rollback: revert the scoped scanner comparison/regression commit.
+
+Next: finish full CI verification, review/commit correction, rerun exact-SHA
+backend/probes and localize the additional permission failure without touching
+foreign resources. Full final-candidate gates, security findings, independent
+trust and remote acceptance remain blocked/not proven.

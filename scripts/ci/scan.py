@@ -468,7 +468,9 @@ def scan_image(scanner, identity):
         if scanner.kind!='trivy' or scanner.cache is None: raise ScanError()
         _verify_tool(scanner)
         inspected=_run_json(['docker','image','inspect',identity.imageId])
-        if len(inspected)!=1 or from_inspect(identity.job,identity.runId,inspected[0])!=identity: raise ScanError()
+        # The CLI loads image_identity as __main__; compare the complete bound
+        # fields across module instances rather than nominal dataclass types.
+        if len(inspected)!=1 or asdict(from_inspect(identity.job,identity.runId,inspected[0]))!=asdict(identity): raise ScanError()
         with private_command([str(scanner.executable),'image','--cache-dir',str(scanner.cache.resolve()),'--download-db-only'],timeout=300): pass
         metadata=_json(scanner.cache/'db/metadata.json'); require_fresh(metadata)
         # Java archives in Keycloak need the independent Java index too.

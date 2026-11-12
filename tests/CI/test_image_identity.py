@@ -48,6 +48,33 @@ class ImageTests(unittest.TestCase):
         result=scan_image(ScannerConfig('trivy',Path('/nonexistent'), 'a'*64,'0.76.2',cache=Path('/nonexistent')),self.identity())
         self.assertEqual('incomplete',result['status'])
 
+    def test_cli_module_identity_scans_matching_config_fields(self):
+        # The -m entrypoint loads these dataclasses separately from imports in scan.
+        # Comparing their Python class identities must not reject the same image.
+        import runpy
+        from contextlib import nullcontext
+        from pathlib import Path
+        from unittest.mock import patch
+        from scripts.ci.scan import ScannerConfig, scan_image
+        cli = runpy.run_path(images.__file__, run_name='image_cli_fixture')
+        identity = cli['ImageIdentity'](**vars(self.identity()))
+        self.assertIsNot(type(identity), type(self.identity()))
+        config = {'Id':identity.imageId,'Os':'linux','Architecture':'amd64'}
+        inventory = {'SchemaVersion':2,'Metadata':{'ImageID':identity.imageId},
+                     'Results':[{'Class':'os-pkgs','Packages':[{'Name':'safe','Version':'1'}]}]}
+        sbom = {'bomFormat':'CycloneDX','specVersion':'1.6',
+                'components':[{'type':'library','name':'safe','version':'1'}]}
+        scanner = ScannerConfig('trivy',Path('/fixture/trivy'),'a'*64,'0.76.2',cache=Path('/fixture/cache'))
+        for inspected_id, expected in ((identity.imageId,'pass'),('sha256:'+'b'*64,'incomplete')):
+            with self.subTest(inspected_id=inspected_id), \
+                    patch('scripts.ci.scan._verify_tool'), \
+                    patch('scripts.ci.scan._run_json',side_effect=[[dict(config,Id=inspected_id)],inventory,sbom]), \
+                    patch('scripts.ci.scan.private_command',side_effect=lambda *a,**kw:nullcontext()), \
+                    patch('scripts.ci.scan._json',return_value={'UpdatedAt':datetime.now(timezone.utc).isoformat()}):
+                result = scan_image(scanner,identity)
+            self.assertEqual(expected,result['status'])
+            self.assertEqual(1 if expected=='pass' else 0,result['packages'])
+
 if __name__=='__main__': unittest.main()
 
 class BindingTests(unittest.TestCase):
