@@ -567,3 +567,44 @@ claimed beyond the actual diagnostic above and previous 21 policy tests; no new
 unit tests were added to mirror unchanged fail-closed behavior. `git diff --check`
 PASS before commit. Changed files remain this handoff and the verification ledger;
 Wave 0/P0/RT-* remain OPEN.
+
+## Independent trust provisioning proposal — 2026-11-12
+
+Objective: make the independent verifier/empty-restore boundary concrete without
+provisioning remote authority. Read AGENTS.md, this handoff, verification ledger,
+trust spec, policy-transition implementation and workflow; verified workspace at
+`242a14c22ccc81359e3a1f354548cb813193f1d1` on `feat/wave-0-plan-4-ci`.
+Preserved unrelated untracked Plan 3 resumption handoff. Scope remains local;
+no worktree, subagent, remote write, settings change, service or key provisioning.
+
+Completed documentation only:
+`docs/ci/independent-verifier-provisioning.md` describes proposed independent
+service/App check ownership, exact required deployment fields and unassigned
+owner inputs, key purpose/custody/rotation/revocation, isolated workers and trusted
+supervisor, authenticated transport, complete five-job evidence, Surface-specific
+reviewed restore profile, new evidence contract, bootstrap/migration/rollback and
+RED/GREEN implementation sequence. It preserves the unconditional
+`CI_TRUST_NOT_PROVISIONED` failure. Existing local transition CLI remains closed.
+The document is a proposal for review, not user approval of an architecture or
+remote deployment. No production signer or independently controlled source exists
+as a result of writing it.
+
+Decision proposed: reconstruct only independently reviewed Surface restore inputs
+in a trusted pinned worker; arbitrary candidate MSBuild-generated empty assets
+are not authoritative. Exact profile/input closure and negative constraints reject
+changed imports even when lock bytes remain unchanged. Both Debug/Release command
+variants require a real SDK spike before adoption. Unsupported projects, tool
+closure, CorvusProbe restore and scanner findings remain blocked.
+
+Verification: `git diff --check` PASS. No code tests, real SDK restore, full CI,
+remote shadow/enforcement tests or operational trust tests run in this documentation
+session. Only the proposal and this handoff changed. The planned negative matrix
+is explicitly not completed. No public API/schema, dependency, security policy,
+workflow or acceptance change. Rollback: revert documentation commit.
+
+Next: owner reviews architecture and supplies missing immutable release/profile
+hashes, actual administrative roles/IDs and bootstrap ADR; implement/test locally
+with synthetic authority first. Actual independent source/service/App/keys,
+remote shadow runs and ruleset/enforcement require separate authorization. Never
+remove the local trust failure before reviewed independent evidence and explicit
+migration. Wave 0/P0/RT-* remain OPEN.
