@@ -93,7 +93,7 @@ def correlation():
     return str(uuid.uuid4())
 
 
-def normalized_report(raw,parsed,expected):
+def normalized_report(raw,parsed,expected,mode="hardening"):
     """Return a new bounded schema; never mutate or return the parsed input."""
     job=parsed.job;status=parsed.status
     tools={}
@@ -122,7 +122,9 @@ def normalized_report(raw,parsed,expected):
             'tools':tools,'artifacts':[],'elapsed_seconds':raw['elapsed_seconds'],'suites':suites,
             'passed':parsed.passed,'failed':parsed.failed,'skipped':parsed.skipped,'total':parsed.total,
             'reason_token':reason,'correlation_id':correlation()}
-    if job in ('backend','compose','web-browser') and 'image_evidence' in raw:
+    if mode=='mvp' and job in ('backend','compose','web-browser'):
+        result['image_hardening']={'status':'not-evaluated'}
+    if mode=='hardening' and job in ('backend','compose','web-browser') and 'image_evidence' in raw:
         result['image_evidence']=[image_record(row) for row in raw['image_evidence']]
     if job=='security':
         if 'security_evidence' in raw:

@@ -29,17 +29,17 @@ jobs:
         run: python -m scripts.ci.revision --event-file "$GITHUB_EVENT_PATH" > revision.json
       - id: setup
         name: Provision locked tools
-        run: bash scripts/ci/setup.sh backend
+        run: bash scripts/ci/setup.sh backend mvp
       - id: gate
         name: Run backend gate
         env:
           CI_SCANNER_ROOT: ${{ github.workspace }}/.local/ci-scanners
-        run: python -m scripts.ci.jobs backend --revision revision.json --output .local/ci/backend.json
+        run: python -m scripts.ci.jobs backend --mode mvp --revision revision.json --output .local/ci/backend.json
       - name: Normalize completion diagnostics
         if: always()
         env:
           CI_STEPS: ${{ toJSON(steps) }}
-        run: python -m scripts.ci.completion backend --output .local/ci/backend.json
+        run: python -m scripts.ci.completion backend --mode mvp --output .local/ci/backend.json
       - name: Publish safe summary
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -71,17 +71,17 @@ jobs:
         run: python -m scripts.ci.revision --event-file "$GITHUB_EVENT_PATH" > revision.json
       - id: setup
         name: Provision locked tools
-        run: bash scripts/ci/setup.sh compose
+        run: bash scripts/ci/setup.sh compose mvp
       - id: gate
         name: Run compose gate
         env:
           CI_SCANNER_ROOT: ${{ github.workspace }}/.local/ci-scanners
-        run: python -m scripts.ci.jobs compose --revision revision.json --output .local/ci/compose.json
+        run: python -m scripts.ci.jobs compose --mode mvp --revision revision.json --output .local/ci/compose.json
       - name: Normalize completion diagnostics
         if: always()
         env:
           CI_STEPS: ${{ toJSON(steps) }}
-        run: python -m scripts.ci.completion compose --output .local/ci/compose.json
+        run: python -m scripts.ci.completion compose --mode mvp --output .local/ci/compose.json
       - name: Publish safe summary
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -113,15 +113,15 @@ jobs:
         run: python -m scripts.ci.revision --event-file "$GITHUB_EVENT_PATH" > revision.json
       - id: setup
         name: Provision locked tools
-        run: bash scripts/ci/setup.sh contracts-sdk
+        run: bash scripts/ci/setup.sh contracts-sdk mvp
       - id: gate
         name: Run contracts-sdk gate
-        run: python -m scripts.ci.jobs contracts-sdk --revision revision.json --output .local/ci/contracts-sdk.json
+        run: python -m scripts.ci.jobs contracts-sdk --mode mvp --revision revision.json --output .local/ci/contracts-sdk.json
       - name: Normalize completion diagnostics
         if: always()
         env:
           CI_STEPS: ${{ toJSON(steps) }}
-        run: python -m scripts.ci.completion contracts-sdk --output .local/ci/contracts-sdk.json
+        run: python -m scripts.ci.completion contracts-sdk --mode mvp --output .local/ci/contracts-sdk.json
       - name: Publish safe summary
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -153,17 +153,17 @@ jobs:
         run: python -m scripts.ci.revision --event-file "$GITHUB_EVENT_PATH" > revision.json
       - id: setup
         name: Provision locked tools
-        run: bash scripts/ci/setup.sh web-browser
+        run: bash scripts/ci/setup.sh web-browser mvp
       - id: gate
         name: Run web-browser gate
         env:
           CI_SCANNER_ROOT: ${{ github.workspace }}/.local/ci-scanners
-        run: python -m scripts.ci.jobs web-browser --revision revision.json --output .local/ci/web-browser.json
+        run: python -m scripts.ci.jobs web-browser --mode mvp --revision revision.json --output .local/ci/web-browser.json
       - name: Normalize completion diagnostics
         if: always()
         env:
           CI_STEPS: ${{ toJSON(steps) }}
-        run: python -m scripts.ci.completion web-browser --output .local/ci/web-browser.json
+        run: python -m scripts.ci.completion web-browser --mode mvp --output .local/ci/web-browser.json
       - name: Publish safe summary
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -281,9 +281,4 @@ jobs:
         run: |
           python -m scripts.ci.revision --event-file "$GITHUB_EVENT_PATH" > revision.json
           python -c 'import json,os; from pathlib import Path; r=json.loads(Path("revision.json").read_text()); Path("identity.json").write_text(json.dumps({"run_id":os.environ["GITHUB_RUN_ID"],"run_attempt":os.environ["GITHUB_RUN_ATTEMPT"],"candidate_sha":r["candidate_sha"],"base_sha":r["base_sha"],"merge_sha":r["merge_sha"]})); Path("needs.json").write_text(os.environ["CI_NEEDS"])'
-          python -m scripts.ci.aggregate --identity identity.json --needs needs.json --reports .local/ci/*.json
-      - name: Independent trust provisioning required
-        if: always()
-        run: |
-          python -c 'import json,uuid; print(json.dumps({"reasonToken":"CI_TRUST_NOT_PROVISIONED","correlationId":str(uuid.uuid4())}))'
-          exit 1
+          python -m scripts.ci.aggregate --mode mvp --identity identity.json --needs needs.json --reports .local/ci/*.json

@@ -8,7 +8,7 @@ import json
 from unittest.mock import patch
 from dataclasses import replace
 from scripts.ci.aggregate import aggregate, INVENTORY
-from scripts.ci.summary import CiSummary
+from scripts.ci.summary import CiSummary, ReportError
 from test_summary import IDENTITY, report
 
 class AggregateTests(unittest.TestCase):
@@ -102,3 +102,51 @@ class AggregateTests(unittest.TestCase):
         # A scheduler that never runs the aggregator emits no successful check;
         # no synthetic outcome may substitute for cancelled/missing prerequisites.
         self.assertFalse(aggregate({},[],IDENTITY).success)
+
+    def test_mvp_complete_reports_without_images_and_security_still_mandatory(self):
+        import copy,hashlib
+        from scripts.ci.completion import complete
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);policy=root/'policy.json'
+            policy.write_text(json.dumps({'jobs':{job:['local'] for job in INVENTORY},
+                'suites':{'local':{'minimum':1,'required':['required']}}}))
+            data=[]
+            for job in INVENTORY:
+                item=report(job);item.pop('image_evidence')
+                if job in ('backend','compose','web-browser'):
+                    item['image_hardening']={'status':'not-evaluated'}
+                if job=='security':
+                    sbom={'components':[{'name':'fixture','version':'1'}]}
+                    item['security_evidence']={'identity':vars(IDENTITY),'status':'pass',
+                        'scanned_count':1,'findings':[],'reason_token':'CI_SCAN_OK'}
+                    item['source_evidence']={'identity':vars(IDENTITY),'status':'inventory-only',
+                        'coverageGaps':[],'lockCount':1,'sbom':sbom,
+                        'sbomSha256':hashlib.sha256(json.dumps(sbom,sort_keys=True,separators=(',',':')).encode()).hexdigest()}
+                data.append(item)
+            def summaries(items):
+                result=[]
+                for item in items:
+                    path=root/(item['job']+'.json');path.write_text(json.dumps(item))
+                    result.append(parse_report('normalized',path,IDENTITY,mode='mvp'))
+                return result
+            needs=dict.fromkeys(INVENTORY,'success')
+            with patch('scripts.ci.summary.POLICY_PATH',policy):
+                self.assertTrue(aggregate(needs,summaries(data),IDENTITY).success)
+                path=root/'backend.json'
+                self.assertEqual(complete('backend',path,{'gate':{'outcome':'success'}},IDENTITY,mode='mvp'),'CI_JOB_COMPLETE')
+                normalized=json.loads(path.read_text())
+                self.assertEqual(normalized['image_hardening'],{'status':'not-evaluated'})
+                self.assertNotIn('image_evidence',normalized)
+                for field,value in [('status','blocked'),('scanned_count',0)]:
+                    bad=copy.deepcopy(data);bad[-1]['security_evidence'][field]=value
+                    with self.subTest(field=field),self.assertRaises(ReportError):summaries(bad)
+                for change in ('failure','skipped','missing','wrong-sha'):
+                    bad=copy.deepcopy(data)
+                    if change=='failure':
+                        bad[0]['status']='failure';bad[0]['suites'][0]['tests'][0]['outcome']='failed'
+                        self.assertFalse(aggregate(needs,summaries(bad),IDENTITY).success)
+                    elif change=='missing':self.assertFalse(aggregate(needs,summaries(bad[:-1]),IDENTITY).success)
+                    else:
+                        if change=='skipped':bad[0]['suites'][0]['tests'][0]['outcome']='skipped'
+                        else:bad[0]['identity']['candidate_sha']='f'*40
+                        with self.subTest(change=change),self.assertRaises(ReportError):summaries(bad)

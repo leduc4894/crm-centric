@@ -26,7 +26,7 @@ class JobReportTests(unittest.TestCase):
             output=Path(directory)/'summary.json'
             report={'job':'backend','suites':[{'name':'non-compose','format':'trx',
                        'report':'synthetic-native-secret-sentinel'}]}
-            def interrupt(kind,path,expected):
+            def interrupt(kind,path,expected,mode="hardening"):
                 self.assertNotEqual(path,output)
                 self.assertIn('synthetic-native-secret-sentinel',path.read_text())
                 self.assertFalse(output.exists())
@@ -66,3 +66,30 @@ class BrowserProvisioningTests(unittest.TestCase):
         self.assertNotIn('--with-deps',runner)
         self.assertIn('chromium.launch',runner)
         self.assertIn('browser.close',runner)
+
+class MvpExecutionTests(unittest.TestCase):
+    def test_mvp_scope_removes_inherited_image_hooks_and_restores_environment(self):
+        import os
+        from scripts.ci.jobs import execution_mode
+        with patch.dict(os.environ,{'CI_IMAGE_EVIDENCE':'unavailable','CI_IMAGE_JOB':'backend'}):
+            with execution_mode('mvp','backend',Path('/unused')):
+                self.assertNotIn('CI_IMAGE_EVIDENCE',os.environ)
+                self.assertNotIn('CI_IMAGE_JOB',os.environ)
+            self.assertEqual(os.environ['CI_IMAGE_EVIDENCE'],'unavailable')
+        with execution_mode('hardening','backend',Path('/evidence')):
+            self.assertEqual(os.environ['CI_IMAGE_EVIDENCE'],'/evidence')
+
+    def test_mvp_setup_does_not_provision_scanners_for_test_jobs(self):
+        # Shell execution with inert prerequisite commands proves the branch,
+        # without installing tools or requiring scanner downloads.
+        import subprocess
+        with tempfile.TemporaryDirectory() as directory:
+            script=Path(directory)/'setup.sh'
+            source=Path('scripts/ci/setup.sh').read_text()
+            start=source.index('if [[ "${2:-hardening}"')
+            end=source.index('case "${1:-}"')
+            script.write_text('set -eu\npython() { echo "$*"; }\n'+source[start:end])
+            for job in ('backend','compose','contracts-sdk','web-browser'):
+                result=subprocess.run(['bash',str(script),job,'mvp'],capture_output=True,text=True)
+                self.assertEqual(result.returncode,0)
+                self.assertNotIn('provision_scanners',result.stdout)

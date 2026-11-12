@@ -105,6 +105,24 @@ def job_resources():
             else:os.environ['CI_RESOURCE_OWNER'] = previous
 
 
+@contextmanager
+def execution_mode(mode, job, evidence):
+    """MVP executes real fixtures without invoking deferred scanner hooks."""
+    if mode not in ('mvp','hardening'):
+        raise JobError('CI_JOB_INPUT_INVALID')
+    keys=('CI_IMAGE_JOB','CI_IMAGE_EVIDENCE')
+    previous={key:os.environ.get(key) for key in keys}
+    try:
+        for key in keys:os.environ.pop(key,None)
+        if mode=='hardening' and job in ('backend','compose','web-browser'):
+            os.environ.update(CI_IMAGE_JOB=job,CI_IMAGE_EVIDENCE=str(evidence))
+        yield
+    finally:
+        for key,value in previous.items():
+            if value is None:os.environ.pop(key,None)
+            else:os.environ[key]=value
+
+
 def tool_versions():
     return {'node':execute(['node','--version']).lstrip('v'),
             'npm':execute(['npm','--version']), 'python':platform.python_version(),
@@ -146,14 +164,14 @@ def atomic_write(output, report):
             temporary.unlink(missing_ok=True)
 
 
-def publish_report(report, output, identity):
+def publish_report(report, output, identity, mode="hardening"):
     from scripts.ci.summary import parse_cases
     # The validation input contains native diagnostic payloads. Keep it private
     # and outside the always-uploaded artifact tree even on cancellation.
     with tempfile.TemporaryDirectory(prefix='ci-private-validation-') as directory:
         private = Path(directory)/'native.json'
         private.write_text(json.dumps(report))
-        parsed = parse_report('normalized',private,identity)
+        parsed = parse_report('normalized',private,identity,mode=mode)
     for suite in report['suites']:
         if 'format' in suite:
             name = suite['name']
@@ -167,6 +185,7 @@ def publish_report(report, output, identity):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('job', choices=['backend','compose','contracts-sdk','web-browser'])
+    parser.add_argument('--mode', choices=['mvp','hardening'], default='hardening')
     parser.add_argument('--revision', required=True, type=Path)
     parser.add_argument('--output', required=True, type=Path)
     args = parser.parse_args()
@@ -193,11 +212,10 @@ def main():
             raise JobError('CI_TOOLCHAIN_MISMATCH') from None
         report['tools'] = {**versions, 'runner_image':os.environ.get('ImageOS','local'),
                            'runner_version':os.environ.get('ImageVersion','local')}
-        with tempfile.TemporaryDirectory(prefix='ci-job-') as directory, job_resources():
+        if args.mode=='mvp' and args.job in ('backend','compose','web-browser'):
+            report['image_hardening']={'status':'not-evaluated'}
+        with tempfile.TemporaryDirectory(prefix='ci-job-') as directory, job_resources(), execution_mode(args.mode,args.job,Path(directory)/'image-evidence'):
             scratch = Path(directory)
-            if args.job in ('backend','compose','web-browser'):
-                os.environ['CI_IMAGE_JOB'] = args.job
-                os.environ['CI_IMAGE_EVIDENCE'] = str(scratch/'image-evidence')
             def py_suite(name, directory):
                 output = scratch / (name+'.json')
                 try:
@@ -239,7 +257,7 @@ def main():
                     report['suites'].extend([
                         {'name':'vitest','format':'vitest','report':json.loads(vitest.read_text())},
                         {'name':'browser','format':'playwright','report':json.loads(browser.read_text())}])
-            if args.job in ('backend','compose','web-browser'):
+            if args.mode=='hardening' and args.job in ('backend','compose','web-browser'):
                 from scripts.ci.image_identity import verify_job_evidence
                 from scripts.ci.scan import ScanError
                 records = [json.loads(p.read_text()) for p in (scratch/'image-evidence').glob('*.json')]
@@ -250,7 +268,7 @@ def main():
                 report['image_evidence'] = records
         report['status'] = 'success'
         report['elapsed_seconds'] = time.monotonic()-started
-        publish_report(report,args.output,identity)
+        publish_report(report,args.output,identity,mode=args.mode)
         token = 'CI_JOB_COMPLETE'
     except (JobError, ReportError, ValueError, KeyError, OSError) as failure:
         report['status'] = 'failure'

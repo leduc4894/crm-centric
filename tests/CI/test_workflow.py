@@ -58,12 +58,19 @@ class RealProducerTests(unittest.TestCase):
         self.assertIn('PLAYWRIGHT_JSON_OUTPUT_NAME',(ROOT/'apps/crm-web/playwright.config.ts').read_text())
 
 class TrustBootstrapTests(unittest.TestCase):
-    def test_missing_independent_trust_remains_explicit_failure(self):
+    def test_mvp_aggregate_defers_independent_trust_and_selects_explicit_mode(self):
         workflow = yaml.safe_load((ROOT/'.github/workflows/wave0.yml').read_text())
         steps = workflow['jobs']['wave0-required']['steps']
         blocked = [step for step in steps if 'CI_TRUST_NOT_PROVISIONED' in step.get('run','')]
-        self.assertEqual(len(blocked),1)
-        self.assertIn('exit 1',blocked[0]['run'])
+        self.assertEqual(blocked,[])
+        aggregate=next(step for step in steps if step.get('id')=='aggregate')
+        self.assertIn('--mode mvp',aggregate['run'])
+        for job in ('backend','compose','contracts-sdk','web-browser'):
+            steps_job=workflow['jobs'][job]['steps']
+            gate=next(step for step in steps_job if step.get('id')=='gate')
+            self.assertIn('--mode mvp',gate['run'])
+            setup=next(step for step in steps_job if step.get('id')=='setup')
+            self.assertTrue(setup['run'].endswith(' mvp'))
         for job in ('backend','compose','contracts-sdk','web-browser'):
             pins=[step['with']['python-version'] for step in workflow['jobs'][job]['steps']
                   if step.get('uses','').startswith('actions/setup-python@')]

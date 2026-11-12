@@ -14,7 +14,7 @@ from scripts.ci.publication import normalized_report
 from scripts.ci.scan import ScanError
 
 
-def complete(job, output, steps, expected=None):
+def complete(job, output, steps, expected=None, mode="hardening"):
     token='CI_STEP_NON_SUCCESS'
     try:
         # Atomic same-filesystem quarantine precedes every payload read. A hard
@@ -38,17 +38,17 @@ def complete(job, output, steps, expected=None):
         if expected is not None and outcomes.get('gate') in ('success','failure'):
             with tempfile.TemporaryDirectory(prefix='ci-completion-input-') as directory:
                 private=Path(directory)/'report.json';private.write_bytes(payload)
-                parsed=parse_report('normalized',private,expected)
+                parsed=parse_report('normalized',private,expected,mode=mode)
             if parsed.job!=job: raise ValueError()
             if (all(value=='success' for value in outcomes.values()) and parsed.status=='success') or parsed.status=='failure':
                 raw=json.loads(payload,object_pairs_hook=_object)
-                clean=normalized_report(raw,parsed,expected)
+                clean=normalized_report(raw,parsed,expected,mode=mode)
                 # Revalidate the reconstructed artifact privately before replacing
                 # the upload path. Input parser acceptance alone authorizes no bytes.
                 with tempfile.TemporaryDirectory(prefix='ci-completion-') as directory:
                     private=Path(directory)/'report.json'
                     private.write_text(json.dumps(clean))
-                    if parse_report('normalized',private,expected)!=parsed: raise ReportError()
+                    if parse_report('normalized',private,expected,mode=mode)!=parsed: raise ReportError()
                 atomic_write(output,clean)
                 return 'CI_JOB_COMPLETE' if parsed.status=='success' else 'CI_JOB_FAILED'
     except (OSError,ValueError,TypeError,KeyError,AttributeError,IndexError,RecursionError,OverflowError,ReportError,ScanError):
@@ -65,6 +65,7 @@ def main():
         def error(self,message): raise ValueError()
     parser=SafeParser()
     parser.add_argument('job',choices=['backend','compose','contracts-sdk','web-browser','security'])
+    parser.add_argument('--mode',choices=['mvp','hardening'],default='hardening')
     parser.add_argument('--output',type=Path,required=True)
     try: args=parser.parse_args()
     except ValueError:
@@ -77,7 +78,7 @@ def main():
             revision['candidate_sha'],revision['base_sha'],revision['merge_sha'])
         steps=json.loads(os.environ['CI_STEPS'])
     except (OSError,ValueError,KeyError): steps={}
-    token=complete(args.job,args.output,steps,expected)
+    token=complete(args.job,args.output,steps,expected,mode=args.mode)
     print(json.dumps({'reasonToken':token,'correlationId':str(uuid.uuid4())}))
     return 0 if token=='CI_JOB_COMPLETE' else 1
 

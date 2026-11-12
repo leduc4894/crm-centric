@@ -28,6 +28,25 @@ class SummaryTests(unittest.TestCase):
         self.patcher.start()
         self.addCleanup(self.patcher.stop)
 
+    def test_mvp_absent_images_are_not_evaluated_but_tests_remain_required(self):
+        import copy
+        data=report();data.pop('image_evidence')
+        data['image_hardening']={'status':'not-evaluated'}
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory)/'report.json'
+            def parse(value):
+                path.write_text(json.dumps(value))
+                return parse_report('normalized',path,IDENTITY,mode='mvp')
+            self.assertEqual(parse(data).passed,1)
+            for change in ('failed','skipped','missing','sha','clearance'):
+                bad=copy.deepcopy(data)
+                if change in ('failed','skipped'):bad['suites'][0]['tests'][0]['outcome']=change
+                elif change=='missing':bad['suites']=[]
+                elif change=='sha':bad['identity']['candidate_sha']='f'*40
+                else:bad['image_hardening']['status']='pass'
+                with self.subTest(change=change),self.assertRaises(ReportError):parse(bad)
+            with self.assertRaises(ReportError):parse_report('normalized',path,IDENTITY,mode='unknown')
+
     def test_required_identity_cannot_be_replaced(self):
         data=report()
         data['suites'][0]['tests'][0]['id']='replacement'

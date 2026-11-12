@@ -11,7 +11,7 @@ public sealed class ContainerImages : IAsyncLifetime
     static ContainerImages()
     {
         // CI has explicit owner-label cleanup, so no unobserved Ryuk sidecar runs.
-        if (Environment.GetEnvironmentVariable("CI_IMAGE_EVIDENCE") is not null)
+        if (Environment.GetEnvironmentVariable("CI_RESOURCE_OWNER") is not null)
             DotNet.Testcontainers.Configurations.TestcontainersSettings.ResourceReaperEnabled = false;
     }
     public string Api { get; } = "crm-task3-api-" + Guid.NewGuid().ToString("N");
@@ -46,7 +46,7 @@ public sealed class ContainerImages : IAsyncLifetime
         var cid = evidence ? Path.Combine(Path.GetTempPath(), "crm-ci-container-" + Guid.NewGuid().ToString("N")) : null;
         if (evidence) args = new[] { "run", "--cidfile", cid! }.Concat(args.Skip(1).Where(arg => arg != "--rm")).ToArray();
         var owner = Environment.GetEnvironmentVariable("CI_RESOURCE_OWNER");
-        if (evidence && owner is not null)
+        if (args[0] == "run" && owner is not null)
             args = new[] { "run", "--label", "io.crm-centric.ci-owner=" + owner }.Concat(args.Skip(1)).ToArray();
         var start = new ProcessStartInfo("docker") { WorkingDirectory = Root, RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
         foreach (var arg in args) start.ArgumentList.Add(arg);

@@ -56,8 +56,10 @@ def validate_coverage(name, tests, policy):
             raise ReportError('CI_UNEXPECTED_SKIP')
 
 
-def parse_report(kind, path, expected):
+def parse_report(kind, path, expected, mode="hardening"):
     try:
+        if mode not in ('mvp','hardening'):
+            raise ReportError()
         if kind != 'normalized' or path.stat().st_size > 8 * 1024 * 1024:
             raise ReportError()
         data = json.loads(path.read_text(encoding='utf-8'), object_pairs_hook=_object)
@@ -95,7 +97,10 @@ def parse_report(kind, path, expected):
                     or not source.get('sbom',{}).get('components')
                     or source.get('sbomSha256')!=hashlib.sha256(json.dumps(source['sbom'],sort_keys=True,separators=(',',':')).encode()).hexdigest()):
                 raise ReportError('CI_SCAN_INCOMPLETE')
-        if job in ('backend','compose','web-browser') and data['status']=='success':
+        if mode == 'mvp' and job in ('backend','compose','web-browser'):
+            if data.get('image_hardening') != {'status':'not-evaluated'} or 'image_evidence' in data:
+                raise ReportError('CI_IMAGE_EVIDENCE_INCOMPLETE')
+        if mode == 'hardening' and job in ('backend','compose','web-browser') and data['status']=='success':
             from scripts.ci.image_identity import verify_job_evidence
             from scripts.ci.scan import ScanError
             try:

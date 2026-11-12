@@ -48,6 +48,7 @@ def main():
         return json.loads(path.read_text(), object_pairs_hook=_object)
 
     parser = SafeParser(description=__doc__)
+    parser.add_argument('--mode',choices=['mvp','hardening'],default='hardening')
     parser.add_argument('--identity', type=Path, required=True)
     parser.add_argument('--needs', type=Path, required=True)
     parser.add_argument('--reports', type=Path, nargs='+', required=True)
@@ -61,7 +62,7 @@ def main():
                      for key,value in needs.items()}
         else:
             raise ReportError('CI_AGGREGATE_INPUT_INVALID')
-        summaries = [parse_report('normalized', path, expected) for path in args.reports]
+        summaries = [parse_report('normalized', path, expected, mode=args.mode) for path in args.reports]
         result = aggregate(needs, summaries, expected)
     except (ReportError, OSError, ValueError, TypeError, KeyError, RecursionError) as failure:
         reason = failure.reason_token if isinstance(failure,ReportError) else 'CI_AGGREGATE_INPUT_INVALID'
