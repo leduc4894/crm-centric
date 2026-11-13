@@ -86,13 +86,9 @@ def resolve_event(event: dict, checkout_sha: str, git: GitReader, *, event_sha=N
                     'CI_BASE_UNAVAILABLE')
         head = _sha(head_data.get('sha') if isinstance(head_data, dict) else None,
                     'CI_CANDIDATE_UNAVAILABLE')
-        merge = pr.get('merge_commit_sha')
-        if merge is None:
-            # An opened webhook can precede GitHub's asynchronous merge calculation.
-            # Actions still binds GITHUB_SHA to the run's synthetic merge commit.
-            candidate = _sha(event_sha, 'CI_CANDIDATE_UNAVAILABLE')
-        else:
-            candidate = _sha(merge, 'CI_CANDIDATE_UNAVAILABLE')
+        # Webhook merge_commit_sha may describe an earlier merge calculation.
+        # Bind the candidate to this Actions run, then prove its event parents.
+        candidate = _sha(event_sha, 'CI_CANDIDATE_UNAVAILABLE')
         git.commit(base, 'CI_BASE_UNAVAILABLE')
         git.commit(head, 'CI_CANDIDATE_UNAVAILABLE')
         git.commit(candidate, 'CI_CANDIDATE_UNAVAILABLE')

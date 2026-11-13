@@ -56,9 +56,9 @@ Commands local: `python3 -m unittest discover -s tests/CI -v`; `python3 scripts/
 
 **Files:** `scripts/ci/revision.py`, `tests/CI/test_revision.py`, synthetic Git/event fixtures.
 
-**Interface:** `resolve_event(event: dict, checkout_sha: str, git: GitReader) -> RevisionContext` chứa immutable candidate/base/head/merge SHAs và reason token khi lỗi; `GitReader` đọc Git objects, không fetch/reset.
+**Interface:** `resolve_event(event: dict, checkout_sha: str, git: GitReader, *, event_sha=None) -> RevisionContext` chứa immutable candidate/base/head/merge SHAs và reason token khi lỗi; `GitReader` đọc Git objects, không fetch/reset.
 
-- [ ] Viết tests PR candidate: checked-out SHA = event merge SHA, hai parents lần lượt base/head, merge-base = event base. Mismatched parent, stale/replaced merge ref, advanced base, missing object phải fail `CI_CANDIDATE_UNAVAILABLE` hoặc `CI_BASE_UNAVAILABLE`.
+- [ ] Viết tests PR candidate: checked-out SHA = Actions `GITHUB_SHA` của run, hai parents lần lượt event base/head, merge-base = event base. `pull_request.merge_commit_sha` là metadata có thể stale (đã quan sát trên remote run43454678387), không làm candidate authority. Missing/invalid Actions SHA phải fail closed. Mismatched parent, stale/replaced merge ref, advanced base, missing object phải fail `CI_CANDIDATE_UNAVAILABLE` hoặc `CI_BASE_UNAVAILABLE`.
 - [ ] Viết push tests: `before` ancestor của `after`, checkout=after; zero/missing/non-ancestor và event `forced=true` đều fail. Manual/merge_group fixtures không tự dùng HEAD làm base; merge queue chỉ supported sau event-specific proof.
 - [ ] Chạy `python3 -m unittest discover -s tests/CI -p test_revision.py -v`: RED do behavioral stub. Implement SHA validation, bounded Git queries và safe JSON output; GREEN. Commit `feat(ci): validate event revision provenance`.
 

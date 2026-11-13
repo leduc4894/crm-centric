@@ -42,12 +42,12 @@ class RevisionTests(unittest.TestCase):
 
     def reject(self, event, checkout, token):
         with self.assertRaises(RevisionError) as raised:
-            resolve_event(event, checkout, self.git)
+            resolve_event(event, checkout, self.git, event_sha=checkout)
         self.assertEqual(token, raised.exception.reason_token)
         self.assertTrue(raised.exception.correlation_id)
 
     def test_pr_binds_all_immutable_revisions(self):
-        ctx = resolve_event(self.event, self.merge, self.git)
+        ctx = resolve_event(self.event, self.merge, self.git, event_sha=self.merge)
         self.assertEqual((self.merge, self.base, self.head, self.merge, self.base),
                          (ctx.candidate_sha, ctx.base_sha, ctx.head_sha,
                           ctx.merge_sha, ctx.merge_base_sha))
@@ -100,12 +100,20 @@ class RevisionTests(unittest.TestCase):
                 self.assertEqual('CI_CANDIDATE_UNAVAILABLE', output['reasonToken'])
                 self.assertTrue(output['correlationId'])
 
-    def test_pr_non_null_merge_sha_cannot_fall_back_to_actions_sha(self):
-        for merge in (self.head, '', 'HEAD'):
+    def test_pr_stale_webhook_merge_never_overrides_actions_sha(self):
+        for merge in (self.commit(self.head, self.base), self.head, '', 'HEAD'):
             self.event['pull_request']['merge_commit_sha'] = merge
             with self.subTest(merge=merge):
+                ctx = resolve_event(self.event, self.merge, self.git, event_sha=self.merge)
+                self.assertEqual(self.merge, ctx.candidate_sha)
+                self.assertEqual(self.base, ctx.base_sha)
+                self.assertEqual(self.head, ctx.head_sha)
+
+    def test_pr_matching_webhook_merge_cannot_replace_missing_or_invalid_actions_sha(self):
+        for event_sha in (None, '', 'HEAD', '0' * 40, 'a' * 40, self.head):
+            with self.subTest(event_sha=event_sha):
                 with self.assertRaises(RevisionError) as raised:
-                    resolve_event(self.event, self.merge, self.git, event_sha=self.merge)
+                    resolve_event(self.event, self.merge, self.git, event_sha=event_sha)
                 self.assertEqual('CI_CANDIDATE_UNAVAILABLE', raised.exception.reason_token)
 
     def test_pr_rejects_replaced_or_stale_checkout(self):
@@ -161,14 +169,14 @@ class RevisionTests(unittest.TestCase):
         result = subprocess.run([sys.executable, str(ROOT / 'scripts/ci/revision.py'),
                                  '--event-file', str(event_file), '--failure-diagnostics'],
                                 cwd=self.path, env={**os.environ, 'GITHUB_EVENT_NAME': 'pull_request',
-                                                   'GITHUB_SHA': self.merge},
+                                                   'GITHUB_SHA': self.head},
                                 capture_output=True, text=True)
         self.assertEqual(1, result.returncode)
         diagnostic = json.loads(result.stderr)
         self.assertEqual('CI_CANDIDATE_UNAVAILABLE', diagnostic['reasonToken'])
         self.assertTrue(diagnostic['correlationId'])
         self.assertEqual({'eventMergeState': 'valid', 'eventMergeMatchesCheckout': False,
-                          'actionsShaState': 'valid', 'actionsShaMatchesCheckout': True,
+                          'actionsShaState': 'valid', 'actionsShaMatchesCheckout': False,
                           'eventBaseState': 'valid', 'eventHeadState': 'valid',
                           'checkoutParentsMatchEvent': True}, diagnostic['revisionProof'])
         self.assertNotIn('SENSITIVE_SENTINEL', result.stdout + result.stderr)

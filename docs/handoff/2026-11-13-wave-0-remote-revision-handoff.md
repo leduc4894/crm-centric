@@ -109,3 +109,47 @@ Next: parent reviews and publishes diagnostic commit, inspects actual failed pro
 facts in the new run, then reproduces the identified cause before any further
 candidate resolution change. No actual remote root cause is asserted beyond the
 observed revision step failure; both remote runs remain failed.
+
+## Third remote run: confirmed stale webhook merge metadata
+
+Parent supplied and this session independently verified the bounded backend
+log diagnostic from [run43454678387](https://github.com/leduc4894/crm-centric/actions/runs/43454678387):
+CI_CANDIDATE_UNAVAILABLE; Actions SHA valid and equal to checkout; event base/head
+valid; exact ordered checkout parents equal event base/head; event merge SHA valid
+but unequal to checkout. This establishes the old resolver's failure mechanism:
+non-null webhook merge metadata selected a different candidate despite the
+run-specific Actions candidate having the correct event parent proof. No raw
+payload or SHA was needed to diagnose this cause.
+
+User authorized iterative PR fixes/CI; parent explicitly requested the correction.
+Implemented: PR candidate always comes from validated Actions GITHUB_SHA; missing,
+invalid, unavailable or mismatched Actions SHA fails closed even if webhook merge
+metadata matches checkout. Local commit checks, exact ordered event base/head
+parents, checkout equality and event base ancestry remain mandatory. Webhook
+merge_commit_sha is diagnostic metadata only, and cannot select the candidate.
+Push event proof is unchanged. Bounded failure diagnostics remain enabled.
+
+Changed revision.py and real-Git regression tests; updated CI plan and design to
+clarify the prior “event candidate SHA” requirement as Actions run GITHUB_SHA and
+record actual stale webhook behavior. No public contract/schema changes, remote
+settings, migration, rebaseline, relaxed parent proof or live API dependency.
+Rollback: scoped revert. Starting HEADd684309; branch feat/wave-0-plan-4-ci.
+
+Verification:
+- RED: actual-shape synthetic stale webhook failed with
+  CI_CANDIDATE_UNAVAILABLE; matching webhook merge incorrectly accepted six
+  missing/invalid/mismatched Actions SHA inputs. Tests use real temporary Git
+  graphs, not a mocked graph reader.
+- `.venv/bin/python -m unittest discover -s tests/CI -p test_revision.py`:
+  PASS18 in1.361s, including prior wrong-parent/nonmerge/stale checkout/missing
+  object/base negatives and CLI Actions binding.
+- Corresponding test_completion.py: PASS9 in0.613s.
+- Corresponding test_workflow.py: PASS9 in0.247s.
+- Prepared runtime `.local/ci-venv315/bin/python -m unittest discover -s tests/CI`:
+  PASS165 in385.957s, using the same prepared PATH/LD_LIBRARY_PATH.
+- `git diff --check`: PASS.
+
+Scoped fix, tests, spec/plan and handoff committed together; parent records the
+resulting identity. Next: parent reviews/pushes and inspects new
+remote CI. This coding session performs no push. Prior remote runs remain failed;
+no remote PASS or Wave0/P0 acceptance claim.
