@@ -621,12 +621,12 @@ def validate_mvp_evidence(raw, run, require_pass=False):
 def validate_reviewed_metadata(rows):
     """Safe evidence projection; candidate-owned policy is maintainer reviewed."""
     from scripts.ci.publication import digest
-    if not isinstance(rows,(list,tuple)) or len(rows)>124: raise ScanError()
+    if not isinstance(rows,(list,tuple)) or len(rows)>128: raise ScanError()
     # Exact historical reviewed inventory, never path/rule-wide approval.
     inventory=_json(Path(__file__).resolve().parents[2]/'docs/engineering/evidence/2026-11-13-mvp-exact-finding-policy.proposed.json')
     approved={entry['finding_id']:entry['review_basis'] for entry in inventory['decisions']}
     historical=_json(Path(__file__).resolve().parents[2]/'tools/ci/mvp-history-reviews.json')
-    approved.update({entry['history_finding_id']:'reviewed-jar-snapshot' for entry in historical['decisions']})
+    approved.update({entry['history_finding_id']:('source-recomputed' if entry['commit']=='00e0ce4ebea101a0a17c4755a21f5406168ada50' else 'reviewed-jar-snapshot') for entry in historical['decisions']})
     result=[];seen=set()
     for row in rows:
         if set(row)!={'finding_id','verification_basis','owner','expires','reason','correlation_id'}: raise ScanError()

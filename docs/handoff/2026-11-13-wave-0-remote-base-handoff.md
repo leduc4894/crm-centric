@@ -72,3 +72,27 @@ branch/PR only under existing user authorization and report actual remote checks
 Remote CI/enforcement and Wave0/P0 acceptance drills are NOT RUN in this work.
 This scoped code/test/handoff correction is committed together; no unrelated
 untracked file is staged. Parent will record resulting commit identity.
+
+## Four subsequent evidence-history metadata records
+
+Parent confirmed existing user authorization covers narrow historical handling
+of these four source-verified contract hashes. Completed: four exact mappings
+added to tools/ci/mvp-history-reviews.json, linked to existing approved contract
+tree IDs. Adapter binds immutable evidence commit/blob, exact four JSON pointers
+and lines, full native finding IDs, document SHA256, scanner binary/config,
+maintainer/expiry and cardinality. It recomputes each value from the recorded
+exact base/candidate Git contract blob. Duplicate member keys are rejected; exact
+document blob and pointer/line disambiguate repeated contract names. Existing
+jar review, unknown findings, duplicate records, expired approvals, altered IDs,
+wrong sources and real deleted/merge-introduced secrets remain closed.
+Report projection recognizes the four source-recomputed records (maximum128).
+
+TDD: `.venv/bin/python -m unittest discover -s tests/CI -p
+test_mvp_history_review.py -k four` RED1 (expected4 !=0); after implementation
+GREEN1 in1.185s. Actual pinned Gitleaks records bind every new policy finding ID;
+all four start-line mutations and wrong contract bytes are blocked.
+Full history suite precommit: FAIL4, 3 pass/1 fail in22.883s, because the real
+run_scanner intentionally reads candidate policy from immutable HEAD, which still
+contains60 mappings. Direct64 adjudication and new4 regression pass. A scoped
+commit is required to test the actual immutable candidate, then full suite and
+actual df993 security run follow. This is not reported as a green suite.

@@ -1146,6 +1146,94 @@
       "count": 1,
       "owner": "maintainer",
       "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "46cd4f67b3a3fa288610ef6d35ac7c3cf775f1135fbdca4043d2ebe54ac27823",
+      "commit": "00e0ce4ebea101a0a17c4755a21f5406168ada50",
+      "blob": "28cdadfe09febbc7ca6719b8e13fbadcb0794dda",
+      "path": "docs/engineering/evidence/2026-11-13-balanced-mvp-c5cfdd1.json",
+      "rule": "generic-api-key",
+      "start": 259,
+      "end": 259,
+      "document_sha256": "454061b31cb8cae207a3bb8651f9c8c5a0f2755c6c16653085cec0a7ec58284e",
+      "matching_approved_tree_ids": [
+        "1bec03882777d14b0f266a1fee333ef29db9bcf3f6c6c33a07afa99b149bf1cf"
+      ],
+      "field": [
+        "standalone_semantic",
+        "inputHashes",
+        "base",
+        "docs/contracts/crm-api.openapi.yaml"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "15044686eeb80aa9c334821c1c9612f7e99ffe2144bc78b7d7e803dde0ce712c",
+      "commit": "00e0ce4ebea101a0a17c4755a21f5406168ada50",
+      "blob": "28cdadfe09febbc7ca6719b8e13fbadcb0794dda",
+      "path": "docs/engineering/evidence/2026-11-13-balanced-mvp-c5cfdd1.json",
+      "rule": "generic-api-key",
+      "start": 265,
+      "end": 265,
+      "document_sha256": "454061b31cb8cae207a3bb8651f9c8c5a0f2755c6c16653085cec0a7ec58284e",
+      "matching_approved_tree_ids": [
+        "9f3049da275cdef4749717c889a1c01e3cfb64a9a2e86c216372ab441efc8604"
+      ],
+      "field": [
+        "standalone_semantic",
+        "inputHashes",
+        "base",
+        "docs/contracts/platform-operations.openapi.yaml"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "e5751e95b00f008b5a59c41eb1d513535bfaed1c3a8d53b0ab219cc7d42d8ee7",
+      "commit": "00e0ce4ebea101a0a17c4755a21f5406168ada50",
+      "blob": "28cdadfe09febbc7ca6719b8e13fbadcb0794dda",
+      "path": "docs/engineering/evidence/2026-11-13-balanced-mvp-c5cfdd1.json",
+      "rule": "generic-api-key",
+      "start": 273,
+      "end": 273,
+      "document_sha256": "454061b31cb8cae207a3bb8651f9c8c5a0f2755c6c16653085cec0a7ec58284e",
+      "matching_approved_tree_ids": [
+        "1bec03882777d14b0f266a1fee333ef29db9bcf3f6c6c33a07afa99b149bf1cf"
+      ],
+      "field": [
+        "standalone_semantic",
+        "inputHashes",
+        "current",
+        "docs/contracts/crm-api.openapi.yaml"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "bffa8ecfb85c6ae9336506eb4921579822480961aeaaa062b7c5c64ba98e4614",
+      "commit": "00e0ce4ebea101a0a17c4755a21f5406168ada50",
+      "blob": "28cdadfe09febbc7ca6719b8e13fbadcb0794dda",
+      "path": "docs/engineering/evidence/2026-11-13-balanced-mvp-c5cfdd1.json",
+      "rule": "generic-api-key",
+      "start": 279,
+      "end": 279,
+      "document_sha256": "454061b31cb8cae207a3bb8651f9c8c5a0f2755c6c16653085cec0a7ec58284e",
+      "matching_approved_tree_ids": [
+        "9f3049da275cdef4749717c889a1c01e3cfb64a9a2e86c216372ab441efc8604"
+      ],
+      "field": [
+        "standalone_semantic",
+        "inputHashes",
+        "current",
+        "docs/contracts/platform-operations.openapi.yaml"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
     }
   ]
 }

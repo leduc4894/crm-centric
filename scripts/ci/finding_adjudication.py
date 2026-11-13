@@ -233,8 +233,40 @@ def adjudicate_mvp(tree, history, documents, context, now, policy_bytes=None, *,
     return results
 
 
+def _verified_evidence_history(record,row,original,context,now,git_blob):
+    """Four immutable evidence hashes, recomputed from recorded Git snapshots."""
+    locations={259:('base','crm-api.openapi.yaml'),265:('base','platform-operations.openapi.yaml'),
+               273:('current','crm-api.openapi.yaml'),279:('current','platform-operations.openapi.yaml')}
+    label,key=locations.get(row['start'],(None,None))
+    if (label is None or row['end']!=row['start']
+            or row['commit']!='00e0ce4ebea101a0a17c4755a21f5406168ada50'
+            or row['blob']!='28cdadfe09febbc7ca6719b8e13fbadcb0794dda'
+            or row['path']!='docs/engineering/evidence/2026-11-13-balanced-mvp-c5cfdd1.json'
+            or row['field']!=['standalone_semantic','inputHashes',label,'docs/contracts/'+key]
+            or original['source_kind']!='contract' or original['status']!='approved'
+            or original['field']!=['inputHashes',key]
+            or any(row[k]!=original[k] for k in ('rule','count','owner','expires'))
+            or datetime.fromisoformat(row['expires'])<=now or record.get('Secret')!='REDACTED'):
+        return False
+    oid,content=git_blob(row['commit'],row['path'])
+    if oid!=row['blob'] or hashlib.sha256(content).hexdigest()!=row['document_sha256']: return False
+    document=json.loads(content,object_pairs_hook=_unique)
+    value=document
+    for part in row['field']: value=value[part]
+    if not isinstance(value,str) or not re.fullmatch('[a-f0-9]{64}',value): return False
+    line=content.decode().splitlines()[row['start']-1]
+    if not re.fullmatch(r'\s*'+re.escape(json.dumps('docs/contracts/'+key))+r': "'+value+r'",?\s*',line): return False
+    if record['Match']!=key+'": "REDACTED"': return False
+    # Exact document blob plus exact pointer/line disambiguate repeated member names.
+    ref=document['base' if label=='base' else 'candidate']
+    expected='c4a5ef40a34daded023d5e5121c0462e94cc1487' if label=='base' else 'c5cfdd16732f7560ecdf7406e83b66270f514ba0'
+    if ref!=expected: return False
+    _,source=git_blob(ref,'docs/contracts/'+key)
+    return hashlib.sha256(source).hexdigest()==value
+
+
 def adjudicate_mvp_history(history, documents, context, now, policy_bytes, tree_policy_bytes, git_blob):
-    """Exact sixty-record historical review, owned by candidate/maintainer.
+    """Exact sixty-four-record historical review, owned by candidate/maintainer.
 
     git_blob(commit,path) supplies actual Git blob OID and bytes. Native record ID
     includes every scanner field. No path-wide/history-wide exclusion is allowed.
@@ -247,17 +279,27 @@ def adjudicate_mvp_history(history, documents, context, now, policy_bytes, tree_
         expected=Context(**policy['context'])
         if (set(policy)!={'schema_version','context','decisions'} or policy['schema_version']!=1
                 or replace(expected,candidate=context.candidate)!=context
-                or expected!=Context(**tree_policy['context']) or len(policy['decisions'])!=60):
+                or expected!=Context(**tree_policy['context']) or len(policy['decisions'])!=64):
             raise ValueError('invalid history policy')
         by_tree={row['finding_id']:row for row in tree_policy['decisions']}
         by_history={row['history_finding_id']:row for row in policy['decisions']}
-        if len(by_history)!=60: raise ValueError('duplicate history decision')
+        if len(by_history)!=64: raise ValueError('duplicate history decision')
         counts=Counter(finding_id(row) for row in history)
         for record,result in zip(history,results):
             row=by_history.get(result['finding_id'])
             if row is None: continue
             if set(row)!={'history_finding_id','commit','blob','path','rule','start','end','document_sha256',
                           'matching_approved_tree_ids','field','count','owner','expires'}: continue
+            if row['commit']=='00e0ce4ebea101a0a17c4755a21f5406168ada50':
+                if (row['owner']=='maintainer' and row['expires']=='2027-02-11T00:00:00+00:00'
+                        and row['count']==1 and counts[result['finding_id']]==1
+                        and record.get('Commit')==row['commit'] and record['File']==row['path']
+                        and record['RuleID']==row['rule'] and record['StartLine']==row['start']
+                        and record['EndLine']==row['end'] and len(row['matching_approved_tree_ids'])==1
+                        and _verified_evidence_history(record,row,by_tree[row['matching_approved_tree_ids'][0]],context,now,git_blob)):
+                    result.update(decision='verified-metadata',reason='CI_METADATA_VERIFIED',
+                        verification_basis='source-recomputed',owner=row['owner'],expires=row['expires'])
+                continue
             if (row['commit']!='5b19690a08f9c0bcf7c3edbf3bae1f15817c312e'
                     or row['blob']!='c16332021eb044a725b437ae8b5b56f87d03e2cc'
                     or row['owner']!='maintainer' or row['expires']!='2027-02-11T00:00:00+00:00'
