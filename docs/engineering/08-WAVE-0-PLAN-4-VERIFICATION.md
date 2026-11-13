@@ -354,3 +354,26 @@ Direct compatibility CLI fails CONTRACT_POLICY_REVIEW_REQUIRED. Actual Plan3 dia
 Security required tree64 reviewed, history60BLOCKED/CI_SCAN_FINDINGS under real full feature range; repeated native IDs stable. All60 at commit5b19690a08f9c0bcf7c3edbf3bae1f15817c312e/diagnostic-runtime-jars.json match exact approved document bytes/location/rule and unique tree IDs, without extending approval to history. Trivy PASS11locks/6nonblocking findings, one actual empty-restore receipt. [Exact safe mappings/job evidence](evidence/2026-11-13-mvp-rehearsal-9706334.json), [pending review/options](evidence/2026-11-13-mvp-rehearsal-review.md), [commands/runtime/handoff](../handoff/2026-11-13-wave-0-mvp-rehearsal-handoff.md).
 
 No source, policy, scanner, threshold, settings, approval or remote changes. Documentation commit itself has no fresh full gate run; no success transfers from9706334. Remote CI/enforcement and P0/RT-* acceptance drills NOT RUN; Wave0 OPEN. Documentation validation: safe evidence identity/count/digest invariants, relative links and git diff --check PASS (actual checks below in session). No full CI regression run for documentation-only additions.
+
+## 2026-11-13 authorized balanced MVP resolution
+
+User authorized exact60 historical metadata review and exact two-file policy
+transition with real true-base semantics, without independent-verifier requirement
+for MVP. Implemented7547e5a/d268ca7/8e67a18; isolated CLI reason-token defect found
+by existing RED tests and corrected inc5cfdd1. No acceptance weakening.
+
+Exact fixed candidate `c5cfdd16732f7560ecdf7406e83b66270f514ba0`, true local-main
+base `c4a5ef40a34daded023d5e5121c0462e94cc1487`, six pins verified. Actual local
+five-job PASS: backend96, Compose14, contracts87, browser58, security1; zero
+failed/skipped. Contracts includes real true-base compatibility and clean exported
+candidate browser execution. Aggregate CLI PASS0 `CI_COMPLETE`, success=true.
+Security reviews64 exact tree/60 exact history, six nonblocking vulnerability
+records remain. [Safe exact evidence](evidence/2026-11-13-balanced-mvp-c5cfdd1.json)
+and [commands, original failures, correction and environment](../handoff/2026-11-13-wave-0-balanced-remediation-handoff.md).
+
+Initial load-sensitive Keycloak failure and inherited-PYTHONPATH test failure were
+retained; isolated/correct-environment reruns passed without timeout or acceptance
+changes. Full CI155 PASS on8e67a18; post-fix focused policy suite3 PASS and full
+Contract87 PASS on c5cfdd1. This local rehearsal is not remote scheduler proof or
+P0/Wave0 acceptance. Later documentation commit is not the tested candidate.
+Remote enforcement and acceptance drills remain NOT RUN; independent hardening OPEN.

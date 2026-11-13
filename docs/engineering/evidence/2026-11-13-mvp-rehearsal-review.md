@@ -38,3 +38,13 @@ Options for a separately authorized design:
 3. Provision the independent coordinator/signing path described in [trust proposal](../../ci/policy-transition-trust.md), together with a reviewed legacy bootstrap. This meets the intended hardening boundary but requires operational provisioning currently deferred by MVP scope; it still does not repair the old-policy API automatically.
 
 Scope09 defers independent enforcement but explicitly forbids automatic policy bypass. None of these options was implemented or approved here. No base substitution, policy hash erasure, fake capability or synthetic success is proposed. Wave0/P0/RT-* remain OPEN; remote CI/enforcement and remote E2E/duplicate/tenant/outage/restore acceptance are NOT RUN.
+
+## Subsequent authorized resolution
+
+The pending approvals described above are historical to9706334. The user later
+authorized the exact60 historical metadata mappings and exact two-file MVP policy
+transition while retaining real semantics at the true base, explicitly deferring
+independent enforcement. Implemented and rehearsed on fixedc5cfdd1: all five real
+local jobs and actual aggregate passed. See [exact results and retained original
+failures](2026-11-13-balanced-mvp-c5cfdd1.json) and [dated handoff](../../handoff/2026-11-13-wave-0-balanced-remediation-handoff.md).
+No approval was broadened; remote/Wave0/P0 acceptance and hardening remain open.

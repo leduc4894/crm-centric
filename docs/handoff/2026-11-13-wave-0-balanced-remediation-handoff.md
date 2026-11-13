@@ -71,3 +71,64 @@ no timeout/gate weakening. Isolated backend rerun remains required. Compose job
 is still running at this correction commit; remaining jobs and fresh exact-candidate
 validation after correction are pending, not passed. Full original Contract failure
 and original backend attempt remain evidence. No Wave0/P0 acceptance claim.
+
+## Final fixed-candidate local rehearsal
+
+Correction committed as `c5cfdd16732f7560ecdf7406e83b66270f514ba0` on
+`feat/wave-0-plan-4-ci`. Exact local nonforced push event validated against
+`c4a5ef40a34daded023d5e5121c0462e94cc1487` (actual local-main merge-base);
+all six pinned runtimes reverified. No base substitution or remote operation.
+
+Actual final job commands: `python -m scripts.ci.jobs <job> --mode mvp --revision
+.local/balanced-c5cfdd1/revision.json --output .local/balanced-c5cfdd1/<job>.json`
+for backend, compose, contracts-sdk and web-browser; security uses
+`python -m scripts.ci.security` with the same flags. PASS: backend96/0/0 in418.225s,
+Compose14/0/0 in1350.790s, contracts87/0/0 in2099.296s, browser58/0/0 in343.676s,
+security1/0/0 in19.871s. Contracts completed actual generation, historical consumers,
+true-base semantic gate, aggregate/environment fixtures, exact-candidate clean
+export with browser, negative cases and cleanup. Security actually reviewed64
+exact tree plus60 exact history metadata records; six nonblocking vulnerability
+records remain visible. No broad finding exclusion or independent-verifier claim.
+
+Actual aggregate command: `python -m scripts.ci.aggregate --mode mvp --identity
+.local/balanced-c5cfdd1/identity.json --needs .local/balanced-c5cfdd1/needs.json
+--reports .local/balanced-c5cfdd1/backend.json .local/balanced-c5cfdd1/compose.json
+.local/balanced-c5cfdd1/contracts-sdk.json .local/balanced-c5cfdd1/web-browser.json
+.local/balanced-c5cfdd1/security.json`: PASS0 `CI_COMPLETE`, success=true,
+correlation `c35425c0-1d73-44c8-b966-ba994bdc2734`. Local needs reflect real local
+process outcomes; they are not GitHub scheduler/enforcement proof.
+
+Execution correction retained as evidence: initial contracts had86pass/1fail
+because a private helper inherited PYTHONPATH into the intentionally incomplete
+missing-module fixture. The missing-module test PASS1 in0.124s without PYTHONPATH;
+no acceptance test change. Removed PYTHONPATH from all rerun job subprocesses;
+full contracts then PASS87. Initial browser PASS58 in345.328s was also preserved
+and rerun in the corrected environment, PASS58 above. Both initial reports remain
+with `-initial-env.json` suffix; no first failure overwritten. The original8e67a18
+Compose finished PASS14 in1666.713s; its paused continuation ended after completion.
+Final isolated backend PASS96 confirms no readiness timeout change was necessary.
+All started job processes have completed; no active continuation remains.
+
+Post-fix focused MVP contract review suite PASS3 in0.091s. Full CI155 result above
+was on8e67a18; it was not rerun in full after the small reason-token correction.
+Full Contract87 and final five-job runs are on fixedc5cfdd1. Safe report identities,
+digests, runtime pins and original-attempt outcomes are in
+[final evidence](../engineering/evidence/2026-11-13-balanced-mvp-c5cfdd1.json).
+
+Evidence/documentation commit changes HEAD after the rehearsal; these full jobs
+bindc5cfdd1 and do not claim a fresh run for the later documentation commit.
+Unrelated untracked `docs/handoff/2026-11-12-wave-0-plan-3-resumption-handoff.md`
+remains untouched and outside commits. No public contract/schema or database
+migration. Rollback correction via scoped revert; retain historical evidence.
+Next: separately authorized remote CI/enforcement and acceptance drills. Wave0,
+P0 and RT-* remain OPEN; remote DemoModule E2E, concurrent duplicate, tenant
+isolation, outage/recovery and restore acceptance NOT RUN. Independent enforcement
+and dual-policy evaluation remain deferred hardening, explicitly absent in MVP.
+
+Additional standalone exactc5cfdd1 command `python scripts/contracts/compatibility.py
+--base-ref c4a5ef40a34daded023d5e5121c0462e94cc1487 --mvp-reviewed-policy`
+PASS0 `CONTRACT_COMPATIBLE`; full safe result embedded in final evidence,
+including exact input hashes and explicit absence of independent/dual-policy
+verification. Final documentation/evidence validation: identity/count/report-digest
+invariants, changed Markdown links, Python AST and `git diff --check` PASS.
+No full regression rerun for this final evidence-only commit.
