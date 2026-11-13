@@ -60,6 +60,17 @@ def _verified(record, decision, context, now, documents, capability, count):
             or decision.rule!=record['RuleID'] or decision.start!=record['StartLine']
             or decision.end!=record['EndLine'] or decision.start!=decision.end
             or record.get('Commit') or record['Secret']!='REDACTED'): return False
+    if decision.source_kind=='evidence-contract':
+        row=dict(commit='00e0ce4ebea101a0a17c4755a21f5406168ada50',
+            blob='28cdadfe09febbc7ca6719b8e13fbadcb0794dda',path=decision.path,
+            field=list(decision.field),start=decision.start,end=decision.end,rule=decision.rule,
+            count=decision.count,owner=decision.owner,expires=decision.expires.isoformat(),
+            document_sha256=hashlib.sha256(documents[decision.path]).hexdigest())
+        key=decision.field[-1].removeprefix('docs/contracts/')
+        original=dict(source_kind='contract',status='approved',field=['inputHashes',key],
+            rule=decision.rule,count=decision.count,owner=decision.owner,expires=decision.expires.isoformat())
+        return _verified_evidence_document(record,row,original,now,documents[decision.path],
+            lambda ref,path:documents[path])
     jar=decision.path=='docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json'
     provenance=decision.path in {
         'sdks/dotnet/Crm.Client/provenance.json','sdks/dotnet/Platform.Operations.Client/provenance.json',
@@ -185,8 +196,9 @@ def adjudicate_mvp(tree, history, documents, context, now, policy_bytes=None, *,
             # SHA. Current commit identity remains context.candidate/run evidence.
             paths={entry['path'] for entry in policy['decisions']}
             paths|={'docs/contracts/'+entry['field'][1] for entry in policy['decisions'] if entry['source_kind']=='contract'}
+            paths|={entry['field'][-1] for entry in policy['decisions'] if entry['source_kind']=='evidence-contract'}
             selected={path:documents[path] for path in paths}
-            if (len(policy['decisions'])!=64
+            if (len(policy['decisions'])!=68
                     or not re.fullmatch('[a-f0-9]{64}',policy['reviewed_content_sha256'])
                     or reviewed_content_digest(selected)!=policy['reviewed_content_sha256']):
                 raise ValueError('changed reviewed content')
@@ -211,7 +223,7 @@ def adjudicate_mvp(tree, history, documents, context, now, policy_bytes=None, *,
             if entry['status'] not in ('pending','approved'): raise ValueError('invalid status')
             basis=entry['review_basis']
             if (entry['source_kind'],basis) not in {
-                    ('contract','source-recomputed'),('jar','reviewed-jar-snapshot')}:
+                    ('contract','source-recomputed'),('evidence-contract','source-recomputed'),('jar','reviewed-jar-snapshot')}:
                 raise ValueError('invalid review basis')
             if entry['status']!='approved': continue
             if hashlib.sha256(documents[entry['path']]).hexdigest()!=entry['document_digest']:
@@ -233,7 +245,7 @@ def adjudicate_mvp(tree, history, documents, context, now, policy_bytes=None, *,
     return results
 
 
-def _verified_evidence_history(record,row,original,context,now,git_blob):
+def _verified_evidence_document(record,row,original,now,content,source_bytes):
     """Four immutable evidence hashes, recomputed from recorded Git snapshots."""
     locations={259:('base','crm-api.openapi.yaml'),265:('base','platform-operations.openapi.yaml'),
                273:('current','crm-api.openapi.yaml'),279:('current','platform-operations.openapi.yaml')}
@@ -248,8 +260,7 @@ def _verified_evidence_history(record,row,original,context,now,git_blob):
             or any(row[k]!=original[k] for k in ('rule','count','owner','expires'))
             or datetime.fromisoformat(row['expires'])<=now or record.get('Secret')!='REDACTED'):
         return False
-    oid,content=git_blob(row['commit'],row['path'])
-    if oid!=row['blob'] or hashlib.sha256(content).hexdigest()!=row['document_sha256']: return False
+    if row['document_sha256']!='454061b31cb8cae207a3bb8651f9c8c5a0f2755c6c16653085cec0a7ec58284e' or hashlib.sha256(content).hexdigest()!=row['document_sha256']: return False
     document=json.loads(content,object_pairs_hook=_unique)
     value=document
     for part in row['field']: value=value[part]
@@ -261,7 +272,7 @@ def _verified_evidence_history(record,row,original,context,now,git_blob):
     ref=document['base' if label=='base' else 'candidate']
     expected='c4a5ef40a34daded023d5e5121c0462e94cc1487' if label=='base' else 'c5cfdd16732f7560ecdf7406e83b66270f514ba0'
     if ref!=expected: return False
-    _,source=git_blob(ref,'docs/contracts/'+key)
+    source=source_bytes(ref,'docs/contracts/'+key)
     return hashlib.sha256(source).hexdigest()==value
 
 
@@ -296,7 +307,9 @@ def adjudicate_mvp_history(history, documents, context, now, policy_bytes, tree_
                         and record.get('Commit')==row['commit'] and record['File']==row['path']
                         and record['RuleID']==row['rule'] and record['StartLine']==row['start']
                         and record['EndLine']==row['end'] and len(row['matching_approved_tree_ids'])==1
-                        and _verified_evidence_history(record,row,by_tree[row['matching_approved_tree_ids'][0]],context,now,git_blob)):
+                        and git_blob(row['commit'],row['path'])[0]==row['blob']
+                        and _verified_evidence_document(record,row,by_tree[row['matching_approved_tree_ids'][0]],now,
+                            git_blob(row['commit'],row['path'])[1],lambda ref,path:git_blob(ref,path)[1])):
                     result.update(decision='verified-metadata',reason='CI_METADATA_VERIFIED',
                         verification_basis='source-recomputed',owner=row['owner'],expires=row['expires'])
                 continue

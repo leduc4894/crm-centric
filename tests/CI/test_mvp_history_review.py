@@ -47,7 +47,7 @@ class HistoryReviewTests(unittest.TestCase):
         actual=run_scanner(ScannerConfig('gitleaks',exe,context.binary,context.scanner,config),ScanInput(ROOT),
             RunIdentity('regression','1',candidate,'c4a5ef40a34daded023d5e5121c0462e94cc1487',None),mode='mvp')
         self.assertEqual('pass',actual.status)
-        self.assertEqual(128,len(actual.reviewed_metadata))
+        self.assertEqual(132,len(actual.reviewed_metadata))
 
         for key,value in [('Commit','0'*40),('StartLine',999),('RuleID','other'),('Match','private'),('File','other.json')]:
             changed=copy.deepcopy(rows);changed[0][key]=value
@@ -92,6 +92,37 @@ class HistoryReviewTests(unittest.TestCase):
             oid,content=blob(commit,path)
             return (oid,b'changed') if path.startswith('docs/contracts/') else (oid,content)
         self.assertTrue(all(r['decision']=='blocked' for r in run(b=wrong_contract)))
+
+    def test_real_evidence_tree_four_only_and_changed_source_blocks(self):
+        import subprocess,hashlib
+        from datetime import datetime,timezone
+        from scripts.ci.scan import candidate_tree
+        from scripts.ci.summary import RunIdentity
+        exe=ROOT/'.local/task5/bin/gitleaks';config=ROOT/'tools/ci/gitleaks.toml'
+        head=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
+        context=kernel.Context(head,'8.30.1',hashlib.sha256(config.read_bytes()).hexdigest(),hashlib.sha256(exe.read_bytes()).hexdigest())
+        with candidate_tree(ROOT,RunIdentity('tree','1',head,head,None)) as snapshot:
+            rows=json.loads(subprocess.check_output([str(exe),'dir','.','--config',str(config),
+                '--no-banner','--redact=100','--ignore-gitleaks-allow','--gitleaks-ignore-path=/dev/null',
+                '--exit-code=0','--report-format=json','--report-path=/dev/stdout'],stderr=subprocess.DEVNULL,cwd=snapshot))
+            rows=[r for r in rows if r['File']=='docs/engineering/evidence/2026-11-13-balanced-mvp-c5cfdd1.json']
+            self.assertEqual(4,len(rows))
+            documents={p.relative_to(snapshot).as_posix():p.read_bytes() for p in snapshot.rglob('*') if p.is_file() and (p.suffix=='.json' or p.parent==snapshot/'docs/contracts')}
+            policy=(ROOT/'tools/ci/mvp-secret-reviews.json').read_bytes()
+            def run(d=documents,records=rows):
+                return kernel.adjudicate_mvp(records,[],d,context,datetime.now(timezone.utc),policy,active_only=True)
+            self.assertEqual(4,sum(r['decision']=='verified-metadata' for r in run()))
+            (snapshot/'synthetic.txt').write_text('api_key = "synthetic-'+'A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6'+'"')
+            synthetic=json.loads(subprocess.check_output([str(exe),'dir','.','--config',str(config),
+                '--no-banner','--redact=100','--ignore-gitleaks-allow','--gitleaks-ignore-path=/dev/null',
+                '--exit-code=0','--report-format=json','--report-path=/dev/stdout'],stderr=subprocess.DEVNULL,cwd=snapshot))
+            synthetic=[r for r in synthetic if r['File']=='synthetic.txt']
+            self.assertEqual(1,len(synthetic))
+            self.assertEqual(['verified-metadata']*4+['blocked'],[r['decision'] for r in run(records=rows+synthetic)])
+            changed=dict(documents);changed['docs/contracts/crm-api.openapi.yaml']=b'changed'
+            self.assertTrue(all(r['decision']=='blocked' for r in run(changed)))
+            altered=[dict(r,Match='private') for r in rows]
+            self.assertTrue(all(r['decision']=='blocked' for r in run(records=altered)))
 
     def test_real_merge_introduced_deleted_secret_remains_blocked_and_tool_error_closed(self):
         import hashlib,subprocess,tempfile

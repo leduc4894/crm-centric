@@ -96,3 +96,20 @@ run_scanner intentionally reads candidate policy from immutable HEAD, which stil
 contains60 mappings. Direct64 adjudication and new4 regression pass. A scoped
 commit is required to test the actual immutable candidate, then full suite and
 actual df993 security run follow. This is not reported as a green suite.
+
+The same immutable evidence document is also scanned in the current tree. Parent
+confirmed the same four source-verified metadata records are authorized there.
+Prepared full-CI attempt on a056631 was interrupted (exit130) when this missing
+tree mapping was identified, not called passing. Added exactly four native tree
+IDs with source-recomputed basis, document digest, exact pointers/locations and
+same maintainer/expiry; reviewed tree inventory68/history64, report maximum132.
+The shared document validator pins immutable evidence content SHA256 as well as
+commit/blob and pointers. Tree values are recomputed against current candidate
+contract bytes; history values against recorded Git source blobs. Neither path
+asserts independent authorization. Original64 tree approvals remain unchanged.
+
+Real pinned Gitleaks tree regression: RED1 (four records present, zero verified),
+then PASS1 in4.343s after exact mappings. It also scans a newly introduced
+synthetic secret and verifies four metadata records accepted plus secret blocked;
+changed contract bytes and altered Match remain blocked. Real four-history/source
+regression PASS; tests using both immutable candidate scans follow after commit.
