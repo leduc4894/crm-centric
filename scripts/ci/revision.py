@@ -69,7 +69,7 @@ class GitReader:
                              'CI_CANDIDATE_UNAVAILABLE'), 'CI_CANDIDATE_UNAVAILABLE')
 
 
-def resolve_event(event: dict, checkout_sha: str, git: GitReader) -> RevisionContext:
+def resolve_event(event: dict, checkout_sha: str, git: GitReader, *, event_sha=None) -> RevisionContext:
     checkout = _sha(checkout_sha, 'CI_CANDIDATE_UNAVAILABLE')
     if not isinstance(event, dict):
         raise RevisionError('CI_BASE_UNAVAILABLE')
@@ -85,7 +85,13 @@ def resolve_event(event: dict, checkout_sha: str, git: GitReader) -> RevisionCon
                     'CI_BASE_UNAVAILABLE')
         head = _sha(head_data.get('sha') if isinstance(head_data, dict) else None,
                     'CI_CANDIDATE_UNAVAILABLE')
-        candidate = _sha(pr.get('merge_commit_sha'), 'CI_CANDIDATE_UNAVAILABLE')
+        merge = pr.get('merge_commit_sha')
+        if merge is None:
+            # An opened webhook can precede GitHub's asynchronous merge calculation.
+            # Actions still binds GITHUB_SHA to the run's synthetic merge commit.
+            candidate = _sha(event_sha, 'CI_CANDIDATE_UNAVAILABLE')
+        else:
+            candidate = _sha(merge, 'CI_CANDIDATE_UNAVAILABLE')
         git.commit(base, 'CI_BASE_UNAVAILABLE')
         git.commit(head, 'CI_CANDIDATE_UNAVAILABLE')
         git.commit(candidate, 'CI_CANDIDATE_UNAVAILABLE')
@@ -137,7 +143,8 @@ def main():
         actual_checkout = git.checkout()
         if args.checkout_sha is not None and args.checkout_sha != actual_checkout:
             raise RevisionError('CI_CANDIDATE_UNAVAILABLE')
-        context = resolve_event(event, actual_checkout, git)
+        context = resolve_event(event, actual_checkout, git,
+                                event_sha=os.environ.get('GITHUB_SHA'))
         print(json.dumps(asdict(context), sort_keys=True))
         return 0
     except (OSError, ValueError, RecursionError):

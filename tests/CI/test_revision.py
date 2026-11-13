@@ -1,6 +1,7 @@
 """Real synthetic Git graphs catch acceptance of unrelated/stale revisions."""
 import dataclasses
 import json
+import os
 import pathlib
 import subprocess
 import sys
@@ -52,6 +53,60 @@ class RevisionTests(unittest.TestCase):
                           ctx.merge_sha, ctx.merge_base_sha))
         with self.assertRaises(dataclasses.FrozenInstanceError):
             ctx.base_sha = self.head
+
+    def test_pr_pending_merge_binds_actions_sha_and_exact_event_parents(self):
+        for missing in (False, True):
+            with self.subTest(missing=missing):
+                pr = self.event['pull_request']
+                pr['merge_commit_sha'] = None
+                if missing:
+                    del pr['merge_commit_sha']
+                ctx = resolve_event(self.event, self.merge, self.git, event_sha=self.merge)
+                self.assertEqual(self.merge, ctx.candidate_sha)
+                self.assertEqual(self.base, ctx.base_sha)
+                self.assertEqual(self.head, ctx.head_sha)
+
+    def test_pr_pending_merge_rejects_missing_mismatched_or_unproven_actions_sha(self):
+        self.event['pull_request']['merge_commit_sha'] = None
+        for checkout, event_sha in ((self.merge, None), (self.merge, ""), (self.merge, "HEAD"),
+                                    (self.merge, self.head),
+                                    (self.head, self.head),
+                                    (self.commit(self.head, self.base), None)):
+            with self.subTest(checkout=checkout, event_sha=event_sha):
+                with self.assertRaises(RevisionError) as raised:
+                    resolve_event(self.event, checkout, self.git, event_sha=event_sha)
+                self.assertEqual('CI_CANDIDATE_UNAVAILABLE', raised.exception.reason_token)
+        wrong = self.commit(self.head, self.base)
+        with self.assertRaises(RevisionError):
+            resolve_event(self.event, wrong, self.git, event_sha=wrong)
+
+    def test_cli_pending_merge_reads_actions_sha_without_live_api(self):
+        self.event['pull_request']['merge_commit_sha'] = None
+        event_file = self.path / 'event.json'
+        event_file.write_text(json.dumps(self.event))
+        self.run_git('update-ref', 'HEAD', self.merge)
+        for event_sha in (self.merge, self.head, ''):
+            result = subprocess.run([sys.executable, str(ROOT / 'scripts/ci/revision.py'),
+                                     '--event-file', str(event_file)], cwd=self.path,
+                                    env={**os.environ, 'GITHUB_EVENT_NAME': 'pull_request',
+                                         'GITHUB_SHA': event_sha}, capture_output=True, text=True)
+            output = json.loads(result.stdout)
+            self.assertEqual('', result.stderr)
+            if event_sha == self.merge:
+                self.assertEqual(0, result.returncode)
+                self.assertEqual(self.merge, output['candidate_sha'])
+            else:
+                self.assertEqual(1, result.returncode)
+                self.assertEqual('CI_CANDIDATE_UNAVAILABLE', output['reasonToken'])
+                self.assertTrue(output['correlationId'])
+
+    def test_pr_non_null_merge_sha_cannot_fall_back_to_actions_sha(self):
+        for merge in (self.head, '', 'HEAD'):
+            self.event['pull_request']['merge_commit_sha'] = merge
+            with self.subTest(merge=merge):
+                with self.assertRaises(RevisionError) as raised:
+                    resolve_event(self.event, self.merge, self.git, event_sha=self.merge)
+                self.assertEqual('CI_CANDIDATE_UNAVAILABLE', raised.exception.reason_token)
 
     def test_pr_rejects_replaced_or_stale_checkout(self):
         self.reject(self.event, self.head, 'CI_CANDIDATE_UNAVAILABLE')
