@@ -344,3 +344,13 @@ checks and `git diff --check` PASS. Final evidence-only commit changes HEAD agai
 its full five-job suite is NOT RUN, and no acceptance is transferred. Concrete
 next work: accountable private finding review, unlocked dependency remediation,
 fresh agreed-candidate full gates and separately authorized remote CI.
+
+## 2026-11-13 exact activation-candidate full local rehearsal
+
+Candidate9706334d7778ebcc4f5704d5bcbfbc8ec68ef969, actual local-main merge-base c4a5ef40a34daded023d5e5121c0462e94cc1487; validated simulated local non-forced push, run local-mvp-9706334/attempt1. Earlier601dde8 is not substituted. Six pinned runtimes verified equal runner requirements. Full jobs ran sequentially: backend PASS96/0/0,449.680s; Compose PASS14/0/0,1401.193s; contracts FAIL87/0/0 collected,1184.342s; browser FAIL0collected,96.541s; security FAIL0/1/0,16.550s. Generic test-job failures are CI_COMMAND_FAILED. Real aggregate exit1/success=false/CI_DISCOVERY_INCOMPLETE. Original safe reports preserved privately, no native payload published.
+
+Direct compatibility CLI fails CONTRACT_POLICY_REVIEW_REQUIRED. Actual Plan3 diagnostic entrypoint exit1/85.742s reports generated-current/package-boundary success then policy blocker before browser tests. Exact two policy changes: sdk_surface.py and new Surface lock. Immutable c4a5ef4 semantic module lacks extracted evaluation API; existing dual runner needs separately reviewed legacy bootstrap. Scope defers independent hardening but grants no automatic transition bypass.
+
+Security required tree64 reviewed, history60BLOCKED/CI_SCAN_FINDINGS under real full feature range; repeated native IDs stable. All60 at commit5b19690a08f9c0bcf7c3edbf3bae1f15817c312e/diagnostic-runtime-jars.json match exact approved document bytes/location/rule and unique tree IDs, without extending approval to history. Trivy PASS11locks/6nonblocking findings, one actual empty-restore receipt. [Exact safe mappings/job evidence](evidence/2026-11-13-mvp-rehearsal-9706334.json), [pending review/options](evidence/2026-11-13-mvp-rehearsal-review.md), [commands/runtime/handoff](../handoff/2026-11-13-wave-0-mvp-rehearsal-handoff.md).
+
+No source, policy, scanner, threshold, settings, approval or remote changes. Documentation commit itself has no fresh full gate run; no success transfers from9706334. Remote CI/enforcement and P0/RT-* acceptance drills NOT RUN; Wave0 OPEN. Documentation validation: safe evidence identity/count/digest invariants, relative links and git diff --check PASS (actual checks below in session). No full CI regression run for documentation-only additions.
