@@ -136,12 +136,12 @@ def prepare_browser():
     execute(['node','-e', "(async () => { const browser = await require('@playwright/test').chromium.launch(); await browser.close(); })().catch(() => process.exit(1))"],timeout=60)
 
 
-def plan3_commands(identity):
+def plan3_commands(identity, mode="hardening"):
     return [
         ['bash','tests/Plan3/aggregate-reporting.sh','--base-ref',identity.base_sha],
         ['bash','tests/Plan3/ci-environment.sh'],
         ['bash','tests/Plan3/clean-export.sh','--sha',identity.candidate_sha,
-         '--base-ref',identity.base_sha,'--with-browser'],
+         '--base-ref',identity.base_sha,'--with-browser']+(['--mvp-reviewed-policy'] if mode=='mvp' else []),
         ['bash','tests/Plan3/negative-cases.sh','--base-ref',identity.base_sha],
         ['bash','tests/Plan3/scratch-cleanup.sh'],
     ]
@@ -242,8 +242,8 @@ def main():
                     py_suite('contract','tests/Contract')
                     execute([sys.executable,'scripts/contracts/check.py'])
                     execute(['bash','tests/ClientConsumers/run.sh'])
-                    execute([sys.executable,'scripts/contracts/compatibility.py','--base-ref',identity.base_sha])
-                    for command in plan3_commands(identity):
+                    execute([sys.executable,'scripts/contracts/compatibility.py','--base-ref',identity.base_sha]+(['--mvp-reviewed-policy'] if args.mode=='mvp' else []))
+                    for command in plan3_commands(identity,args.mode):
                         execute(command)
                 else:
                     vitest = scratch/'vitest.json'; browser = scratch/'browser.json'
@@ -251,7 +251,7 @@ def main():
                            'PLAYWRIGHT_HTML_OPEN':'never'}
                     # Plan 3 owns real API stack startup, readiness and teardown.
                     # Reporter args are supplied through the workspace-local npm config below.
-                    execute(['bash','scripts/check-plan3.sh','--base-ref',identity.base_sha,'--with-browser'],env=env)
+                    execute(['bash','scripts/check-plan3.sh','--base-ref',identity.base_sha,'--with-browser']+(['--mvp-reviewed-policy'] if args.mode=='mvp' else []),env=env)
                     execute(['npm','exec','--workspace','apps/crm-web','--','vitest','run',
                              '--reporter=json','--outputFile='+str(vitest)])
                     report['suites'].extend([

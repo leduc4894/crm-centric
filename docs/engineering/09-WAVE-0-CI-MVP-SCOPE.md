@@ -45,3 +45,28 @@ Người dùng xác nhận ưu tiên phát triển hướng production thực d�
 ## Kích hoạt review 64 ngày 2026-11-13
 
 Người dùng đã phê duyệt thực thi đề xuất chính xác 64 ("Làm đi"): owner `maintainer`, thời hạn review 90 ngày từ 2026-11-13, hết hạn `2027-02-11T00:00:00+00:00`. Phần mô tả PENDING ở trên là lịch sử trước approval. Policy hiện hành: [tools/ci/mvp-secret-reviews.json](../../tools/ci/mvp-secret-reviews.json). Chỉ MVP adapter áp dụng 60 JAR snapshot đã review và 4 contract hash tái tính từ bytes; hardening scanner vẫn chặn tất cả secrets. Xem [activation evidence](evidence/2026-11-13-mvp-secret-review-activation.md). Đây là boundary do candidate sở hữu, được maintainer review; verifier độc lập vẫn OPEN trước production. Approval này không đóng dependency findings, Wave0/P0/RT-* hoặc thay thế remote evidence.
+
+## Balanced maintainer remediation — 2026-11-13
+
+The user authorized the exact sixty historical metadata mappings and practical
+maintainer review of the two policy changes, and authorized adjusting the plan.
+[Historical policy](../../tools/ci/mvp-history-reviews.json) binds all sixty full
+native record IDs to their original commit, actual Git blob, document digest,
+field, rule, location, single multiplicity, pinned scanner/config, maintainer and
+2027-02-11 expiry. Other historical/new/deleted/merge findings remain blocking.
+The existing sixty-four tree reviews keep their original scope.
+
+For this MVP, [contract identity review](../../scripts/ci/contract_review.py)
+authorizes only the two exact old/new file hashes recorded in the rehearsal,
+against actual base `c4a5ef40a34daded023d5e5121c0462e94cc1487`, only through explicit
+`--mvp-reviewed-policy` opt-in (MVP jobs pass it; default/hardening do not). The unmodified
+semantic checks still run on actual base/candidate contracts with pinned oasdiff,
+security/schema checks, generated SDK surfaces and historical consumers. This is
+candidate-owned maintainer review, not independent enforcement. Old/new dual
+policy executors and the legacy bootstrap are deferred to pre-production
+hardening; no verifier capability, signature or dual execution is fabricated.
+Reports explicitly record that limitation. Additional identity changes, wrong
+base, expiry, semantic breaks and tool errors remain failures. This supersedes
+the earlier statement that an independent transition verifier is a prerequisite
+for this exact MVP delta; AGENTS golden rules and contract ADR requirements remain.
+No remote action or Wave0/P0/RT-* acceptance approval is included.

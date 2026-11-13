@@ -68,3 +68,15 @@ See [verification ledger](../../engineering/08-WAVE-0-PLAN-4-VERIFICATION.md)
 and [handoff](../../handoff/2026-11-12-wave-0-plan-4-mvp-scope-handoff.md).
 Later test/evidence commits have no complete five-job rehearsal; remote CI
 NOT RUN/enforcement UNKNOWN. Wave0/P0/RT-* and deferred hardening remain OPEN.
+
+## Authorized balanced remediation — 2026-11-13
+
+User authorizes changing this plan: activate only the exact sixty history mappings
+from rehearsal evidence, keeping owner/90-day expiry/scanner/content identity;
+permit candidate-owned maintainer identity review for the exact two-file delta
+on true c4a5ef4 event base, followed by actual semantic compatibility. Do not make
+independent verifier/legacy dual executor provisioning an MVP prerequisite.
+Retain independent enforcement/dual-policy execution as pre-production hardening.
+No altered base, forged verifier, semantic bypass, extra credential exclusion or
+remote action is authorized by this implementation. New negative tests and actual
+scanner/compatibility runs are required; results belong in the new handoff.

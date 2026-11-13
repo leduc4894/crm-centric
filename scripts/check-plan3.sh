@@ -21,7 +21,7 @@
 # exactly once, so the operator never sees the same envelope twice.
 #
 # Usage:
-#   bash scripts/check-plan3.sh --base-ref <ref> [--with-browser]
+#   bash scripts/check-plan3.sh --base-ref <ref> [--with-browser] [--mvp-reviewed-policy]
 #
 #   --base-ref <ref>   Required. A Git revision that already exists in the local
 #                      clone. It is passed verbatim to
@@ -141,10 +141,11 @@ cd "$root" || closed_error PLAN3_WORKSPACE_UNAVAILABLE "the checkout could not b
 
 usage() {
   cat <<'EOF'
-Usage: bash scripts/check-plan3.sh --base-ref <ref> [--with-browser]
+Usage: bash scripts/check-plan3.sh --base-ref <ref> [--with-browser] [--mvp-reviewed-policy]
 
   --base-ref <ref>   required; Git revision already present in the local clone
   --with-browser     run the browser suite against the local Docker stack
+  --mvp-reviewed-policy  opt in to the exact maintainer-reviewed MVP policy delta
 EOF
 }
 
@@ -157,6 +158,7 @@ argument_error() {
 
 base_ref=""
 with_browser=0
+compatibility_options=()
 while [ $# -gt 0 ]; do
   case "$1" in
     --base-ref)
@@ -166,6 +168,10 @@ while [ $# -gt 0 ]; do
       ;;
     --base-ref=*)
       base_ref="${1#--base-ref=}"
+      shift
+      ;;
+    --mvp-reviewed-policy)
+      compatibility_options=(--mvp-reviewed-policy)
       shift
       ;;
     --with-browser)
@@ -230,7 +236,7 @@ step_command() {
     locked-install) printf 'npm ci --ignore-scripts --no-audit --no-fund' ;;
     generated-check) printf 'python3 scripts/contracts/check.py' ;;
     sdk-consumers) printf 'bash tests/ClientConsumers/run.sh' ;;
-    compatibility) printf 'python3 scripts/contracts/compatibility.py --base-ref %s' "$base_ref" ;;
+    compatibility) printf 'python3 scripts/contracts/compatibility.py --base-ref %s' "$base_ref"; printf ' %s' "${compatibility_options[@]}" ;;
     frontend-typecheck) printf 'npm run typecheck -w apps/crm-web' ;;
     frontend-lint) printf 'npm run lint -w apps/crm-web' ;;
     frontend-test) printf 'npm run test -w apps/crm-web' ;;
@@ -382,7 +388,7 @@ run_named_step() {
     locked-install) npm ci --ignore-scripts --no-audit --no-fund ;;
     generated-check) python3 scripts/contracts/check.py ;;
     sdk-consumers) bash tests/ClientConsumers/run.sh ;;
-    compatibility) python3 scripts/contracts/compatibility.py --base-ref "$base_ref" ;;
+    compatibility) python3 scripts/contracts/compatibility.py --base-ref "$base_ref" "${compatibility_options[@]}" ;;
     frontend-typecheck) npm run typecheck -w apps/crm-web ;;
     frontend-lint) npm run lint -w apps/crm-web ;;
     frontend-test) npm run test -w apps/crm-web ;;

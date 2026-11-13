@@ -76,7 +76,7 @@ def policy_identity_preflight(old_hashes, new_hashes, revision=None, transition=
             or dict(transition.new_hashes) != new_hashes):
         raise GateError('CONTRACT_POLICY_REVIEW_REQUIRED')
 
-def check_baseline_configuration(repo, base):
+def check_baseline_configuration(repo, base, mvp_review=False):
     """Reject incomplete baseline toolchains and unreviewed policy changes."""
     paths = set(git(repo, 'ls-tree', '-r', '--name-only', base, '--', 'tools/contracts', 'scripts/contracts', 'sdks').decode().splitlines())
     marker = 'tools/contracts/toolchain.json'
@@ -99,6 +99,12 @@ def check_baseline_configuration(repo, base):
             current_policy.add('scripts/contracts/sdk_surface.py')
     old_hashes = {p: hashlib.sha256(git(repo, 'show', f'{base}:{p}')).hexdigest() for p in base_policy}
     new_hashes = {p: sha(repo / p) for p in current_policy}
+    from scripts.ci.contract_review import approved
+    if mvp_review and approved(old_hashes,new_hashes,base):
+        return {'basis':'maintainer-reviewed-mvp-delta','owner':'maintainer',
+                'expires':'2027-02-11T00:00:00+00:00','independentVerification':False,
+                'dualPolicyEvaluation':False,'changedFiles':sorted(
+                    p for p in old_hashes.keys()|new_hashes.keys() if old_hashes.get(p)!=new_hashes.get(p))}
     policy_identity_preflight(old_hashes, new_hashes)
 
 def schema_contents(value):
@@ -216,7 +222,7 @@ def response_removed(base, current):
                     return True
     return schema_narrowed(base, current)
 
-def run(base_ref, repo, context):
+def run(base_ref, repo, context, mvp_review=False):
     from scripts.contracts.check import ref_files
     import yaml
     from jsonschema import Draft202012Validator
@@ -227,7 +233,8 @@ def run(base_ref, repo, context):
     except (UnicodeError, ValueError):
         raise GateError('CONTRACT_BASE_UNAVAILABLE') from None
     context['baseSha'] = base
-    check_baseline_configuration(repo, base)
+    review=check_baseline_configuration(repo, base, mvp_review)
+    if review: context['policyReview']=review
     current_root = repo / 'docs/contracts'
     required = {'docs/contracts/crm-api.openapi.yaml', 'docs/contracts/platform-operations.openapi.yaml'}
     if not required <= set(paths) or not all((repo / p).is_file() for p in required):
@@ -241,7 +248,9 @@ def run(base_ref, repo, context):
             raise GateError('CONTRACT_TOOL_UNAVAILABLE')
     except (OSError, ValueError, KeyError, TypeError):
         raise GateError('CONTRACT_TOOL_UNAVAILABLE') from None
-    return evaluate_contract_snapshots(base, paths, repo, context, policy, binary)
+    result=evaluate_contract_snapshots(base, paths, repo, context, policy, binary)
+    if review: result['policyReview']=review
+    return result
 
 
 def evaluate_contract_snapshots(base, paths, repo, context, policy, binary,
@@ -386,9 +395,10 @@ def main():
     try:
         parser = SafeParser()
         parser.add_argument('--base-ref', default='origin/main')
+        parser.add_argument('--mvp-reviewed-policy', action='store_true')
         args = parser.parse_args()
         repo = Path(git(Path.cwd(), 'rev-parse', '--show-toplevel').decode().strip())
-        report = run(args.base_ref, repo, context)
+        report = run(args.base_ref, repo, context, args.mvp_reviewed_policy)
     except GateError as error:
         report = {**context, 'reason': str(error)}
     except (OSError, ImportError, KeyError, TypeError, ValueError, RecursionError):

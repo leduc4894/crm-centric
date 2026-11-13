@@ -36,6 +36,13 @@ class HistoryReviewTests(unittest.TestCase):
         def run(records=rows,p=policy,c=context,b=blob):
             return kernel.adjudicate_mvp_history(records,{},c,datetime.now(timezone.utc),p,tree_policy,b)
         self.assertEqual(60,sum(r['decision']=='verified-metadata' for r in run()))
+        from scripts.ci.scan import ScannerConfig,ScanInput,run_scanner
+        from scripts.ci.summary import RunIdentity
+        actual=run_scanner(ScannerConfig('gitleaks',exe,context.binary,context.scanner,config),ScanInput(ROOT),
+            RunIdentity('regression','1',candidate,'c4a5ef40a34daded023d5e5121c0462e94cc1487',None),mode='mvp')
+        self.assertEqual('pass',actual.status)
+        self.assertEqual(124,len(actual.reviewed_metadata))
+
         for key,value in [('Commit','0'*40),('StartLine',999),('RuleID','other'),('Match','private'),('File','other.json')]:
             changed=copy.deepcopy(rows);changed[0][key]=value
             self.assertEqual(59,sum(r['decision']=='verified-metadata' for r in run(changed)))
