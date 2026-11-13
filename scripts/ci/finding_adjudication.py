@@ -231,3 +231,58 @@ def adjudicate_mvp(tree, history, documents, context, now, policy_bytes=None, *,
             result['verification_basis']='reviewed-jar-snapshot' if snapshot else 'source-recomputed'
             if snapshot: result['reason']='CI_METADATA_SNAPSHOT_REVIEWED'
     return results
+
+
+def adjudicate_mvp_history(history, documents, context, now, policy_bytes, tree_policy_bytes, git_blob):
+    """Exact sixty-record historical review, owned by candidate/maintainer.
+
+    git_blob(commit,path) supplies actual Git blob OID and bytes. Native record ID
+    includes every scanner field. No path-wide/history-wide exclusion is allowed.
+    The immutable reviewed mapping is evidence, not independent authorization.
+    """
+    results=adjudicate([],history,documents,context,now)
+    try:
+        policy=json.loads(policy_bytes,object_pairs_hook=_unique)
+        tree_policy=json.loads(tree_policy_bytes,object_pairs_hook=_unique)
+        expected=Context(**policy['context'])
+        if (set(policy)!={'schema_version','context','decisions'} or policy['schema_version']!=1
+                or replace(expected,candidate=context.candidate)!=context
+                or expected!=Context(**tree_policy['context']) or len(policy['decisions'])!=60):
+            raise ValueError('invalid history policy')
+        by_tree={row['finding_id']:row for row in tree_policy['decisions']}
+        by_history={row['history_finding_id']:row for row in policy['decisions']}
+        if len(by_history)!=60: raise ValueError('duplicate history decision')
+        counts=Counter(finding_id(row) for row in history)
+        for record,result in zip(history,results):
+            row=by_history.get(result['finding_id'])
+            if row is None: continue
+            if set(row)!={'history_finding_id','commit','blob','path','rule','start','end','document_sha256',
+                          'matching_approved_tree_ids','field','count','owner','expires'}: continue
+            if (row['commit']!='5b19690a08f9c0bcf7c3edbf3bae1f15817c312e'
+                    or row['blob']!='c16332021eb044a725b437ae8b5b56f87d03e2cc'
+                    or row['owner']!='maintainer' or row['expires']!='2027-02-11T00:00:00+00:00'
+                    or row['count']!=1 or counts[result['finding_id']]!=1
+                    or record.get('Commit')!=row['commit'] or record['File']!=row['path']
+                    or record['RuleID']!=row['rule'] or record['StartLine']!=row['start']
+                    or record['EndLine']!=row['end'] or len(row['matching_approved_tree_ids'])!=1): continue
+            original=by_tree[row['matching_approved_tree_ids'][0]]
+            if (original['status']!='approved' or original['source_kind']!='jar'
+                    or any(row[key]!=original[key] for key in ('path','field','rule','start','end','count','owner','expires'))
+                    or row['document_sha256']!=original['document_digest']): continue
+            oid,content=git_blob(row['commit'],row['path'])
+            if oid!=row['blob'] or hashlib.sha256(content).hexdigest()!=row['document_sha256']: continue
+            # Reuse the strict JSON field/line/hash syntax checks. The exact native
+            # history ID above binds all original history context before projection.
+            projected=dict(record,Commit='')
+            decision=Decision(finding_id(projected),context,row['path'],tuple(row['field']),
+                row['start'],row['end'],row['rule'],1,row['owner'],datetime.fromisoformat(row['expires']),'jar')
+            class Snapshot:
+                def source_bytes(self, decision): return None
+                def reviewed_jar_snapshot(self, decision): return True
+            if _verified(projected,decision,context,now,{row['path']:content},Snapshot(),1):
+                result.update(decision='verified-metadata',reason='CI_METADATA_SNAPSHOT_REVIEWED',
+                    verification_basis='reviewed-jar-snapshot',owner=row['owner'],expires=row['expires'])
+    except Exception:
+        for result in results:
+            result.update(decision='blocked',reason='CI_METADATA_POLICY_INVALID')
+    return results

@@ -206,7 +206,25 @@ def run_scanner(scanner: ScannerConfig, input: ScanInput, run: RunIdentity, mode
                     accepted={r['finding_id'] for r in reviewed}
                     parsed=[f for f in parsed if f['finding_id'] not in accepted]
                 findings.extend(parsed)
-            parsed,_=parse_findings('gitleaks',_run_json([str(scanner.executable),'git',str(root),'--log-opts=--full-history --diff-merges=separate '+run.base_sha+'..'+run.candidate_sha,*common]))
+            history_rows=_run_json([str(scanner.executable),'git',str(root),'--log-opts=--full-history --diff-merges=separate '+run.base_sha+'..'+run.candidate_sha,*common])
+            parsed,_=parse_findings('gitleaks',history_rows)
+            if mode=='mvp':
+                from scripts.ci.finding_adjudication import adjudicate_mvp_history
+                with candidate_tree(root,run) as tree:
+                    history_policy=tree/'tools/ci/mvp-history-reviews.json'
+                    tree_policy=tree/'tools/ci/mvp-secret-reviews.json'
+                    def git_blob(commit,path):
+                        oid=_git(root,'rev-parse',commit+':'+path)
+                        proc=subprocess.run(['git','show',commit+':'+path],cwd=root,capture_output=True,check=True)
+                        return oid,proc.stdout
+                    results=adjudicate_mvp_history(history_rows,documents,context,datetime.now(timezone.utc),
+                        history_policy.read_bytes() if history_policy.is_file() else None,
+                        tree_policy.read_bytes() if tree_policy.is_file() else None,git_blob)
+                    history_reviewed=tuple({key:r[key] for key in ('finding_id','verification_basis','owner','expires','reason','correlation_id')}
+                        for r in results if r['decision']=='verified-metadata')
+                    reviewed+=history_reviewed
+                    accepted={r['finding_id'] for r in history_reviewed}
+                    parsed=[f for f in parsed if f['finding_id'] not in accepted]
             findings.extend(parsed)
             count=2
         elif scanner.kind=='semgrep':
@@ -603,10 +621,12 @@ def validate_mvp_evidence(raw, run, require_pass=False):
 def validate_reviewed_metadata(rows):
     """Safe evidence projection; candidate-owned policy is maintainer reviewed."""
     from scripts.ci.publication import digest
-    if not isinstance(rows,(list,tuple)) or len(rows)>64: raise ScanError()
+    if not isinstance(rows,(list,tuple)) or len(rows)>124: raise ScanError()
     # Exact historical reviewed inventory, never path/rule-wide approval.
     inventory=_json(Path(__file__).resolve().parents[2]/'docs/engineering/evidence/2026-11-13-mvp-exact-finding-policy.proposed.json')
     approved={entry['finding_id']:entry['review_basis'] for entry in inventory['decisions']}
+    historical=_json(Path(__file__).resolve().parents[2]/'tools/ci/mvp-history-reviews.json')
+    approved.update({entry['history_finding_id']:'reviewed-jar-snapshot' for entry in historical['decisions']})
     result=[];seen=set()
     for row in rows:
         if set(row)!={'finding_id','verification_basis','owner','expires','reason','correlation_id'}: raise ScanError()
