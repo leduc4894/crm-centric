@@ -37,3 +37,7 @@ W0P4-01–06, 08–10 có thành phần thuộc CI MVP và thành phần hardeni
 2. Điều chỉnh workflow, runners và tests theo plan được review; không làm thay đổi repository settings hoặc remote trong bước local.
 3. Chạy full local jobs trên exact candidate, ghi kết quả và giới hạn; sau ủy quyền phù hợp chạy remote CI và ghi evidence.
 4. Chỉ khi điều kiện MVP thực sự đạt mới review Wave 0 exit; duy trì backlog hardening có owner/tiêu chí trước production, và không claim branch protection verified khi chưa kiểm tra.
+
+## Làm rõ ngày 2026-11-13 — review bởi maintainer cho MVP
+
+Người dùng xác nhận ưu tiên phát triển hướng production thực dụng; verifier độc lập là hardening trước production, không phải điều kiện tiên quyết riêng cho MVP. Có thể review một cơ chế per-ID do candidate sở hữu nếu maintainer đáng tin cậy review cả code và policy; phải ghi rõ không có bảo đảm độc lập chống candidate sửa code/policy. Không tự biến nhãn `approved` trong JSON thành quyền phê duyệt của người dùng. [Đề xuất cụ thể](evidence/2026-11-13-mvp-exact-finding-policy.md) và JSON 64 bản ghi vẫn PENDING, không nối workflow; contract4 có nguồn trong candidate, JAR60 đề xuất review snapshot chính xác dựa trên đối chiếu bytes tại review trước đó (không claim CI tái tính hoặc độc lập). Cả64 vẫn BLOCKED vì chưa có approval. Người dùng chưa duyệt ngoại lệ thực tế; phần làm rõ này không kích hoạt exclusion, không đổi verdict hiện hành hay đóng Wave 0.

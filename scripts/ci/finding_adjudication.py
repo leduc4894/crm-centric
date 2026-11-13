@@ -1,9 +1,9 @@
 """Local adjudication kernel, deliberately NOT connected to CI or scanner verdicts.
 
-The caller must run outside the candidate's administrative boundary and supply
-both a trusted decision lookup and independently available bytes. Python object
-shape is not authentication: this interface is a dependency seam, not a security
-boundary. No file/JSON/receipt loader or default trusted implementation exists.
+The original capability caller supplies trusted decisions and source bytes.
+The dormant MVP adapter also accepts candidate-owned JSON for trusted maintainer
+code/policy review; it supplies no independent authorization. Python object shape
+or JSON status is not authentication. Neither interface is a security boundary.
 Native records are retained in memory only; never publish this result directly.
 """
 from collections import Counter
@@ -102,6 +102,10 @@ def _verified(record, decision, context, now, documents, capability, count):
         # the independent caller owns acquisition/identity of this mapping.
         source=documents.get('docs/contracts/'+key)
         # No caller-controlled hash string substitutes for actual source bytes.
+    if jar and source is None and hasattr(capability,'reviewed_jar_snapshot'):
+        # Explicit MVP tradeoff: a reviewed immutable metadata snapshot is the
+        # evidence; no runtime JAR acquisition/recomputation is claimed.
+        return capability.reviewed_jar_snapshot(decision)
     return isinstance(source,bytes) and hashlib.sha256(source).hexdigest()==value
 
 
@@ -110,7 +114,9 @@ def adjudicate(tree, history, documents, context, now, capability=None):
 
     `capability.lookup(id)` must return an independently authorized Decision for
     the exact reviewed proposal ID; `source_bytes` supplies independent JAR bytes.
-    The external host must restrict decisions to the reviewed 64-ID inventory.
+    An MVP policy capability can explicitly select reviewed JAR snapshots instead
+    of source recomputation; that path requires trusted maintainer review.
+    The external host must restrict decisions to the reviewed inventory.
     This module cannot authenticate its host and makes no enforcement claim.
     """
     counts=Counter(finding_id(row) for row in tree)
@@ -131,4 +137,67 @@ def adjudicate(tree, history, documents, context, now, capability=None):
                 # reason and correlation; provider errors never expose payloads.
                 result['reason']='CI_METADATA_VERIFICATION_FAILED'
             results.append(result)
+    return results
+
+
+def adjudicate_mvp(tree, history, documents, context, now, policy_bytes=None):
+    """Dormant candidate-owned exact policy adapter for trusted maintainer review.
+
+    Policy contents are NOT authenticated approval. This adapter is appropriate
+    only where a trusted maintainer reviews candidate code AND policy changes.
+    No CI caller exists. Missing/pending policy blocks. JAR snapshot review is
+    explicit and never claims runtime recomputation. Never publish native records.
+    """
+    class Policy:
+        def __init__(self):
+            self.decisions={}
+            self.snapshots=set()
+
+        def lookup(self, identifier):
+            return self.decisions.get(identifier)
+
+        def source_bytes(self, decision):
+            return None
+
+        def reviewed_jar_snapshot(self, decision):
+            return decision.finding_id in self.snapshots
+
+    capability=Policy()
+    try:
+        def invalid_constant(_): raise ValueError('invalid JSON constant')
+        policy=json.loads(policy_bytes,object_pairs_hook=_unique,parse_constant=invalid_constant)
+        if set(policy)!={'schema_version','context','decisions'} or policy['schema_version']!=1:
+            raise ValueError('invalid policy')
+        if Context(**policy['context'])!=context: raise ValueError('stale policy')
+        seen=set()
+        required={'finding_id','path','field','start','end','rule','count','source_kind',
+                  'document_digest','review_basis','status','owner','expires'}
+        for entry in policy['decisions']:
+            if set(entry)!=required: raise ValueError('invalid decision')
+            identifier=entry['finding_id']
+            if not re.fullmatch('[a-f0-9]{64}',identifier) or identifier in seen:
+                raise ValueError('ambiguous decision')
+            seen.add(identifier)
+            if entry['status'] not in ('pending','approved'): raise ValueError('invalid status')
+            basis=entry['review_basis']
+            if (entry['source_kind'],basis) not in {
+                    ('contract','source-recomputed'),('jar','reviewed-jar-snapshot')}:
+                raise ValueError('invalid review basis')
+            if entry['status']!='approved': continue
+            if hashlib.sha256(documents[entry['path']]).hexdigest()!=entry['document_digest']:
+                continue
+            if basis=='reviewed-jar-snapshot': capability.snapshots.add(identifier)
+            capability.decisions[identifier]=Decision(identifier,context,entry['path'],tuple(entry['field']),
+                entry['start'],entry['end'],entry['rule'],entry['count'],entry['owner'],
+                datetime.fromisoformat(entry['expires']),entry['source_kind'])
+    except Exception:
+        results=adjudicate(tree,history,documents,context,now)
+        for result in results: result['reason']='CI_METADATA_POLICY_INVALID'
+        return results
+    results=adjudicate(tree,history,documents,context,now,capability)
+    for result in results:
+        if result['decision']=='verified-metadata':
+            snapshot=result['finding_id'] in capability.snapshots
+            result['verification_basis']='reviewed-jar-snapshot' if snapshot else 'source-recomputed'
+            if snapshot: result['reason']='CI_METADATA_SNAPSHOT_REVIEWED'
     return results

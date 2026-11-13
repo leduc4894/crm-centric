@@ -161,6 +161,18 @@ class CandidateReplayTests(unittest.TestCase):
             documents={p.relative_to(tree).as_posix():p.read_bytes() for p in tree.rglob('*') if p.is_file() and (p.suffix=='.json' or p.parent==tree/'docs/contracts')}
             default=subject.adjudicate(rows,history,documents,context,NOW)
             self.assertEqual(64,sum(r['decision']=='blocked' for r in default))
+            policy_path=ROOT/'docs/engineering/evidence/2026-11-13-mvp-exact-finding-policy.proposed.json'
+            self.assertTrue(policy_path.exists(), 'exact proposed 64-record policy missing')
+            policy=json.loads(policy_path.read_bytes())
+            self.assertEqual(set(decisions),{entry['finding_id'] for entry in policy['decisions']})
+            pending=subject.adjudicate_mvp(rows,history,documents,context,NOW,policy_path.read_bytes())
+            self.assertEqual(64,sum(r['decision']=='blocked' for r in pending))
+            # Synthetic activation exercises mechanics; no checked-in decision changes.
+            for entry in policy['decisions']:
+                entry.update(status='approved',owner='synthetic-test-reviewer',expires=(NOW+timedelta(days=1)).isoformat())
+            simulated=subject.adjudicate_mvp(rows,history,documents,context,NOW,json.dumps(policy).encode())
+            self.assertEqual(64,sum(r['decision']=='verified-metadata' for r in simulated))
+            self.assertEqual(0,sum(r['decision']=='blocked' for r in simulated))
             synthetic=subject.adjudicate(rows,history,documents,context,NOW,ReplayHarness())
             self.assertEqual(4,sum(r['decision']=='verified-metadata' for r in synthetic))
             self.assertEqual(60,sum(r['decision']=='blocked' for r in synthetic))

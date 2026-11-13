@@ -1,5 +1,7 @@
 # Local finding adjudication kernel — not deployed
 
+Historical prototype description: the later [MVP exact policy proposal](2026-11-13-mvp-exact-finding-policy.md) adds a dormant candidate-owned JSON adapter and supersedes the independent-host-only MVP adoption requirement. Its explicit JAR snapshot option proposes prior review plus immutable metadata binding in place of runtime source-byte recomputation. Every actual decision remains pending; neither interface is connected to CI. Statements below about no loader and independent-only prerequisites describe the earlier prototype, not the subsequent MVP proposal.
+
 User authorization permits continuing design and tests for exactly the 64 records in the [review proposal](2026-11-12-mvp-secret-review-proposal.md). It supplies neither an independently operated approval capability nor independent JAR evidence. The proposal's historical PENDING text remains the record of the original session. No currently blocking finding has been cleared.
 
 `scripts/ci/finding_adjudication.py` is an isolated, in-memory dependency seam. Neither scanner verdicts nor workflow execution import it. Default invocation has no capability and blocks every record. There is no decision-file loader, receipt, trust key, production adapter, scanner ignore or CI bypass. A Python object implementing the seam is not authenticated merely because it has the expected methods. Candidate code can construct such objects; this local kernel cannot defend an independent host that executes candidate-controlled code.
