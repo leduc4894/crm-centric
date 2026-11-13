@@ -29,7 +29,7 @@ class MvpPolicyTests(unittest.TestCase):
         self.assertEqual([self.row,other,self.row],[r['record'] for r in results])
     def test_pending_missing_owner_expired_changed_source_and_document_block(self):
         for key,value in [('status','pending'),('owner',''),('expires',NOW.isoformat()),
-                          ('document_digest','f'*64),('source_kind','jar')]:
+                          ('document_digest','f'*64),('source_kind','jar'),('count',True),('start',True)]:
             policy=copy.deepcopy(self.policy);policy['decisions'][0][key]=value
             self.assertEqual('blocked',self.evaluate(policy)[0]['decision'])
         self.assertEqual('blocked',self.evaluate(document=self.document+b'\n')[0]['decision'])

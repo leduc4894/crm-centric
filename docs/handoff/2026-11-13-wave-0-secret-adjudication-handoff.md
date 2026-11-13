@@ -49,3 +49,24 @@ Observed validation:
 - Full service/Compose/browser/security vulnerability gate, remote CI and all acceptance drills NOT RUN in this scoped continuation. Wave 0/P0/RT-* remain OPEN.
 
 Next: user review of concrete proposal. If actual activation is authorized, refresh policy on exact activation candidate, assign owner/expiry and choose a documented source/decision path for the sixty JAR records. Then implement/test explicit integration and preserve full scanner coverage; run appropriate local gates and, only with authorization, remote CI. Independent verifier/enforcement remains production hardening, not a prerequisite for this MVP review. Default current security gate remains BLOCKED. No exception is active.
+
+## User-approved exact64 MVP activation (same-day continuation)
+
+Objective: activate only the64 records in the original proposal and integrate their adjudication into the candidate-owned MVP security path. User approval: "Làm đi" following the concrete64 proposal, owner `maintainer`, review90 days from2026-11-13; reviewed JAR snapshot basis for60 and actual source-byte recomputation for4 contracts. User chose maintainer-reviewed MVP boundary; independent verifier remains production hardening. This explicit approval supersedes earlier PENDING/no-activation statements for these64 records only.
+
+Workspace assumptions: branch `feat/wave-0-plan-4-ci`, original metadata files unchanged, dormant adapter/proposal present; unrelated untracked Plan3 handoff preserved. One coding agent, no worktree/subagents/remote actions. Relevant documents: [scope09](../engineering/09-WAVE-0-CI-MVP-SCOPE.md), [original64 proposal](../engineering/evidence/2026-11-12-mvp-secret-review-proposal.md), [activation design/evidence](../engineering/evidence/2026-11-13-mvp-secret-review-activation.md), [active policy](../../tools/ci/mvp-secret-reviews.json).
+
+Completed implementation: active schema2 policy preserves exact64 original native-record IDs, owner `maintainer`, exclusive expiry `2027-02-11T00:00:00+00:00`. Full domain-separated `reviewed_content_sha256` binds five metadata documents and two contract inputs, separately from real commit SHA; avoids circular self-SHA while allowing unrelated commits. Scanner version/binary/config remain exact. MVP scans exact committed tree and full history unchanged, reviews only tree metadata; history/new/changed/expired/malformed remain blocked. Reviewed findings have separate safe `reviewed_metadata` evidence with original ID, basis, owner, expiry, reason/correlation ID. No secret-pass schema relaxation or broad ignores. Hardening retains original blocking behavior. Active CI rejects historical schema1 adapter policies.
+
+Changed: `scripts/ci/finding_adjudication.py`, `scripts/ci/scan.py`, `tests/CI/test_mvp_finding_policy.py`, new `tests/CI/test_mvp_active_policy.py`, new `tools/ci/mvp-secret-reviews.json`, scope09, new activation evidence and this handoff. Planned commit subject `feat(ci): activate approved exact64 MVP metadata reviews` (resolve actual hash by subject). Unrelated untracked Plan3 handoff remains untouched.
+
+Observed verification so far:
+
+- RED2: missing active policy/content digest, then GREEN2.
+- Real pinned scanner RED: expected reviewed baseline pass was blocked before integration; GREEN after integration.
+- Real-scanner active tests: PASS3/31.596s; subsequent bounded evidence test run PASS4/29.592s. Baseline64 reviewed (60 JAR snapshot/4 contract recomputed), hardening blocked, expired/malformed/changed metadata block64, new synthetic secret blocks while retaining64 review decisions, deleting synthetic secret still leaves blocking history. Native outputs/payloads never published.
+- Existing finding suites: PASS17/11.278s and PASS17/10.593s. Later strict boolean-field regressions and schema-downgrade negative are included in the final full run, not claimed passed by these earlier runs.
+- `git diff --check`: PASS before final documentation edits; final result below.
+- Final prepared full CI suite and committed candidate scanner: IN PROGRESS; actual results must be appended before session completion.
+
+Not run/closed: service/Compose/browser/full five-gate run, remote CI and all remote DemoModule/concurrent duplicate/tenant isolation/outage recovery/restore acceptance drills. Wave0/P0/RT-* remain OPEN. Dependency findings have no new exceptions. Next: finish full suite, address any failures, commit, run real scanner on committed candidate, record exact results; no remote action.

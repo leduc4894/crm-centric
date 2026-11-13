@@ -1,13 +1,13 @@
-"""Local adjudication kernel, deliberately NOT connected to CI or scanner verdicts.
+"""Exact finding adjudication for candidate-owned, maintainer-reviewed MVP CI.
 
 The original capability caller supplies trusted decisions and source bytes.
-The dormant MVP adapter also accepts candidate-owned JSON for trusted maintainer
+The MVP adapter also accepts candidate-owned JSON for trusted maintainer
 code/policy review; it supplies no independent authorization. Python object shape
 or JSON status is not authentication. Neither interface is a security boundary.
 Native records are retained in memory only; never publish this result directly.
 """
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 import hashlib
 import json
@@ -140,12 +140,18 @@ def adjudicate(tree, history, documents, context, now, capability=None):
     return results
 
 
-def adjudicate_mvp(tree, history, documents, context, now, policy_bytes=None):
-    """Dormant candidate-owned exact policy adapter for trusted maintainer review.
+def reviewed_content_digest(documents):
+    """Full domain-separated SHA256 of exact reviewed paths and document bytes."""
+    payload=[[name,hashlib.sha256(content).hexdigest()] for name,content in sorted(documents.items())]
+    return hashlib.sha256(b'crm-mvp-reviewed-content-v1\0'+json.dumps(payload,separators=(',',':')).encode()).hexdigest()
+
+
+def adjudicate_mvp(tree, history, documents, context, now, policy_bytes=None, *, active_only=False):
+    """Candidate-owned exact policy adapter for trusted maintainer review.
 
     Policy contents are NOT authenticated approval. This adapter is appropriate
     only where a trusted maintainer reviews candidate code AND policy changes.
-    No CI caller exists. Missing/pending policy blocks. JAR snapshot review is
+    Missing/pending policy blocks. JAR snapshot review is
     explicit and never claims runtime recomputation. Never publish native records.
     """
     class Policy:
@@ -166,14 +172,36 @@ def adjudicate_mvp(tree, history, documents, context, now, policy_bytes=None):
     try:
         def invalid_constant(_): raise ValueError('invalid JSON constant')
         policy=json.loads(policy_bytes,object_pairs_hook=_unique,parse_constant=invalid_constant)
-        if set(policy)!={'schema_version','context','decisions'} or policy['schema_version']!=1:
-            raise ValueError('invalid policy')
-        if Context(**policy['context'])!=context: raise ValueError('stale policy')
+        version=policy['schema_version']
+        if active_only and version!=2: raise ValueError('inactive policy schema')
+        required_top={'schema_version','context','decisions'}
+        if version==2: required_top|={'reviewed_content_sha256'}
+        if type(version) is not int or version not in (1,2) or set(policy)!=required_top: raise ValueError('invalid policy')
+        reviewed_context=Context(**policy['context'])
+        if version==2:
+            # candidate is the historical review origin, never a synthetic commit
+            # SHA. Current commit identity remains context.candidate/run evidence.
+            paths={entry['path'] for entry in policy['decisions']}
+            paths|={'docs/contracts/'+entry['field'][1] for entry in policy['decisions'] if entry['source_kind']=='contract'}
+            selected={path:documents[path] for path in paths}
+            if (len(policy['decisions'])!=64
+                    or not re.fullmatch('[a-f0-9]{64}',policy['reviewed_content_sha256'])
+                    or reviewed_content_digest(selected)!=policy['reviewed_content_sha256']):
+                raise ValueError('changed reviewed content')
+            reviewed_context=replace(reviewed_context,candidate=context.candidate)
+        if reviewed_context!=context: raise ValueError('stale policy')
         seen=set()
         required={'finding_id','path','field','start','end','rule','count','source_kind',
                   'document_digest','review_basis','status','owner','expires'}
         for entry in policy['decisions']:
             if set(entry)!=required: raise ValueError('invalid decision')
+            if (any(type(entry[key]) is not int for key in ('start','end','count'))
+                    or not isinstance(entry['field'],list)
+                    or any(not isinstance(part,str) for part in entry['field'])
+                    or not isinstance(entry['owner'],str)
+                    or (version==2 and (entry['owner']!='maintainer'
+                        or entry['expires']!='2027-02-11T00:00:00+00:00'))):
+                raise ValueError('invalid decision types')
             identifier=entry['finding_id']
             if not re.fullmatch('[a-f0-9]{64}',identifier) or identifier in seen:
                 raise ValueError('ambiguous decision')

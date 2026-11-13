@@ -12,7 +12,7 @@ import re
 import uuid
 
 from scripts.ci.run_safe import private_command, SafeProcessError
-from scripts.ci.summary import RunIdentity
+from scripts.ci.summary import RunIdentity, ReportError
 
 class ScanError(Exception):
     def __init__(self):
@@ -44,6 +44,7 @@ class ScanSummary:
     findings: tuple = ()
     scanned_count: int = 0
     deferred_findings: tuple = ()
+    reviewed_metadata: tuple = ()
     def to_dict(self): return asdict(self)
 
 
@@ -185,11 +186,25 @@ def run_scanner(scanner: ScannerConfig, input: ScanInput, run: RunIdentity, mode
             _history(root,run)
             if scanner.rules is None: raise ScanError()
             common=['--config',str(scanner.rules.resolve()),'--no-banner','--redact=100','--ignore-gitleaks-allow','--gitleaks-ignore-path=/dev/null','--exit-code=0','--report-format=json','--report-path=/dev/stdout']
-            findings=[]
+            findings=[];reviewed=()
             with candidate_tree(root,run) as tree:
                 # Relative scan roots keep File/Fingerprint independent of the
                 # ephemeral export directory; all record fields remain hashed.
-                parsed,_=parse_findings('gitleaks',_run_json([str(scanner.executable),'dir','.',*common],cwd=tree))
+                tree_rows=_run_json([str(scanner.executable),'dir','.',*common],cwd=tree)
+                parsed,_=parse_findings('gitleaks',tree_rows)
+                if mode=='mvp':
+                    from scripts.ci.finding_adjudication import Context,adjudicate_mvp
+                    policy=tree/'tools/ci/mvp-secret-reviews.json'
+                    documents={p.relative_to(tree).as_posix():p.read_bytes() for p in tree.rglob('*')
+                               if p.is_file() and (p.suffix=='.json' or p.parent==tree/'docs/contracts')}
+                    context=Context(run.candidate_sha,scanner.version,
+                        hashlib.sha256(scanner.rules.read_bytes()).hexdigest(),scanner.sha256)
+                    results=adjudicate_mvp(tree_rows,[],documents,context,datetime.now(timezone.utc),
+                        policy.read_bytes() if policy.is_file() else None,active_only=True)
+                    reviewed=tuple({key:r[key] for key in ('finding_id','verification_basis','owner','expires','reason','correlation_id')}
+                                   for r in results if r['decision']=='verified-metadata')
+                    accepted={r['finding_id'] for r in reviewed}
+                    parsed=[f for f in parsed if f['finding_id'] not in accepted]
                 findings.extend(parsed)
             parsed,_=parse_findings('gitleaks',_run_json([str(scanner.executable),'git',str(root),'--log-opts=--full-history --diff-merges=separate '+run.base_sha+'..'+run.candidate_sha,*common]))
             findings.extend(parsed)
@@ -218,7 +233,7 @@ def run_scanner(scanner: ScannerConfig, input: ScanInput, run: RunIdentity, mode
         states={f['verdict'] for f in findings}
         status=('incomplete' if 'incomplete' in states else 'blocked' if states & {'blocked','review-required'} else 'pass')
         token={'incomplete':'CI_SCAN_INCOMPLETE','blocked':'CI_SCAN_FINDINGS','pass':'CI_SCAN_OK'}[status]
-        return ScanSummary(run,status,token,correlation,tuple(findings),count,deferred)
+        return ScanSummary(run,status,token,correlation,tuple(findings),count,deferred,reviewed if scanner.kind=='gitleaks' else ())
     except (ScanError,SafeProcessError,OSError,ValueError,TypeError,KeyError,AttributeError,RecursionError):
         return ScanSummary(run,'incomplete','CI_SCAN_INCOMPLETE',correlation)
 
@@ -520,14 +535,16 @@ def combine_mvp_scans(reports, gaps, run):
     if (set(reports)!=required or set(gaps)-{'CI_TOOL_DEPENDENCY_COVERAGE'}
             or any(r.identity!=run or r.status not in ('pass','blocked') or r.scanned_count<=0
                    or (r.status=='pass' and not safe_pass_findings(r.findings))
+                   or not _safe_mvp_review(r.reviewed_metadata,kind)
                    or any(f['kind'] not in ('secret','vulnerability') for f in r.findings)
-                   for r in reports.values())):
+                   for kind,r in reports.items())):
         return ScanSummary(run,'incomplete','CI_SCAN_INCOMPLETE',str(uuid.uuid4()))
     findings=tuple(f for report in reports.values() for f in report.findings)
     blocked=any(r.status=='blocked' for r in reports.values())
     return ScanSummary(run,'blocked' if blocked else 'pass',
                        'CI_SCAN_FINDINGS' if blocked else 'CI_SCAN_OK',str(uuid.uuid4()),
-                       findings,sum(r.scanned_count for r in reports.values()))
+                       findings,sum(r.scanned_count for r in reports.values()),reviewed_metadata=tuple(
+                           item for report in reports.values() for item in report.reviewed_metadata))
 
 
 def mvp_evidence(reports, gaps, run, empty_restores=()):
@@ -568,8 +585,10 @@ def validate_mvp_evidence(raw, run, require_pass=False):
         if row['reason_token']!={'pass':'CI_SCAN_OK','blocked':'CI_SCAN_FINDINGS','incomplete':'CI_SCAN_INCOMPLETE'}[row['status']]: raise ScanError()
         if str(uuid.UUID(row['correlation_id']))!=row['correlation_id']: raise ScanError()
         safe=findings(row['findings']);deferred=findings(row.get('deferred_findings',[]))
+        reviewed=validate_reviewed_metadata(row.get('reviewed_metadata',[]))
+        if reviewed and kind!='gitleaks': raise ScanError()
         if any(f['kind']!='license' for f in deferred): raise ScanError()
-        reports[kind]=ScanSummary(run,row['status'],row['reason_token'],row['correlation_id'],tuple(safe),row['scanned_count'],tuple(deferred))
+        reports[kind]=ScanSummary(run,row['status'],row['reason_token'],row['correlation_id'],tuple(safe),row['scanned_count'],tuple(deferred),tuple(reviewed))
     gaps=raw['coverage_gaps']
     if not isinstance(gaps,list) or any(g not in ('CI_TOOL_DEPENDENCY_COVERAGE','CI_UNLOCKED_DEPENDENCIES','CI_ECOSYSTEM_COVERAGE','CI_SCAN_INCOMPLETE') for g in gaps): raise ScanError()
     from scripts.ci.surface_restore import measurement_metadata
@@ -579,3 +598,32 @@ def validate_mvp_evidence(raw, run, require_pass=False):
     if raw['deferred']!=clean['deferred']: raise ScanError()
     if require_pass and combine_mvp_scans(reports,gaps,run).status!='pass': raise ScanError()
     return clean
+
+
+def validate_reviewed_metadata(rows):
+    """Safe evidence projection; candidate-owned policy is maintainer reviewed."""
+    from scripts.ci.publication import digest
+    if not isinstance(rows,(list,tuple)) or len(rows)>64: raise ScanError()
+    # Exact historical reviewed inventory, never path/rule-wide approval.
+    inventory=_json(Path(__file__).resolve().parents[2]/'docs/engineering/evidence/2026-11-13-mvp-exact-finding-policy.proposed.json')
+    approved={entry['finding_id']:entry['review_basis'] for entry in inventory['decisions']}
+    result=[];seen=set()
+    for row in rows:
+        if set(row)!={'finding_id','verification_basis','owner','expires','reason','correlation_id'}: raise ScanError()
+        identifier=digest(row['finding_id'])
+        if identifier in seen: raise ScanError()
+        seen.add(identifier)
+        basis=row['verification_basis']
+        if basis not in ('reviewed-jar-snapshot','source-recomputed') or approved.get(identifier)!=basis: raise ScanError()
+        if row['reason']!=('CI_METADATA_SNAPSHOT_REVIEWED' if basis=='reviewed-jar-snapshot' else 'CI_METADATA_VERIFIED'): raise ScanError()
+        if row['owner']!='maintainer' or row['expires']!='2027-02-11T00:00:00+00:00': raise ScanError()
+        if str(uuid.UUID(row['correlation_id']))!=row['correlation_id']: raise ScanError()
+        result.append(dict(row))
+    return result
+
+
+def _safe_mvp_review(rows,kind):
+    try:
+        return (not rows or kind=='gitleaks') and validate_reviewed_metadata(rows)==list(rows)
+    except (ScanError,ReportError,ValueError,KeyError,TypeError,AttributeError):
+        return False
