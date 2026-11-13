@@ -215,8 +215,8 @@ def run_scanner(scanner: ScannerConfig, input: ScanInput, run: RunIdentity, mode
                     tree_policy=tree/'tools/ci/mvp-secret-reviews.json'
                     def git_blob(commit,path):
                         oid=_git(root,'rev-parse',commit+':'+path)
-                        proc=subprocess.run(['git','show',commit+':'+path],cwd=root,capture_output=True,check=True)
-                        return oid,proc.stdout
+                        with private_command(['/usr/bin/git','-C',str(root),'show',commit+':'+path]) as proc:
+                            return oid,proc.stdout.read_bytes()
                     results=adjudicate_mvp_history(history_rows,documents,context,datetime.now(timezone.utc),
                         history_policy.read_bytes() if history_policy.is_file() else None,
                         tree_policy.read_bytes() if tree_policy.is_file() else None,git_blob)
