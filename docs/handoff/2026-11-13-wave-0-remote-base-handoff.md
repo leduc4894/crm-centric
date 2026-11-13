@@ -113,3 +113,14 @@ then PASS1 in4.343s after exact mappings. It also scans a newly introduced
 synthetic secret and verifies four metadata records accepted plus secret blocked;
 changed contract bytes and altered Match remain blocked. Real four-history/source
 regression PASS; tests using both immutable candidate scans follow after commit.
+
+Reviewer found active-policy integration still expected64 and archived the old
+review-origin snapshot without new evidence. Corrected fixture to archive actual
+candidate HEAD, preserve original64 exact-ID comparison, assert four added exact
+locations/source-kind, and expect68tree (60 jar +8 recomputed). All existing
+expired/malformed/changed/downgraded/origin/new/deleted-secret negatives retained.
+Real `.venv/bin/python -m unittest discover -s tests/CI -p
+test_mvp_active_policy.py`: PASS4 in43.589s. Real exact64 history + actual immutable
+candidate scanner regression: PASS1 in23.663s,132 reviewed records. Full CI on
+18dd167 initially ran before fixture correction and is retained as a separate
+attempt; final corrected full rerun remains required.

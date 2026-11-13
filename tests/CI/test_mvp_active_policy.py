@@ -15,20 +15,23 @@ class ActivePolicyTests(unittest.TestCase):
         self.assertNotEqual(digest,kernel.reviewed_content_digest({'a':b'changed','b':b'two'}))
         self.assertEqual(digest,kernel.reviewed_content_digest(dict(reversed(list(docs.items())))))
 
-    def test_active_inventory_is_exact_approved64_with_maintainer_90day_expiry(self):
+    def test_active_inventory_is_exact_approved68_with_maintainer_90day_expiry(self):
         path=ROOT/'tools/ci/mvp-secret-reviews.json'
         self.assertTrue(path.is_file())
         policy=json.loads(path.read_bytes())
         pending=json.loads((ROOT/'docs/engineering/evidence/2026-11-13-mvp-exact-finding-policy.proposed.json').read_bytes())
         self.assertEqual(2,policy['schema_version'])
-        self.assertEqual({e['finding_id'] for e in pending['decisions']},{e['finding_id'] for e in policy['decisions']})
-        self.assertEqual(64,len(policy['decisions']))
+        self.assertEqual({e['finding_id'] for e in pending['decisions']},{e['finding_id'] for e in policy['decisions'][:64]})
+        self.assertEqual(68,len(policy['decisions']))
+        evidence=policy['decisions'][64:]
+        self.assertEqual([259,265,273,279],[e['start'] for e in evidence])
+        self.assertTrue(all(e['source_kind']=='evidence-contract' for e in evidence))
         for entry in policy['decisions']:
             self.assertEqual('approved',entry['status'])
             self.assertEqual('maintainer',entry['owner'])
             self.assertEqual('2027-02-11T00:00:00+00:00',entry['expires'])
 
-    def test_real_scanner_adjudicates64_but_blocks_new_history_changed_expired_and_malformed(self):
+    def test_real_scanner_adjudicates68_but_blocks_new_history_changed_expired_and_malformed(self):
         import hashlib, io, subprocess, tarfile, tempfile
         from scripts.ci.scan import ScannerConfig,ScanInput,run_scanner
         from scripts.ci.summary import RunIdentity
@@ -37,7 +40,7 @@ class ActivePolicyTests(unittest.TestCase):
         scanner=ScannerConfig('gitleaks',exe,hashlib.sha256(exe.read_bytes()).hexdigest(),'8.30.1',config)
         with tempfile.TemporaryDirectory() as directory:
             tree=Path(directory)
-            archive=subprocess.run(['git','archive','b1c86f931fdc0a3ab95ea2243c95b35f29637851'],cwd=ROOT,capture_output=True,check=True).stdout
+            archive=subprocess.run(['git','archive','HEAD'],cwd=ROOT,capture_output=True,check=True).stdout
             with tarfile.open(fileobj=io.BytesIO(archive)) as tar:tar.extractall(tree,filter='data')
             policy_path=tree/'tools/ci/mvp-secret-reviews.json'
             policy_path.write_bytes((ROOT/'tools/ci/mvp-secret-reviews.json').read_bytes())
@@ -50,9 +53,9 @@ class ActivePolicyTests(unittest.TestCase):
                 return run_scanner(scanner,ScanInput(tree),run,mode=mode)
             result=scan()
             self.assertEqual('pass',result.status)
-            self.assertEqual(64,len(result.reviewed_metadata))
+            self.assertEqual(68,len(result.reviewed_metadata))
             self.assertEqual(60,sum(r['verification_basis']=='reviewed-jar-snapshot' for r in result.reviewed_metadata))
-            self.assertEqual(4,sum(r['verification_basis']=='source-recomputed' for r in result.reviewed_metadata))
+            self.assertEqual(8,sum(r['verification_basis']=='source-recomputed' for r in result.reviewed_metadata))
             self.assertEqual((),result.findings)
             self.assertEqual('blocked',scan('hardening').status)
             original=policy_path.read_bytes()
@@ -74,18 +77,18 @@ class ActivePolicyTests(unittest.TestCase):
                     path.write_bytes(path.read_bytes()+b'\n')
                 git('add','.');git('commit','-m',mutation)
                 result=scan();self.assertEqual('blocked',result.status)
-                self.assertEqual(64,len(result.findings));self.assertEqual((),result.reviewed_metadata)
+                self.assertEqual(68,len(result.findings));self.assertEqual((),result.reviewed_metadata)
                 git('reset','--hard',base)
             secret=tree/'synthetic.txt'
             secret.write_text('api_key = "synthetic-'+'A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6'+'"')
             git('add','.');git('commit','-m','synthetic new')
             result=scan();self.assertEqual('blocked',result.status)
-            self.assertEqual(64,len(result.reviewed_metadata));self.assertGreaterEqual(len(result.findings),2)
+            self.assertEqual(68,len(result.reviewed_metadata));self.assertGreaterEqual(len(result.findings),2)
             safe=json.dumps(result.to_dict())
             self.assertNotIn('synthetic-',safe);self.assertNotIn('Match',safe);self.assertNotIn('Secret',safe)
             secret.unlink();git('add','-u');git('commit','-m','delete synthetic')
             result=scan();self.assertEqual('blocked',result.status)
-            self.assertEqual(64,len(result.reviewed_metadata));self.assertGreaterEqual(len(result.findings),1)
+            self.assertEqual(68,len(result.reviewed_metadata));self.assertGreaterEqual(len(result.findings),1)
 
     def test_safe_review_evidence_rejects_unknown_ids_and_payload_extensions(self):
         import copy
