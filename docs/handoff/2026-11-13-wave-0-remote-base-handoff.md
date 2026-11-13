@@ -124,3 +124,29 @@ test_mvp_active_policy.py`: PASS4 in43.589s. Real exact64 history + actual immut
 candidate scanner regression: PASS1 in23.663s,132 reviewed records. Full CI on
 18dd167 initially ran before fixture correction and is retained as a separate
 attempt; final corrected full rerun remains required.
+
+## Final verified candidate
+
+Code/policy candidate `00db2f08b91020332ab75f69c1c0486b93c4e870`:
+- Prepared runtime `.local/ci-venv315/bin/python -m unittest discover -s tests/CI`:
+  PASS162 in367.367s. Includes actual tree/history scans, synthetic new/deleted/
+  merge-introduced secrets, expiry/tamper/wrong-source negatives and both immutable
+  semantic evaluations. Previous18dd attempt FAIL162/2 in392.657s solely on old
+  active inventory/fixture; both failures corrected and full run now green.
+- Prepared runtime with `CI_SCANNER_ROOT="$PWD/.local/task5"`,
+  `GITHUB_RUN_ID=remote-base-00db2f0`, `GITHUB_RUN_ATTEMPT=1`:
+  `.local/ci-venv315/bin/python -m scripts.ci.security --mode mvp --revision
+  .local/remote-base-00db2f0/revision.json --output
+  .local/remote-base-00db2f0/security.json`: PASS0 `CI_SCAN_OK`,39.658s,
+  correlation `e44d8c89-7d5e-4d35-b6f8-b26f001229ee`. Actual candidate above,
+  actual base `df993ae4ff44510a2ecfc861bb277a3f9418577f`,132 exact reviewed
+  metadata records. Original nonblocking vulnerabilities remain visible; deferred
+  hardening remains OPEN. This is a local security result, not remote enforcement.
+- Final `git diff --check`: PASS. All started verification processes ended.
+
+Commits: a465e43 remote base, a056631 history4,18dd167 tree4,00db2f0 active fixture.
+This final documentation-only handoff commit follows those verified code/policy
+commits and does not claim a fresh full run for its own SHA. No public contracts,
+schemas, database migrations, push, merge or settings changes. Unrelated untracked
+Plan3 handoff preserved. Parent continues authorized publication/PR work; remote
+CI and all outstanding Wave0/P0 acceptance drills remain unclaimed.
