@@ -68,6 +68,8 @@ def policy_identity_preflight(old_hashes, new_hashes, revision=None, transition=
     """
     if old_hashes == new_hashes:
         return
+    if transition is None:
+        raise GateError('CONTRACT_POLICY_REVIEW_REQUIRED')
     from scripts.ci.policy_transition import VerifiedTransition
     import time
     if (not isinstance(transition, VerifiedTransition) or revision is None
@@ -99,7 +101,8 @@ def check_baseline_configuration(repo, base, mvp_review=False):
             current_policy.add('scripts/contracts/sdk_surface.py')
     old_hashes = {p: hashlib.sha256(git(repo, 'show', f'{base}:{p}')).hexdigest() for p in base_policy}
     new_hashes = {p: sha(repo / p) for p in current_policy}
-    from scripts.ci.contract_review import approved
+    if mvp_review:
+        from scripts.ci.contract_review import approved
     if mvp_review and approved(old_hashes,new_hashes,base):
         return {'basis':'maintainer-reviewed-mvp-delta','owner':'maintainer',
                 'expires':'2027-02-11T00:00:00+00:00','independentVerification':False,
