@@ -179,6 +179,8 @@ def adjudicate_mvp(tree, history, documents, context, now, policy_bytes=None, *,
         if type(version) is not int or version not in (1,2) or set(policy)!=required_top: raise ValueError('invalid policy')
         reviewed_context=Context(**policy['context'])
         if version==2:
+            if reviewed_context.candidate!='b1c86f931fdc0a3ab95ea2243c95b35f29637851':
+                raise ValueError('invalid review origin')
             # candidate is the historical review origin, never a synthetic commit
             # SHA. Current commit identity remains context.candidate/run evidence.
             paths={entry['path'] for entry in policy['decisions']}

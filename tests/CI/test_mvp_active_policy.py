@@ -56,12 +56,15 @@ class ActivePolicyTests(unittest.TestCase):
             self.assertEqual((),result.findings)
             self.assertEqual('blocked',scan('hardening').status)
             original=policy_path.read_bytes()
-            for mutation in ('expired','malformed','changed','downgraded'):
+            for mutation in ('expired','malformed','changed','downgraded','origin'):
                 if mutation=='expired':
                     policy=json.loads(original)
                     for entry in policy['decisions']:entry['expires']='2020-01-01T00:00:00+00:00'
                     policy_path.write_text(json.dumps(policy))
                 elif mutation=='malformed':policy_path.write_text('{')
+                elif mutation=='origin':
+                    policy=json.loads(original);policy['context']['candidate']=''
+                    policy_path.write_text(json.dumps(policy))
                 elif mutation=='downgraded':
                     policy=json.loads(original);policy['schema_version']=1
                     policy.pop('reviewed_content_sha256')
