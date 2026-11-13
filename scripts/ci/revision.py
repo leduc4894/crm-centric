@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import re
 import subprocess
+import sys
 import uuid
 
 
@@ -118,6 +119,37 @@ def resolve_event(event: dict, checkout_sha: str, git: GitReader, *, event_sha=N
     raise RevisionError('CI_BASE_UNAVAILABLE')
 
 
+def proof_diagnostics(event, checkout, git, event_sha):
+    """Publish bounded states/equalities only, never event or Git contents."""
+    def state(value):
+        if value is None:
+            return 'absent'
+        try:
+            _sha(value, 'CI_CANDIDATE_UNAVAILABLE')
+            return 'valid'
+        except RevisionError:
+            return 'invalid'
+
+    pr = event.get('pull_request') if isinstance(event, dict) else None
+    pr = pr if isinstance(pr, dict) else {}
+    base_data, head_data = pr.get('base'), pr.get('head')
+    base = base_data.get('sha') if isinstance(base_data, dict) else None
+    head = head_data.get('sha') if isinstance(head_data, dict) else None
+    merge = pr.get('merge_commit_sha')
+    merge_state, actions_state = state(merge), state(event_sha)
+    facts = {'eventMergeState': merge_state, 'actionsShaState': actions_state,
+             'eventBaseState': state(base), 'eventHeadState': state(head),
+             'eventMergeMatchesCheckout': merge == checkout if merge_state == 'valid' else None,
+             'actionsShaMatchesCheckout': event_sha == checkout if actions_state == 'valid' else None,
+             'checkoutParentsMatchEvent': None}
+    if git is not None and state(checkout) == 'valid' and state(base) == state(head) == 'valid':
+        try:
+            facts['checkoutParentsMatchEvent'] = git.parents(checkout) == [base, head]
+        except RevisionError:
+            pass
+    return facts
+
+
 class _SafeArgumentParser(argparse.ArgumentParser):
     def error(self, message):
         # argparse's default error prints untrusted argument values before exiting.
@@ -129,8 +161,12 @@ def main():
     parser.add_argument('--event-file', required=True)
     parser.add_argument('--event-name', default=os.environ.get('GITHUB_EVENT_NAME'))
     parser.add_argument('--checkout-sha')
+    parser.add_argument('--failure-diagnostics', action='store_true')
+    diagnostics = False
+    event, actual_checkout, git = None, None, None
     try:
         args = parser.parse_args()
+        diagnostics = args.failure_diagnostics
         path = Path(args.event_file)
         if path.stat().st_size > 4 * 1024 * 1024:
             raise RevisionError('CI_CANDIDATE_UNAVAILABLE')
@@ -151,8 +187,12 @@ def main():
         error = RevisionError('CI_CANDIDATE_UNAVAILABLE')
     except RevisionError as failure:
         error = failure
-    print(json.dumps({'reasonToken': error.reason_token,
-                      'correlationId': error.correlation_id}, sort_keys=True))
+    failure = {'reasonToken': error.reason_token, 'correlationId': error.correlation_id}
+    print(json.dumps(failure, sort_keys=True))
+    if diagnostics:
+        diagnostic = {**failure, 'revisionProof': proof_diagnostics(
+            event, actual_checkout, git, os.environ.get('GITHUB_SHA'))}
+        print(json.dumps(diagnostic, sort_keys=True), file=sys.stderr)
     return 1
 
 

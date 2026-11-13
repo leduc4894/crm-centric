@@ -26,7 +26,7 @@ jobs:
           dotnet-version: '10.0.403'
       - id: revision
         name: Verify immutable event revisions
-        run: python -m scripts.ci.revision --event-file "$GITHUB_EVENT_PATH" > revision.json
+        run: python -m scripts.ci.revision --event-file "$GITHUB_EVENT_PATH" --failure-diagnostics > revision.json
       - id: setup
         name: Provision locked tools
         run: bash scripts/ci/setup.sh backend mvp
@@ -68,7 +68,7 @@ jobs:
           dotnet-version: '10.0.403'
       - id: revision
         name: Verify immutable event revisions
-        run: python -m scripts.ci.revision --event-file "$GITHUB_EVENT_PATH" > revision.json
+        run: python -m scripts.ci.revision --event-file "$GITHUB_EVENT_PATH" --failure-diagnostics > revision.json
       - id: setup
         name: Provision locked tools
         run: bash scripts/ci/setup.sh compose mvp
@@ -110,7 +110,7 @@ jobs:
           dotnet-version: '10.0.403'
       - id: revision
         name: Verify immutable event revisions
-        run: python -m scripts.ci.revision --event-file "$GITHUB_EVENT_PATH" > revision.json
+        run: python -m scripts.ci.revision --event-file "$GITHUB_EVENT_PATH" --failure-diagnostics > revision.json
       - id: setup
         name: Provision locked tools
         run: bash scripts/ci/setup.sh contracts-sdk mvp
@@ -150,7 +150,7 @@ jobs:
           dotnet-version: '10.0.403'
       - id: revision
         name: Verify immutable event revisions
-        run: python -m scripts.ci.revision --event-file "$GITHUB_EVENT_PATH" > revision.json
+        run: python -m scripts.ci.revision --event-file "$GITHUB_EVENT_PATH" --failure-diagnostics > revision.json
       - id: setup
         name: Provision locked tools
         run: bash scripts/ci/setup.sh web-browser mvp
@@ -192,7 +192,7 @@ jobs:
           dotnet-version: '10.0.403'
       - id: revision
         name: Verify immutable event revisions
-        run: python -m scripts.ci.revision --event-file "$GITHUB_EVENT_PATH" > revision.json
+        run: python -m scripts.ci.revision --event-file "$GITHUB_EVENT_PATH" --failure-diagnostics > revision.json
       - id: setup
         name: Provision locked tools
         run: bash scripts/ci/setup.sh security mvp
@@ -264,6 +264,6 @@ jobs:
         env:
           CI_NEEDS: ${{ toJSON(needs) }}
         run: |
-          python -m scripts.ci.revision --event-file "$GITHUB_EVENT_PATH" > revision.json
+          python -m scripts.ci.revision --event-file "$GITHUB_EVENT_PATH" --failure-diagnostics > revision.json
           python -c 'import json,os; from pathlib import Path; r=json.loads(Path("revision.json").read_text()); Path("identity.json").write_text(json.dumps({"run_id":os.environ["GITHUB_RUN_ID"],"run_attempt":os.environ["GITHUB_RUN_ATTEMPT"],"candidate_sha":r["candidate_sha"],"base_sha":r["base_sha"],"merge_sha":r["merge_sha"]})); Path("needs.json").write_text(os.environ["CI_NEEDS"])'
           python -m scripts.ci.aggregate --mode mvp --identity identity.json --needs needs.json --reports .local/ci/*.json

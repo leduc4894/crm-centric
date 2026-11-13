@@ -73,11 +73,13 @@ def main():
         return 1
     expected=None
     try:
+        steps=json.loads(os.environ['CI_STEPS'])
+    except (OSError,ValueError,KeyError): steps={}
+    try:
         revision=json.loads(Path('revision.json').read_text())
         expected=RunIdentity(os.environ['GITHUB_RUN_ID'],os.environ['GITHUB_RUN_ATTEMPT'],
             revision['candidate_sha'],revision['base_sha'],revision['merge_sha'])
-        steps=json.loads(os.environ['CI_STEPS'])
-    except (OSError,ValueError,KeyError): steps={}
+    except (OSError,ValueError,KeyError): pass
     token=complete(args.job,args.output,steps,expected,mode=args.mode)
     print(json.dumps({'reasonToken':token,'correlationId':str(uuid.uuid4())}))
     return 0 if token=='CI_JOB_COMPLETE' else 1

@@ -51,3 +51,61 @@ Verification:
 Next: parent review/publish under existing
 user authorization, then inspect new actual remote CI. Original run remains
 failed; no remote gate PASS, Wave0/P0 completion or acceptance drill claim.
+
+## Second remote run: bounded diagnostics, no proof relaxation
+
+Run [43453090132](https://github.com/leduc4894/crm-centric/actions/runs/43453090132)
+also fails all five revision steps. Its run API head is153df32, base df993ae;
+checkout log identifies merge1d67951, matching the current PR API merge. Existing
+logs contain only step exit1, not the redirected revision.json reason or actual
+Actions GITHUB_SHA. Actual synchronize event fields are not available from these
+logs. This session does not claim a stale/non-null/null event merge diagnosis.
+
+Correction to the first investigation's evidence characterization: repository
+Events API nested PR data is NOT an immutable event snapshot. The same opened
+15:01:21 event now reports head153df32 instead of the previously observed a465e43.
+Its earlier null merge projection supported a hypothesis, not proof of the run's
+exact event-file contents. The original synthetic null regression and guarded
+fallback remain valid, but do not establish the exact remote failure cause.
+
+User authorized iterative PR publication and CI through parent, without merge or
+settings changes. Parent approved a diagnostic iteration on this evidence gap.
+Starting HEAD153df32; no push by this coding session.
+
+Implemented diagnostic iteration:
+- Revision CLI opt-in --failure-diagnostics emits reason/correlation and seven
+  bounded proof facts to stderr only on failure: valid/invalid/absent states for
+  event merge, event base/head and Actions SHA; equality booleans for event merge
+  versus checkout, Actions SHA versus checkout, and exact ordered event parents
+  versus checkout. Unavailable facts are null. No raw event, commit, SHA, private
+  field or Git diagnostic is printed. Existing failure stdout stays safe JSON.
+- All six workflow revision invocations (five jobs plus aggregate) enable that
+  diagnostic flag.
+- Completion independently reads CI_STEPS before revision identity. Previously a
+  missing identity raised KeyError and reset steps to {}, hiding revision failure
+  as CI_STEP_NON_SUCCESS. It now preserves CI_REVISION_FAILED without inventing
+  an identity or converting failure to success.
+- Candidate acceptance and all existing provenance checks are unchanged.
+
+Additional files changed: .github/workflows/wave0.yml, scripts/ci/completion.py,
+tests/CI/test_completion.py; revision.py, test_revision.py and this handoff also
+updated. Rollback: scoped revert; no schema/public contract/migration change.
+
+Verification:
+- RED: diagnostic test could not parse absent stderr; completion CLI test
+  expected CI_REVISION_FAILED but observed CI_STEP_NON_SUCCESS.
+- `.venv/bin/python -m unittest discover -s tests/CI -p test_revision.py`:
+  PASS17 in1.469s, including synthetic private-sentinel exclusion and no SHA
+  disclosure from the diagnostic facts.
+- Corresponding test_completion.py: PASS9 in0.983s.
+- Corresponding test_workflow.py: PASS9 in0.315s.
+- Prepared runtime `.local/ci-venv315/bin/python -m unittest discover -s tests/CI`:
+  PASS164 in367.905s. Runtime PATH/LD_LIBRARY_PATH matches prior prepared
+  environment above. Earlier history fixture failure is absent on starting
+  HEAD153df32; that fixture remediation belongs to preceding parent commits.
+- `git diff --check`: PASS.
+
+Next: parent reviews and publishes diagnostic commit, inspects actual failed proof
+facts in the new run, then reproduces the identified cause before any further
+candidate resolution change. No actual remote root cause is asserted beyond the
+observed revision step failure; both remote runs remain failed.

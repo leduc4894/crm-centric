@@ -152,6 +152,29 @@ class RevisionTests(unittest.TestCase):
         for value in ('HEAD', '--help', 'a' * 39, '0' * 40, 'a' * 40 + '\n'):
             self.reject(self.event, value, 'CI_CANDIDATE_UNAVAILABLE')
 
+    def test_cli_failure_diagnostics_publish_only_bounded_proof_facts(self):
+        self.event['pull_request']['merge_commit_sha'] = self.head
+        self.event['private'] = 'SENSITIVE_SENTINEL'
+        event_file = self.path / 'event.json'
+        event_file.write_text(json.dumps(self.event))
+        self.run_git('update-ref', 'HEAD', self.merge)
+        result = subprocess.run([sys.executable, str(ROOT / 'scripts/ci/revision.py'),
+                                 '--event-file', str(event_file), '--failure-diagnostics'],
+                                cwd=self.path, env={**os.environ, 'GITHUB_EVENT_NAME': 'pull_request',
+                                                   'GITHUB_SHA': self.merge},
+                                capture_output=True, text=True)
+        self.assertEqual(1, result.returncode)
+        diagnostic = json.loads(result.stderr)
+        self.assertEqual('CI_CANDIDATE_UNAVAILABLE', diagnostic['reasonToken'])
+        self.assertTrue(diagnostic['correlationId'])
+        self.assertEqual({'eventMergeState': 'valid', 'eventMergeMatchesCheckout': False,
+                          'actionsShaState': 'valid', 'actionsShaMatchesCheckout': True,
+                          'eventBaseState': 'valid', 'eventHeadState': 'valid',
+                          'checkoutParentsMatchEvent': True}, diagnostic['revisionProof'])
+        self.assertNotIn('SENSITIVE_SENTINEL', result.stdout + result.stderr)
+        for sha in (self.base, self.head, self.merge):
+            self.assertNotIn(sha, result.stderr)
+
     def test_cli_argument_errors_are_safe_json(self):
         for args in (['--event-file', '/nonexistent', '--unexpected=SYNTHETIC_SENTINEL'],
                      ['--event-file'], [], ['--event-file', '/nonexistent', 'SYNTHETIC_SENTINEL']):

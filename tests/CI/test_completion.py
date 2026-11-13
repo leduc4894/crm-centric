@@ -15,6 +15,23 @@ class CompletionTests(unittest.TestCase):
                 self.assertNotIn('sensitive-sentinel',path.read_text())
                 self.assertEqual(json.loads(path.read_text())['status'],'failure')
 
+    def test_cli_preserves_revision_step_failure_without_revision_identity(self):
+        import os, subprocess, sys
+        root = Path(__file__).resolve().parents[2]
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)
+            (path / 'revision.json').write_text(json.dumps({
+                'reasonToken': 'CI_CANDIDATE_UNAVAILABLE', 'correlationId': 'synthetic'}))
+            result = subprocess.run([sys.executable, '-m', 'scripts.ci.completion',
+                                     'backend', '--mode', 'mvp', '--output', str(path/'backend.json')],
+                                    cwd=path, env={**os.environ, 'PYTHONPATH': str(root),
+                                                  'CI_STEPS': json.dumps({'revision': {'outcome': 'failure'}})},
+                                    capture_output=True, text=True)
+            self.assertEqual(1, result.returncode)
+            self.assertEqual('CI_REVISION_FAILED', json.loads(result.stdout)['reasonToken'])
+            self.assertEqual('CI_REVISION_FAILED', json.loads((path/'backend.json').read_text())['reason_token'])
+            self.assertEqual('', result.stderr)
+
     def test_missing_gate_cannot_pass_even_with_success_setup(self):
         from scripts.ci.completion import complete
         with tempfile.TemporaryDirectory() as directory:
