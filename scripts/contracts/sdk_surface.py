@@ -5,6 +5,8 @@ from pathlib import Path
 import shutil
 import subprocess
 
+from scripts.contracts.runtime_packages import runtime_packages
+
 
 def run(command, cwd, timeout=300):
     try:
@@ -30,8 +32,9 @@ def prepare(root, source, contracts, git, base=None):
             path = source / name
             if path.is_file():
                 shutil.copyfile(path, root / name)
-        for name in ('scripts/contracts', 'tools/contracts'):
-            shutil.copytree(source / name, root / name, ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
+        for name in ('scripts/contracts', 'tools/contracts', 'tests/ClientConsumers'):
+            if (source / name).is_dir():
+                shutil.copytree(source / name, root / name, ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
     shutil.copytree(contracts, root / 'docs/contracts')
     return root
 
@@ -95,8 +98,14 @@ def compare(base_root, candidate_root, current_source, work, has_base_toolchain,
             run([str(candidate_root / 'node_modules/.bin/tsc'), '-p', 'tsconfig.json'], package_root)
             shutil.copyfile(package_root / 'schema.d.ts', package_root / 'dist/schema.d.ts')
             run(['npm', 'pack', '--ignore-scripts', '--pack-destination', str(feed), '--silent'], package_root)
+        # The clean npm ci cache has locked tarballs, not guaranteed packuments.
+        # Feed the independent consumer the complete exact runtime closure too.
+        try: dependencies=runtime_packages(candidate_root)
+        except ValueError: raise RuntimeError('SDK_TOOLCHAIN_REVIEW_REQUIRED') from None
+        run(['npm','pack','--ignore-scripts','--pack-destination',str(feed),'--silent',
+             *(str(path) for path in dependencies)],candidate_root)
         packages = sorted(str(p) for p in feed.glob('*.tgz'))
-        if len(packages) != 2:
+        if len(packages) != 2+len(dependencies):
             raise RuntimeError('SDK_TOOLCHAIN_REVIEW_REQUIRED')
         run(['npm', 'install', '--offline', '--ignore-scripts', '--no-audit', '--no-fund', *packages], consumer)
         compiler = candidate_root / 'node_modules/.bin/tsc'

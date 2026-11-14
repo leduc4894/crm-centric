@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "dependencies": {
+    "net10.0": {
+      "Corvus.Regex.Ecma262": {
+        "type": "Transitive",
+        "resolved": "1.0.15",
+        "contentHash": "wDC21MqsPI9L8PBs3dst8kebfY0rxE9KFiacCuk2Zwju6q3+DO49JFnQ61SwBBJgVUh2xSx2L6NQ4C6LXL6Vrg=="
+      },
+      "Corvus.Text.Json": {
+        "type": "Transitive",
+        "resolved": "5.8.8",
+        "contentHash": "M5GNodoxMH5nAO52F2jvsJOCA1XjWIvHFeTuikvejnfLxR1hwBguMehqJupPasTR6Jgh5uKokZ9oK8CMtcgXdQ==",
+        "dependencies": {
+          "Corvus.Regex.Ecma262": "1.0.15",
+          "NodaTime": "3.3.1"
+        }
+      },
+      "Corvus.Text.Json.OpenApi": {
+        "type": "Transitive",
+        "resolved": "5.8.8",
+        "contentHash": "ZduiCPY0BC5a0xjkIXPIYGj8Y5RTqAgvRUyD/fyixafnqrFYYavn83m4rrFF162a0mYuakDPhD9HPrHpBhMnRw==",
+        "dependencies": {
+          "Corvus.Text.Json": "5.8.8"
+        }
+      },
+      "Corvus.Text.Json.OpenApi.HttpTransport": {
+        "type": "Transitive",
+        "resolved": "5.8.8",
+        "contentHash": "RX5OS9zMAhsk5RaNLpwe6au+QMY/JNCUi/QS+g+gJkEXAR/o/mknCyZB5phudWZjNqkRN/Pkr7Kv+Jmy7X0c0g==",
+        "dependencies": {
+          "Corvus.Text.Json.OpenApi": "5.8.8"
+        }
+      },
+      "NodaTime": {
+        "type": "Transitive",
+        "resolved": "3.3.1",
+        "contentHash": "7zkTEqmakybTTuDuifpnzl5s8MkmpAdyvoqIPIO2+M2ThF8ixavPcPt1afPfFyCI+A6t3ySujgpGq/5iWc4/RQ=="
+      },
+      "crm.client": {
+        "type": "Project",
+        "dependencies": {
+          "Corvus.Text.Json": "[5.8.8, 5.8.8]",
+          "Corvus.Text.Json.OpenApi.HttpTransport": "[5.8.8, 5.8.8]"
+        }
+      }
+    }
+  }
+}

@@ -197,6 +197,31 @@ def _ports(config, owned):
             except OSError:
                 raise LocalFailure('LOCAL_PORT_CONFLICT') from None
 
+def capture_stack_images(docker):
+    # Scanning has its own finite deadline after readiness, never the retry loop.
+    config = docker.config
+    owned = _owned(config, docker.containers()) if os.environ.get('CI_IMAGE_EVIDENCE') else {}
+    if os.environ.get('CI_IMAGE_EVIDENCE'):
+        # Scanner payload stays in this private process; never append it to logs.
+        process = None
+        try:
+            process = subprocess.Popen(['python3', '-m', 'scripts.ci.image_identity'],
+                stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                text=True, cwd=config.root)
+            process.communicate(json.dumps({'containers': {name: {'Id': value['Id']} for name, value in owned.items()},
+                                           'secretFiles': [str(config.state_dir/name) for name in NAMES]}), timeout=3000)
+        except subprocess.TimeoutExpired:
+            # Helper handles TERM and unwinds its private scanner process groups.
+            process.terminate()
+            try: process.communicate(timeout=3)
+            except subprocess.TimeoutExpired:
+                process.kill(); process.communicate()
+            raise LocalFailure('CI_IMAGE_EVIDENCE_INCOMPLETE') from None
+        except OSError:
+            raise LocalFailure('CI_IMAGE_EVIDENCE_INCOMPLETE') from None
+        if process.returncode:
+            raise LocalFailure('CI_IMAGE_EVIDENCE_INCOMPLETE')
+
 def inspect_stack(docker, deadline):
     config = docker.config
     owned = _owned(config, docker.containers(deadline))
@@ -276,6 +301,7 @@ def run_local_stack(action: str, config: LocalStackConfig) -> int:
                     time.sleep(min(1, remaining))
             write_stack_metadata(config, 'ready')
             _event('startup_completed', status='ready', seconds=round(config.start_timeout - _remaining(deadline), 3), project=config.project)
+        capture_stack_images(docker)
         _event('stack_ready', status='ready', project=config.project, api=f'http://localhost:{config.api_port}', issuer=f'http://localhost:{config.idp_port}/realms/crm-local')
         return 0
 
