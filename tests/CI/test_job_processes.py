@@ -105,8 +105,19 @@ class ProcessTests(unittest.TestCase):
             self.assertEqual('CI_COMMAND_FAILED',caught.exception.token)
             expected={'reasonToken':'CI_COMMAND_FAILED','commandStage':stage}
             if stage=='plan3':expected.update(plan3Step='other',plan3Reason='other')
+            if stage=='dotnet-test':expected.update(dotnetTest='OTHER_TESTS_FAILED')
             self.assertEqual(expected,json.loads(stream.getvalue()))
             self.assertNotIn('private',stream.getvalue())
+
+    def test_dotnet_failure_projects_only_known_test_family(self):
+        import contextlib,io,json
+        process=unittest.mock.Mock(returncode=1)
+        process.communicate.return_value=(b'failed SmokeTests details',b'')
+        stream=io.StringIO()
+        with contextlib.redirect_stdout(stream),patch('scripts.ci.jobs.subprocess.Popen',return_value=process):
+            with self.assertRaises(JobError):execute(['dotnet','test','private'])
+        self.assertEqual('SMOKE_TESTS_FAILED',json.loads(stream.getvalue())['dotnetTest'])
+        self.assertNotIn('private',stream.getvalue())
 
     def test_plan3_failure_reports_only_bounded_nested_step_and_reason(self):
         import contextlib,io,json

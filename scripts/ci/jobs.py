@@ -89,6 +89,17 @@ def plan3_failure_diagnostic(stdout, stderr):
         if len(observed)==1: reason=observed[0]
     return {'plan3Step':step,'plan3Reason':reason}
 
+def dotnet_failure_diagnostic(stdout, stderr):
+    """Project only known integration-test families from private test output."""
+    text = (stdout + b'\n' + stderr).decode('utf-8', errors='replace')
+    families = {
+        'SMOKE_TESTS_FAILED': 'SmokeTests',
+        'IMAGE_EVIDENCE_TESTS_FAILED': 'ImageEvidenceSecretTests',
+        'READINESS_TESTS_FAILED': 'ReadinessTests',
+    }
+    matches = [token for token, marker in families.items() if marker in text]
+    return matches[0] if len(matches) == 1 else 'OTHER_TESTS_FAILED'
+
 
 def execute(command, timeout=3300, env=None):
     try:
@@ -115,6 +126,7 @@ def execute(command, timeout=3300, env=None):
         stage=stages.get(tuple(command[:2]),'other')
         diagnostic={'reasonToken':'CI_COMMAND_FAILED','commandStage':stage}
         if stage=='plan3': diagnostic.update(plan3_failure_diagnostic(stdout,stderr))
+        elif stage=='dotnet-test': diagnostic['dotnetTest'] = dotnet_failure_diagnostic(stdout,stderr)
         print(json.dumps(diagnostic))
         raise JobError('CI_COMMAND_FAILED')
     return stdout.decode().strip()
