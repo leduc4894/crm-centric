@@ -96,6 +96,8 @@ def dotnet_failure_diagnostic(stdout, stderr):
         'SMOKE_TESTS_FAILED': 'SmokeTests',
         'IMAGE_EVIDENCE_TESTS_FAILED': 'ImageEvidenceSecretTests',
         'READINESS_TESTS_FAILED': 'ReadinessTests',
+        'CONTAINER_IMAGE_BUILD_FAILED': 'Container operation failed: build exit 1',
+        'LOCAL_BOOTSTRAP_TEST_FAILED': 'Adapter_bootstrap_reads_only_mounted_files',
     }
     matches = [token for token, marker in families.items() if marker in text]
     return matches[0] if len(matches) == 1 else 'OTHER_TESTS_FAILED'
