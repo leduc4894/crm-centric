@@ -54,6 +54,13 @@ def execute(command, timeout=3300, env=None):
         process.communicate()
         raise
     if process.returncode:
+        # Fixed command families only: never echo argv, paths or child output.
+        stages={('dotnet','restore'):'dotnet-restore',('dotnet','build'):'dotnet-build',
+                ('dotnet','test'):'dotnet-test',('npm','ci'):'npm-install',
+                ('docker','pull'):'image-pull',('bash','scripts/check-plan3.sh'):'plan3',
+                (sys.executable,'-m'):'python-suite',('node','-e'):'browser-launch'}
+        stage=stages.get(tuple(command[:2]),'other')
+        print(json.dumps({'reasonToken':'CI_COMMAND_FAILED','commandStage':stage}))
         raise JobError('CI_COMMAND_FAILED')
     return stdout.decode().strip()
 

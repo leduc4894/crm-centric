@@ -148,3 +148,47 @@ class HistoryReviewTests(unittest.TestCase):
             from dataclasses import replace
             broken=run_scanner(replace(scanner,sha256='0'*64),ScanInput(repo),run,mode='mvp')
             self.assertNotEqual('pass',broken.status)
+
+    def test_merge_metadata_duplicates_require_exact_provenance(self):
+        from scripts.ci.scan import merge_metadata_duplicates
+        original={'Commit':'a'*40,'File':'metadata.json','RuleID':'rule','StartLine':1,'StartColumn':1,
+                  'Match':'REDACTED','Fingerprint':'a'*40+':metadata.json:rule:1',
+                  'Author':'fixture','Email':'fixture@example.invalid','Date':'2026-11-14T00:00:00Z',
+                  'Message':'fixture','Link':''}
+        duplicate=dict(original,Commit='b'*40,Fingerprint='b'*40+':metadata.json:rule:1')
+        metadata={key:duplicate[key] for key in ('Author','Email','Date','Message')}
+        approved=[{'finding_id':kernel.finding_id(original),'decision':'verified-metadata'}]
+        blob=lambda commit,path: ('c'*40,b'exact')
+        def run(rows=None,proof=True,approved_rows=approved,lookup=blob):
+            return merge_metadata_duplicates(rows or [original,duplicate],approved_rows,'b'*40,proof,lookup,metadata)
+        self.assertEqual({kernel.finding_id(duplicate)},run())
+        self.assertEqual(set(),run(proof=False))
+        self.assertEqual(set(),run(approved_rows=[]))
+        self.assertEqual(set(),run(lookup=lambda c,p: (c,b'exact')))
+        self.assertEqual(set(),run([original,duplicate,duplicate]))
+        self.assertEqual(set(),run([original,duplicate,dict(duplicate,Author='other')]))
+        for key,value in [('Author','other'),('Fingerprint','arbitrary'),('Link','other'),('Match','changed'),('File','other'),('RuleID','other'),('StartLine',2),('StartLine',True),('StartLine',1.0),('StartColumn',True),('StartColumn',1.0),('Secret','extra')]:
+            self.assertEqual(set(),run([original,dict(duplicate,**{key:value})]))
+
+    def test_real_synthetic_merge_reuses_exact_reviewed_origins(self):
+        import hashlib,subprocess,tempfile
+        from scripts.ci.scan import ScannerConfig,ScanInput,run_scanner
+        from scripts.ci.summary import RunIdentity
+        exe=ROOT/'.local/task5/bin/gitleaks';config=ROOT/'tools/ci/gitleaks.toml'
+        scanner=ScannerConfig('gitleaks',exe,hashlib.sha256(exe.read_bytes()).hexdigest(),'8.30.1',config)
+        base='c4a5ef40a34daded023d5e5121c0462e94cc1487'
+        with tempfile.TemporaryDirectory() as directory:
+            repo=Path(directory)/'repo.git'
+            subprocess.run(['git','clone','--bare','--shared','--quiet',str(ROOT),str(repo)],check=True,capture_output=True)
+            def git(*args,**kwargs):
+                return subprocess.check_output(['git','-C',str(repo),*args],stderr=subprocess.DEVNULL,**kwargs).decode().strip()
+            origin=subprocess.check_output(['git','-C',str(ROOT),'remote','get-url','origin']).decode().strip()
+            git('remote','set-url','origin',origin)
+            head=git('rev-parse','HEAD');tree=git('rev-parse',head+'^{tree}')
+            git('config','user.name','Fixture');git('config','user.email','fixture@example.invalid')
+            merge=git('commit-tree',tree,'-p',base,'-p',head,input=b'synthetic merge\n')
+            git('update-ref','refs/heads/synthetic',merge);git('symbolic-ref','HEAD','refs/heads/synthetic')
+            result=run_scanner(scanner,ScanInput(repo),RunIdentity('merge','1',merge,base,merge),mode='mvp')
+            self.assertEqual('pass',result.status)
+            self.assertEqual(132,len(result.reviewed_metadata))
+            self.assertEqual((),result.findings)

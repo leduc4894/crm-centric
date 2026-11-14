@@ -90,3 +90,18 @@ class ProcessTests(unittest.TestCase):
             with patch('scripts.ci.jobs.execute',side_effect=JobError('CI_COMMAND_FAILED')):
                 with self.assertRaises(JobError):native_suite(['false'],suites,'compose','trx',output)
             self.assertEqual(suites,[{'name':'compose','format':'trx','report':'<TestRun/>'}])
+
+    def test_failed_command_emits_only_allowlisted_stage(self):
+        import contextlib,io,json
+        from scripts.ci.jobs import execute
+        process=unittest.mock.Mock(returncode=1)
+        process.communicate.return_value=(b'private-output',b'private-error')
+        for command,stage in [(['dotnet','restore','private-argument'],'dotnet-restore'),
+                              (['bash','scripts/check-plan3.sh','private-argument'],'plan3'),
+                              (['private-executable','private-argument'],'other')]:
+            stream=io.StringIO()
+            with contextlib.redirect_stdout(stream),patch('scripts.ci.jobs.subprocess.Popen',return_value=process):
+                with self.assertRaises(JobError) as caught:execute(command)
+            self.assertEqual('CI_COMMAND_FAILED',caught.exception.token)
+            self.assertEqual({'reasonToken':'CI_COMMAND_FAILED','commandStage':stage},json.loads(stream.getvalue()))
+            self.assertNotIn('private',stream.getvalue())

@@ -176,6 +176,53 @@ def _history(root,run):
         _git(root,'cat-file','-e',object_id)
 
 
+def merge_metadata_duplicates(records, decisions, candidate, identical_head_tree, git_blob, candidate_metadata):
+    """Recognize repeated merge observations of already verified exact metadata.
+
+    No new review identity is granted. Every native observation is scanned; only
+    a unique duplicate backed by the same Git blob and full scanner content is
+    folded into its already approved origin. Commit attribution alone may differ.
+    """
+    if not identical_head_tree:
+        return set()
+    from collections import Counter
+    from scripts.ci.finding_adjudication import finding_id
+    approved={row['finding_id'] for row in decisions if row['decision']=='verified-metadata'}
+    attribution={'Commit','Link','Author','Email','Date','Message','Fingerprint'}
+    def content(row):
+        return json.dumps({k:v for k,v in row.items() if k not in attribution},
+                          sort_keys=True,separators=(',',':'),allow_nan=False)
+    counts=Counter(finding_id(row) for row in records)
+    observations=Counter(content(row) for row in records if row.get('Commit')==candidate)
+    origins=[row for row in records if row.get('Commit')!=candidate
+             and finding_id(row) in approved and counts[finding_id(row)]==1]
+    duplicates=set()
+    for row in records:
+        ident=finding_id(row)
+        if (row.get('Commit')!=candidate or counts[ident]!=1
+                or observations[content(row)]!=1
+                or any(row.get(key)!=candidate_metadata.get(key) for key in ('Author','Email','Date','Message'))
+                or row.get('Fingerprint')!=f"{candidate}:{row.get('File')}:{row.get('RuleID')}:{row.get('StartLine')}"):
+            continue
+        matches=[origin for origin in origins if content(origin)==content(row)]
+        if len(matches)!=1:
+            continue
+        origin=matches[0]
+        link=origin.get('Link')
+        suffix=f"/blob/{origin['Commit']}/{origin['File']}#L{origin['StartLine']}"
+        if not isinstance(link,str) or (link and not link.endswith(suffix)):
+            continue
+        if row.get('Link')!=link.replace('/blob/'+origin['Commit']+'/', '/blob/'+candidate+'/'):
+            continue
+        try:
+            if git_blob(candidate,row['File'])!=git_blob(origin['Commit'],origin['File']):
+                continue
+        except Exception:
+            continue
+        duplicates.add(ident)
+    return duplicates
+
+
 def run_scanner(scanner: ScannerConfig, input: ScanInput, run: RunIdentity, mode="hardening") -> ScanSummary:
     correlation=str(uuid.uuid4())
     try:
@@ -224,6 +271,16 @@ def run_scanner(scanner: ScannerConfig, input: ScanInput, run: RunIdentity, mode
                         for r in results if r['decision']=='verified-metadata')
                     reviewed+=history_reviewed
                     accepted={r['finding_id'] for r in history_reviewed}
+                    parents=_git(root,'show','-s','--format=%P',run.candidate_sha).split()
+                    identical_head_tree=(run.merge_sha==run.candidate_sha and len(parents)==2
+                        and parents[0]==run.base_sha
+                        and _git(root,'rev-parse',run.candidate_sha+'^{tree}')
+                            ==_git(root,'rev-parse',parents[1]+'^{tree}'))
+                    metadata=_git(root,'show','-s','--format=%an%x00%ae%x00%aI%x00%B',run.candidate_sha).split('\0',3)
+                    candidate_metadata=dict(zip(('Author','Email','Date','Message'),metadata))
+                    candidate_metadata['Date']=datetime.fromisoformat(candidate_metadata['Date']).astimezone(timezone.utc).isoformat().replace('+00:00','Z')
+                    accepted.update(merge_metadata_duplicates(history_rows,results,
+                        run.candidate_sha,identical_head_tree,git_blob,candidate_metadata))
                     parsed=[f for f in parsed if f['finding_id'] not in accepted]
             findings.extend(parsed)
             count=2
