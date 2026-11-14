@@ -303,7 +303,8 @@ def main():
                 category = 'Category=Compose' if args.job == 'compose' else 'Category!=Compose'
                 native_suite(['dotnet','test','tests/Integration/Integration.csproj','-c','Release',
                          '--no-build','--no-restore','--filter',category,
-                         '--logger','trx;LogFileName=results.trx','--results-directory',str(scratch)],
+                         '--logger','trx;LogFileName=results.trx','--logger','console;verbosity=normal',
+                         '--results-directory',str(scratch)],
                              report['suites'],'compose' if args.job == 'compose' else 'non-compose',
                              'trx',scratch/'results.trx')
                 if args.job == 'backend': py_suite('local','tests/Local')
