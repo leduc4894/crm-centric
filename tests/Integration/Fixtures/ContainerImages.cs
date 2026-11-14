@@ -7,6 +7,10 @@ namespace Integration.Fixtures;
 // Captures all CLI output privately; failures expose operation/exit category only.
 public sealed class ContainerImages : IAsyncLifetime
 {
+    // Multiple xUnit collections share the Docker daemon. Serialize the
+    // expensive image bootstrap so concurrent BuildKit requests cannot race
+    // on the same pinned base layers and fail with an opaque exit code.
+    private static readonly SemaphoreSlim BuildLock = new(1, 1);
     public static string Root { get; } = FindRoot();
     static ContainerImages()
     {
@@ -23,12 +27,17 @@ public sealed class ContainerImages : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
+        await BuildLock.WaitAsync();
+        try
+        {
         var duration = Stopwatch.StartNew();
         foreach (var (target, image) in new[] { ("api", Api), ("migrator", Migrator) })
             await Docker("build", "--file", "infra/docker/Platform.Dockerfile", "--target", target, "--build-arg", "DOTNET_SDK_IMAGE=" + Pins["DOTNET_SDK_IMAGE"], "--build-arg", "DOTNET_RUNTIME_IMAGE=" + Pins["DOTNET_RUNTIME_IMAGE"], "--tag", image, ".");
         await Docker("build", "--file", "infra/docker/Postgres.Dockerfile", "--target", "runtime", "--build-arg", "POSTGRES_IMAGE=" + Pins["POSTGRES_IMAGE"], "--tag", Postgres, ".");
         await Docker("build", "--file", "infra/docker/Keycloak.Dockerfile", "--target", "runtime", "--build-arg", "KEYCLOAK_IMAGE=" + Pins["KEYCLOAK_IMAGE"], "--tag", Keycloak, ".");
         File.WriteAllText(Path.Combine(Path.GetTempPath(), "crm-task3-build-timing.json"), JsonSerializer.Serialize(new { cachedBuildSeconds = duration.Elapsed.TotalSeconds, images = 4 }));
+        }
+        finally { BuildLock.Release(); }
     }
 
     public async Task DisposeAsync()
