@@ -14,6 +14,12 @@ ln -s "$root/node_modules" "$tmp/sdk/node_modules"
 for client in crm operations; do
   (cd "$tmp/sdk/$client" && "$root/node_modules/.bin/tsc" -p tsconfig.json && cp schema.d.ts dist/schema.d.ts && npm pack --ignore-scripts --pack-destination "$tmp/packages" --silent >/dev/null)
 done
+# npm ci guarantees locked installed tarballs, not cached registry packuments.
+# Pack the exact complete runtime closure locally so this independent consumer
+# needs no registry metadata or network, even with an entirely empty npm cache.
+runtime_paths=$(python3 "$root/tests/ClientConsumers/runtime_packages.py" "$root")
+mapfile -t runtime_packages <<< "$runtime_paths"
+npm pack --ignore-scripts --pack-destination "$tmp/packages" --silent "${runtime_packages[@]}" >/dev/null
 cp "$root/tests/ClientConsumers/typescript/"* "$tmp/typescript/"
 printf '{"name":"isolated-consumer","version":"1.0.0","private":true,"type":"module"}\n' > "$tmp/typescript/package.json"
 (cd "$tmp/typescript" && npm install --offline --ignore-scripts --no-audit --no-fund "$tmp"/packages/*.tgz >/dev/null && "$root/node_modules/.bin/tsc" --noEmit --strict --module NodeNext --moduleResolution NodeNext --target ES2022 types.ts && node wire.mjs && {

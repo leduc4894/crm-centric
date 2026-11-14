@@ -131,3 +131,59 @@ process/report/completion suite PASS23 in4.308s, including duplicate reason keys
 and >1MiB stdout/stderr conflict cases. `git diff --check`: PASS. Parent authorized
 scoped commit after focused checks; this session commits the three diagnostic
 files, performs no push, and preserves the unrelated untracked Plan3 handoff.
+
+## Hosted consumer cache reproduction and fix
+
+Run43540642955 browser diagnostic identifies `sdk-consumers` /
+PLAN3_SDK_CONSUMERS_FAILED; security PASS. Subsequent read-only jobs/logs snapshot
+shows backend FAIL at `dotnet-test`; contracts/compose still running. No claimed
+backend test root cause from this static stage alone.
+
+Confirmed local cause for the consumer failure: exported exact committed tree to
+a temporary directory, used the prepared pinned runtimes, fresh npm cache and
+CI=true/GITHUB_ACTIONS=true. `npm ci --ignore-scripts --no-audit --no-fund`
+PASSexit0, then unchanged consumer script FAILexit1 with ENOTCACHED. Historical
+local cache had masked missing registry packuments: npm ci guarantees downloaded
+locked tarballs, not the metadata required by a separate unlocked offline install.
+This reproduces a hosted-cache condition locally; it does not claim full parity
+with the official hosted runner OS/image or proof of private remote child output.
+
+Fix: resolve complete installed runtime dependency closure from package-lock;
+check installed manifest versions/dependencies, reject missing packages, ambiguous
+multiple installed versions or currently unsupported optional/peer/bundled edges
+rather than silently omit them. Pack those exact locked local runtime packages
+(currently2) alongside freshly built SDK tarballs. Independent temporary consumer
+still installs actual packages with --offline, typechecks, exercises wire/negative
+checks, then runs the unchanged .NET package/consumer and boundary audit. No
+registry metadata fetch, network fallback for npm, node_modules link in consumer,
+changed dependency version/lock, generated SDK/contract change, base substitution
+or weaker consumer assertion. Existing .NET restore networking is unchanged.
+Rollback: revert the scoped consumer harness/helper changes; no migration.
+
+Changed: tests/ClientConsumers/run.sh, new runtime_packages.py;
+tests/Contract/test_sdk_consumers.py now always uses a fresh npm cache;
+new tests/Contract/test_runtime_packages.py checks exact transitive closure and
+missing transitive package failure. This handoff updated. Unrelated untracked
+Plan3 handoff preserved; no push by coding session.
+
+Verification:
+- RED existing independent packaged-consumer test with empty cache: FAIL, no skip.
+- RED closure unit: missing helper. GREEN closure/missing-package unit PASS1.
+- Prepared-runtime independent packaged-consumer + closure tests PASS2 in62.412s;
+  includes real .NET packaging/consumer, positive/negative TS/.NET wire tests and
+  artifact boundary audit.
+- Clean exported hosted-environment cache simulation with fix overlay: npm ci
+  PASSexit0; full consumers PASSexit0; ENOTCACHED absent; PACKAGED_CONSUMERS_OK
+  present. The simulation uses actual pinned runtime/image and clean npm cache,
+  not a claimed identical official hosted OS image.
+- Additional RED: wrong installed package name was accepted. GREEN strict name,
+  version and missing-transitive negatives PASS1 in0.013s.
+- Independent scoped reviewer: no Important findings; helper unit/shell checks
+  passed. `git diff --check`: PASS. Parent authorized scoped commit/publication;
+  coding session commits, parent pushes.
+
+Latest read-only remote snapshot: contracts FAIL84/87, no skips, same three
+identities (baseline consumer compile incompatibility, packaged consumer, .NET
+surface). Backend FAIL at dotnet-test. Compose ongoing; security PASS. Consumer
+cache fix does not claim to explain the two other contract failures or backend
+failures. Next investigate .NET surface separately with bounded diagnostics.
