@@ -127,6 +127,10 @@ class ProcessTests(unittest.TestCase):
             dotnet_failure_diagnostic(b'Passed Integration.SmokeTests.case',b''))
         self.assertEqual(['TEST_RUN_ABORTED','PERMISSION_FAILED'],
             dotnet_failure_diagnostic(b'Test Run Aborted: Permission denied',b''))
+        self.assertEqual(['LOCAL_BOOTSTRAP_TESTS_FAILED'],dotnet_failure_diagnostic(
+            b'[xUnit.net 00:01] Integration.LocalBootstrapTests.Adapter_case [FAIL]',b''))
+        self.assertEqual(['READINESS_TESTS_FAILED'],dotnet_failure_diagnostic(
+            b'\x1b[31mFailed Integration.ReadinessTests.Database_case\x1b[0m',b''))
 
     def test_plan3_failure_reports_only_bounded_nested_step_and_reason(self):
         import contextlib,io,json

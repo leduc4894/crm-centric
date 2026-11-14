@@ -92,13 +92,18 @@ def plan3_failure_diagnostic(stdout, stderr):
 def dotnet_failure_diagnostic(stdout, stderr):
     """Project only known integration-test families from private test output."""
     text = (stdout + b'\n' + stderr).decode('utf-8', errors='replace')
-    families = {
-        'SMOKE_TESTS_FAILED': r'Failed Integration\.SmokeTests\.',
-        'IMAGE_EVIDENCE_TESTS_FAILED': r'Failed Integration\.ImageEvidenceSecretTests\.',
-        'READINESS_TESTS_FAILED': r'Failed Integration\.ReadinessTests\.',
-        'LOCAL_BOOTSTRAP_TEST_FAILED': r'Failed Integration\.LocalBootstrapTests\.',
-    }
-    matches = [token for token, pattern in families.items() if re.search(pattern,text)]
+    text = re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', text)
+    classes = (
+        'ContainerRuntimeTests','FakeOidcIssuerTests','HealthTests','ImageEvidenceSecretTests',
+        'KeycloakContainerTests','LocalBootstrapTests','MigrationTests','OperationalSecurityTests',
+        'ReadinessTests','RolePrivilegeTests','SmokeTests','StructuredLoggingTests',
+    )
+    matches=[]
+    for name in classes:
+        escaped=re.escape(name)
+        if (re.search(rf'Integration\.{escaped}\.[^\r\n]*\[FAIL\]',text)
+                or re.search(rf'Failed Integration\.{escaped}\.',text)):
+            matches.append(re.sub(r'(?<!^)(?=[A-Z])','_',name).upper()+'_FAILED')
     if 'Container operation failed: build exit 1' in text:
         matches.append('CONTAINER_IMAGE_BUILD_FAILED')
     process_failures = {
