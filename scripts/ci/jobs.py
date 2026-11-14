@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import platform
+import re
 import signal
 import subprocess
 import sys
@@ -37,6 +38,58 @@ def stop_process_group(process, grace=1):
     process.wait()
 
 
+def plan3_failure_diagnostic(stdout, stderr):
+    """Project private child output to fixed enums; never trust it as evidence.
+
+    Diagnostic fields do not affect the job verdict. Ambiguous, malformed and
+    unknown values produce `other`; no detail/command/payload string is copied.
+    """
+    steps=frozenset(('locked-install','generated-check','sdk-consumers','compatibility',
+        'frontend-typecheck','frontend-lint','frontend-test','frontend-build',
+        'frontend-leak-scan','browser-e2e'))
+    reasons=frozenset(('PLAN3_ARGUMENT_INVALID','PLAN3_BROWSER_STEP_FAILED',
+        'PLAN3_COMPATIBILITY_FAILED','PLAN3_FRONTEND_STEP_FAILED','PLAN3_GENERATED_CHECK_FAILED',
+        'PLAN3_INTERRUPTED','PLAN3_LOCKED_INSTALL_FAILED','PLAN3_PREREQUISITE_MISSING',
+        'PLAN3_SDK_CONSUMERS_FAILED','PLAN3_SOURCE_MUTATED','PLAN3_STACK_START_FAILED',
+        'PLAN3_STACK_TEARDOWN_FAILED','PLAN3_STEP_FAILED','PLAN3_TEMP_DIRECTORY_UNAVAILABLE',
+        'PLAN3_TERMINATED','PLAN3_TOOLCHAIN_MISMATCH','PLAN3_WORKSPACE_UNAVAILABLE',
+        'CONTRACT_ARGUMENT_INVALID','CONTRACT_BASE_UNAVAILABLE','CONTRACT_BREAKING',
+        'CONTRACT_DIFF_ERROR','CONTRACT_INPUT_INVALID','CONTRACT_INPUT_REVIEW_REQUIRED',
+        'CONTRACT_POLICY_REVIEW_REQUIRED','CONTRACT_TOOL_ERROR','CONTRACT_TOOL_UNAVAILABLE',
+        'SDK_SURFACE_INCOMPATIBLE','SDK_TOOLCHAIN_REVIEW_REQUIRED',
+        'SECURITY_REVIEW_REQUIRED','SCHEMA_COMPATIBILITY_REVIEW_REQUIRED'))
+    step=reason='other'
+    unknown={'plan3Step':step,'plan3Reason':reason}
+    # Never select a tail: it could hide an earlier conflicting envelope.
+    if len(stdout)>1024*1024 or len(stderr)>1024*1024:
+        return unknown
+    class DuplicateKey(ValueError): pass
+    def unique(pairs):
+        result={}
+        for key,value in pairs:
+            if key in result: raise DuplicateKey()
+            result[key]=value
+        return result
+    # Bound parsing work and decode failures; child diagnostics remain private.
+    output=stdout.decode('utf-8',errors='replace')
+    matches=re.findall(r'^plan3 aggregate: FAIL at ([a-z-]+) \(([^\r\n()]*)\)$',output,re.MULTILINE)
+    if len(matches)==1:
+        observed_step,observed_reason=matches[0]
+        if observed_step in steps:
+            step=observed_step
+            if observed_reason in reasons: reason=observed_reason
+    elif not matches:
+        observed=[]
+        for line in stderr.decode('utf-8',errors='replace').splitlines():
+            try: row=json.loads(line,object_pairs_hook=unique)
+            except DuplicateKey: return unknown
+            except (ValueError,RecursionError): continue
+            value=row.get('reason') if isinstance(row,dict) else None
+            if isinstance(value,str) and value in reasons: observed.append(value)
+        if len(observed)==1: reason=observed[0]
+    return {'plan3Step':step,'plan3Reason':reason}
+
+
 def execute(command, timeout=3300, env=None):
     try:
         process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
@@ -44,7 +97,7 @@ def execute(command, timeout=3300, env=None):
     except OSError:
         raise JobError('CI_PREREQUISITE_MISSING') from None
     try:
-        stdout, _ = process.communicate(timeout=timeout)
+        stdout, stderr = process.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
         stop_process_group(process)
         process.communicate()
@@ -60,7 +113,9 @@ def execute(command, timeout=3300, env=None):
                 ('docker','pull'):'image-pull',('bash','scripts/check-plan3.sh'):'plan3',
                 (sys.executable,'-m'):'python-suite',('node','-e'):'browser-launch'}
         stage=stages.get(tuple(command[:2]),'other')
-        print(json.dumps({'reasonToken':'CI_COMMAND_FAILED','commandStage':stage}))
+        diagnostic={'reasonToken':'CI_COMMAND_FAILED','commandStage':stage}
+        if stage=='plan3': diagnostic.update(plan3_failure_diagnostic(stdout,stderr))
+        print(json.dumps(diagnostic))
         raise JobError('CI_COMMAND_FAILED')
     return stdout.decode().strip()
 

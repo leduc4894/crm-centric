@@ -90,3 +90,44 @@ inspect new remote safe stage tokens; diagnose backend/browser and three remote
 contract failures from evidence before fixes. Record pending suite outcomes when
 available; do not broaden the exact metadata policy or change immutable base.
 No remote PASS, Wave0/P0 completion or acceptance drill claim.
+
+## Nested Plan3 failure diagnostics
+
+Latest actual run43539810563: security PASS, browser FAIL. Read-only completed
+browser job logs show CI_COMMAND_FAILED at the fixed `plan3` command stage,
+CI_ACTION_FAILED completion, and no nested Plan3 tokens. Browser gate lasted41s.
+Backend/contracts/compose were still running at the inspected jobs API snapshot.
+Full-run logs endpoint was not available while that run remained active; completed
+job logs endpoint succeeded. No asserted nested-step root cause from this evidence.
+
+Parent authorized another bounded diagnostic iteration. Changed jobs.execute to
+retain private stderr for projection on failed Plan3 commands only. It projects
+an exact aggregate failure summary into fixed `plan3Step` and `plan3Reason` enums;
+for failures before a step, a single recognized stderr JSON reason may provide
+the reason. No detail, command, argument, native payload, arbitrary reason value
+or child output is copied. Either private stream exceeding1MiB makes both fields `other`; complete bounded
+streams are parsed, invalid UTF8 is replaced privately, and unknown or ambiguous values map
+to the literal `other`. These are diagnostic hints only; they neither authenticate
+child output nor affect failure verdicts, report acceptance or policy decisions.
+
+Additional changed files: scripts/ci/jobs.py, tests/CI/test_job_processes.py,
+this handoff. Scoped edits are uncommitted for parent review/publication. No push,
+merge, deployment or settings changes by this coding session.
+
+Verification: RED regression expected bounded nested fields but observed only
+outer stage. GREEN focused test_job_processes PASS7 in3.871s; covers private
+sentinels, stderr details, malformed UTF8, unknown step/reason and conflicting
+summaries. Combined test_job_processes/test_job_reports/test_completion PASS22 in4.369s.
+`git diff --check`: PASS. Starting commit343f4e6; unrelated Plan3 handoff
+preserved. Next: parent review/publish, then inspect fixed nested diagnostic on
+actual remote CI before implementing any Plan3 behavioral fix.
+
+
+Review correction: rejected duplicate JSON object keys rather than accepting the
+last reason field. Removed tail truncation, which could hide an earlier conflicting
+failure; oversized stdout or stderr now returns both fields as `other` before
+parsing. RED regression reproduced duplicate-key acceptance; GREEN combined
+process/report/completion suite PASS23 in4.308s, including duplicate reason keys
+and >1MiB stdout/stderr conflict cases. `git diff --check`: PASS. Parent authorized
+scoped commit after focused checks; this session commits the three diagnostic
+files, performs no push, and preserves the unrelated untracked Plan3 handoff.

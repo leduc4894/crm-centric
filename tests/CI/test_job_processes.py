@@ -103,5 +103,37 @@ class ProcessTests(unittest.TestCase):
             with contextlib.redirect_stdout(stream),patch('scripts.ci.jobs.subprocess.Popen',return_value=process):
                 with self.assertRaises(JobError) as caught:execute(command)
             self.assertEqual('CI_COMMAND_FAILED',caught.exception.token)
-            self.assertEqual({'reasonToken':'CI_COMMAND_FAILED','commandStage':stage},json.loads(stream.getvalue()))
+            expected={'reasonToken':'CI_COMMAND_FAILED','commandStage':stage}
+            if stage=='plan3':expected.update(plan3Step='other',plan3Reason='other')
+            self.assertEqual(expected,json.loads(stream.getvalue()))
             self.assertNotIn('private',stream.getvalue())
+
+    def test_plan3_failure_reports_only_bounded_nested_step_and_reason(self):
+        import contextlib,io,json
+        process=unittest.mock.Mock(returncode=1)
+        cases=[(b'private-payload\nplan3 aggregate: FAIL at sdk-consumers (PLAN3_SDK_CONSUMERS_FAILED)\n',
+                b'private-stderr', 'sdk-consumers','PLAN3_SDK_CONSUMERS_FAILED'),
+               (b'plan3 aggregate: FAIL at private-step (private-reason)\n',b'', 'other','other'),
+               (b'plan3 aggregate: FAIL at compatibility (private-reason)\n',b'', 'compatibility','other'),
+               (b'\xffprivate-payload',b'{"reason":"PLAN3_PREREQUISITE_MISSING","detail":"private-payload"}',
+                'other','PLAN3_PREREQUISITE_MISSING'),
+               (b'plan3 aggregate: FAIL at sdk-consumers (PLAN3_SDK_CONSUMERS_FAILED)\nplan3 aggregate: FAIL at frontend-build (PLAN3_FRONTEND_STEP_FAILED)\n',b'', 'other','other')]
+        for stdout,stderr,step,reason in cases:
+            process.communicate.return_value=(stdout,stderr)
+            stream=io.StringIO()
+            with contextlib.redirect_stdout(stream),patch('scripts.ci.jobs.subprocess.Popen',return_value=process):
+                with self.assertRaises(JobError) as caught:execute(['bash','scripts/check-plan3.sh'])
+            self.assertEqual('CI_COMMAND_FAILED',caught.exception.token)
+            self.assertEqual({'reasonToken':'CI_COMMAND_FAILED','commandStage':'plan3',
+                              'plan3Step':step,'plan3Reason':reason},json.loads(stream.getvalue()))
+            self.assertNotIn('private',stream.getvalue())
+
+    def test_plan3_duplicate_keys_and_oversized_streams_are_unknown(self):
+        from scripts.ci.jobs import plan3_failure_diagnostic
+        unknown={'plan3Step':'other','plan3Reason':'other'}
+        duplicate=b'{"reason":"PLAN3_TOOLCHAIN_MISMATCH","reason":"PLAN3_PREREQUISITE_MISSING"}'
+        self.assertEqual(unknown,plan3_failure_diagnostic(b'',duplicate))
+        first=b'plan3 aggregate: FAIL at sdk-consumers (PLAN3_SDK_CONSUMERS_FAILED)\n'
+        last=b'plan3 aggregate: FAIL at frontend-build (PLAN3_FRONTEND_STEP_FAILED)\n'
+        self.assertEqual(unknown,plan3_failure_diagnostic(first+b'x'*(1024*1024)+b'\n'+last,b''))
+        self.assertEqual(unknown,plan3_failure_diagnostic(last,b'x'*(1024*1024)+duplicate))
