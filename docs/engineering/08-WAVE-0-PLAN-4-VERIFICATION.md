@@ -1,18 +1,49 @@
 # Wave 0 Plan 4 verification — 2026-11-11
 
-> **Cập nhật phạm vi 2026-11-12:** [Quyết định CI MVP](09-WAVE-0-CI-MVP-SCOPE.md) xác định điều kiện exit hiện hành và các mục chuyển sang hardening. Bảng W0P4 bên dưới là evidence lịch sử theo scope cũ; Wave 0 vẫn OPEN và chưa có full gate mới pass.
+> **Cập nhật phạm vi 2026-11-12:** [Quyết định CI MVP](09-WAVE-0-CI-MVP-SCOPE.md) xác định điều kiện exit hiện hành và các mục chuyển sang hardening. Bảng W0P4 bên dưới giữ evidence lịch sử theo scope cũ; quyết định closure hiện hành nằm ngay dưới đây.
 
-**Wave 0 OPEN; P0 and every RT-* OPEN.** Local implementation is reviewable; acceptance has not passed. This ledger consolidates recorded Tasks 1–7, not a new execution of their suites. No remote workflow, push, merge, deployment, repository setting or secret change was authorized/performed for Task 8.
+**Plan 4 / Wave 0 CI for MVP: PASS and CLOSED on 2026-11-14. P0 and every
+RT-* remain OPEN.** This closes the CI foundation required to continue product
+development; it does not claim product acceptance, production readiness, merge,
+main-push evidence, branch-protection enforcement, deployment or restore drills.
+
+## MVP closure evidence — 2026-11-14
+
+Branch head `2c9ad713d05b009fd7888f00a3c8fe2d2979a9e0` produced remote PR run
+[43616369162](https://github.com/leduc4894/crm-centric/actions/runs/43616369162).
+All five safe summaries bind run attempt 1, base
+`df993ae4ff44510a2ecfc861bb277a3f9418577f`, and validated merge candidate
+`1a9736de5be613bfe8586011274543452c6cf0c1`.
+
+| Gate | Result |
+|---|---|
+| backend | PASS 96/96, 0 failed/skipped |
+| compose | PASS 14/14, 0 failed/skipped |
+| contracts-sdk | PASS 88/88, 0 failed/skipped |
+| web-browser | PASS 58/58, 0 failed/skipped |
+| security | PASS 1/1, 0 failed/skipped |
+| wave0-required | PASS |
+
+The exact workflow uses signed Node24 artifact actions pinned by full SHA:
+`actions/upload-artifact` v7.0.2 and `actions/download-artifact` v8.0.2. A
+bounded scan of the completed run log found zero Node20 deprecation-warning
+matches. Local prepared-tool regression PASS 174/174 in 409.363s; workflow and
+process focused regression PASS 20/20. Reviewed MVP finding policies remain
+bounded by owner/content/expiry, while independent verifier, full image/license
+hardening, fork/merge-queue/cancellation rehearsal and enforcement remain the
+explicit pre-production backlog in document 09.
 
 ## Revision and review boundary
 
-Branch `feat/wave-0-plan-4-ci`; Task 8 started clean at `413601ea17bc6d4e34dc2ecdd41ff8f8b85a64dc`. Plan 4 baseline `c4a5ef40a34daded023d5e5121c0462e94cc1487`; review with `git diff c4a5ef40a34daded023d5e5121c0462e94cc1487..413601ea17bc6d4e34dc2ecdd41ff8f8b85a64dc`. Latest runtime rehearsal is `7a6464b16a1034f4326b9b10da48438c393459f0`, **not** final acceptance SHA. Subsequent publication fixes `fadc2a96cbc78e86bb8db4718c07daee537c7fbf` and `413601ea17bc6d4e34dc2ecdd41ff8f8b85a64dc` have focused verification only. A final exact-SHA full-job run is missing.
+Branch `feat/wave-0-plan-4-ci`; Plan 4 baseline is `c4a5ef40a34daded023d5e5121c0462e94cc1487`. Historical Task 8 evidence began at `413601ea17bc6d4e34dc2ecdd41ff8f8b85a64dc`; the current MVP closure implementation head and remote merge candidate are recorded above. Documentation after the green run does not rewrite or substitute that immutable remote identity.
 
 [Spec](../superpowers/specs/2026-11-11-wave-0-plan-4-ci-wave-exit-design.md), [plan](../superpowers/plans/2026-11-11-wave-0-plan-4-ci-wave-exit.md), [CI policies and report boundary](../../tools/ci/README.md), and tracked [Task 7 handoff](../handoff/2026-11-11-wave-0-plan-4-task-7-handoff.md) supply detail. Tasks 1–7 handoffs in the same directory are the durable per-task evidence. Ignored `.superpowers/sdd/2026-11-11-wave-0-plan-4-ci-wave-exit/task-{1..7}-report.md` contain local detail and are not portable CI artifacts.
 
 ## Acceptance mapping
 
-No ID below is a full acceptance PASS; local negative tests prove rejection behavior only.
+The table below is the original-scope historical checkpoint and is not the current
+MVP closure verdict. Its hardening/acceptance gaps remain OPEN where moved by
+document 09; local negative tests prove rejection behavior only.
 
 | ID / tasks | Actual local evidence | Status and missing evidence |
 |---|---|---|

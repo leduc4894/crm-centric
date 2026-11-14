@@ -311,3 +311,21 @@ Changed files for this candidate: `.github/workflows/wave0.yml`,
 `tests/CI/test_job_processes.py`, and this handoff. `git diff --check` and a new
 remote exact-candidate run remain required before Plan 4/Wave 0 CI closure. No
 merge, main push, repository setting or deployment is included.
+
+## Plan 4 / Wave 0 CI MVP closure
+
+Remote run [43616369162](https://github.com/leduc4894/crm-centric/actions/runs/43616369162)
+for branch head `2c9ad713d05b009fd7888f00a3c8fe2d2979a9e0` completed SUCCESS.
+All summaries bind attempt 1, base `df993ae4ff44510a2ecfc861bb277a3f9418577f`
+and merge candidate `1a9736de5be613bfe8586011274543452c6cf0c1`.
+Results: backend96/96, Compose14/14, contracts88/88, web-browser58/58,
+security1/1, and `wave0-required` SUCCESS; zero failed/skipped. Completed-run log
+inspection found zero Node20 deprecation-warning matches. Upload v7.0.2 and
+download v8.0.2 invocations used the exact signed Node24 SHAs above.
+
+The controlling scope, verification ledger and implementation plan now mark
+Plan 4 / Wave 0 CI for MVP PASS/CLOSED. P0/RT-* and the explicit pre-production
+hardening backlog remain OPEN. No merge, main-push run, branch-protection change,
+deployment or production acceptance is claimed. The documentation follow-up
+commit titled `docs: close Wave 0 CI for MVP` must receive its own remote CI run
+after push; do not transfer the prior candidate's verdict to that new revision.

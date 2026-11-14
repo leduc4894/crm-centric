@@ -29,14 +29,28 @@ Phân loại này không cho phép chạy PR code với secrets/write privilege,
 
 W0P4-01–06, 08–10 có thành phần thuộc CI MVP và thành phần hardening; đánh giá theo yêu cầu cụ thể ở trên, không tự chuyển toàn bộ ID thành PASS. W0P4-07 tách thành secret/dependency scans + triage cho MVP và full image/SAST/license/SBOM coverage theo phạm vi hardening. W0P4-11 giữ remote CI trên revision xác định cho MVP; proof PR/main/merge, fork và cancellation đầy đủ thuộc hardening. W0P4-12 là review exit theo scope mới, vẫn cần actual MVP evidence. Ledger [08](08-WAVE-0-PLAN-4-VERIFICATION.md) giữ nguyên số liệu lịch sử; không thay đổi thất bại thành pass.
 
-**Trạng thái hiện tại: Wave 0 OPEN; P0/RT-* OPEN.** MVP execution/reporting đã tách khỏi deferred image/verifier hardening; policy transition vẫn fail-closed. Full local attempts tại `5a17535` có backend96/96 và Compose14/14 PASS, contracts87/87 và browser58/58 PASS sau clean-state rerun, required security BLOCKED; xem [ledger08](08-WAVE-0-PLAN-4-VERIFICATION.md). Chưa có bộ năm gate PASS tại final SHA hoặc remote run; findings chưa được phê duyệt, không có exit claim.
+**Trạng thái hiện tại (2026-11-14): Plan 4 / Wave 0 CI cho MVP PASS và
+CLOSED; P0/RT-* vẫn OPEN.** Remote run
+[43616369162](https://github.com/leduc4894/crm-centric/actions/runs/43616369162)
+trên branch head `2c9ad713d05b009fd7888f00a3c8fe2d2979a9e0` đã PASS backend96,
+Compose14, contracts88, browser58, security1 và aggregate `wave0-required`, không
+failure/skip. Năm summary cùng bind validated candidate
+`1a9736de5be613bfe8586011274543452c6cf0c1` và base
+`df993ae4ff44510a2ecfc861bb277a3f9418577f`. Artifact actions dùng signed
+Node24 releases pin full SHA; log không còn warning Node20. Evidence chi tiết ở
+[ledger08](08-WAVE-0-PLAN-4-VERIFICATION.md).
+
+Closure này cho phép tiếp tục Wave 1 theo work order. Nó không đóng P0, không
+chứng minh production readiness và không thay đổi backlog hardening nêu trên.
+Không có merge/main push, branch-protection/ruleset change hoặc deployment trong
+closure này.
 
 ## Công việc tiếp theo
 
-1. Viết/cập nhật plan thực thi CI MVP từ scope này, phân định scanner blocking, finding triage và cách báo coverage; giữ security invariants và không suy diễn exception.
-2. Điều chỉnh workflow, runners và tests theo plan được review; không làm thay đổi repository settings hoặc remote trong bước local.
-3. Chạy full local jobs trên exact candidate, ghi kết quả và giới hạn; sau ủy quyền phù hợp chạy remote CI và ghi evidence.
-4. Chỉ khi điều kiện MVP thực sự đạt mới review Wave 0 exit; duy trì backlog hardening có owner/tiêu chí trước production, và không claim branch protection verified khi chưa kiểm tra.
+1. Bắt đầu Wave 1 trên nền required CI hiện đã PASS; giữ nguyên contract/security invariants.
+2. Duy trì các review có expiry và để finding mới/khác nội dung fail closed.
+3. Hoàn thành backlog hardening có owner/tiêu chí trước production; không claim branch protection verified khi chưa kiểm tra.
+4. P0/RT-* chỉ đóng sau các acceptance drill được AGENTS.md yêu cầu.
 
 ## Làm rõ ngày 2026-11-13 — review bởi maintainer cho MVP
 

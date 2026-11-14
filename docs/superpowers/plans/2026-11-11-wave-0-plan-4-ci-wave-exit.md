@@ -12,6 +12,18 @@
 
 **Spec:** `docs/superpowers/specs/2026-11-11-wave-0-plan-4-ci-wave-exit-design.md`.
 
+## MVP closure — 2026-11-14
+
+**Plan 4 / Wave 0 CI for MVP is CLOSED.** Under the controlling
+[MVP scope decision](../../engineering/09-WAVE-0-CI-MVP-SCOPE.md), remote run
+[43616369162](https://github.com/leduc4894/crm-centric/actions/runs/43616369162)
+passed backend, Compose, contracts/SDK, browser, security and the fail-closed
+aggregate on one validated candidate with zero failures/skips. The exact evidence
+and immutable revisions are in [verification](../../engineering/08-WAVE-0-PLAN-4-VERIFICATION.md).
+Original unchecked mixed-scope items below remain historical; their deferred
+independent verifier, image/license provenance, fork/merge/cancellation and
+enforcement portions stay in pre-production hardening. P0/RT-* remain OPEN.
+
 ## Execution status — 2026-11-11
 
 Tasks 1–7 local implementation has task-level review/evidence; Task 8 documentation consolidates actual results in [verification](../../engineering/08-WAVE-0-PLAN-4-VERIFICATION.md). Checkbox requirements below remain unchecked where they combine unfulfilled acceptance; do not infer every planned action was completed. Backend/Compose failures, security/image/coverage findings and independent trust remain blocking; remote PR/main/fork/cancellation evidence NOT RUN. Wave 0/P0 OPEN. Scope authorization during execution allowed local commits and read-only governance inspection, no push/merge/settings/secrets/deploy.
