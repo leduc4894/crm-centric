@@ -89,6 +89,16 @@ Concrete next: commit/review/publication through parent under existing authority
 inspect new remote safe stage tokens; diagnose backend/browser and three remote
 contract failures from evidence before fixes. Record pending suite outcomes when
 available; do not broaden the exact metadata policy or change immutable base.
+
+Follow-up cold-cache remediation is currently in the working tree for the next
+scoped commit/publication: the SDK surface compatibility probe and standalone
+consumer harness now use the shared lockfile runtime-closure resolver at
+`scripts/contracts/runtime_packages.py`; the hosted UID-1001 .NET fixture sets
+`HOME=/tmp` alongside `DOTNET_CLI_HOME=/tmp`. The exact reviewed MVP delta was
+updated only for these two policy files plus the existing pinned surface lock;
+default and hardening modes remain fail-closed. Focused contract-review and
+closure tests pass locally; the host lacks a runnable Node binary (`libatomic`)
+for the full TypeScript suite, so no full local CI claim is made.
 No remote PASS, Wave0/P0 completion or acceptance drill claim.
 
 ## Nested Plan3 failure diagnostics

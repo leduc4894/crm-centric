@@ -93,12 +93,12 @@ def check_baseline_configuration(repo, base, mvp_review=False):
             raise GateError('SDK_TOOLCHAIN_REVIEW_REQUIRED')
     base_policy = {p for p in git(repo, 'ls-tree', '-r', '--name-only', base).decode().splitlines() if is_policy_path(p) and is_policy(p)}
     current_policy = current_policy_files(repo)
-    base_surface_policy = {p for p in paths if p.startswith('tools/contracts/surface/') or p == 'scripts/contracts/sdk_surface.py'}
+    base_surface_policy = {p for p in paths if p.startswith('tools/contracts/surface/') or p in ('scripts/contracts/sdk_surface.py','scripts/contracts/runtime_packages.py')}
     if base_surface_policy:
         base_policy |= base_surface_policy
         current_policy |= {p.relative_to(repo).as_posix() for p in (repo / 'tools/contracts/surface').rglob('*') if p.is_file()} if (repo / 'tools/contracts/surface').is_dir() else set()
-        if (repo / 'scripts/contracts/sdk_surface.py').is_file():
-            current_policy.add('scripts/contracts/sdk_surface.py')
+        for path in ('scripts/contracts/sdk_surface.py','scripts/contracts/runtime_packages.py'):
+            if (repo/path).is_file(): current_policy.add(path)
     old_hashes = {p: hashlib.sha256(git(repo, 'show', f'{base}:{p}')).hexdigest() for p in base_policy}
     new_hashes = {p: sha(repo / p) for p in current_policy}
     if mvp_review:

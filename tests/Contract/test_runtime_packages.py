@@ -9,7 +9,7 @@ ROOT=Path(__file__).resolve().parents[2]
 
 class RuntimePackagesTests(unittest.TestCase):
     def test_exact_transitive_closure_and_missing_package_rejected(self):
-        spec=importlib.util.spec_from_file_location('runtime_packages',ROOT/'tests/ClientConsumers/runtime_packages.py')
+        spec=importlib.util.spec_from_file_location('runtime_packages',ROOT/'scripts/contracts/runtime_packages.py')
         module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
         with tempfile.TemporaryDirectory() as d:
             root=Path(d)

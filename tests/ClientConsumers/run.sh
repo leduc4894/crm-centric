@@ -17,7 +17,7 @@ done
 # npm ci guarantees locked installed tarballs, not cached registry packuments.
 # Pack the exact complete runtime closure locally so this independent consumer
 # needs no registry metadata or network, even with an entirely empty npm cache.
-runtime_paths=$(python3 "$root/tests/ClientConsumers/runtime_packages.py" "$root")
+runtime_paths=$(python3 "$root/scripts/contracts/runtime_packages.py" "$root")
 mapfile -t runtime_packages <<< "$runtime_paths"
 npm pack --ignore-scripts --pack-destination "$tmp/packages" --silent "${runtime_packages[@]}" >/dev/null
 cp "$root/tests/ClientConsumers/typescript/"* "$tmp/typescript/"

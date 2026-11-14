@@ -16,7 +16,9 @@ OWNER='maintainer'
 DELTA={
     'scripts/contracts/sdk_surface.py':(
         'f0510e541edcf6a567801362c91045fc8025b6164ac7bf2487a57e4e45599439',
-        'f764d453b9f01c528936b843b73342186219e7b7b2b629a78962062c52120d39'),
+        'dff098c30c19efe678a62a8cff4274a714d37a82d1dce1369b41253e9a7f6f3d'),
+    'scripts/contracts/runtime_packages.py':(
+        None,'240050c7099989c91aa3b4908aa372e898467c3d36cc48230360562f100c6595'),
     'tools/contracts/surface/dotnet/packages.lock.json':(
         None,'03eeadc5ef377c17f787ab65f41fb4c8a9c936bb7f7f4171111fdeec8a81cb46'),
 }

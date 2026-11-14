@@ -14,6 +14,12 @@ class ContractReviewTests(unittest.TestCase):
         changed=copy.deepcopy(new);changed[next(iter(contract_review.DELTA))]='0'*64
         self.assertFalse(contract_review.approved(old,changed,contract_review.BASE))
         self.assertFalse(contract_review.approved(old,new,contract_review.BASE,now=2000000000))
+        helper='scripts/contracts/runtime_packages.py'
+        self.assertIn(helper,new)
+        changed=dict(new);changed[helper]='0'*64
+        self.assertFalse(contract_review.approved(old,changed,contract_review.BASE))
+        changed=dict(new);changed.pop(helper)
+        self.assertFalse(contract_review.approved(old,changed,contract_review.BASE))
 
     def test_remote_base_accepts_only_exact_reviewed_delta(self):
         remote_base='df993ae4ff44510a2ecfc861bb277a3f9418577f'
@@ -45,3 +51,22 @@ class ContractReviewTests(unittest.TestCase):
             commands=plan3_commands(identity,mode)
             export=next(c for c in commands if 'tests/Plan3/clean-export.sh' in c)
             self.assertEqual(mode=='mvp','--mvp-reviewed-policy' in export)
+
+    def test_runtime_closure_helper_changes_require_exact_review(self):
+        import subprocess,tempfile
+        from pathlib import Path
+        from scripts.contracts import compatibility as gate
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);folder=root/'scripts/contracts';folder.mkdir(parents=True)
+            (folder/'sdk_surface.py').write_text('# surface fixture\n')
+            helper=folder/'runtime_packages.py';helper.write_text('# closure fixture\n')
+            def git(*args):return subprocess.check_output(['git',*args],cwd=root,stderr=subprocess.DEVNULL).decode().strip()
+            git('init','-q');git('config','user.name','Fixture');git('config','user.email','fixture@example.invalid')
+            git('add','.');git('commit','-qm','baseline');base=git('rev-parse','HEAD')
+            self.assertIsNone(gate.check_baseline_configuration(root,base))
+            helper.write_text('# changed closure\n')
+            with self.assertRaisesRegex(gate.GateError,'CONTRACT_POLICY_REVIEW_REQUIRED'):
+                gate.check_baseline_configuration(root,base,mvp_review=True)
+            helper.unlink()
+            with self.assertRaisesRegex(gate.GateError,'CONTRACT_POLICY_REVIEW_REQUIRED'):
+                gate.check_baseline_configuration(root,base,mvp_review=True)
