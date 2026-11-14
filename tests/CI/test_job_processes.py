@@ -56,7 +56,7 @@ class ProcessTests(unittest.TestCase):
                     stat=Path('/proc')/str(pid)/'stat'
                     try:
                         if stat.read_text().split()[2]=='Z': break
-                    except FileNotFoundError:
+                    except (FileNotFoundError, ProcessLookupError):
                         break
                     time.sleep(.02)
                 else: self.fail('command descendant survived timeout')

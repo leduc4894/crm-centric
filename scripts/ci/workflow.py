@@ -3,6 +3,10 @@ import re
 import json
 
 JOBS = {'backend', 'compose', 'contracts-sdk', 'web-browser', 'security'}
+ARTIFACT_ACTION_PINS = {
+    'actions/upload-artifact': 'cf430e030ddbb5b0abf93d22962f4752f3646cd9',
+    'actions/download-artifact': '9000827ccba6bdab643e8b6fd33ac0654aef8333',
+}
 
 def validate(data):
     events = data.get('on', data.get(True))
@@ -38,6 +42,8 @@ def validate(data):
                      'actions/upload-artifact','actions/download-artifact'}
             if action and action not in allowed:
                 raise ValueError('CI_WORKFLOW_ACTION_INVALID')
+            if action in ARTIFACT_ACTION_PINS and step.get('uses') != action+'@'+ARTIFACT_ACTION_PINS[action]:
+                raise ValueError('CI_ACTION_PIN_INVALID')
             if action=='actions/upload-artifact':
                 config=step.get('with',{})
                 paths={'.local/ci/'+name+'.json':name+'-summary'}

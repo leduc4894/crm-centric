@@ -260,3 +260,54 @@ and this handoff update. `git diff --check` passed before commit. The unrelated 
 the scoped fix under the existing user authorization and require a new full
 hosted run on the resulting exact SHA before claiming backend or Wave 0 green.
 No merge, repository-setting change or deployment is authorized/performed.
+
+## Final hosted result for UID remediation
+
+Published branch head `ed912d0082d9f4f7d2cc4b669fb61eaec66c235d` produced
+PR run [43597473822](https://github.com/leduc4894/crm-centric/actions/runs/43597473822).
+GitHub validated merge candidate `d924fa78e01e6798425200a40c465ba3392056d3`
+against base `df993ae4ff44510a2ecfc861bb277a3f9418577f`; all summaries bind
+run attempt 1 and that same candidate.
+
+Final hosted conclusions: backend SUCCESS 96/96 (non-Compose 76 plus Local 20),
+Compose SUCCESS 14/14, contracts-sdk SUCCESS 88/88, web-browser SUCCESS 58/58
+(Vitest 54 plus browser 4), security SUCCESS 1/1, and `wave0-required` SUCCESS.
+Every reported failed/skipped count is zero. This is remote evidence that the
+backend UID fix is effective and the complete PR gate set is green on this exact
+candidate. It does not claim a main-push run, merge, branch-protection setting,
+production deployment or the later product P0/restore-drill acceptance.
+
+This final result is intentionally recorded as uncommitted handoff work after
+the green revision; committing/pushing documentation alone would create another
+candidate and invalidate the statement that the latest pushed SHA is the verified
+green one. Preserve or include it with the next authorized development commit.
+
+## Node 24 artifact-action closure candidate
+
+The next authorized change includes the previously uncommitted green-run record
+and removes the remaining GitHub runner warning. `actions/upload-artifact` moves
+from v4.6.2 SHA `ea165f8d65b6e75b540449e92b4886f43607fa02`
+(`runs.using: node20`) to signed v7.0.2 SHA
+`cf430e030ddbb5b0abf93d22962f4752f3646cd9` (`node24`). All five
+`actions/download-artifact` steps move from the prior Node20 SHA to signed v8.0.2
+SHA `9000827ccba6bdab643e8b6fd33ac0654aef8333` (`node24`). Exact release
+metadata contains every input used by this workflow. Project Node remains pinned
+separately at 24.22.2; no application dependency or runtime changed.
+
+Workflow validation now binds both artifact actions to these exact reviewed SHAs,
+instead of accepting any syntactically valid forty-character pin. TDD evidence:
+the Node24-pin test failed on both old SHAs; the validator negative failed because
+an arbitrary pinned upload SHA was accepted. After the change both focused tests
+PASS, and `python3 -m scripts.ci.workflow` PASS. A full prepared pinned-tool CI
+regression first ran 174 tests with one unrelated `/proc/<pid>/stat` race: the
+child was successfully reaped between path resolution and read, producing
+`ProcessLookupError`. The cleanup assertion now treats both disappearance forms
+(`FileNotFoundError` and `ProcessLookupError`) as success. Both timeout variants
+PASS in the final focused run; the repeated stress loop completed twenty rounds.
+Final full prepared-tool CI regression PASS 174/174 in 409.363s.
+
+Changed files for this candidate: `.github/workflows/wave0.yml`,
+`scripts/ci/workflow.py`, `tests/CI/test_workflow.py`,
+`tests/CI/test_job_processes.py`, and this handoff. `git diff --check` and a new
+remote exact-candidate run remain required before Plan 4/Wave 0 CI closure. No
+merge, main push, repository setting or deployment is included.

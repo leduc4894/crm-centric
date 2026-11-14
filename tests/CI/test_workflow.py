@@ -8,17 +8,36 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 
 class WorkflowTests(unittest.TestCase):
+    def test_artifact_actions_use_reviewed_node24_pins(self):
+        workflow = yaml.safe_load((ROOT / '.github/workflows/wave0.yml').read_text())
+        expected = {
+            'actions/upload-artifact': 'cf430e030ddbb5b0abf93d22962f4752f3646cd9',
+            'actions/download-artifact': '9000827ccba6bdab643e8b6fd33ac0654aef8333',
+        }
+        observed = {name: set() for name in expected}
+        for job in workflow['jobs'].values():
+            for step in job['steps']:
+                action, separator, revision = step.get('uses', '').partition('@')
+                if action in observed:
+                    self.assertEqual('@', separator)
+                    observed[action].add(revision)
+        self.assertEqual(observed, {name: {revision} for name, revision in expected.items()})
+
     def test_workflow_contract_and_negative_mutations(self):
         path = ROOT / '.github/workflows/wave0.yml'
         self.assertTrue(path.exists(), 'mandatory Wave 0 workflow missing')
         from scripts.ci.workflow import validate
         workflow = yaml.safe_load(path.read_text())
         validate(workflow)
-        for mutation in ('skip', 'sha', 'needs'):
+        for mutation in ('skip', 'sha', 'needs', 'artifact-pin'):
             bad = copy.deepcopy(workflow)
             if mutation == 'skip': bad['jobs']['web-browser']['if'] = 'false'
             if mutation == 'sha': bad['jobs']['backend']['steps'][0]['uses'] = 'actions/checkout@v6'
             if mutation == 'needs': bad['jobs']['wave0-required']['needs'].remove('compose')
+            if mutation == 'artifact-pin':
+                upload = next(step for step in bad['jobs']['backend']['steps']
+                              if step.get('uses', '').startswith('actions/upload-artifact@'))
+                upload['uses'] = 'actions/upload-artifact@' + 'a' * 40
             with self.assertRaises(ValueError, msg=mutation): validate(bad)
 
     def test_old_required_status_retired(self):

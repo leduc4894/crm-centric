@@ -42,7 +42,7 @@ jobs:
         run: python -m scripts.ci.completion backend --mode mvp --output .local/ci/backend.json
       - name: Publish safe summary
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: backend-summary
           path: .local/ci/backend.json
@@ -84,7 +84,7 @@ jobs:
         run: python -m scripts.ci.completion compose --mode mvp --output .local/ci/compose.json
       - name: Publish safe summary
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: compose-summary
           path: .local/ci/compose.json
@@ -124,7 +124,7 @@ jobs:
         run: python -m scripts.ci.completion contracts-sdk --mode mvp --output .local/ci/contracts-sdk.json
       - name: Publish safe summary
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: contracts-sdk-summary
           path: .local/ci/contracts-sdk.json
@@ -166,7 +166,7 @@ jobs:
         run: python -m scripts.ci.completion web-browser --mode mvp --output .local/ci/web-browser.json
       - name: Publish safe summary
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: web-browser-summary
           path: .local/ci/web-browser.json
@@ -208,7 +208,7 @@ jobs:
         run: python -m scripts.ci.completion security --mode mvp --output .local/ci/security.json
       - name: Publish safe summary
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: security-summary
           path: .local/ci/security.json
@@ -230,31 +230,31 @@ jobs:
           python-version: '3.15.2'
       - id: backend
         if: always()
-        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
           name: backend-summary
           path: .local/ci
       - id: compose
         if: always()
-        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
           name: compose-summary
           path: .local/ci
       - id: contracts-sdk
         if: always()
-        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
           name: contracts-sdk-summary
           path: .local/ci
       - id: web-browser
         if: always()
-        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
           name: web-browser-summary
           path: .local/ci
       - id: security
         if: always()
-        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
           name: security-summary
           path: .local/ci
