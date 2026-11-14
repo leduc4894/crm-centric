@@ -111,7 +111,16 @@ public sealed class ContainerImages : IAsyncLifetime
             string? snapshot = null;
             fixtureSecretFiles?.TryGetValue(Path.GetFullPath(source), out snapshot);
             Add(snapshot);
-            try { Add(File.ReadAllText(source)); }
+            try
+            {
+                // Do not let a privileged CI process turn an intentionally
+                // unreadable fixture into a readable one. The guard must fail
+                // closed from the file mode as well as from the read attempt.
+                if (OperatingSystem.IsLinux() &&
+                    (File.GetUnixFileMode(source) & (UnixFileMode.UserRead | UnixFileMode.GroupRead | UnixFileMode.OtherRead)) == 0)
+                    throw new UnauthorizedAccessException();
+                Add(File.ReadAllText(source));
+            }
             catch (Exception failure) when (failure is IOException or UnauthorizedAccessException)
             {
                 if (string.IsNullOrWhiteSpace(snapshot))
