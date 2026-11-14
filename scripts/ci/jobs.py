@@ -120,6 +120,32 @@ def dotnet_failure_diagnostic(stdout, stderr):
         if any(marker in text for marker in markers): matches.append(token)
     return matches or ['OTHER_TESTS_FAILED']
 
+def dotnet_failure_methods(stdout, stderr):
+    """Return only fixed, source-reviewed method identifiers marked FAIL by xUnit."""
+    text=re.sub(r'\x1b\[[0-9;]*[A-Za-z]','',(stdout+b'\n'+stderr).decode('utf-8',errors='replace'))
+    allowed=frozenset((
+        'Nonlocal_hostname_fails_before_startup_without_secret_output',
+        'Idp_database_initializer_creates_nonprivileged_owner',
+        'Cold_import_has_two_pkce_clients_and_canonical_discovery',
+        'Warm_start_preserves_realm_and_detects_drift',
+        'Host_port_override_changes_discovery_consistently',
+        'Api_uses_only_application_secret_as_nonroot',
+        'Unreadable_or_missing_secret_fails_closed',
+        'Arguments_cannot_override_file_configuration',
+        'Published_images_contain_no_sdk_source_or_fixture',
+        'Image_config_history_and_build_context_exclude_sentinels',
+        'Postgres_missing_file_has_safe_diagnostic',
+        'Root_or_invalid_uid_cannot_build_runtime',
+        'Postgres_reads_private_file_then_uses_canonical_privilege_drop',
+        'Keycloak_private_files_and_data_work_as_nonroot_with_management_health',
+    ))
+    observed=[]
+    for line in text.splitlines():
+        if '[FAIL]' not in line: continue
+        found=re.search(r'Integration\.(?:ContainerRuntimeTests|KeycloakContainerTests)\.([A-Za-z0-9_]+)',line)
+        if found and found.group(1) in allowed and found.group(1) not in observed: observed.append(found.group(1))
+    return observed or ['OTHER']
+
 
 def execute(command, timeout=3300, env=None):
     try:
@@ -146,7 +172,9 @@ def execute(command, timeout=3300, env=None):
         stage=stages.get(tuple(command[:2]),'other')
         diagnostic={'reasonToken':'CI_COMMAND_FAILED','commandStage':stage}
         if stage=='plan3': diagnostic.update(plan3_failure_diagnostic(stdout,stderr))
-        elif stage=='dotnet-test': diagnostic['dotnetTests'] = dotnet_failure_diagnostic(stdout,stderr)
+        elif stage=='dotnet-test':
+            diagnostic['dotnetTests'] = dotnet_failure_diagnostic(stdout,stderr)
+            diagnostic['dotnetMethods'] = dotnet_failure_methods(stdout,stderr)
         print(json.dumps(diagnostic))
         raise JobError('CI_COMMAND_FAILED')
     return stdout.decode().strip()

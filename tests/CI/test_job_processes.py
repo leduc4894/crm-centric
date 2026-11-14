@@ -116,7 +116,9 @@ class ProcessTests(unittest.TestCase):
         stream=io.StringIO()
         with contextlib.redirect_stdout(stream),patch('scripts.ci.jobs.subprocess.Popen',return_value=process):
             with self.assertRaises(JobError):execute(['dotnet','test','private'])
-        self.assertEqual(['SMOKE_TESTS_FAILED'],json.loads(stream.getvalue())['dotnetTests'])
+        diagnostic=json.loads(stream.getvalue())
+        self.assertEqual(['SMOKE_TESTS_FAILED'],diagnostic['dotnetTests'])
+        self.assertEqual(['OTHER'],diagnostic['dotnetMethods'])
         self.assertNotIn('private',stream.getvalue())
 
     def test_dotnet_failure_keeps_multiple_allowlisted_families(self):
@@ -131,6 +133,9 @@ class ProcessTests(unittest.TestCase):
             b'[xUnit.net 00:01] Integration.LocalBootstrapTests.Adapter_case [FAIL]',b''))
         self.assertEqual(['READINESS_TESTS_FAILED'],dotnet_failure_diagnostic(
             b'\x1b[31mFailed Integration.ReadinessTests.Database_case\x1b[0m',b''))
+        from scripts.ci.jobs import dotnet_failure_methods
+        self.assertEqual(['Cold_import_has_two_pkce_clients_and_canonical_discovery'],
+            dotnet_failure_methods(b'Integration.KeycloakContainerTests.Cold_import_has_two_pkce_clients_and_canonical_discovery [FAIL]',b''))
 
     def test_plan3_failure_reports_only_bounded_nested_step_and_reason(self):
         import contextlib,io,json
