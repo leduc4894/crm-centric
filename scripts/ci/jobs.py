@@ -101,6 +101,18 @@ def dotnet_failure_diagnostic(stdout, stderr):
     matches = [token for token, pattern in families.items() if re.search(pattern,text)]
     if 'Container operation failed: build exit 1' in text:
         matches.append('CONTAINER_IMAGE_BUILD_FAILED')
+    process_failures = {
+        'TEST_RUN_ABORTED': ('Test Run Aborted','test run was aborted'),
+        'TESTHOST_FAILED': ('testhost','Test host process'),
+        'MSBUILD_FAILED': (' error MSB','MSBUILD : error'),
+        'DOCKER_UNAVAILABLE': ('Cannot connect to the Docker daemon','docker: not found'),
+        'PERMISSION_FAILED': ('Permission denied','UnauthorizedAccessException'),
+        'DISK_EXHAUSTED': ('No space left on device',),
+        'OUT_OF_MEMORY': ('Out of memory','OutOfMemoryException'),
+        'NO_TESTS_MATCHED': ('No test matches the given testcase filter',),
+    }
+    for token, markers in process_failures.items():
+        if any(marker in text for marker in markers): matches.append(token)
     return matches or ['OTHER_TESTS_FAILED']
 
 

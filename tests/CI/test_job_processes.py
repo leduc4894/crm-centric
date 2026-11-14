@@ -125,6 +125,8 @@ class ProcessTests(unittest.TestCase):
             dotnet_failure_diagnostic(b'Failed Integration.SmokeTests.case Container operation failed: build exit 1',b''))
         self.assertEqual(['OTHER_TESTS_FAILED'],
             dotnet_failure_diagnostic(b'Passed Integration.SmokeTests.case',b''))
+        self.assertEqual(['TEST_RUN_ABORTED','PERMISSION_FAILED'],
+            dotnet_failure_diagnostic(b'Test Run Aborted: Permission denied',b''))
 
     def test_plan3_failure_reports_only_bounded_nested_step_and_reason(self):
         import contextlib,io,json
