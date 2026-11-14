@@ -112,7 +112,7 @@ class ProcessTests(unittest.TestCase):
     def test_dotnet_failure_projects_only_known_test_family(self):
         import contextlib,io,json
         process=unittest.mock.Mock(returncode=1)
-        process.communicate.return_value=(b'failed SmokeTests details',b'')
+        process.communicate.return_value=(b'Failed Integration.SmokeTests.case',b'')
         stream=io.StringIO()
         with contextlib.redirect_stdout(stream),patch('scripts.ci.jobs.subprocess.Popen',return_value=process):
             with self.assertRaises(JobError):execute(['dotnet','test','private'])
@@ -122,7 +122,9 @@ class ProcessTests(unittest.TestCase):
     def test_dotnet_failure_keeps_multiple_allowlisted_families(self):
         from scripts.ci.jobs import dotnet_failure_diagnostic
         self.assertEqual(['SMOKE_TESTS_FAILED','CONTAINER_IMAGE_BUILD_FAILED'],
-            dotnet_failure_diagnostic(b'SmokeTests Container operation failed: build exit 1',b''))
+            dotnet_failure_diagnostic(b'Failed Integration.SmokeTests.case Container operation failed: build exit 1',b''))
+        self.assertEqual(['OTHER_TESTS_FAILED'],
+            dotnet_failure_diagnostic(b'Passed Integration.SmokeTests.case',b''))
 
     def test_plan3_failure_reports_only_bounded_nested_step_and_reason(self):
         import contextlib,io,json

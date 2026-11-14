@@ -93,13 +93,14 @@ def dotnet_failure_diagnostic(stdout, stderr):
     """Project only known integration-test families from private test output."""
     text = (stdout + b'\n' + stderr).decode('utf-8', errors='replace')
     families = {
-        'SMOKE_TESTS_FAILED': 'SmokeTests',
-        'IMAGE_EVIDENCE_TESTS_FAILED': 'ImageEvidenceSecretTests',
-        'READINESS_TESTS_FAILED': 'ReadinessTests',
-        'CONTAINER_IMAGE_BUILD_FAILED': 'Container operation failed: build exit 1',
-        'LOCAL_BOOTSTRAP_TEST_FAILED': 'Adapter_bootstrap_reads_only_mounted_files',
+        'SMOKE_TESTS_FAILED': r'Failed Integration\.SmokeTests\.',
+        'IMAGE_EVIDENCE_TESTS_FAILED': r'Failed Integration\.ImageEvidenceSecretTests\.',
+        'READINESS_TESTS_FAILED': r'Failed Integration\.ReadinessTests\.',
+        'LOCAL_BOOTSTRAP_TEST_FAILED': r'Failed Integration\.LocalBootstrapTests\.',
     }
-    matches = [token for token, marker in families.items() if marker in text]
+    matches = [token for token, pattern in families.items() if re.search(pattern,text)]
+    if 'Container operation failed: build exit 1' in text:
+        matches.append('CONTAINER_IMAGE_BUILD_FAILED')
     return matches or ['OTHER_TESTS_FAILED']
 
 
