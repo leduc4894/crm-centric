@@ -60,10 +60,11 @@ public sealed class ContainerRuntimeTests(ContainerImages images)
             AssertAbsent(new NpgsqlConnectionStringBuilder(db.MigrationConnectionString).Password!, migrationInspect.GetRawText());
             var runtimeUid = (await ContainerImages.Docker("exec", api, "id", "-u")).Output.Trim();
             Assert.NotEqual("0", runtimeUid);
-            Assert.Equal("1000", runtimeUid);
+            Assert.Equal(ContainerImages.RuntimeUid, runtimeUid);
             Assert.Equal("600", (await ContainerImages.Docker("exec", api, "stat", "-c", "%a", "/run/secrets/platform")).Output.Trim());
             var process = (await ContainerImages.Docker("exec", api, "cat", "/proc/1/status")).Output;
-            Assert.Contains("Uid:\t1000\t1000\t1000\t1000", process);
+            var expectedUid = string.Join('\t', Enumerable.Repeat(ContainerImages.RuntimeUid, 4));
+            Assert.Contains("Uid:\t" + expectedUid, process);
             await ContainerImages.Docker("exec", api, "/usr/local/bin/healthcheck.sh");
             // Stopping this exact dependency makes this exact container's probe fail.
             await db.Container.StopAsync();
@@ -292,8 +293,9 @@ public sealed class ContainerRuntimeTests(ContainerImages images)
             await idp.OpenAsync();
             await using var realm = new NpgsqlCommand("SELECT count(*) FROM realm WHERE name = 'master'", idp);
             Assert.Equal(1L, await realm.ExecuteScalarAsync());
-            Assert.Equal("1000", (await ContainerImages.Docker("exec", name, "id", "-u")).Output.Trim());
-            Assert.Contains("Uid:\t1000\t1000\t1000\t1000", (await ContainerImages.Docker("exec", name, "cat", "/proc/1/status")).Output);
+            Assert.Equal(ContainerImages.RuntimeUid, (await ContainerImages.Docker("exec", name, "id", "-u")).Output.Trim());
+            var expectedKeycloakUid = string.Join('\t', Enumerable.Repeat(ContainerImages.RuntimeUid, 4));
+            Assert.Contains("Uid:\t" + expectedKeycloakUid, (await ContainerImages.Docker("exec", name, "cat", "/proc/1/status")).Output);
             await ContainerImages.Docker("exec", name, "bash", "-c", "test -w /opt/keycloak/data && touch /opt/keycloak/data/uid-test && test -r /run/secrets/db-password && test -r /run/secrets/admin-password");
             var inspect = (await ContainerImages.Inspect(name)).GetRawText();
             var logs = await ContainerImages.Docker("logs", name);

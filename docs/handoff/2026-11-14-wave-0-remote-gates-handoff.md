@@ -197,3 +197,66 @@ identities (baseline consumer compile incompatibility, packaged consumer, .NET
 surface). Backend FAIL at dotnet-test. Compose ongoing; security PASS. Consumer
 cache fix does not claim to explain the two other contract failures or backend
 failures. Next investigate .NET surface separately with bounded diagnostics.
+
+## Hosted backend UID mismatch — final remediation iteration
+
+Latest diagnostic run `43594740956` at candidate `ac5095fdee121318fd41089d70dca1d93ddeab29`
+completed cancelled after backend failure: backend FAIL, security PASS,
+web-browser PASS, Compose/contracts cancelled, aggregate FAIL. The safe backend
+summary named exactly five failed methods: API private-secret runtime, Keycloak
+private-secret runtime, and the three Keycloak cold/warm/host-port tests.
+
+Root cause is the test image identity, not application authorization or a relaxed
+secret policy. GitHub's hosted process creates bind-mounted secret files as UID
+1001 with mode `0600`; `ContainerImages` built API/migrator/Keycloak with the
+Dockerfile default UID/GID 1000. Therefore those non-root containers could not
+read the fixtures. Compose already passes `LOCAL_UID`/`LOCAL_GID` and did not
+contain this mismatch. Tests that fail before reading secrets or use the
+privilege-dropping PostgreSQL wrapper were unaffected, matching the observed
+failure set.
+
+Scoped fix: `ContainerImages` validates the current Linux UID/GID as positive,
+passes them as `LOCAL_UID`/`LOCAL_GID` for Platform and Keycloak test images, and
+asserts the resulting process identity dynamically. Secret files remain mode
+`0600`, containers remain non-root, and Dockerfiles retain default UID/GID 1000
+when no local test override is provided. No production source, public contract,
+schema, migration, dependency, workflow permission, scanner policy, approval or
+security exception changed. Rollback is a scoped revert of the fixture changes.
+
+Changed files in this iteration:
+- `tests/Integration/Fixtures/ContainerImages.cs`
+- `tests/Integration/ContainerRuntimeTests.cs`
+- this handoff
+
+Actual verification:
+- RED evidence is hosted run `43594740956`: the five named methods all failed
+  with the old fixed-1000 images.
+- Reproduction harness under UID/GID 1001, host networking and real Docker:
+  PASS 5/5, 0 failed, total 4m12s. Cold import 53s; warm restart/drift 1m23s;
+  host-port discovery 51s; API private secret 10s; Keycloak private secret 46s.
+- The first two harness attempts failed before exercising the patch because the
+  nested apt Docker client lacked BuildKit, then because a shared host `/tmp`
+  timing file belonged to UID1000. After using the host Buildx client and an
+  isolated `TMPDIR`, tests reached the real services. Host networking was needed
+  because the nested test process otherwise cannot reach ports published by the
+  host Docker daemon. These harness-only failures are not represented as product
+  or hosted-run failures.
+- System-Python full CI discovery: FAIL 3/173 after 170 passes. One `/proc` race
+  in timeout cleanup and two prepared-tool dependencies (real .NET semantic
+  evaluator and Trivy requirement) failed in the unprepared host environment;
+  none touches the two changed C# files. They were then rerun with the prepared
+  pinned toolchain as recorded below.
+- Prepared pinned-tool rerun: timeout cleanup PASS individually; real Plan3
+  semantic transition plus MVP scanner-requirement tests PASS 2/2 in 273.426s.
+  This resolves the three host-environment failures for their intended toolchain;
+  it is not a replacement for a fresh full hosted workflow.
+- C# compilation occurred inside the UID1001 focused run and succeeded with two
+  pre-existing CA1416 warnings in `ImageEvidenceSecretTests.cs`.
+
+Workspace remains on `feat/wave-0-plan-4-ci`; the scoped commit titled
+`fix(backend): align test image uid with runner` contains the fixture, assertions
+and this handoff update. `git diff --check` passed before commit. The unrelated untracked
+`2026-11-12-wave-0-plan-3-resumption-handoff.md` remains preserved. Next: push
+the scoped fix under the existing user authorization and require a new full
+hosted run on the resulting exact SHA before claiming backend or Wave 0 green.
+No merge, repository-setting change or deployment is authorized/performed.

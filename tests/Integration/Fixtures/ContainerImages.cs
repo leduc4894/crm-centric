@@ -22,6 +22,8 @@ public sealed class ContainerImages : IAsyncLifetime
     public string Migrator { get; } = "crm-task3-migrate-" + Guid.NewGuid().ToString("N");
     public string Keycloak { get; } = "crm-task3-idp-" + Guid.NewGuid().ToString("N");
     public string Postgres { get; } = "crm-task3-postgres-" + Guid.NewGuid().ToString("N");
+    public static string RuntimeUid { get; } = UnixIdentity("-u");
+    public static string RuntimeGid { get; } = UnixIdentity("-g");
     public static Dictionary<string, string> Pins => File.ReadAllLines(Path.Combine(Root, "infra/compose/images.lock.env"))
         .Where(line => line.Length > 0 && !line.StartsWith('#')).Select(line => line.Split('=', 2)).ToDictionary(parts => parts[0], parts => parts[1]);
 
@@ -32,9 +34,9 @@ public sealed class ContainerImages : IAsyncLifetime
         {
         var duration = Stopwatch.StartNew();
         foreach (var (target, image) in new[] { ("api", Api), ("migrator", Migrator) })
-            await Docker("build", "--file", "infra/docker/Platform.Dockerfile", "--target", target, "--build-arg", "DOTNET_SDK_IMAGE=" + Pins["DOTNET_SDK_IMAGE"], "--build-arg", "DOTNET_RUNTIME_IMAGE=" + Pins["DOTNET_RUNTIME_IMAGE"], "--tag", image, ".");
+            await Docker("build", "--file", "infra/docker/Platform.Dockerfile", "--target", target, "--build-arg", "DOTNET_SDK_IMAGE=" + Pins["DOTNET_SDK_IMAGE"], "--build-arg", "DOTNET_RUNTIME_IMAGE=" + Pins["DOTNET_RUNTIME_IMAGE"], "--build-arg", "LOCAL_UID=" + RuntimeUid, "--build-arg", "LOCAL_GID=" + RuntimeGid, "--tag", image, ".");
         await Docker("build", "--file", "infra/docker/Postgres.Dockerfile", "--target", "runtime", "--build-arg", "POSTGRES_IMAGE=" + Pins["POSTGRES_IMAGE"], "--tag", Postgres, ".");
-        await Docker("build", "--file", "infra/docker/Keycloak.Dockerfile", "--target", "runtime", "--build-arg", "KEYCLOAK_IMAGE=" + Pins["KEYCLOAK_IMAGE"], "--tag", Keycloak, ".");
+        await Docker("build", "--file", "infra/docker/Keycloak.Dockerfile", "--target", "runtime", "--build-arg", "KEYCLOAK_IMAGE=" + Pins["KEYCLOAK_IMAGE"], "--build-arg", "LOCAL_UID=" + RuntimeUid, "--build-arg", "LOCAL_GID=" + RuntimeGid, "--tag", Keycloak, ".");
         File.WriteAllText(Path.Combine(Path.GetTempPath(), "crm-task3-build-timing.json"), JsonSerializer.Serialize(new { cachedBuildSeconds = duration.Elapsed.TotalSeconds, images = 4 }));
         }
         finally { BuildLock.Release(); }
@@ -224,6 +226,21 @@ public sealed class ContainerImages : IAsyncLifetime
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "CrmPlatform.sln"))) directory = directory.Parent;
         return directory?.FullName ?? throw new InvalidOperationException("Repository root unavailable.");
+    }
+
+    private static string UnixIdentity(string argument)
+    {
+        if (!OperatingSystem.IsLinux()) throw new PlatformNotSupportedException();
+        using var process = Process.Start(new ProcessStartInfo("id", argument)
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true
+        }) ?? throw new InvalidOperationException("Unix identity command unavailable.");
+        var output = process.StandardOutput.ReadToEnd().Trim();
+        process.WaitForExit();
+        if (process.ExitCode != 0 || !int.TryParse(output, out var value) || value <= 0)
+            throw new InvalidOperationException("A non-root Unix test identity is required.");
+        return output;
     }
     public sealed record Capture(int ExitCode, string Output, string Error);
 }
