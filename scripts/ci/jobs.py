@@ -100,7 +100,7 @@ def dotnet_failure_diagnostic(stdout, stderr):
         'LOCAL_BOOTSTRAP_TEST_FAILED': 'Adapter_bootstrap_reads_only_mounted_files',
     }
     matches = [token for token, marker in families.items() if marker in text]
-    return matches[0] if len(matches) == 1 else 'OTHER_TESTS_FAILED'
+    return matches or ['OTHER_TESTS_FAILED']
 
 
 def execute(command, timeout=3300, env=None):
@@ -128,7 +128,7 @@ def execute(command, timeout=3300, env=None):
         stage=stages.get(tuple(command[:2]),'other')
         diagnostic={'reasonToken':'CI_COMMAND_FAILED','commandStage':stage}
         if stage=='plan3': diagnostic.update(plan3_failure_diagnostic(stdout,stderr))
-        elif stage=='dotnet-test': diagnostic['dotnetTest'] = dotnet_failure_diagnostic(stdout,stderr)
+        elif stage=='dotnet-test': diagnostic['dotnetTests'] = dotnet_failure_diagnostic(stdout,stderr)
         print(json.dumps(diagnostic))
         raise JobError('CI_COMMAND_FAILED')
     return stdout.decode().strip()

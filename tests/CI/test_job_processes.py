@@ -105,7 +105,7 @@ class ProcessTests(unittest.TestCase):
             self.assertEqual('CI_COMMAND_FAILED',caught.exception.token)
             expected={'reasonToken':'CI_COMMAND_FAILED','commandStage':stage}
             if stage=='plan3':expected.update(plan3Step='other',plan3Reason='other')
-            if stage=='dotnet-test':expected.update(dotnetTest='OTHER_TESTS_FAILED')
+            if stage=='dotnet-test':expected.update(dotnetTests=['OTHER_TESTS_FAILED'])
             self.assertEqual(expected,json.loads(stream.getvalue()))
             self.assertNotIn('private',stream.getvalue())
 
@@ -116,8 +116,13 @@ class ProcessTests(unittest.TestCase):
         stream=io.StringIO()
         with contextlib.redirect_stdout(stream),patch('scripts.ci.jobs.subprocess.Popen',return_value=process):
             with self.assertRaises(JobError):execute(['dotnet','test','private'])
-        self.assertEqual('SMOKE_TESTS_FAILED',json.loads(stream.getvalue())['dotnetTest'])
+        self.assertEqual(['SMOKE_TESTS_FAILED'],json.loads(stream.getvalue())['dotnetTests'])
         self.assertNotIn('private',stream.getvalue())
+
+    def test_dotnet_failure_keeps_multiple_allowlisted_families(self):
+        from scripts.ci.jobs import dotnet_failure_diagnostic
+        self.assertEqual(['SMOKE_TESTS_FAILED','CONTAINER_IMAGE_BUILD_FAILED'],
+            dotnet_failure_diagnostic(b'SmokeTests Container operation failed: build exit 1',b''))
 
     def test_plan3_failure_reports_only_bounded_nested_step_and_reason(self):
         import contextlib,io,json
