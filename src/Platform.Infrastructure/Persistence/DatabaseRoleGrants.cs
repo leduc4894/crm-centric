@@ -40,12 +40,14 @@ public static class DatabaseRoleGrants
                   AND NOT EXISTS (
                     SELECT FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
                     WHERE n.nspname='platform' AND c.relname='memberships'
-                    AND has_table_privilege(rolname, c.oid, 'INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
+                    AND (has_table_privilege(rolname, c.oid, 'INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
+                      OR has_any_column_privilege(rolname, c.oid, 'INSERT,UPDATE,REFERENCES'))
                   )
                   AND NOT EXISTS (
                     SELECT FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
                     WHERE n.nspname='platform' AND c.relname='tenants'
-                    AND has_table_privilege(rolname, c.oid, 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
+                    AND (has_table_privilege(rolname, c.oid, 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
+                      OR has_any_column_privilege(rolname, c.oid, 'SELECT,INSERT,UPDATE,REFERENCES'))
                   )
             )
             """, connection);

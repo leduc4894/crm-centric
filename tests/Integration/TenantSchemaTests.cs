@@ -30,6 +30,43 @@ public sealed class TenantSchemaTests : IAsyncLifetime
         await Assert.ThrowsAsync<InvalidOperationException>(() => DatabaseRoleGrants.ValidateAsync(migration, db.ApplicationRole, CancellationToken.None));
     }
 
+    [Theory]
+    [InlineData("memberships", "status", "UPDATE", "direct")]
+    [InlineData("memberships", "status", "UPDATE", "public")]
+    [InlineData("memberships", "status", "UPDATE", "inherited")]
+    [InlineData("tenants", "name", "SELECT", "direct")]
+    [InlineData("tenants", "name", "SELECT", "public")]
+    [InlineData("tenants", "name", "SELECT", "inherited")]
+    public async Task Application_role_with_forbidden_column_privilege_is_rejected(string table, string column, string privilege, string source)
+    {
+        await using var migration = new NpgsqlConnection(db.MigrationConnectionString);
+        await migration.OpenAsync();
+        await using var context = Context(migration);
+        await context.Database.MigrateAsync();
+        await DatabaseRoleGrants.ApplyAsync(migration, db.ApplicationRole, CancellationToken.None);
+        var grantee = source switch
+        {
+            "public" => "PUBLIC",
+            "inherited" => PostgresFixture.Quote("column_grant_" + Guid.NewGuid().ToString("N")),
+            _ => PostgresFixture.Quote(db.ApplicationRole)
+        };
+        if (source == "inherited")
+        {
+            await using var admin = new NpgsqlConnection(db.AdminConnectionString);
+            await admin.OpenAsync();
+            await PostgresFixture.ExecuteAsync(admin, $"CREATE ROLE {grantee} NOLOGIN; GRANT {grantee} TO {PostgresFixture.Quote(db.ApplicationRole)}");
+        }
+        await PostgresFixture.ExecuteAsync(migration, $"GRANT {privilege} ({column}) ON platform.{table} TO {grantee}");
+        await using var app = new NpgsqlConnection(db.ApplicationConnectionString);
+        await app.OpenAsync();
+        await using var effective = new NpgsqlCommand("SELECT has_column_privilege(current_user, @table, @column, @privilege)", app);
+        effective.Parameters.AddWithValue("table", "platform." + table);
+        effective.Parameters.AddWithValue("column", column);
+        effective.Parameters.AddWithValue("privilege", privilege);
+        Assert.Equal(true, await effective.ExecuteScalarAsync());
+        await Assert.ThrowsAsync<InvalidOperationException>(() => DatabaseRoleGrants.ApplyAsync(migration, db.ApplicationRole, CancellationToken.None));
+    }
+
     [Fact]
     public async Task Existing_application_role_with_excess_membership_privilege_is_rejected()
     {
