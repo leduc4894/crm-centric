@@ -387,3 +387,32 @@ records. Focused provenance tests PASS2 in 41.451s; expanded history/adjudicatio
 security/scan suite PASS51 in 71.051s; full prepared-tool CI PASS174/174 in
 383.753s on the final commit candidate. Rollback is a scoped revert; it would restore the known main-push false
 block. No application, public contract, schema, migration or dependency changed.
+
+## Main-push attribution closure — 2026-11-15
+
+Commit `95d802dd365d8f45d8d5a6c4504569ee7db0d6ec` was pushed on
+`fix/wave0-main-push-security` and opened as PR2. Hosted PR run
+[43674022081](https://github.com/leduc4894/crm-centric/actions/runs/43674022081)
+completed SUCCESS on that exact head: backend, Compose, contracts-sdk,
+web-browser, security and `wave0-required` all passed. PR2 was CLEAN/MERGEABLE
+and merged under explicit user authorization as
+`6bb4cacf5c5a13170bc2a4550af7a38bf3d12220`, whose ordered parents are the prior
+main revision `788f7605ee962071b6ecdbd035a6a2e6351fda6d` and fix head `95d802d`.
+
+The decisive main-push run
+[43675380714](https://github.com/leduc4894/crm-centric/actions/runs/43675380714)
+completed SUCCESS on exact merge SHA `6bb4cacf`: backend, security,
+contracts-sdk, Compose, web-browser and `wave0-required` all succeeded. The
+security job therefore passed for the real push identity (`merge_sha` absent),
+closing the false-block regression without changing approvals, thresholds,
+scanner range or fail-closed provenance requirements. Local final-candidate
+verification was also PASS 174/174 in 383.753s and `git diff --check` passed.
+
+Plan 4 / Wave 0 CI MVP remains CLOSED with both PR and post-merge main evidence.
+This does not claim branch-protection configuration, deployment, production
+acceptance or the later P0/restore-drill acceptance. The branch was not deleted.
+The user subsequently authorized committing the final evidence and the preserved
+Plan3 resumption handoff directly on `main`, then deleting all non-main local and
+remote branches. The documentation commit requires its own hosted run; branch
+cleanup is performed only after the pushed revision is confirmed and does not
+change the verified application or CI implementation.
