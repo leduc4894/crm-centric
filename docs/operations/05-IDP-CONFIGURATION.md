@@ -1,7 +1,8 @@
 # Identity provider configuration
 
-Plan 2 provides a local identity provider and metadata inspection. CRM authentication,
-a browser login, tenant authorization and production deployment remain unimplemented.
+The local profile provides an identity provider, metadata inspection and API bearer
+validation. Browser login, tenant authorization and production deployment are not
+complete.
 A CRM Contact is not an authenticated Identity User. Wave 1 must use stable issuer/sub
 and explicit tenant-scoped linkage rather than matching email addresses.
 
@@ -25,9 +26,27 @@ seeded user, client secret or signing private key is supplied. Placeholder metad
 and public discovery/JWKS do not establish a working application login or audience
 validation by CRM.
 
-The public browser hostname differs from container DNS. Do not replace the issuer
-with `http://keycloak:8080` or disable issuer checks to solve backchannel routing.
-Wave 1 must choose reachable HTTPS public/backchannel URLs before adding middleware.
+The public browser hostname differs from container DNS. The API and Keycloak share a
+dedicated OIDC network; the API reads discovery and JWKS over
+`https://keycloak:8443` while validating the unchanged public issuer. Keycloak's
+dynamic backchannel discovery advertises that internal HTTPS JWKS URL. A per-stack
+self-signed certificate is stored alongside the secret state in `<state>.tls`;
+only Keycloak receives its private key, and the API trusts the certificate through
+`SSL_CERT_FILE`. The management health port uses HTTP on the Keycloak container's loopback
+interface and is not published. The local profile explicitly uses Development because
+the public issuer is loopback HTTP; production requires HTTPS.
+
+The local lifecycle needs `openssl` to provision and validate that certificate.
+The certificate and key are private files with an integrity manifest, persist across
+warm starts, and are never regenerated automatically after migration. A missing,
+modified, or nearly expired TLS state fails closed. The first upgraded `up` creates
+TLS state alongside existing version 1 credentials and records stack metadata version
+2; it does not rotate credentials or recreate database volumes. Pending migrations can
+be retried. For rollback, stop/remove the version 2 service containers, retain the
+credential and TLS directories and volumes, restore the original version 1 stack
+metadata for that project, then run the old checkout; back up the metadata before an
+upgrade. Do not replace the issuer with `http://keycloak:8080` or disable issuer or
+transport checks to solve routing.
 
 Startup import creates a missing realm and skips an existing realm. The trusted host
 helper `scripts/local/realm.py` checks actual discovery, JWKS and persisted Admin API

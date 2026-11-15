@@ -187,6 +187,7 @@ public sealed class ComposeFixture : IAsyncDisposable
             Assert.Equal(0, (await Docker("image", "rm", image)).ExitCode);
         }
         if (Directory.Exists(State)) Directory.Delete(State, true);
+        if (Directory.Exists(State + ".tls")) Directory.Delete(State + ".tls", true);
         File.Delete(State + ".stack.json");
     }
 }

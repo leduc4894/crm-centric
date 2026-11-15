@@ -12,13 +12,23 @@ import uuid
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'scripts'))
-from local.compose import Docker, LocalStackConfig, project_lock, _ports, LocalFailure, read_stack_metadata, write_stack_metadata, _owned
+from local.compose import Docker, LocalStackConfig, project_lock, _ports, LocalFailure, read_stack_metadata, write_stack_metadata, _owned, _metadata_identity
 
 class LifecycleConfigurationTests(unittest.TestCase):
     def cli(self, action, **environment):
         env = dict(os.environ, **environment)
         return subprocess.run(['bash', str(ROOT / f'scripts/dev-{action}.sh')], env=env,
                               capture_output=True, text=True, timeout=10)
+
+    def test_v1_metadata_upgrades_to_v2(self):
+        with tempfile.TemporaryDirectory() as parent:
+            config = LocalStackConfig(ROOT, 'crm-migration', Path(parent) / 'state')
+            path = Path(str(config.state_dir) + '.stack.json')
+            path.write_text(json.dumps(dict(_metadata_identity(config, version=1), provisioning='ready')))
+            path.chmod(0o600)
+            self.assertEqual(1, read_stack_metadata(config, required=True)['version'])
+            write_stack_metadata(config, 'pending')
+            self.assertEqual(2, read_stack_metadata(config, required=True)['version'])
 
     def test_owned_container_requires_exact_readonly_secret_grants_for_every_service(self):
         config = LocalStackConfig(ROOT, 'crm-mount-validation', Path('/tmp/crm-owned-state'))
@@ -36,6 +46,10 @@ class LifecycleConfigurationTests(unittest.TestCase):
         for service, pairs in grants.items():
             mounts = [dict(Type='bind', Source=str(config.state_dir / source),
                            Destination='/run/secrets/' + target, RW=False) for source, target in pairs]
+            tls_dir = Path(str(config.state_dir) + '.tls')
+            for source, target in {'crm-api': [('cert.pem', 'idp_tls_cert')],
+                                   'keycloak': [('cert.pem', 'idp_tls_cert'), ('key.pem', 'idp_tls_key')]}.get(service, []):
+                mounts.append(dict(Type='bind', Source=str(tls_dir / source), Destination='/run/secrets/' + target, RW=False))
             if service in ('crm-db', 'idp-db'):
                 mounts.append(dict(Type='volume', Source='/var/lib/docker/volumes/test/_data',
                                    Destination='/var/lib/postgresql', RW=True))
@@ -47,8 +61,9 @@ class LifecycleConfigurationTests(unittest.TestCase):
         self.assertEqual(set(grants), set(_owned(config, containers)))
         api = next(c for c in containers if c['Config']['Labels']['com.docker.compose.service'] == 'crm-api')
         original = api['Mounts'][0]
+        cert_mount = api['Mounts'][1]
         cases = {
-            'wrong file in correct directory': [dict(original, Source=str(config.state_dir / 'crm_admin_connection'))],
+            'wrong file in correct directory': [dict(original, Source=str(config.state_dir / 'crm_admin_connection')), cert_mount],
             'missing mount': [],
             'extra credential': [original, dict(original, Source=str(config.state_dir / 'idp_admin_password'), Destination='/run/secrets/idp_admin_password')],
             'writable mount': [dict(original, RW=True)],
@@ -71,6 +86,23 @@ class LifecycleConfigurationTests(unittest.TestCase):
                 target['Mounts'][0]['Source'] = str(config.state_dir / 'ungranted_credential')
                 with self.assertRaises(LocalFailure):
                     _owned(config, changed)
+
+    def test_legacy_mounts_are_only_accepted_during_migration(self):
+        config = LocalStackConfig(ROOT, 'crm-legacy', Path('/tmp/crm-legacy-state'))
+        container = {'Config': {'Labels': {
+            'com.docker.compose.project': config.project, 'com.docker.compose.service': 'crm-api',
+            'com.docker.compose.project.working_dir': str(ROOT),
+            'com.docker.compose.project.config_files': str(ROOT / 'compose.yaml'),
+            'com.docker.compose.oneoff': 'False'}},
+            'Mounts': [dict(Type='bind', Source=str(config.state_dir / 'crm_app_connection'),
+                            Destination='/run/secrets/platform_connection', RW=False)]}
+        self.assertEqual({'crm-api'}, set(_owned(config, [container], legacy=True)))
+        with self.assertRaises(LocalFailure):
+            _owned(config, [container], legacy=False)
+        container['Mounts'].append(dict(Type='bind', Source=str(config.state_dir / 'idp_admin_password'),
+                                        Destination='/run/secrets/foreign', RW=False))
+        with self.assertRaises(LocalFailure):
+            _owned(config, [container], legacy=True)
 
     def test_invalid_configuration_closes_without_creating_state(self):
         with tempfile.TemporaryDirectory() as parent:

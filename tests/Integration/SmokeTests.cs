@@ -127,6 +127,7 @@ public sealed class SmokeTests
     {
         await using var database = new PostgresFixture();
         await database.InitializeAsync();
+        await using var issuer = await FakeOidcIssuer.StartAsync();
         var root = new DirectoryInfo(AppContext.BaseDirectory);
         while (root is not null && !File.Exists(Path.Combine(root.FullName, "CrmPlatform.sln")))
             root = root.Parent;
@@ -146,6 +147,11 @@ public sealed class SmokeTests
         start.Environment["SMOKE_APPLICATION_CONNECTION"] = invalidApplication ? new NpgsqlConnectionStringBuilder(database.ApplicationConnectionString) { Password = Guid.NewGuid().ToString("N") }.ConnectionString : database.ApplicationConnectionString;
         start.Environment["Database__ApplicationRole"] = database.ApplicationRole;
         start.Environment["SMOKE_PORT"] = port.ToString();
+        start.Environment["ASPNETCORE_ENVIRONMENT"] = "Testing";
+        start.Environment["Oidc__Issuer"] = issuer.Issuer.AbsoluteUri;
+        start.Environment["Oidc__Audience"] = "crm-api";
+        start.Environment["Oidc__MetadataAddress"] = new Uri(issuer.Issuer, ".well-known/openid-configuration").AbsoluteUri;
+        start.Environment["Oidc__AllowHttpLoopback"] = "true";
         using var process = Process.Start(start)!;
         var stdout = process.StandardOutput.ReadToEndAsync();
         var stderr = process.StandardError.ReadToEndAsync();

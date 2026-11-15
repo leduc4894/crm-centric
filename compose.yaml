@@ -63,11 +63,19 @@ services:
       args: *platform-args
     environment:
       ASPNETCORE_URLS: http://+:8080
+      ASPNETCORE_ENVIRONMENT: Development
+      Oidc__Issuer: http://localhost:${LOCAL_IDP_PORT}/realms/crm-local
+      Oidc__Audience: crm-api
+      Oidc__MetadataAddress: https://keycloak:8443/realms/crm-local/.well-known/openid-configuration
+      Oidc__AllowHttpLoopback: "true"
+      SSL_CERT_FILE: /run/secrets/idp_tls_cert
     secrets:
       - source: crm_app_connection
         target: platform_connection
+      - source: idp_tls_cert
+        target: idp_tls_cert
     ports: ["127.0.0.1:${LOCAL_API_PORT}:8080"]
-    networks: [crm]
+    networks: [crm, oidc]
     depends_on:
       crm-migrate: {condition: service_completed_successfully}
   idp-db:
@@ -105,17 +113,23 @@ services:
     command: [start-dev, --import-realm]
     environment:
       KC_HOSTNAME: http://localhost:${LOCAL_IDP_PORT}
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_HTTP_MANAGEMENT_SCHEME: http
+      KC_HTTP_MANAGEMENT_HOST: 127.0.0.1
+      KC_HTTPS_CERTIFICATE_FILE: /run/secrets/idp_tls_cert
+      KC_HTTPS_CERTIFICATE_KEY_FILE: /run/secrets/idp_tls_key
       KC_DB_URL: jdbc:postgresql://idp-db:5432/keycloak
       KC_DB_USERNAME: keycloak
       KC_BOOTSTRAP_ADMIN_USERNAME: local-admin
-    secrets: [idp_db_password, idp_admin_password]
+    secrets: [idp_db_password, idp_admin_password, idp_tls_cert, idp_tls_key]
     ports: ["127.0.0.1:${LOCAL_IDP_PORT}:8080"]
-    networks: [idp]
+    networks: [idp, oidc]
     depends_on:
       idp-db: {condition: service_healthy}
 networks:
   crm: {labels: *ci-labels}
   idp: {labels: *ci-labels}
+  oidc: {labels: *ci-labels}
 volumes:
   crm-data: {labels: *ci-labels}
   idp-data: {labels: *ci-labels}
@@ -129,3 +143,5 @@ secrets:
   idp_db_admin_password: {file: '${LOCAL_STACK_STATE_DIR}/idp_db_admin_password'}
   idp_db_password: {file: '${LOCAL_STACK_STATE_DIR}/idp_db_password'}
   idp_admin_password: {file: '${LOCAL_STACK_STATE_DIR}/idp_admin_password'}
+  idp_tls_cert: {file: '${LOCAL_STACK_STATE_DIR}.tls/cert.pem'}
+  idp_tls_key: {file: '${LOCAL_STACK_STATE_DIR}.tls/key.pem'}

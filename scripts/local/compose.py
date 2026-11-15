@@ -16,6 +16,7 @@ import tempfile
 import time
 import uuid
 from local.secrets import ensure_secret_state, NAMES
+from local.tls import ensure_tls_state
 from local.realm import inspect_realm, AdminSecretFiles, _DeadlineConnection
 from contextlib import closing
 
@@ -146,7 +147,7 @@ _SECRET_GRANTS = {
     'keycloak': {'idp_db_password': 'idp_db_password', 'idp_admin_password': 'idp_admin_password'}
 }
 
-def _owned(config, containers):
+def _owned(config, containers, legacy=False):
     result = {}
     for container in containers:
         labels = container['Config']['Labels']
@@ -160,6 +161,12 @@ def _owned(config, containers):
             raise LocalFailure('LOCAL_CONFIGURATION_INVALID')
         expected = {(str(config.state_dir / source), '/run/secrets/' + target)
                     for source, target in _SECRET_GRANTS[service].items()}
+        tls_dir = Path(str(config.state_dir) + '.tls')
+        tls_expected = {
+            'crm-api': {(str(tls_dir / 'cert.pem'), '/run/secrets/idp_tls_cert')},
+            'keycloak': {(str(tls_dir / 'cert.pem'), '/run/secrets/idp_tls_cert'),
+                         (str(tls_dir / 'key.pem'), '/run/secrets/idp_tls_key')}
+        }.get(service, set())
         actual = []
         for mount in container['Mounts']:
             source, destination = mount.get('Source', ''), mount.get('Destination', '')
@@ -171,7 +178,9 @@ def _owned(config, containers):
                 if mount.get('Type') != 'bind' or mount.get('RW') is not False:
                     raise LocalFailure('LOCAL_SECRET_STATE_MISMATCH')
                 actual.append((source, destination))
-        if len(actual) != len(expected) or set(actual) != expected:
+        allowed = [expected | tls_expected]
+        if legacy: allowed.append(expected)
+        if not any(len(actual) == len(grants) and set(actual) == grants for grants in allowed):
             raise LocalFailure('LOCAL_SECRET_STATE_MISMATCH')
         result[service] = container
     return result
@@ -209,7 +218,7 @@ def capture_stack_images(docker):
                 stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                 text=True, cwd=config.root)
             process.communicate(json.dumps({'containers': {name: {'Id': value['Id']} for name, value in owned.items()},
-                                           'secretFiles': [str(config.state_dir/name) for name in NAMES]}), timeout=3000)
+                                           'secretFiles': [str(config.state_dir/name) for name in NAMES] + [str(Path(str(config.state_dir) + '.tls') / 'key.pem')]}), timeout=3000)
         except subprocess.TimeoutExpired:
             # Helper handles TERM and unwinds its private scanner process groups.
             process.terminate()
@@ -262,9 +271,10 @@ def run_local_stack(action: str, config: LocalStackConfig) -> int:
     docker.call(['info', '--format', '{{.ServerVersion}}'], token='LOCAL_PREREQUISITE_MISSING')
     docker.compose(['version'], token='LOCAL_PREREQUISITE_MISSING')
     with project_lock(docker):
-        owned = _owned(config, docker.containers())
         existing_volumes = docker.volumes_exist()
-        read_stack_metadata(config, required=existing_volumes)
+        metadata = read_stack_metadata(config, required=existing_volumes)
+        legacy = metadata is not None and (metadata['version'] == 1 or metadata['provisioning'] == 'pending')
+        owned = _owned(config, docker.containers(), legacy=legacy)
         if action == 'down':
             docker.compose(['down', '--timeout', '20'], timeout=45)
             _event('stack_stopped', status='stopped', project=config.project)
@@ -275,9 +285,12 @@ def run_local_stack(action: str, config: LocalStackConfig) -> int:
             if not config.state_dir.exists():
                 raise LocalFailure('LOCAL_SECRET_STATE_MISMATCH')
             ensure_secret_state(config.state_dir, config.project, existing_volumes)
+            ensure_tls_state(Path(str(config.state_dir) + '.tls'), config.project, allow_create=False)
             inspect_stack(docker, time.monotonic() + config.start_timeout)
         else:
             ensure_secret_state(config.state_dir, config.project, existing_volumes)
+            ensure_tls_state(Path(str(config.state_dir) + '.tls'), config.project,
+                             allow_create=metadata is None or metadata['version'] == 1)
             write_stack_metadata(config, 'pending')
             _ports(config, owned)
             started = time.monotonic()
@@ -306,8 +319,8 @@ def run_local_stack(action: str, config: LocalStackConfig) -> int:
         return 0
 
 
-def _metadata_identity(config):
-    return dict(version=1, project=config.project, checkout=str(config.root),
+def _metadata_identity(config, version=2):
+    return dict(version=version, project=config.project, checkout=str(config.root),
                 stateDirectory=str(config.state_dir), apiPort=config.api_port,
                 idpPort=config.idp_port, secretFiles=list(NAMES))
 
@@ -331,7 +344,8 @@ def read_stack_metadata(config, required=False):
                 raise LocalFailure('LOCAL_CONFIGURATION_INVALID')
             value = json.loads(data)
         if (not isinstance(value, dict) or value.get('provisioning') not in ('pending', 'ready') or
-                {k: v for k, v in value.items() if k != 'provisioning'} != _metadata_identity(config)):
+                value.get('version') not in (1, 2) or
+                {k: v for k, v in value.items() if k != 'provisioning'} != _metadata_identity(config, version=value['version'])):
             raise LocalFailure('LOCAL_CONFIGURATION_INVALID')
         return value
     except (OSError, ValueError, TypeError):
