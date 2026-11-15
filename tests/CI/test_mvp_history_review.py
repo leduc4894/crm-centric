@@ -29,7 +29,7 @@ class HistoryReviewTests(unittest.TestCase):
         exe=ROOT/'.local/task5/bin/gitleaks';config=ROOT/'tools/ci/gitleaks.toml'
         policy=(ROOT/'tools/ci/mvp-history-reviews.json').read_bytes()
         tree_policy=(ROOT/'tools/ci/mvp-secret-reviews.json').read_bytes()
-        candidate=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip()
+        candidate='4049d110c1938dffa451ccbcb42b13e1b895db56'
         context=kernel.Context(candidate,'8.30.1',hashlib.sha256(config.read_bytes()).hexdigest(),hashlib.sha256(exe.read_bytes()).hexdigest())
         proc=subprocess.run([str(exe),'git','.', '--log-opts=--full-history --diff-merges=separate c4a5ef40a34daded023d5e5121c0462e94cc1487..'+candidate,
             '--config',str(config),'--no-banner','--redact=100','--ignore-gitleaks-allow','--gitleaks-ignore-path=/dev/null',
@@ -44,8 +44,9 @@ class HistoryReviewTests(unittest.TestCase):
         self.assertEqual(64,sum(r['decision']=='verified-metadata' for r in run()))
         from scripts.ci.scan import ScannerConfig,ScanInput,run_scanner
         from scripts.ci.summary import RunIdentity
+        main_candidate='788f7605ee962071b6ecdbd035a6a2e6351fda6d'
         actual=run_scanner(ScannerConfig('gitleaks',exe,context.binary,context.scanner,config),ScanInput(ROOT),
-            RunIdentity('regression','1',candidate,'c4a5ef40a34daded023d5e5121c0462e94cc1487',None),mode='mvp')
+            RunIdentity('regression','1',main_candidate,'df993ae4ff44510a2ecfc861bb277a3f9418577f',None),mode='mvp')
         self.assertEqual('pass',actual.status)
         self.assertEqual(132,len(actual.reviewed_metadata))
 
@@ -184,7 +185,7 @@ class HistoryReviewTests(unittest.TestCase):
                 return subprocess.check_output(['git','-C',str(repo),*args],stderr=subprocess.DEVNULL,**kwargs).decode().strip()
             origin=subprocess.check_output(['git','-C',str(ROOT),'remote','get-url','origin']).decode().strip()
             git('remote','set-url','origin',origin)
-            head=git('rev-parse','HEAD');tree=git('rev-parse',head+'^{tree}')
+            head=git('rev-parse','4049d110c1938dffa451ccbcb42b13e1b895db56');tree=git('rev-parse',head+'^{tree}')
             git('config','user.name','Fixture');git('config','user.email','fixture@example.invalid')
             merge=git('commit-tree',tree,'-p',base,'-p',head,input=b'synthetic merge\n')
             git('update-ref','refs/heads/synthetic',merge);git('symbolic-ref','HEAD','refs/heads/synthetic')
@@ -192,3 +193,7 @@ class HistoryReviewTests(unittest.TestCase):
             self.assertEqual('pass',result.status)
             self.assertEqual(132,len(result.reviewed_metadata))
             self.assertEqual((),result.findings)
+            push_result=run_scanner(scanner,ScanInput(repo),RunIdentity('push','1',merge,base,None),mode='mvp')
+            self.assertEqual('pass',push_result.status)
+            self.assertEqual(132,len(push_result.reviewed_metadata))
+            self.assertEqual((),push_result.findings)

@@ -272,8 +272,7 @@ def run_scanner(scanner: ScannerConfig, input: ScanInput, run: RunIdentity, mode
                     reviewed+=history_reviewed
                     accepted={r['finding_id'] for r in history_reviewed}
                     parents=_git(root,'show','-s','--format=%P',run.candidate_sha).split()
-                    identical_head_tree=(run.merge_sha==run.candidate_sha and len(parents)==2
-                        and parents[0]==run.base_sha
+                    identical_head_tree=(len(parents)==2 and parents[0]==run.base_sha
                         and _git(root,'rev-parse',run.candidate_sha+'^{tree}')
                             ==_git(root,'rev-parse',parents[1]+'^{tree}'))
                     metadata=_git(root,'show','-s','--format=%an%x00%ae%x00%aI%x00%B',run.candidate_sha).split('\0',3)

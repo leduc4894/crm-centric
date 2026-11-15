@@ -329,3 +329,61 @@ hardening backlog remain OPEN. No merge, main-push run, branch-protection change
 deployment or production acceptance is claimed. The documentation follow-up
 commit titled `docs: close Wave 0 CI for MVP` must receive its own remote CI run
 after push; do not transfer the prior candidate's verdict to that new revision.
+
+## Final documentation-revision verification — 2026-11-15
+
+The closure commit is `4049d110c1938dffa451ccbcb42b13e1b895db56`.
+Its remote PR run
+[43618190681](https://github.com/leduc4894/crm-centric/actions/runs/43618190681)
+completed SUCCESS, including `wave0-required`. All five summaries bind attempt 1,
+base `df993ae4ff44510a2ecfc861bb277a3f9418577f` and merge candidate
+`96e5908877fb96518cfcb3f81e46fefa377fed5f`. Counts are unchanged and complete:
+backend96/96, Compose14/14, contracts88/88, browser58/58 and security1/1, with
+zero failed/skipped. Final completed-run log inspection again found zero Node20
+deprecation-warning matches.
+
+This paragraph is intentionally left as uncommitted handoff state so recording a
+successful final candidate does not create another candidate recursively. The
+pushed closure documents already record the preceding exact implementation run;
+this entry provides the required end-of-session state for the documentation-only
+follow-up. The unrelated untracked Plan3 resumption handoff remains preserved.
+
+## Main-push merge attribution follow-up — 2026-11-15
+
+PR1 merged by explicit user authorization into remote `main` as merge commit
+`788f7605ee962071b6ecdbd035a6a2e6351fda6d`, with ordered parents
+`df993ae4ff44510a2ecfc861bb277a3f9418577f` and
+`4049d110c1938dffa451ccbcb42b13e1b895db56`. PR state is MERGED and the feature
+head is an ancestor of remote main. No branch deletion or settings change was
+performed.
+
+Main push run
+[43672053323](https://github.com/leduc4894/crm-centric/actions/runs/43672053323)
+then failed the security job with safe reason `CI_SCAN_FINDINGS`; backend,
+Compose and browser subsequently passed while contracts remained running at the
+diagnosis checkpoint. The safe security summary contained 64 blocked history
+observations and no evidence of a new tree secret. Root cause: the exact merge
+duplicate proof required `run.merge_sha == run.candidate_sha`, which is true for
+PR merge candidates but push revision identity deliberately sets `merge_sha` to
+null. Gitleaks therefore rescanned the real merge but could not fold its exact
+duplicate metadata observations into the already verified origins.
+
+Scoped follow-up branch `fix/wave0-main-push-security` retains every proof except
+the event-specific `merge_sha` flag. A duplicate is accepted only when candidate
+is a two-parent merge, parent one equals the validated push base, candidate tree
+equals parent-two tree, the already approved origin is unique, the duplicate's
+full scanner content is unique/equal, Git author/email/date/message and native
+fingerprint/link match the real candidate, and candidate/origin Git blob OID plus
+bytes match. New, changed, ambiguous, wrong-base, non-merge, nonidentical-tree,
+wrong-metadata/link/fingerprint/blob or duplicate observations remain blocked.
+No review ID, policy, threshold, exception or scanner range changed.
+
+TDD: the actual push-shaped `RunIdentity(..., merge_sha=None)` assertion failed
+blocked before implementation and passed afterward. The historical origin
+fixture is fixed to Plan4 head `4049d11` so it continues to assert exactly 64
+reviewed origins after main itself became a merge. End-to-end scanning of actual
+`788f760` with base `df993ae` now PASSes with 0 findings and 132 reviewed metadata
+records. Focused provenance tests PASS2 in 41.451s; expanded history/adjudication/
+security/scan suite PASS51 in 71.051s; full prepared-tool CI PASS174/174 in
+383.753s on the final commit candidate. Rollback is a scoped revert; it would restore the known main-push false
+block. No application, public contract, schema, migration or dependency changed.
