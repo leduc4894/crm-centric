@@ -9,11 +9,22 @@ namespace Integration;
 
 public sealed class LocalBootstrapTests : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer database = new PostgreSqlBuilder(ContainerImages.Pins["POSTGRES_IMAGE"])
-        .WithPassword(Guid.NewGuid().ToString("N")).WithCommand("-c", "log_statement=none", "-c", "log_min_error_statement=panic").Build();
+    private readonly PostgreSqlContainer database = CreateDatabase();
+    private static PostgreSqlContainer CreateDatabase()
+    {
+        var builder = new PostgreSqlBuilder(ContainerImages.Pins["POSTGRES_IMAGE"])
+            .WithPassword(Guid.NewGuid().ToString("N")).WithCommand("-c", "log_statement=none", "-c", "log_min_error_statement=panic");
+        if (Environment.GetEnvironmentVariable("CI_RESOURCE_OWNER") is { } owner)
+            builder = builder.WithLabel("io.crm-centric.ci-owner", owner);
+        return builder.Build();
+    }
     private readonly LocalSecretFixture secrets = new();
     private readonly string project = "test-" + Guid.NewGuid().ToString("N");
-    public Task InitializeAsync() => database.StartAsync();
+    public async Task InitializeAsync()
+    {
+        await database.StartAsync();
+        await ContainerImages.CaptureImageEvidence(database.Id, new NpgsqlConnectionStringBuilder(database.GetConnectionString()).Password!);
+    }
     public async Task DisposeAsync() { secrets.Dispose(); await database.DisposeAsync(); }
     private string Connection(string? role = null) => new NpgsqlConnectionStringBuilder(database.GetConnectionString())
     { Database = "crm", Username = role ?? "postgres", Password = role is null ? new NpgsqlConnectionStringBuilder(database.GetConnectionString()).Password : File.ReadAllText(role == "crm_app" ? secrets.ApplicationFile : secrets.MigratorFile), Pooling = false }.ConnectionString;

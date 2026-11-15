@@ -60,10 +60,11 @@ public sealed class ContainerRuntimeTests(ContainerImages images)
             AssertAbsent(new NpgsqlConnectionStringBuilder(db.MigrationConnectionString).Password!, migrationInspect.GetRawText());
             var runtimeUid = (await ContainerImages.Docker("exec", api, "id", "-u")).Output.Trim();
             Assert.NotEqual("0", runtimeUid);
-            Assert.Equal("1000", runtimeUid);
+            Assert.Equal(ContainerImages.RuntimeUid, runtimeUid);
             Assert.Equal("600", (await ContainerImages.Docker("exec", api, "stat", "-c", "%a", "/run/secrets/platform")).Output.Trim());
             var process = (await ContainerImages.Docker("exec", api, "cat", "/proc/1/status")).Output;
-            Assert.Contains("Uid:\t1000\t1000\t1000\t1000", process);
+            var expectedUid = string.Join('\t', Enumerable.Repeat(ContainerImages.RuntimeUid, 4));
+            Assert.Contains("Uid:\t" + expectedUid, process);
             await ContainerImages.Docker("exec", api, "/usr/local/bin/healthcheck.sh");
             // Stopping this exact dependency makes this exact container's probe fail.
             await db.Container.StopAsync();
@@ -99,7 +100,8 @@ public sealed class ContainerRuntimeTests(ContainerImages images)
             var args = new List<string> { "run", "--rm", "--env", "PLATFORM_CONNECTION_FILE=/run/secrets/platform" };
             if (state != "missing") args.AddRange(["--mount", Mount(file, "/run/secrets/platform")]);
             args.Add(image);
-            var capture = await ContainerImages.Docker(false, args.ToArray());
+            var capture = await ContainerImages.Docker(false, args.ToArray(),
+                state == "unreadable" ? new Dictionary<string, string> { [file] = sentinel } : null);
             Assert.NotEqual(0, capture.ExitCode);
             AssertAbsent(sentinel, capture.Output + capture.Error);
             using var json = JsonDocument.Parse(capture.Error);
@@ -135,7 +137,8 @@ public sealed class ContainerRuntimeTests(ContainerImages images)
         {
             var capture = await ContainerImages.Docker("run", "--rm", "--entrypoint", "bash", image, "-c",
                 "test ! -d /usr/share/dotnet/sdk && test ! -d /build && test ! -d /src && ! find /app -type f | /usr/bin/grep -E '(Integration|FakeOidcIssuer|TestHost|Testcontainers|xunit|\\.cs$|\\.csproj$)' && dotnet --list-runtimes");
-            Assert.Contains("Microsoft.NETCore.App 10.0.14", capture.Output);
+            Assert.Contains("Microsoft.NETCore.App 10.0.15", capture.Output);
+            Assert.Contains("Microsoft.AspNetCore.App 10.0.15", capture.Output);
         }
     }
 
@@ -290,8 +293,9 @@ public sealed class ContainerRuntimeTests(ContainerImages images)
             await idp.OpenAsync();
             await using var realm = new NpgsqlCommand("SELECT count(*) FROM realm WHERE name = 'master'", idp);
             Assert.Equal(1L, await realm.ExecuteScalarAsync());
-            Assert.Equal("1000", (await ContainerImages.Docker("exec", name, "id", "-u")).Output.Trim());
-            Assert.Contains("Uid:\t1000\t1000\t1000\t1000", (await ContainerImages.Docker("exec", name, "cat", "/proc/1/status")).Output);
+            Assert.Equal(ContainerImages.RuntimeUid, (await ContainerImages.Docker("exec", name, "id", "-u")).Output.Trim());
+            var expectedKeycloakUid = string.Join('\t', Enumerable.Repeat(ContainerImages.RuntimeUid, 4));
+            Assert.Contains("Uid:\t" + expectedKeycloakUid, (await ContainerImages.Docker("exec", name, "cat", "/proc/1/status")).Output);
             await ContainerImages.Docker("exec", name, "bash", "-c", "test -w /opt/keycloak/data && touch /opt/keycloak/data/uid-test && test -r /run/secrets/db-password && test -r /run/secrets/admin-password");
             var inspect = (await ContainerImages.Inspect(name)).GetRawText();
             var logs = await ContainerImages.Docker("logs", name);

@@ -42,7 +42,10 @@ export const HEALTH_PROXY_MATCHER = buildProxyMatcher(HEALTH_PROXY_PATHS);
 export const DEFAULT_LOCAL_API_HOST = '127.0.0.1';
 export const DEFAULT_LOCAL_API_PORT = 5080;
 
-export const DEV_SERVER_HOST = 'localhost';
+// Bind explicitly to IPv4 loopback. On Linux runners `localhost` may resolve to
+// IPv6 first while the test/browser clients connect to 127.0.0.1, producing a
+// misleading ECONNREFUSED despite the server having started successfully.
+export const DEV_SERVER_HOST = '127.0.0.1';
 export const DEV_SERVER_PORT = 5173;
 
 export type ProxyConfigurationReason =

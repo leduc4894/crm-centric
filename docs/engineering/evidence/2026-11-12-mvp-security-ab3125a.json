@@ -1,0 +1,1809 @@
+{
+  "schemaVersion": 1,
+  "identity": {
+    "run_id": "local-mvp-coverage",
+    "run_attempt": "1",
+    "candidate_sha": "ab3125aee60157979186dd0516b7a9dfe946eaeb",
+    "base_sha": "601dde8847cad82d038ea837c01d3da0d7449450",
+    "merge_sha": null
+  },
+  "status": "failure",
+  "reason_token": "CI_SCAN_INCOMPLETE",
+  "correlation_id": "7961357f-31d4-4c28-bf9c-11129df7c024",
+  "tools": {
+    "gitleaks": "8.30.1",
+    "trivy": "0.76.2"
+  },
+  "approval": "NONE",
+  "review_owner": "UNASSIGNED",
+  "coverage_gaps": [
+    "CI_TOOL_DEPENDENCY_COVERAGE",
+    "CI_UNLOCKED_DEPENDENCIES"
+  ],
+  "required": {
+    "gitleaks": {
+      "identity": {
+        "run_id": "local-mvp-coverage",
+        "run_attempt": "1",
+        "candidate_sha": "ab3125aee60157979186dd0516b7a9dfe946eaeb",
+        "base_sha": "601dde8847cad82d038ea837c01d3da0d7449450",
+        "merge_sha": null
+      },
+      "status": "blocked",
+      "reason_token": "CI_SCAN_FINDINGS",
+      "correlation_id": "cb6bc0c7-f078-43ad-a550-b2a3974363ee",
+      "findings": [
+        {
+          "finding_id": "8c0fe754f977b8f2c4d95ece37e92c3b6a49e2239420ffeecf8234315d97cfd9",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "89ff172db84739f9f2fc895083824d1831bfa6a3e452d14e247218c8592a38af",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "cea8c4bdcf51c8cb4ef9245aa87715af3ca470627751c026a6c42b39a5838ff9",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "7bb680424e7ce98710ba7f32e8871a698c439c8cbdefa630b2ec8659701df885",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "c28944ea783374012e15b6a1b3e0b2355a988ffcaa2cf21d85f903d53a7a8964",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "0bc0b63b45994b5abc14a837a286768c3d47e43fd036ef81589877b3ee7f2de0",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "777f6428f342634c7cc53c4a23e93f655918afbc15f1e7ce9ac2df52dd8de5b2",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "c6b0b4b09c23b5f87f96bbe33b572b8473e511c263a9facca9667f3af1f1f1c6",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "65891e066b875a2fe1e116550b89a75cbf080b6d1d765832e8c2705190bce7e1",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "6c995814e671fc9e337ffb49b039c93eea42f3c4d44781713977ca8bb98cba69",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "c5ac3bcfc7b6affc8343d129364cd6b8f522aba75e8c58c516512042f5e3a072",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "138c687724d5f0aa071d9d6bf1d646b7f795177d69e34822627b46aaafbee64c",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "a1588afb92d5adc01b3f4248235434ecbb3654c0522f2710bd0ae0c357bb5a9e",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "35311b2c8cbb5523114093104418d42fd51d2c9eed39b5a517219ef883a80f2d",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "85c10685dbef98ea4ab9471fb348be6d291f13bcaecfdde090644729d3187bfb",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "44d338402ccf7ea1839064280c785b6cd643e8575f13f4157f042a3bdb43c9c4",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "8a3cab9209b0339d0db52a3adf9629bb8729dffc5d07181c8251e2d52ae4a549",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "f9ec48f174d8e1f02978bb33ecc841d802cb8feabe647573ea0616386888f8fc",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "4ffd2524a1d7583799338040f5dd108df7430ce9c5d2e6529231b17e37ec36f0",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "accfaf4af4710e0bf0af904c207dd14cf8755fff617d130ba53135282b871add",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "b45310fd7f9192229393ee76baf7ca5cc8f8a0bc6b25dd35bc691efde80c33a6",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "52f3ead4465fa433d3b882d9e1e4c7f8acc134a5f23ecf93f823898c121df173",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "35e92972702d66d49a6e9e657decea692177c9e487b9e4ef3c0725272911d8c4",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "893d4ed94cfb6f1cbbd37c323cbc43602d35754a3e0b9a3b1e31a23f92412167",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "494a1bb48d76bf289ce05626a1c03adb7839bd981f2b9bcef5ca288176e66d29",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "56ce9a6df7cf44638cee47bd7a5f1f948cfe151be9e19cc73a90c0e11ff44396",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "19d14fa722bf2ef490c7f4b4bc57734d44dcc949d82b14ceaabef9916c638d9b",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "37db6635dac158db6bdd37b1903a10166d3e2724709f03a62914f716dd4bde97",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "144465ad54c1a0981cf476914aed2d439c3e37f7f6bc4aa0c2588d18cf147f1f",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "d6984f75af6fc78c324f64fb39e4152b2d909a38d25f5c81fea38509db0a47f5",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "a5d19fd9749ed65bd382c71a22b1c145fba5700d8a849b44ff03169e433b07fb",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "fbca519d969a75a5c84c2aa26032ab185fcf03354ae36349a97e6984ee0c2fa3",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "4c7af7c055d63a1b7de64abef546628fa764e8aa0ed374f3053927dddbb82ed6",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "29e8127d08a29873d164e62177415d573a214e00291d82382f051fac32eb7aec",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "9387c5523934b071158301a2fd81b97e6471e62b5e329639dd6d57465bb5f126",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "ecabf950c5dd69b03ff2d745111b87fb8990f53b17390ad63e7367b4224ad80c",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "bf831cb0480c20adbccf71289d8f4c5d3e72d1f48d0f682b89c9178e8e303a43",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "ce0353da050b3e6b27d7b1a2cd420efd123cb70e9a63999688725497e7e5ffac",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "6203aa491f99f2431c172a2b976ecced161af38bcace9cf198b13106a588c7b5",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "7207726d0ac66a4cf10e6ef177acd78dc6a80d47a1b761daea299a7a9ff8549e",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "8a7af7ce63a21ac47a893b28c2dff7d7d40013942b137e554dd177962f8e3506",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "99da06c1fa39b7b983c17356522f29702e3853cbb3955f9b1fd7a9be41ce4288",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "2c336ea0e2629fafac784404b832ce764849e5a567330f34e024abdaef29c837",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "ec783a23ab872e0005f92e16f2189bd1b87ea849b68048eea20c318c5f15169a",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "bdafae5bf6a3ada07b59266fcedc6b860fa6509ba787644711989324732b26a7",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "51862ee5a19f4e9cb7a4bbce3c708c82f4bf0e5481fe9b9a9b51a160749f9203",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "a7d4d013e2649fdf216c101156b1964219f46b70c878b1383415e6518c8a8a50",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "611fbc0f1bdc780752c9ad19a7a55703cdebdffca656ed9c751450015e845373",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "b92ade39a7272d9f07b62543d92b407da4ec461fc6bef828b3af8a8a7f1e3f59",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "ad38f8371d1d5c4f71623462973663ff0d267ec2324f5c41dd29adb6f55b46a9",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "9dd0e46656b8b9e8c23604fd50231d7d43709803690ce163cfdea065ef442f28",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "eb7948d4d55d6142b7e4b19cd3c880c54fc4354275dabbc75858f24cb7c4505a",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "007af9850a1d3a8e75432785b8d06e7eca99a3c4f13c64d6330295e815c2cfc0",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "c8095e90d66953b2bf03b41bf9cfd488853c2f2dc5257400be1a7c8925cdeaa2",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "bf8afa8d09e1d60de171478bba7e89f436ff56b8c04c7bd14755b4240ebeb569",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "f7421359a5fa87adad6aa98a4d57e71f7b9b9a833bff0f3153e3263e12d4b149",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "0c7720988e3ec472b894f9c12e41078c2338d319596d74ce9d787b726c7bd898",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "c38e8671b36027e785ce3bfc7bfb22bd95e803f8b8ed3ae8c96737b9b86b1d8d",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "bad208762d701de1819097dabf4cb9578099a2f8d2d5c2a26d8b18f8ba039bbd",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "3600d5018452e8def1b4279ce2f767a180d899aef8fc0ac2892dec80dd47dc3b",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "1bec03882777d14b0f266a1fee333ef29db9bcf3f6c6c33a07afa99b149bf1cf",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "9f3049da275cdef4749717c889a1c01e3cfb64a9a2e86c216372ab441efc8604",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "82813770b214d2a3767d39cbdf8deff95a5ad8de7eca5c71de0b635e907077ab",
+          "kind": "secret",
+          "verdict": "blocked"
+        },
+        {
+          "finding_id": "5e87a7bf4ab4736baad6cb4775e3378e286b60f3798390addea32310571a245d",
+          "kind": "secret",
+          "verdict": "blocked"
+        }
+      ],
+      "scanned_count": 2
+    },
+    "trivy": {
+      "identity": {
+        "run_id": "local-mvp-coverage",
+        "run_attempt": "1",
+        "candidate_sha": "ab3125aee60157979186dd0516b7a9dfe946eaeb",
+        "base_sha": "601dde8847cad82d038ea837c01d3da0d7449450",
+        "merge_sha": null
+      },
+      "status": "pass",
+      "reason_token": "CI_SCAN_OK",
+      "correlation_id": "80fcb6a7-e834-4f58-a796-a5115f971e77",
+      "findings": [
+        {
+          "finding_id": "f286cf62533e80c782e4f047869a05cd22b18e3fd4e7f12a36c9191bf5d00e12",
+          "kind": "vulnerability",
+          "verdict": "pass"
+        },
+        {
+          "finding_id": "2713f3658bca79d14a01e18dafba81031e1d3f49da7d2be633a84bb4c004b253",
+          "kind": "vulnerability",
+          "verdict": "pass"
+        },
+        {
+          "finding_id": "99c8bcecd9f4e0a4ec57307a9799f6a6d97c5317051efaafcab349e27591f0ff",
+          "kind": "vulnerability",
+          "verdict": "pass"
+        },
+        {
+          "finding_id": "047c24b67799fcf0f3f853e5de1ab857ef4819dfb536c5371989662610b23d72",
+          "kind": "vulnerability",
+          "verdict": "pass"
+        },
+        {
+          "finding_id": "9d5d166e591c4c770482a06b651bb3350dc132d62b9c294cfccd95d6aaea28a9",
+          "kind": "vulnerability",
+          "verdict": "pass"
+        },
+        {
+          "finding_id": "7e569f7450986d433db0edec735f43208bf704bbcb7234280af6afa962247bd5",
+          "kind": "vulnerability",
+          "verdict": "pass"
+        }
+      ],
+      "scanned_count": 11
+    }
+  },
+  "deferred": {
+    "sast": {
+      "status": "OPEN",
+      "findings": []
+    },
+    "license": {
+      "status": "OPEN",
+      "findings": [
+        {
+          "finding_id": "17ed355430360650e30f56ffbb77c289e9d66c193fa96609864beef0d0a8e163",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "293c9a96c8d33ab7035909dde9ad57f77ee53c59d85049da7a78fc1fb0858acc",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "d1b8caa37a5a3c67bcd0f08a85a054fb00807b79c54de77d713d524f5f2bf8e2",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "60cafacb7ba8aaa2bb39c012f5a64200462010b2bb15beb93b5525681c5788bf",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "a30413a7cf4e3db9a07746b0a9a1aea4e88fe6ace8bb7d4d20b9244a837ca2d4",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "143fc6dde1fb3dae9c68fdd95942ac6be85bc726db6583660ef9159f3cf037ee",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "ff1dd6b77db920042aecb5658f8d0b56b676e72ca021664527ed8289188237c2",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "e10b44b7f6dc42c524af9e9fa3c284d80d5a4e90ae151820d570549eddbdb620",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "b4e6b38c2f09e4002d7297de4ea6e6a7e22fa46e545848c95699a9c40539f6d7",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "0e2af15fd35c74e622f1a1e864f80990642d14cc3ec29034257ccfc770b4ce9a",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "106de42ec02813f2d2076b5e563afc0f61ec1804948b0e234d5df98ea56bedaa",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "a0500bc9993cdeb43abe630207b156b20e29d5677a8ef90735d4e62aa34bb16a",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "9c4aee27fe22a0f00b762a85d611776b271775f6c738f0b7e4675932d9458619",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "7cfa14c47125a3d23d9bc1cf463423ca5314b84ae443e0f0cb52a9bf6c7d273b",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "ddafc1fb568129d555ad7b9a913a809c68daf7fc402df3b5ef78d595c0e06524",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "bc345faa2e66610a9e63fae6e70b5b832bbf24c98d36103aa59ca3f0c1fac3be",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "1ca5a4eb0712a1f00e7b29c20dd05fd7f1cf773fc5a86947c55748632e01c4fc",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "4cc95cd2a893e732662a4d7007b00526a14c5c5745b5ccbd8fabc0b34c51e436",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "f54a18defc8df125af5619f5676e71996ce574a7218b948d6d3cde526a2e9ed4",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "3e20f918d7c9431e16c011fbe24a44ba722e6122d134503a1ca3e82a1b13a540",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "f71ad49c892fac997f6a9dd534da4fa15b228cad556b5f767a6d651f1094af8e",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "fb7f60013a163d597fed06142529421dcf281cc0d477a50517cddd0b7f01b2f5",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "3524c4869668da01d81e7288f4e526d0ec2273c096aa7179c448a6595bda805e",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "e36fe238b3bbc9ed83fa315f2ad6aafc859729182e5f86446d906bffdb2fcb2a",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "8ab9ab59c5b2c9d5da5581420d8be5d94bc32a799da7cb2da3edee96038d599e",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "16b0db360ba698801b66e9b3b9fe41ec959a9f92779e6ede621f441a6c49ddd6",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "bb3713d0ab3183bdda5f549c69e3318374ad79f50291d7bbf6dbeaace29629b1",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "f91809dc79fa5d955e84cc888346d5658d830be431fe1ae07a8d9281e6151ff8",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "8e76642afcde7d541a526d956f9d25d98ae4e700d38a4f186f4cddfa59842575",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "79813fff2a25a1af54540f2be5a3ec8d5de0180b98a9567540cc5041defcb39f",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "5a03ef992df0d801d91c3814755fe7c76817e2b9011843197bcad4dd8d88ff74",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "1c3a5b74a6e8539b1783e468bab2331148cbb167c4a6b4e1fc4cda398766b619",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "123175d0d92146aa1272a70d3283faf82a7001949a14986a6368e47dc27cf471",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "19d4d8bd2786e58fb50e893716622dc009513a490263c35daca09ec3d6866039",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "ea62652148b35850f0654ef24287c91d1e2824c046699eda528c25c5c4e08986",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "329730ed56a3f2ff2d10bce05fc2d29bb1fefa57edbeedc18f49a1898b572064",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "77125b0e191a8bb829e5a2f7d120204603c121ee9299d923ce7ed1648aca9d9c",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "47dbe99ae34db9a1089fb30797530dbcf4bc43690cbbefe88b84aae0fa64173f",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "3117a8189388e7687cd9322a487bf85361e5c994347149ed74774e6b8fd2f403",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "4d44b18e5a1b5105c0feecb4671ad6ccf20f87a9feb6350364710e80f432f94f",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "aa342db0e7fab99359ac3f19772546d0a44d474d1974a0b073603d0d79eb41c1",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "c8ca95b98bdc7432187f4baad9df6ebb99c8f68bdefd427fd13dc9df477f2545",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "045f9e4fe73c837bb97493e623ec20973609b8916ae3179a37417a225dc2bc79",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "871ad9d9d5038fee27deaf592a9f5d59160a8054ce4071409ec082f1b71df0b6",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "a04c60f705bff607bb4c78bf4537107fd10e84d50ff635380546ab85fb070e0c",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "a4fc6c7aad8016f0bf2dcf16f115a12352802446d9b4b4f443505bec0d751d3e",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "7282dc2e89522753590f65fef8a39d5b32fb5535854a0d7143e0d37080d38938",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "e4ba60c6db057035295ad9bcfe770c5c504abdddb2a1c53a13f04a2615c96d7b",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "af63498ecdc853b886293382e2c3a79a72fac4b11179b13b467dc006bd689383",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "16ecca848265d1f53c8f46a81f03f2f11424a93a495ac4cfc50aa7678453f297",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "afd20aa45d8bfa038ca047ace84a135f55c17c0136292e3fb7163e89800d0629",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "5dce1bee5b7bd7af24ee7202495d4ff4c8439102b38d6318db41ef5347c649bf",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "5d5d9b31cca85e6645998c0370990468d4469a140b8d6e9692ef354dc87339af",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "06596d6107ce3cba60ede5188de3c45df736efeec24111d1c3b47382e6ba6114",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "ee99e4adeb814bb7b6b07f61cf0b143fdd8856617e65e4f7dde54dbdcba9d27d",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "1b38aa1f2f50764ca109a978e438f3494bbdd240b25ec4a155915aea645ba9cb",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "a011636d4b01bcebeb456132fe0e8d1289a4e27eb9eccb13e08365ca91b115b9",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "c7353f2b8a72e3d003433211523b5ac1515979be9d0428889c639ef22320635c",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "69c956eb84208a45f00023aa7cd210e1c8228a9b9ac34729d1eff29cc0446826",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "986263b887e1a310f79b25a288a12c44f05205d2d8d7ca6d4cc00b3719a6477f",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "d1cd6759a53ea569929aa5e5db339917da0e9129d65d5d87e107ebe1c05961a7",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "f1165782a64a046ec906ece8ef2e97bca8cadb6eea578022d9c82f678f322277",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "37a8fc63c78c80242c479263fb0672884e2bad989a3c3e8ddd64358bad7e37ec",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "d78a3dbfebc5b4c6c5570ea7ab0d20fd129ca06a06d91249ca585cd053531c72",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "b4c08259bba4ba65fdbd8eaeae767504bf352a520b8ef499702e0a952744fbc4",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "1d66be3eceb2b72483f4b53456a7b9de1ab39a3060771592796bc89bf885725f",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "7abbef00999d87b6ff81b5ac01a659494ee62d45ee7d9be3829050a3937590bc",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "05a6cdc583533f98e48e697289cd2acd4300abf976ed58901e3c1e257f93a621",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "56a9edce2fa176864b8fa41fc4f8a726611d82529bc1b343fe58846a037f3711",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "af4aff6a8f955b8a773e3b8c4077790e483506e26e30b21a5784c512b10a99f6",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "526bc135e7b0b3528ecb02fdcd88419340583bd896993360d64d21c85ac59608",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "4dca8e72e3821bde22afbc6b51d78b2b5033b23c0bbad125a3095c3ee881f29f",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "8b448d8c3fe58de474d72b18dd02c1ef8e450112b53bb9cd478913073f021f92",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "df3bd19f2ce8eedccfd0ccbf17c9670b58f0d64806ed6f084797293cd3f4ed10",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "e51f23bc97c67e5f195702188f1ef17c9adbaa5031692fd962fc4118d6ceae48",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "fdc0a6f3a0a9e48d6aecba3ded1be05b058a4a9319af629fac9ef59a100b5904",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "5986017eba8ca98104b12684da3b2dc3b2bfaf851334dcaf02af8b0368e01af7",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "e0972f31690993ccd25b687cac6b1439b3c34e60fd7842c6ede595ef3d65adcd",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "2beeb5b86da9053fbfcac83a4bd2ebbbfb4e6edf287c0a24874535537fda1bcf",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "538f785078c2358422c3d047ccf6a93857a2377332db58aa1135c54e94dd788d",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "2165d79df65a99d8dd7fd74deaec6748aafda39306977e4ff7a5e888bc60e144",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "94c3a46cff380adef81bd1bd3de7bf184eef447c962290fba442203ef7daf33c",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "7138392377aa27ab64a26320b10325b9c982a2c94adefb009ba43cd29486af59",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "686495d06e1671444bb14a1deaf7e7109bb427d9a7ea7af24cac7f474564e178",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "41c1abb7ff87a6bb030907344fdd0056c80cdf7f3d5f714d16b93728b21782cd",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "322d236f6592c3da3246be2d30af8f3fc001dbd4cb80c738c437469b2a417fe4",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "7902bb387cf18d0afcf20bc9988efe58f92162942708902e7cc980f3a6a80c96",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "865d364a554c6107015eeac378e895aa81ba96ceb1daca368055476b59a35b6f",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "372a148e150eeb81a03cc4dcdf0483060829270e9be947d0863bfff9425e73a1",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "c3782c1639bf10d9d6bf92578af0c5dfd124db2ce3ef3b643d86b01351a2f498",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "0600b43b57c9bf9e5330f05679d22d03b5562fe87425cc132dd3c7ced03dcb30",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "d7d16453beeef7ee71a9135604246f4ab2adfee2fc413bb557dc0815c52c17af",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "11d395aceb769239ec06e608228737c3445a627799796005f83bcda2eb485cf6",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "627de7573cfa8d9cb715cd6a8ebb1f6fd442bbb1e4f999116bddd1768e101c14",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "a90d59795a6f99495034a9e6e627df78959f0b2510d2a20f2bce1de598aebbb4",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "c316e980028ac06ed92791300c15f40427b9710bf91951fd81f594d614511de1",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "a549ba171d55c4de1330c8b8912c1bfdc4fbf31a159212b72eaedf44183ca837",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "334e4c356a36e9a77db908bc5bc4e0beeb39adccb3e9ff26af5534f1f93931a7",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "82b29890800be9b5c89419791eee9da55650cf2b3308f6062da0703f2ea9fb5d",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "557d986cde86f9f6ef806309ffde48a44440ebfde082953bdae26530b210fb72",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "1dd28a11f985c1d7fd76b0ab682e7c535b584683aa91b9a9d7c61f32e10d5ffb",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "28d40cd19e4e9fac2cea88c2f6bb5349727b0c0cdaa3f8745a4b1a6d9b9f1c95",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "3ef21341257a0363cfb67715dc5212f671652fcf701cb6eb9a1f8081e75b97f4",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "cb4f1ed8286ff420ede9bdb9f3ed058c49d9bce57b09b698008e74f853665b9e",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "f500e1dd07c8708d38d2805472798dc90e11d1fc9ba64862413ea94272e2ef65",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "799f2bb1605c81b78840f3a5b8659b2eff1f53669a1837dd09788762dd25b87e",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "1c58b1b87cd601f166286d360f8049d548a2fa1f48f73c6977f6613dd08932f6",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "a342c67a4bbe5c6fcd73df1c36c56d948ba4917bd986d6fd4b7c8c43a02cef75",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "7b63153bb667dd3429cf084226359268bcd5f47f1f5c038a7335de09ac5efce5",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "214c0748e08df48320a300bdc22325a83268e45afe70b838ec715115b29d323b",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "45d152e4c2f29969734aec6ecd970a739f65f98b92100fc03c475d54d0ce4dc7",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "3270578f585a13656b9cce538da4ac4dce1db7d6399b0740d2f14e9986c04e2e",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "0fde228c547bb6f5ac266a0e6a044042706ecd4bb2632016be236a8c52a2140f",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "be0fc23edc584cb07393a1e8a03eb2ebb5f9c62d545e31fbc67b648c3cb13fcb",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "0f474aea1e1a1c87f3b32926a3acbb8b0580cdb78eb170e2e551dc2680bae554",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "54dd45d94e09c0dac27d884717feaa393eb4697733339f50723051f4ca994717",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "b81b0eae30111e49a0d8ba0bd9cd7b0e79f3ed7e96defe9ed09c9974fe7eca51",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "ccacf7ae7a4ee905d9ebb206c9ac478cb6695969d08e5046c0c7aae51080baaa",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "c6d3109d90a8dcb16b4e9dff30896131f4b21e1fbc83bab3e3040dba105d7302",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "6ceac3fac19ffa19f21d7b1e69951773b4cf32c6d46fd8ac52faac4d69fe1bdb",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "da740baa789dee8a71c159105fefd49a953e57e6d8ca545ba08c3f77562cad8f",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "d91db50a590a0b250a7ebb933b8cf76392433cfd8f4a283886e922bed221f041",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "6715b093608b043c23fa2453f8e9c018c1bb1df484a6f276c8a40880f5101786",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "609374faccab71e44cebee5ccc167082a66f19906a9a8aaaae0e72f2e70507e2",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "8d7f5f507d403f24ac472725201406760589fe49c15e4a1d20e7186fe121dc04",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "11dda360c9617ae4298191c06055194342e5fb3251acdae4aa0b4b5448797758",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "57f4d33834621413fb9542238d81fee7f03c0e3320510fd680075358078b3b31",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "6e8161716b61f13fbde7b79587af3c0718a64f36f848e96d462d701db3628746",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "b78c445c7a84a4c14f3f7a87ef522a98cce2b61dcbce182526b7930926650ec6",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "6a0a7c6337a25442abafa6b61f8a8a54406620e9397148d63e60e538abae4f16",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "55c82d76e7c309caa32099b1e7e565ff858872230bfc792b1852002bff81d8bc",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "dacc1e88b558fcfeef107b62d08c0a3b7b7490639f179a4bad81e4c7356ff800",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "72b9668a700addea18c472463b346d9fb6f5b7a6208411ee9a89125064051e87",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "d461b519c53cded0b71389a68ef4bd765f4596b5155f81b0649da135574bb32b",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "d48427687461693be34379003100869747d6e60fb2f0f70cb7581c3be7f9926c",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "aa4da8b2652ec4402bcfa4e74bfa2f199bd378c377d951ef355da6fca9b0bcfa",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "de287fddb687c2ba84a71923a5d081fe94ab7ea74a09d3f37a4f2d113a3375d3",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "14abba4e6858687d819f6ca4a5d90751851b1827b80028e2d0d7832ee10d5116",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "b32893ae9b8e91d6904206d89c1465ef103449b20b2871d2e669475f2c0465a2",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "67ee173084e117db5e19b28d77863f8b926fb879d74364ae407d4c9baa7ad0b9",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "f3db7efe881c556c90e78feee5b21379c9df9c4692140fb3e78b398544f95653",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "759f37015653b9fb1b9b42b5e19104bdf7cffbd82578a17f6ac566d574677c8a",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "c30eef13306116b33a6f2961ffc1da821e4fe7db27d1a94ee0534f927a04f620",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "abc385d1490a23661551802ad10e82e6e75501b41bad1c866d2ab9d044d2f77a",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "312599beff17c34ff96c7d6fc5889171dfb071d1ef7a3d5c3e0b12d60b314bbc",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "dee8b2c6404b6a2d23cc577ea8d09e53d3f768fd6016a6c3a23f95d16c452f60",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "daaa228b943abff0bc243a83635ebad495465cd5fc1d8d7b0c65fea29b28dc32",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "91200c3bd428c510490bea8818474f3689baa67dca05d9480e2195696c1f6c82",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "ebc7eb441564c8bf841c0b25e03d740163aa7b27d552faeeb4aa87255940427c",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "32cdeb60f49a7348d8f8f39f2d52c0ee9d1fb04a97b0b30c9c52bf0af149e56f",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "6a162c157e369e9b8b9774890844946f7b92bbf249c64c97f8cfc87d83baa8f1",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "b6cfb1647c48cb634fb9139bcb9fcbe9b80d7a128e0870dd875ce57afb3e7651",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "aaae2b5890ec60129148021cbebd81211517e80ee91f3d911e4d20ed8e071b5e",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "7c903ff40a1e9027eb676f6e1b8813cf8651cd8b0f691c754fea9fca5d4c56f6",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "68576a84b91162fd03dc78f4d77e408f8588e1dc8bef8f0fd2084f9662cb30ba",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "7e420f87c8322a590e5dba508ddbc608c4da07f541bfb29dff67888f949e8e7f",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "471eb9084bb68214c7aa62bce437abf57c31bb1056ec930a71b1f8605bfed9fa",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "df5e055d4969b29d8f2b8caf21741c930ee1984259dd78e40681eb97c2860539",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "2ba59203318eefb34edb6ffc09bb206efb8e6e9c4190290cfc372b5a3bbdb0ad",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "2f23ed510e1c7c983f8bb44ed34d942ef751579ca86fcaeb9bdf905ff7e242fa",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "c795a4fd61a31f7f164c693fa29dc8e71debfa07cc9631a2f0fd1b8e702f44ee",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "9a6791ec9553014036cabcd23117c019f35abb2ca979480ee1245e0b3f63d10e",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "44c35d0e3760383bbead4e3980e4036b6f44857da91d77db4a86b4600c3e479c",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "a941cfa26a261cae76167419e7d6b8f91dfb78d55e02f7a5e1d7a83880dc80e6",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "895f80dc7ace6d13382f8227648b27b92feec208e9f1619f4d971dc13d3c9149",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "4ca8d8c52d2f54df206e617e429e481811c29f0181ba35106c0520a214445d36",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "270a7a51bc87fc66fecf3a2352c282b209e4cccc935e187afab060f964e5a3ca",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "a0ef1012ffc322522ad1e066349b4a0966588efb66d8bdd250ad1be82a51a975",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "ac38545ead8381525402d9932ba84e635774145d3e36f664b79ef244d8c48282",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "345ddceca996841ca68b5168a413953c8e0acc4cec6abda37176aa32618b696b",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "923fe8445fd52d7dda782bc7476c63e8eb88eb6b8e3b85e195ab76f7db2ce0b6",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "822ed3f865b5b45014d637597258b1e12984b7a1b3880dc67b810d08d368a698",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "3b3da42391a5244ce5f2b030bdf1657f0485bb38ac1fdd069b526851629e16c9",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "8ea28198fbfd27c2ae6c0fca16b54ec859aadcb60fdf538c5dddde79c7c9add5",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "ba178e94f0bae31dad76fb071aecef024d0a403c4be0ef82fedb445d47414b57",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "f81e89b1de33d8e14374995f9730ee318ab597b8b159d4f2b50d53fc531636f6",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "6cec3191cacab98abe66ecbadf4517e6fb534f658d531a7b3dc2f5bf29de325c",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "3880ab29daf949930eb17dc79ba3461a67dc02470f6fe10e445c8d9c107eacb9",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "243beeeb1bda4bf7d5106448c514819e36e1872a32a240c2049563e68d7b5d4e",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "8824f8c3d6fec91e37cbb08374a78291eb13b71703eb95369b511455135e7529",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "440edd0497b5a01958d2712d1c158f874bd77d2104c0d41407d5fd7f8e2a5ced",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "6d8852f47758efda1097f43d1cc623d7c384267e9dcf7c92aa1af0fa8e3f3412",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "dba97acbcae9054948f36a119aa2ba9877c356e13b59784606c5249eb5e62e13",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "9e74ee6c2fdd76e13e6100917d608e58e53153a561655fd221c45ae372303c05",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "ed7af496bd3f71e410c1c7ab8fef678383adbea6ea883a39de5bdf8a28839096",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "49154618bc531cfe45a48f88e903ce34f622c56f29c788ab413a25188b00079c",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "4141bb453058dec9ea95e61e38b2a4b365f8b9ddd81ab8eed83e1c8e999e865a",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "8e734acf17fa33f8c21110a893d68dc8249f1eaabc00501c61544b095f74c8e6",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "ccea2a386b9c3a414bba07f0b5ab101da59f78a02bddedb1d986f4fecf7bfc07",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "deb4ace907a58913d03a954d7f2fe31a8a4c1cb4ce570617938ce1baaaae6a23",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "408d2a565614fee5ca0fb16187a44f623227f1f6c18951db8e02858d84956e2f",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "1326372a59dc1b5ef45f769e5b75826f3ab44843a2248b5537c6b5ee0e2c8ce6",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "5cc8b8b8c81266fc27ef4a319856666d10e2f2358a62fb8798f855ebe4c96d96",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "357feb281599a46c0aeb275b1d3eb4c7aae51e8f6b4a693c2a154040570f2178",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "5b515e08721b62b39b11dc118328b062db38b9a333ffd6e22775521e984c5727",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "e7ff190718b4c049c0256cda99c85b5e6fc0ad83fbd2ae051e7dda36728cc626",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "4fcfc5605b4ff3602c02423df4fa0ee8d6ab2200e8452bfdc0069be336f2378f",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "6f3559ff87770403f1890a1d19a7e34fc938b12ab6a65ada0084f3559541b77c",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "41b1f6eac69c9c242155d9947a32431d885f79fa5a63f7aad2e369f55722e046",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "0c2bd805b1decad37b80d0f5b57371f9cc1278389088a143b56b24b0a3697467",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "3e07a51ebfdbaa19b4e056c950aa5a9ca3fc3a3b2c7ded3ba9fa23fc5a11150d",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "4a2790e15850c245f4658e90d08be915f0eecf5ff3a18ded7f79acd266db1ca6",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "cb1b480aa466e01fc42caabf904ca71d0884397f79079018bad7277341044209",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "ad18541233b096e84b6c50577d5f5757b780be5294bca2c8cfe536db9d85bc49",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "f70ef90f3508fad55254a20dd009a719386f8a0442eec87bba07696b14855897",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "6898bd09b4e908168520d5f5d536ed57eee51038a5732405dbed1760679ce118",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "02a5032f67e020e22c4ec371ccf896005f097e3568b4b94c4bea87da7abce770",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "05f9a96ee05b9fbc9621e8ca92d10ab9c55ac40917167f92c2fe3d583d55f6f3",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "1d5e307a175f6bbc9df4437fd6f23315c459fc1567eeefd1d6f606319a68e872",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "27c86467bb4e96b1786bad2f20ef22a65568563f3ec8cfaa26ede6e2dc019456",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "1f2c8d2720a0ff0772f78a641f10877f083333406331a1859cbc0da9d6b29a92",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "732c57d9025a5a340e735565960c414d3c2bd2e299f865015df053a12b0bffff",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "7c2e5d7ace920a81bc446e0ef87772f6e58574b30b4f303269eb0529de2c56e4",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "1884a7ea313bf9358cbda831d01013e706ec28324eccaa6f22f69fdbffea5bcd",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "47692de0fab72c309d7e9fe581bbdf4ca896d5c7d5f530c1a4ba44575d659545",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "6d7bd80d891e972f41fbe5378150fc6d2e1253e968dccec9f4283b2589672e3c",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "d55bd0fe525261ed07e32b37e5cfd0b25733b8a20a734748303afc19ea1d76fb",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "293803dbf8afe07ae96583207b42ce4dc9c53a3d64bd2684e7bafa291dabf429",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "786489e6ba211bad0667cff969b7d5c39c4951bd2e6db1aa1db975ba80695619",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "bafb668b2314f6b0650af89938c44e30ccc69fcc1b89cbe3acb7f1d2a234d5db",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "5b3e04962627e128c458f4a925d09a4074b5a8f09a9772b0b33b17a47745d61f",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "fc4b1bfd4ed65312fd3f1e3c71c0b39b67888abc55e48d68c059e2b0190ec71c",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "46a0b61445778909d17e7c6b5c5c0978927903fee129f15e2bc6f2cf33353a22",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "14652a60d0bedfb25d51ab58601880578e264e4ff13ce3a1423be4e77e7240bd",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "4250e1b5bb74d1630824e58e1fbaa96ff2b9f99a71352962a9c8f364cef69cf0",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "055ef5a7c56e5ec8bd5f67d0b4560fabd62a74fbda62c8392723e694a74e1361",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "640e4330b054691137dc4717e2876c204ab09104e0b4b3ce81be00e1bb7c0c3a",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "fb197235dd9ca638baf94c251916921e50f4dbeedad3705750ccd4d59c50332e",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "579ed97d68cc5853f75eaa3e8a3a5f592b1c8db1e7358f052c0cbcfdeb37e740",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "db086c54ed929097e4825884d45f53d0d5d60674faa4b50d2c99232c1c769a55",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "d3d1ae8e2c49abce39ec8ab4cb2fd8e81694555fcbba8e732742b2a04c1a4c0d",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "84da4d960c8db79f6c80c2ecf8c29f19dd1762704add530c54d275624a141e7b",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "68d318a941265a0612ffe05ac3ae4d4c2153a57b9d16c8474870125e66848d1e",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "f06636c6075209d9ac06f657e88e80e07c1e9e61ece4df9443f36b2a63f9cf39",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "654f646edb545850df89975d553fbb23b822354720f929354af923c392bc8ed3",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "d0d2357ef6a4c32557b3b94071236883ce527021c10187521e65bbf658dc8efc",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "f498c5c55d38e3d1fd32f70ca6a7f541a1812026dc364bfac964ac538c17b4c1",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "c3caf62f1cd2cb0334e72a0982fb92938ea5ebbe2f2b07a30d21624faa40dc32",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "4d54186eab7323a42125e239ba259d5fcab22f4074cb85ed1dc35021b3cf1f82",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "46c10614e7a13efe01e3f233fba16ce0d46a5ddf22b1f628652a33ef58cd1d59",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "fc67296b0a9c752634bce687e52500bb50d5e1461f28431c7046668324a51f1d",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "df4b23b75adcad0a2ffda14bf0af09e5b33607acc3b109f0f358fbf8aa0e5831",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "c754d6f89faa4070dbfef9d61c40ebc6b46b0c86febdb5decc5b763258c188e7",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "0e4434be66a6a8d95273265effa5a51e7c3c14d4aa57c25136ffbbc5f4a6121a",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "abbd844828ee319ad843a9cb0cabd9598ad297231dfedc221fa04c796031b847",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "c029bc2367cd43acc9fad81e748ce628221258deb31e30ff48a0cd4caa1afcee",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "03961c4ab10aa36da13c61094ed427cbc153badfa14f1285bfc1498c1e78e90b",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "d21ff2576a7498eba3f983a1e3a77b9fe34bb09f8fab76a3a9a763e3c8657f7d",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "f6dcd1b2e60901f3d542ef700dfeb6001c47ac572c3d934bd2ae02df86d5d13e",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "c3d4210369feea68ef36c31729f2d90145410b130a62bfd0bb9354b9afc1d95e",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "21ce637db53be42bb200ae172dc8e68fd8005253e7c27df7cfd3207d438bc3f6",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "a87bc1d7f345237704c5137c803223be21a650f095ca4995dec996f39a23a107",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "68d9961453b36853a035cc07dea6c63b1f58a791e309b6c9bdfd2a82e3a4a5f6",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "00e519d77e96615b477da140b1242a1490279bc2e78eb28e917a4d42e377e10a",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "d477cac0cbab35bd89df8f072ece49529ac186ba16cf25cc7f4f056c35285f62",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "fac93c201f91cf8f66466401ac59b05970f05cd0df766184fdb17617abb4b768",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "90b0d3d65667c6205336e4a3b7d01af20061df1acd2f1cc112b4037520597b76",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "5ca75d0b6abb731252ce21d74b189095b01185797e5ac43dd96393a4ba1fa2c1",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "76f6f4ff52bfe082c237a82c21088d31335d89dcabbe3881f250234d0c3d2a10",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "f92a5b971cd71d70ccb36149d6606bbb545a41218249556fd6a339f401f45155",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "147f000efb7b26a8d759b292d76c6f58074ed0c37f9881595a66a39dd24d8a23",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "1a966c439c629e694c5b832b4d9385fa583c7de4d4dce338e7bac840d89d1756",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "a7b345cf9d4ac4854fb528e932250cf0212ce1fdeb450f25b618c2fb3b9c156b",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "027d7926d51113b4d1f72a18d59c1407d73f5d3d46b2849a718b0acbec625b81",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "4d92dbcea6f85802315e5ba43ac332ac1f471a673e1c21cae8e4b4f4ddcc1f78",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "cd52f049523300c3d04d6144db8c05ae71260248fecb4032a3311b0e12528380",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "f06c2f7ddee9800741cfd92a1059a35241cecedfd6f4d4028d6453e505e0e824",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "5387d7c5f17d2fae802bcff864eb7513e045d8ef41aa845b1ae28bc290249b98",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "aaebd4a60466776b8c41f90c848d4bc7652acb34a3480414c6eabc248c61a702",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "22455ca693f51dafecdd5c5d9e2f1ea12ee76fc5dcb7e8952bee8ab30f01a2b4",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "4a942f5864049fe4263bd51e30243c7c3c814ca11be1cf8efd41f4043a09c9f2",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "8471b07b553853df2d4defb87ac213e11dd1abffa0bb84523f8b0125f74e3abb",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "9bf1d90a2444ebf519d13a6ac3268161681b2acf07c62a5544c01bec6428b95f",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "58f89d3688577d06e231e0609a8ef7063f2e27e05e6d6ff6d4c3b6fa41418d3c",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "813b4445100edc879a79bab7b8fd09850418ef0cb9ea229d8378a75d7a97061b",
+          "kind": "license",
+          "verdict": "review-required"
+        },
+        {
+          "finding_id": "b3f70f9441245d3d9d95ebf0ec9b7d6004f509016ebffb177852b832d9b6b9b4",
+          "kind": "license",
+          "verdict": "review-required"
+        }
+      ],
+      "allowlist_pass_count": 508
+    },
+    "image": {
+      "status": "OPEN",
+      "findings": []
+    },
+    "tool_inventory": {
+      "status": "OPEN",
+      "findings": []
+    }
+  },
+  "unlocked_manifest_count": 1,
+  "current_secret_review_match_count": 64,
+  "current_unclassified_secret_count": 0,
+  "original_unmapped_secret_id_count": 64
+}

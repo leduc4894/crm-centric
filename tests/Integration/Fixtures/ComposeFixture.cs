@@ -116,6 +116,11 @@ public sealed class ComposeFixture : IAsyncDisposable
     }
     public static async Task<Result> Docker(params string[] arguments)
     {
+        if (arguments[0] == "run" && Environment.GetEnvironmentVariable("CI_IMAGE_EVIDENCE") is not null)
+        {
+            var capture = await ContainerImages.Docker(false, arguments);
+            return new(capture.ExitCode, capture.Output + capture.Error);
+        }
         var p = new ProcessStartInfo("docker") { RedirectStandardOutput = true, RedirectStandardError = true };
         foreach (var arg in arguments) p.ArgumentList.Add(arg);
         return await Run(p, 120);

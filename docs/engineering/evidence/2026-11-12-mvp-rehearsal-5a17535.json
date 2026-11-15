@@ -1,0 +1,635 @@
+{
+  "scope": "local-mvp-rehearsal-original-attempts",
+  "acceptance": "OPEN",
+  "jobs": [
+    {
+      "job": "backend",
+      "status": "success",
+      "reason_token": "CI_JOB_COMPLETE",
+      "correlation_id": "cac3a1a5-a9ce-4679-b10f-32f5afca73e6",
+      "identity": {
+        "run_id": "local-mvp-task3",
+        "run_attempt": "1",
+        "candidate_sha": "5a17535b5da6802dde0548e7fe0aa0bef2a3ca2c",
+        "base_sha": "601dde8847cad82d038ea837c01d3da0d7449450",
+        "merge_sha": null
+      },
+      "tools": {
+        "node": "24.22.2",
+        "npm": "11.19.1",
+        "python": "3.15.2",
+        "dotnet": "10.0.403",
+        "docker": "29.9.3",
+        "compose": "5.7.0",
+        "runner_image": "local",
+        "runner_version": "local"
+      },
+      "elapsed_seconds": 436.6106622149964,
+      "passed": 96,
+      "failed": 0,
+      "skipped": 0,
+      "total": 96
+    },
+    {
+      "job": "compose",
+      "status": "success",
+      "reason_token": "CI_JOB_COMPLETE",
+      "correlation_id": "3349c0ce-dbd4-4a36-acea-5672e1e551cc",
+      "identity": {
+        "run_id": "local-mvp-task3",
+        "run_attempt": "1",
+        "candidate_sha": "5a17535b5da6802dde0548e7fe0aa0bef2a3ca2c",
+        "base_sha": "601dde8847cad82d038ea837c01d3da0d7449450",
+        "merge_sha": null
+      },
+      "tools": {
+        "node": "24.22.2",
+        "npm": "11.19.1",
+        "python": "3.15.2",
+        "dotnet": "10.0.403",
+        "docker": "29.9.3",
+        "compose": "5.7.0",
+        "runner_image": "local",
+        "runner_version": "local"
+      },
+      "elapsed_seconds": 1400.5799969759973,
+      "passed": 14,
+      "failed": 0,
+      "skipped": 0,
+      "total": 14
+    },
+    {
+      "job": "contracts-sdk",
+      "status": "failure",
+      "reason_token": "CI_COMMAND_FAILED",
+      "correlation_id": "6c57e0d7-a265-4282-81a7-c30260c96f27",
+      "identity": {
+        "run_id": "local-mvp-task3",
+        "run_attempt": "1",
+        "candidate_sha": "5a17535b5da6802dde0548e7fe0aa0bef2a3ca2c",
+        "base_sha": "601dde8847cad82d038ea837c01d3da0d7449450",
+        "merge_sha": null
+      },
+      "tools": {
+        "node": "24.22.2",
+        "npm": "11.19.1",
+        "python": "3.15.2",
+        "dotnet": "10.0.403",
+        "docker": "29.9.3",
+        "compose": "5.7.0",
+        "runner_image": "local",
+        "runner_version": "local"
+      },
+      "elapsed_seconds": 1140.5151619389944,
+      "passed": 87,
+      "failed": 0,
+      "skipped": 0,
+      "total": 87
+    },
+    {
+      "job": "web-browser",
+      "status": "failure",
+      "reason_token": "CI_COMMAND_FAILED",
+      "correlation_id": "7f77022a-cc22-4877-8cc6-5538b9589fb0",
+      "identity": {
+        "run_id": "local-mvp-task3",
+        "run_attempt": "1",
+        "candidate_sha": "5a17535b5da6802dde0548e7fe0aa0bef2a3ca2c",
+        "base_sha": "601dde8847cad82d038ea837c01d3da0d7449450",
+        "merge_sha": null
+      },
+      "tools": {
+        "node": "24.22.2",
+        "npm": "11.19.1",
+        "python": "3.15.2",
+        "dotnet": "10.0.403",
+        "docker": "29.9.3",
+        "compose": "5.7.0",
+        "runner_image": "local",
+        "runner_version": "local"
+      },
+      "elapsed_seconds": 30.68113433200051,
+      "passed": 0,
+      "failed": 0,
+      "skipped": 0,
+      "total": 0
+    },
+    {
+      "job": "security",
+      "status": "failure",
+      "reason_token": "CI_SCAN_INCOMPLETE",
+      "correlation_id": "457ba17e-a94e-43c7-b555-ec9eb86f4543",
+      "identity": {
+        "run_id": "local-mvp-task3",
+        "run_attempt": "1",
+        "candidate_sha": "5a17535b5da6802dde0548e7fe0aa0bef2a3ca2c",
+        "base_sha": "601dde8847cad82d038ea837c01d3da0d7449450",
+        "merge_sha": null
+      },
+      "tools": {
+        "gitleaks": "8.30.1",
+        "trivy": "0.76.2"
+      },
+      "elapsed_seconds": 6.378536753996741,
+      "passed": 0,
+      "failed": 1,
+      "skipped": 0,
+      "total": 1
+    }
+  ],
+  "limits": [
+    "No remote run or enforcement evidence",
+    "Failure reports remain failures",
+    "Deferred hardening not evaluated",
+    "No finding approvals"
+  ],
+  "clean_state_reruns": [
+    {
+      "job": "contracts-sdk",
+      "status": "success",
+      "reason_token": "CI_JOB_COMPLETE",
+      "correlation_id": "2adad27b-5c4d-43b5-92ad-ee8a8697d799",
+      "identity": {
+        "run_id": "local-mvp-task3",
+        "run_attempt": "1",
+        "candidate_sha": "5a17535b5da6802dde0548e7fe0aa0bef2a3ca2c",
+        "base_sha": "601dde8847cad82d038ea837c01d3da0d7449450",
+        "merge_sha": null
+      },
+      "tools": {
+        "node": "24.22.2",
+        "npm": "11.19.1",
+        "python": "3.15.2",
+        "dotnet": "10.0.403",
+        "docker": "29.9.3",
+        "compose": "5.7.0",
+        "runner_image": "local",
+        "runner_version": "local"
+      },
+      "elapsed_seconds": 2070.489475082999,
+      "passed": 87,
+      "failed": 0,
+      "skipped": 0,
+      "total": 87
+    },
+    {
+      "job": "web-browser",
+      "status": "success",
+      "reason_token": "CI_JOB_COMPLETE",
+      "correlation_id": "1be5c3f4-6154-4824-acbc-7ba3510c9161",
+      "identity": {
+        "run_id": "local-mvp-task3",
+        "run_attempt": "1",
+        "candidate_sha": "5a17535b5da6802dde0548e7fe0aa0bef2a3ca2c",
+        "base_sha": "601dde8847cad82d038ea837c01d3da0d7449450",
+        "merge_sha": null
+      },
+      "tools": {
+        "node": "24.22.2",
+        "npm": "11.19.1",
+        "python": "3.15.2",
+        "dotnet": "10.0.403",
+        "docker": "29.9.3",
+        "compose": "5.7.0",
+        "runner_image": "local",
+        "runner_version": "local"
+      },
+      "elapsed_seconds": 303.26998830999946,
+      "passed": 58,
+      "failed": 0,
+      "skipped": 0,
+      "total": 58
+    }
+  ],
+  "security_review": {
+    "approval": "NONE",
+    "review_owner": "UNASSIGNED",
+    "coverage_gaps": [
+      "CI_TOOL_DEPENDENCY_COVERAGE",
+      "CI_UNLOCKED_DEPENDENCIES"
+    ],
+    "required": {
+      "gitleaks": {
+        "status": "blocked",
+        "reason_token": "CI_SCAN_FINDINGS",
+        "correlation_id": "e0fe6e23-db97-4d7d-9ef7-c6ebacf5f1f4",
+        "scanned_count": 2,
+        "findings": [
+          {
+            "finding_id": "93bbda175a8db2387279990c247bc6f2d6c5c12d9e7293d3e8fb2e891f3af5e3",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "2635cc160da429fe2c449994705e060035cccc0574e3794d8c160e9586e05450",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "e64806e354386fdce3434ec6373f852e401c8b8ac54dbc57c7c71e0d80e84ff0",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "48aea1b1b0eb37e9bec8393d6cd4fde86363e7014ab1db2c91bd41258a451648",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "607c7b5dcba48989e9a35c1f17a583e50ffb42de6e6be0f0edc3a29a92375578",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "59f2ec9fd5cbea623c9f4e81c1d323bbfdc8ed5823540a8e1544d05521f9e3d2",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "6cea629d40603ae7e5eaf5034763b0ed496fd2fbf766a3a1990f7a51c785ab65",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "efeb7962829bab1f0ec04f5d4dab6bdf394a547146ba543bd01eeb2cf349ac4c",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "1dbac86c653628fe6ca71ae6cdff7ebd5652b446f7efe4914cf8ca4aee93b983",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "3bae49d9adeaecd88e33cbee9f1af6a0e8ccb4b0725d6aef8dd4fdc57307da58",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "9f332cdf2763e7bfe798ab848a571bdb5e698df877fa889c19b3e80588a8648f",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "c19e4f7fc5eea236df0eadf550ca3558c7cd9646b537a73adac24de58f00e868",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "8c21bd376b0e91731f4be4d282f38690fb4086681a4b2c05968ea64f0de11f57",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "2a18c717192247bcc53e553683e5f22cc61104de013093bd9307d729774835f6",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "79448cef098f660e44f631ed083bc55ad688653faa64c2f24f135fce11da2caf",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "f740a409800acf156cdc763170e786b46a21b9ff101e34dd6d4512177f4151a0",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "21b411abeba9ff9e282de4d61469f5bc3d31de04102ca813b2511ddcd987001d",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "d17996ed135ad6ba399628aa874055e2e306e75338d32383300fd77c7d27a303",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "f16f9d38e898c969a59e4101519c2e623a45ca4de2c70d3287c9462eac9ae48b",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "0767a0f95a336cde9ad8c8f6084e1850cbcaa3306b5664ce53341974817426cd",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "6f17bac68eeb3094271438e09956fd30f49b152377712f0ef43e2570f684c0fe",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "524e5ca309df8d388bcbec7a399171b19745971e41edef7b8d9371474797b85e",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "b2b04117270de41583dc7438301d7cb0e99fd2beca1e9d018de2bc4dcec022dc",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "7db01ef8304e872352dffa61fe04132f3750f6095894b34472471abc60eecdc1",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "3a9226fdb29b403587bdeed1dddf8d896b136daa908892c11667bbca8d5df334",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "987e9ec6a7fb586086ad820cddf1ecc823d810e831a283e42a34b72d27e075c0",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "4ac9ed78176dd99e9d403ff2b3e7e8bc944354f99671bf3704ce892cc1b3aa89",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "21a9937c2034b96e80e94db2f46640ef58b302498b8831ba05d2964bf83692b6",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "430ffa37fb3e4208c73b8810fcbfa5caf9c98da9e3643e9b8eedf101b738227b",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "fe6bb13e7fe50292a02d8d4cc69136972f67f81097e6a62cb6672c5802c54cd4",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "88c052396d571827e106a7aeaacc7b02d53e7abe838191d0107d494266bc0c89",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "3089e6a9fc0d399e83aab042d6fcb3a7eb562928a7c282a3571f55240225cb57",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "6af278d3c49887f284380c315af0f48285999d27f3e87c929ed778feacc67a72",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "b36a2925b3c9c3de1d6eb73e623287b8c19292f57376a1c8fc0c12a03f78061a",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "0bdb5eb7ee6ccc6eb9478ae7e117ea39359daea9f2a2d76a754fb9882e2eaa3f",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "707e19e6c973fb32f403d5c7aeb6b9327230651225e42bd6de623290fbf1cf2f",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "94162ab08a5b28fd10cf0991547c23699a141fbc0158b66013c1a6adc304eb5a",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "a306b0e21033249dd1d2303fa7f7f977f32e7fcace8c876cae7e13d4530704e3",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "5ba4d80abc48eddb996d1846f647ee358200f569a469f135e5d02d30a75c1b46",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "fbc16711187874204619685586ed989607cef2fb61ee0fbe3ae5e31850308b85",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "9d235cfc16bf2f999f8e38c81625c606b4ccdfce5053131d5952ff28112e1fba",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "915b459844a40519a18b90696393f79685609615e95aeebd924ebde23524c5ac",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "1fbe376143c20f7879eee1be07d6b212a3c0ace207269e7f749522c37f1337d3",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "b0b7fd33c93f4ae98651c6d94be7337b6fdd626865bfa05d7291b473dc832607",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "61a5805143b3c465216b13d82bfae8d2f455099bc445aea9c245edf7a87f3612",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "bce6249a65312992e989e6effc75e2b8161c53cfb0e6a5b16f085ad3caa76e87",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "784db588ec1f6c831208df34c414309a605f092fc075e58e3017e986d8cf5071",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "6dfd1cfbc5e26bc24e549b30ff3659d68d944cacbdfe10f84d8e078d5e2a4222",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "b6ee2928cc78481e554a0ea522c1e6e53c0936710e84460327eb7ce9684f0449",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "d68f5461fbf833c3fb0e223912479d499cac0446683d57ca7133ca997bdaf1ec",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "12e68b76869efcb1fd1dc98f18e69d9a813940c6679a85710e8fb277f7f1a09f",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "0a903bd984f2b4c09a3da3383b8f3449937fdcffa43ee9e58f7beed5a0466ab7",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "4f90ec93b3941bb07115b0b05fc209123d283da56d926a156ad9f8392e81770b",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "d41da9ddf7ea276e80a408edc16f96c27421f538699f87137cbd0d49a54a269e",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "bb4b8b21bfed4e3ccc2e7990cbd57168ebd8453a9d860e211e1713ef7b65da92",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "310122cf243e22e8776c5265dc27e2bf3a2012f8f2816cd9b847f3a15c496e78",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "6c1d3262be2520568eb9c6f60daa71e765a2a96153668c49823bd90da8c975c2",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "631ad1aa95cee458c3e662dfcf4fa95acda8ae7e524f4444e2bd07642eca463d",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "483384796d3e617e1e3b190fb87d695fd2bfaef704af97221d0f87e642509976",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "b9688f945ef59e650d89a74692b75f925c63b02f42cb0f759baa04a74aae532a",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "1dd7c8423285fb72cf00ea5bf7918fc898598719ebf1e2800ebb81149ce3b6d8",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "19c5f76f127994fce2768b28b8e23047f5a1910eb9d58b72bb7c2d6ca4390475",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "19a3325392c15f4973fe43db0bbf2d1b3860be85b2a8c2cd73316f92967e48f0",
+            "kind": "secret",
+            "verdict": "blocked"
+          },
+          {
+            "finding_id": "45ca10f8c4ff635959ab027e47dd21c99eac990c362e3ade4eea2a8077e38112",
+            "kind": "secret",
+            "verdict": "blocked"
+          }
+        ]
+      },
+      "trivy": {
+        "status": "pass",
+        "reason_token": "CI_SCAN_OK",
+        "correlation_id": "9477d073-2c0a-48ff-b4f3-09d6ce032b55",
+        "scanned_count": 10,
+        "findings": [
+          {
+            "finding_id": "f286cf62533e80c782e4f047869a05cd22b18e3fd4e7f12a36c9191bf5d00e12",
+            "kind": "vulnerability",
+            "verdict": "pass"
+          },
+          {
+            "finding_id": "2713f3658bca79d14a01e18dafba81031e1d3f49da7d2be633a84bb4c004b253",
+            "kind": "vulnerability",
+            "verdict": "pass"
+          },
+          {
+            "finding_id": "99c8bcecd9f4e0a4ec57307a9799f6a6d97c5317051efaafcab349e27591f0ff",
+            "kind": "vulnerability",
+            "verdict": "pass"
+          },
+          {
+            "finding_id": "047c24b67799fcf0f3f853e5de1ab857ef4819dfb536c5371989662610b23d72",
+            "kind": "vulnerability",
+            "verdict": "pass"
+          },
+          {
+            "finding_id": "9d5d166e591c4c770482a06b651bb3350dc132d62b9c294cfccd95d6aaea28a9",
+            "kind": "vulnerability",
+            "verdict": "pass"
+          },
+          {
+            "finding_id": "7e569f7450986d433db0edec735f43208bf704bbcb7234280af6afa962247bd5",
+            "kind": "vulnerability",
+            "verdict": "pass"
+          }
+        ],
+        "deferred_license_counts": {
+          "review-required": 271,
+          "pass": 508
+        }
+      }
+    },
+    "deferred_status": {
+      "sast": "OPEN",
+      "image": "OPEN",
+      "license": "OPEN",
+      "tool_inventory": "OPEN"
+    }
+  },
+  "local_aggregation": {
+    "exit_code": 1,
+    "reason_token": "CI_JOB_NON_SUCCESS",
+    "success": false,
+    "correlation_id": "d0fd388d-4bd1-4059-a964-b244cd778f7e",
+    "completion": {
+      "backend": "CI_JOB_COMPLETE",
+      "compose": "CI_JOB_COMPLETE",
+      "contracts-sdk": "CI_JOB_COMPLETE",
+      "web-browser": "CI_JOB_COMPLETE",
+      "security": "CI_JOB_FAILED"
+    }
+  },
+  "ci_regression": {
+    "initial": {
+      "total": 126,
+      "passed": 125,
+      "failed": 1,
+      "skipped": 0,
+      "seconds": 287.61,
+      "failed_case": "test_job_processes.ProcessTests.test_timeout_terminates_child_that_ignores_term",
+      "exact_exception": "UNKNOWN"
+    },
+    "pre_fix_replay": {
+      "tests": 126,
+      "passed": 126,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "seconds": 268.91,
+      "safe_failures": []
+    },
+    "post_fix": {
+      "tests": 127,
+      "passed": 127,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "seconds": 320.49,
+      "safe_failures": []
+    },
+    "test_fix_commit": "1ff6ca3145c4d1b23ec29805ad5e507870b38f36",
+    "test_file_sha256": "72e3efae168b618ab3775994b9c316dfb7942aa602fc968dc117912305630515",
+    "scope": "CI unit suite; full service jobs remain bound to original candidate"
+  }
+}

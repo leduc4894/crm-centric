@@ -1,5 +1,7 @@
 # P0 traceability và evidence matrix
 
+> **Phạm vi CI MVP 2026-11-12:** áp dụng [quyết định Plan 4](09-WAVE-0-CI-MVP-SCOPE.md). W0P4 cũ có mục chuyển sang hardening; không suy diễn Wave 0 hoặc P0 đã pass. Các invariant và RT-* trong bảng vẫn giữ nguyên.
+
 **Contract tested** chỉ nghĩa shape/fixture đã kiểm tra. Mọi `RT-*` là test ID dự kiến, chưa có executable implementation, chưa pass. Gate chung: tenant isolation ở API+SQL/RLS+worker+replay.
 
 | Story | Contract / invariant | Contract evidence hiện có | Runtime test ID cần xây | Wave / trạng thái |
@@ -33,7 +35,8 @@
   breaking/security/schema gate tại base Git, aggregate gate fail-closed và negative cases.
   [W0P3-01→12 mapping và commands/counts](07-WAVE-0-PLAN-3-VERIFICATION.md).
   Đây là bằng chứng local của toolchain, không phải runtime acceptance.
-- OPEN: dependency/secret/container CI scans, remote CI run, và toàn bộ RT-* runtime bên dưới.
+- Plan 4 local CI/security implementation and [W0P4-01→12 evidence](08-WAVE-0-PLAN-4-VERIFICATION.md): actual scans ran and rejected current inputs; backend/Compose original jobs failed. Independent trust, source/tool coverage, security/image findings, final-SHA full jobs and remote acceptance remain OPEN/BLOCKED. Governance UNKNOWN/OPEN; no enforcement claim.
+- OPEN: passing dependency/secret/container gates, remote CI run, và toàn bộ RT-* runtime bên dưới.
   Runtime sentinel audits đã pass local; không thay thế CI scanner gate.
 - Plan 1 không đóng RT-* ở trên: OIDC/tenant/business/remote E2E/restore vẫn OPEN; database outage/recovery không phải DR drill.
 - Chưa có consumer production; fixtures không thay compatibility proof cho released consumer. SDK compilation và breaking diff phải pin/gate trước release đầu.

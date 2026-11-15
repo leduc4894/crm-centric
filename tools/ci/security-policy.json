@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "blockingSeverities": ["HIGH", "CRITICAL"],
+  "unknownSeverity": "CI_SCAN_INCOMPLETE",
+  "secrets": {"tree": true, "trustedCommitRange": true, "verificationDoesNotSuppress": true},
+  "database": {"maximumAgeSeconds": 86400, "upstreamTimestamp": "UpdatedAt", "downloadTimeIsFreshness": false},
+  "licenses": {
+    "allowed": ["MIT", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "ISC", "0BSD", "CC0-1.0", "Unlicense", "PSF-2.0", "Python-2.0"],
+    "denied": ["AGPL-3.0-only", "AGPL-3.0-or-later", "GPL-2.0-only", "GPL-2.0-or-later", "GPL-3.0-only", "GPL-3.0-or-later"],
+    "unknownOrRestricted": "review-required",
+    "legalApprovalClaim": false
+  },
+  "coverageGapsBlock": true,
+  "independentTrustProvisioned": false,
+  "exceptionsRequireIndependentFindingBoundApproval": true,
+  "publishedFields": ["identity", "status", "reason_token", "correlation_id", "findings.finding_id", "findings.kind", "findings.verdict", "scanned_count"]
+}

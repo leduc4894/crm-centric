@@ -1,6 +1,8 @@
 # Phased Delivery Plan / Sprint Backlog
 
 ## Wave 0 — Repo / architecture runway
+
+**Scope cập nhật 2026-11-12:** [CI MVP và hardening trước production](../engineering/09-WAVE-0-CI-MVP-SCOPE.md). Wave 0 vẫn OPEN; workflow hiện tại chưa điều chỉnh theo quyết định này.
 - ADR and module boundary baselines, repo scaffolding, compose local stack.
 - Install .NET 10/EF Core 10 and front-end toolchain versions; CI build/unit tests.
 - Fake OIDC provider for tests, production-ready IdP config documented.
@@ -13,7 +15,8 @@ final review Approved (0 Critical/Important); [review và optional follow-ups](.
 generated TS/C# SDK compile + đóng gói + consumer độc lập, và breaking/security/schema gate tại base Git
 với aggregate fail-closed. Xem [Plan 3 evidence](../engineering/07-WAVE-0-PLAN-3-VERIFICATION.md).
 **Exit còn OPEN:** application/security/container CI, remote CI run và toàn bộ Wave 0/P0 runtime.
-Contract schema/sample CI definition có trong `.github/workflows/contracts.yml`; local checks không đóng Wave 0/P0.
+Local Plan 4 replaces the old contract-only workflow with `.github/workflows/wave0.yml`.
+[Plan 4 evidence](../engineering/08-WAVE-0-PLAN-4-VERIFICATION.md) records failed original backend/Compose jobs, real security/image findings, coverage gaps and unprovisioned independent trust. Final-SHA full gates and remote PR/main/cancellation evidence are missing; no Wave 0/P0 closure or governance enforcement claim.
 
 ## Wave 1 — Identity + Tenancy
 - OIDC login, organizations/tenants, membership, RBAC, RLS and audit.

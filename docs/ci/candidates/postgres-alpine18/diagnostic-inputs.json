@@ -1,0 +1,36 @@
+{
+  "go": "go1.27.4",
+  "archiveSha256": "7226736c2339719cda28fbf3a54d71aa63bcefe376e98cef00034268dab24840",
+  "sourceCommit": "29b939aa5bd4dc588af765b8248f6e39150d2565",
+  "gosuSha256": "732a3a2fbd309eeeb685b3469f970f178a7da17ad92a834a5859d19146f85808",
+  "status": "diagnostic-only-not-adopted",
+  "architecture": "linux/amd64",
+  "base": "postgres:18.6-alpine@sha256:9ba53c7d41ea093baf5c1ba635ba5434c4f979880527d49bb7d9237d3193085b",
+  "goArchiveUrl": "https://go.dev/dl/go1.27.4.linux-amd64.tar.gz",
+  "gosuTag": "1.20",
+  "moduleChange": "golang.org/x/sys v0.1.0 -> v0.44.0; go 1.20 -> 1.25.0",
+  "buildFlags": [
+    "-trimpath",
+    "-buildvcs=true"
+  ],
+  "CGO_ENABLED": "0",
+  "GOTOOLCHAIN": "local",
+  "apkDownloadPrefix": "https://dl-cdn.alpinelinux.org/alpine/v3.23/main/x86_64/",
+  "apkSha256": {
+    "keyutils-libs-1.6.3-r4.apk": "855c94e6bd750fcd2ca34df29ae3602bc93bb0b4512b56d8f4ecca06919ed1b8",
+    "krb5-conf-1.0-r2.apk": "28b8e361a1583c04e98c261c3eb05ca7f0c0e80a9984a7c1b3cbfd7b60c86f37",
+    "krb5-libs-1.22.3-r0.apk": "fad5b46a953e6a37a1bb61a84538fa08ecb6a07816f439eb06f2735aebfcbfbf",
+    "libcom_err-1.47.4-r0.apk": "4723d0fb8e286dc6adb54dd3cdaedcd8db54260f75ee778a5acb4c16922c0f52",
+    "libcrypto3-3.5.9-r0.apk": "6632d758d8f5e9ea3b650fe966f23bbf9a202f8b8dceecac93da135dec5e3689",
+    "libssl3-3.5.9-r0.apk": "05e3393fb95aa5751ca2f9d242f659f6cff82c1cc7767cc2df4a086f7ad01877",
+    "libverto-0.3.2-r2.apk": "c20d2d8db18fe088c14cf00efa3780c81ff13f0663525df85d25ad44d415cdf5",
+    "libxml2-2.13.9-r2.apk": "4b2f986159c659f014b942fe8a5d70c67af475153ca826c3dd53389eea46a300",
+    "libxslt-1.1.43-r4.apk": "40e6cc7d09ce1e69421c2b37e1da4e9afef486843f21c3a79339cd6d93c1c617",
+    "musl-1.2.6-r3.apk": "e142255d0fa397f14318996bc10378093dcc069dc3dd1b6818c8f28a789c21da",
+    "xz-libs-5.8.4-r0.apk": "ab362dd515ead04c31a6c302163248da7aa4813e283c971e6dd3f789b453a1d9",
+    "zlib-1.4-r0.apk": "7b05bc778b8b25cd880835b40114182bd4d1581717504d0129c810c0a14291cb"
+  },
+  "goMod": "module github.com/tianon/gosu\n\ngo 1.25.0\n\nrequire (\n\tgithub.com/moby/sys/user v0.4.1\n\tgolang.org/x/sys v0.44.0\n)\n",
+  "goSum": "github.com/moby/sys/user v0.4.1 h1:RgjRlaDKi/Xmyrz4t8lyzXT6v2ooFeO/7xtchmhVWE0=\ngithub.com/moby/sys/user v0.4.1/go.mod h1:E9QsW5WRe1kUAf7kW8hXKwu1uhsZEAdPLYHYSDudF4Y=\ngolang.org/x/sys v0.1.0 h1:kunALQeHf1/185U1i0GOB/fy1IPRDDpuoOOqRReG57U=\ngolang.org/x/sys v0.1.0/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=\ngolang.org/x/sys v0.44.0 h1:ildZl3J4uzeKP07r2F++Op7E9B29JRUy+a27EibtBTQ=\ngolang.org/x/sys v0.44.0/go.mod h1:4GL1E5IUh+htKOUEOaiffhrAeqysfVGipDYzABqnCmw=\n",
+  "offlineConfig": "sha256:4cbfe07245e5ae59da0bec5cee4609fd70b36c9a99f2db70cefdb458503cc2a5"
+}

@@ -1,0 +1,312 @@
+{
+  "schema_version": 1,
+  "candidate": "c5cfdd16732f7560ecdf7406e83b66270f514ba0",
+  "branch": "feat/wave-0-plan-4-ci",
+  "base": "c4a5ef40a34daded023d5e5121c0462e94cc1487",
+  "event": {
+    "event_name": "push",
+    "before": "c4a5ef40a34daded023d5e5121c0462e94cc1487",
+    "after": "c5cfdd16732f7560ecdf7406e83b66270f514ba0",
+    "forced": false
+  },
+  "revision": {
+    "base_sha": "c4a5ef40a34daded023d5e5121c0462e94cc1487",
+    "candidate_sha": "c5cfdd16732f7560ecdf7406e83b66270f514ba0",
+    "head_sha": "c5cfdd16732f7560ecdf7406e83b66270f514ba0",
+    "merge_base_sha": "c4a5ef40a34daded023d5e5121c0462e94cc1487",
+    "merge_sha": null
+  },
+  "versions": {
+    "node": "24.22.2",
+    "npm": "11.19.1",
+    "python": "3.15.2",
+    "dotnet": "10.0.403",
+    "docker": "29.9.3",
+    "compose": "5.7.0"
+  },
+  "identity": {
+    "run_id": "local-balanced-c5cfdd1",
+    "run_attempt": "1",
+    "candidate_sha": "c5cfdd16732f7560ecdf7406e83b66270f514ba0",
+    "base_sha": "c4a5ef40a34daded023d5e5121c0462e94cc1487",
+    "merge_sha": null
+  },
+  "aggregate": {
+    "correlation_id": "c35425c0-1d73-44c8-b966-ba994bdc2734",
+    "reason_token": "CI_COMPLETE",
+    "success": true
+  },
+  "local_scheduler_simulation": true,
+  "remote_operations": false,
+  "jobs": {
+    "backend": {
+      "status": "success",
+      "tools": {
+        "node": "24.22.2",
+        "npm": "11.19.1",
+        "python": "3.15.2",
+        "dotnet": "10.0.403",
+        "docker": "29.9.3",
+        "compose": "5.7.0",
+        "runner_image": "local",
+        "runner_version": "local"
+      },
+      "correlation_id": "30ed1571-a1d1-43c4-82e2-dd0df3cd9b34",
+      "identity": {
+        "run_id": "local-balanced-c5cfdd1",
+        "run_attempt": "1",
+        "candidate_sha": "c5cfdd16732f7560ecdf7406e83b66270f514ba0",
+        "base_sha": "c4a5ef40a34daded023d5e5121c0462e94cc1487",
+        "merge_sha": null
+      },
+      "elapsed_seconds": 418.22518028802006,
+      "passed": 96,
+      "failed": 0,
+      "skipped": 0,
+      "total": 96,
+      "reason_token": "CI_JOB_COMPLETE",
+      "private_report_sha256": "25dcc6d7473941f7f93c2f5026a48911c0b1874b55db8c85ae8bc80667117784"
+    },
+    "compose": {
+      "status": "success",
+      "tools": {
+        "node": "24.22.2",
+        "npm": "11.19.1",
+        "python": "3.15.2",
+        "dotnet": "10.0.403",
+        "docker": "29.9.3",
+        "compose": "5.7.0",
+        "runner_image": "local",
+        "runner_version": "local"
+      },
+      "correlation_id": "7cbe8d33-f5f8-4389-8868-30c22ee74da0",
+      "identity": {
+        "run_id": "local-balanced-c5cfdd1",
+        "run_attempt": "1",
+        "candidate_sha": "c5cfdd16732f7560ecdf7406e83b66270f514ba0",
+        "base_sha": "c4a5ef40a34daded023d5e5121c0462e94cc1487",
+        "merge_sha": null
+      },
+      "elapsed_seconds": 1350.790176119015,
+      "passed": 14,
+      "failed": 0,
+      "skipped": 0,
+      "total": 14,
+      "reason_token": "CI_JOB_COMPLETE",
+      "private_report_sha256": "e5bf5ec9801ab54415c4895da8afd087be874e80503789ea0c18ce08a9202d4d"
+    },
+    "contracts-sdk": {
+      "status": "success",
+      "tools": {
+        "node": "24.22.2",
+        "npm": "11.19.1",
+        "python": "3.15.2",
+        "dotnet": "10.0.403",
+        "docker": "29.9.3",
+        "compose": "5.7.0",
+        "runner_image": "local",
+        "runner_version": "local"
+      },
+      "correlation_id": "553e7087-13d2-425f-8638-e13f52306090",
+      "identity": {
+        "run_id": "local-balanced-c5cfdd1",
+        "run_attempt": "1",
+        "candidate_sha": "c5cfdd16732f7560ecdf7406e83b66270f514ba0",
+        "base_sha": "c4a5ef40a34daded023d5e5121c0462e94cc1487",
+        "merge_sha": null
+      },
+      "elapsed_seconds": 2099.2960477480083,
+      "passed": 87,
+      "failed": 0,
+      "skipped": 0,
+      "total": 87,
+      "reason_token": "CI_JOB_COMPLETE",
+      "private_report_sha256": "0331b485f1dbf360c21b956d0854ce34c99f150f61ccb1d3fdf5b72c88c680a7"
+    },
+    "web-browser": {
+      "status": "success",
+      "tools": {
+        "node": "24.22.2",
+        "npm": "11.19.1",
+        "python": "3.15.2",
+        "dotnet": "10.0.403",
+        "docker": "29.9.3",
+        "compose": "5.7.0",
+        "runner_image": "local",
+        "runner_version": "local"
+      },
+      "correlation_id": "3a0ed111-fa03-4c06-b902-eb8cd70a7716",
+      "identity": {
+        "run_id": "local-balanced-c5cfdd1",
+        "run_attempt": "1",
+        "candidate_sha": "c5cfdd16732f7560ecdf7406e83b66270f514ba0",
+        "base_sha": "c4a5ef40a34daded023d5e5121c0462e94cc1487",
+        "merge_sha": null
+      },
+      "elapsed_seconds": 343.67588235400035,
+      "passed": 58,
+      "failed": 0,
+      "skipped": 0,
+      "total": 58,
+      "reason_token": "CI_JOB_COMPLETE",
+      "private_report_sha256": "337fbc056a8a3cfcec7b7cf2a2ae9dbed191a8e45b72447c2fd757b99c1851e5"
+    },
+    "security": {
+      "status": "success",
+      "tools": {
+        "gitleaks": "8.30.1",
+        "trivy": "0.76.2"
+      },
+      "identity": {
+        "run_id": "local-balanced-c5cfdd1",
+        "run_attempt": "1",
+        "candidate_sha": "c5cfdd16732f7560ecdf7406e83b66270f514ba0",
+        "base_sha": "c4a5ef40a34daded023d5e5121c0462e94cc1487",
+        "merge_sha": null
+      },
+      "passed": 1,
+      "failed": 0,
+      "total": 1,
+      "skipped": 0,
+      "reason_token": "CI_SCAN_OK",
+      "correlation_id": "25a7acfe-a4eb-4cc1-b25f-8138e94ce434",
+      "elapsed_seconds": 19.871287610993022,
+      "private_report_sha256": "67afa4673237b04fbeae97ac770b09568e98559b498885fa8b9026be1754f997"
+    }
+  },
+  "security": {
+    "reviewed_metadata_count": 124,
+    "tree_review_count": 64,
+    "history_review_count": 60,
+    "remaining_nonblocking_vulnerability_records": 6,
+    "independent_verification": false
+  },
+  "regressions": {
+    "full_CI_suite": {
+      "candidate": "8e67a181ab7b888083da154584c4989126345801",
+      "passed": 155,
+      "failed": 0,
+      "seconds": 721.358
+    },
+    "post_fix_mvp_contract_review": {
+      "passed": 3,
+      "failed": 0,
+      "seconds": 0.091
+    },
+    "isolated_CLI_reason_regressions": {
+      "passed": 2,
+      "failed": 0,
+      "red_observed": true
+    },
+    "missing_local_module_without_PYTHONPATH": {
+      "passed": 1,
+      "failed": 0,
+      "seconds": 0.124
+    }
+  },
+  "prior_attempts": {
+    "backend_initial": {
+      "candidate": "8e67a181ab7b888083da154584c4989126345801",
+      "status": "failure",
+      "reason": "CI_COMMAND_FAILED",
+      "elapsed_seconds": 737.1813757990021,
+      "diagnostic_passed": 75,
+      "diagnostic_failed": 1,
+      "failure": "Keycloak management health readiness under overlapping fixture load",
+      "isolated_rerun_passed": true
+    },
+    "contract_standalone_red": {
+      "candidate": "8e67a181ab7b888083da154584c4989126345801",
+      "passed": 85,
+      "failed": 2,
+      "seconds": 1623.915,
+      "cause": "Optional CI imports masked isolated CLI reason tokens; corrected in c5cfdd1"
+    },
+    "contracts_initial_environment": {
+      "passed": 86,
+      "failed": 1,
+      "cause": "Private helper inherited PYTHONPATH into intentionally incomplete CLI fixture",
+      "preserved_private_report_sha256": "8a616f772c43e69875d0f2d46889b9736f9992d265e60045776a8602f5fd4879"
+    },
+    "browser_initial_environment": {
+      "passed": 58,
+      "failed": 0,
+      "preserved_private_report_sha256": "fd6d5a74175d50f414daa810fd7d646a3c7f09b84bb81be6f8d67f185aceb0df"
+    }
+  },
+  "verification_environment": {
+    "contracts_and_browser_reruns": "PYTHONPATH removed; same pinned runtimes and exact candidate/base",
+    "runtime_preparation": "As dated handoff; own ignored SDK obj directories preserved in private backups before contracts/browser"
+  },
+  "open": [
+    "remote CI and enforcement",
+    "remote DemoModule E2E",
+    "concurrent duplicate",
+    "tenant isolation acceptance",
+    "outage/recovery acceptance",
+    "restore drill",
+    "Wave0/P0/RT acceptance",
+    "independent enforcement and dual-policy hardening"
+  ],
+  "standalone_semantic": {
+    "baseSha": "c4a5ef40a34daded023d5e5121c0462e94cc1487",
+    "classification": "compatible",
+    "correlationId": "605b133b-9f9f-413a-9cf0-5036121b973a",
+    "inputHashes": {
+      "base": {
+        "docs/contracts/automation-rule.schema.json": "d5ad1506f3de8503a0bb3b060eb9bbc01db8a22efc95fabcef099cfaea0dcd0a",
+        "docs/contracts/cloud-event.schema.json": "ca9119a73e6eb6b6537c2c1098148b7fa49c781d5ac1c51ff26189fc05b04bea",
+        "docs/contracts/crm-api.openapi.yaml": "9a4a31f1c98541c6ef325c48d4788ceb0704b558d1c327d2688c378a3a9024cc",
+        "docs/contracts/demo-echo-input.schema.json": "cb06b937cdc90802f8bf3e51bd97db18221efe4b11f0d27ac6cd9e5b4109a1a7",
+        "docs/contracts/demo-echo-output.schema.json": "574e8263605ffc9fe0f7c18004450f7b1ec0772036d25cc4b20174760bc56ded",
+        "docs/contracts/demo-event.schema.json": "12ff9827134c2cbd033238bc1a2e07bc12c9b7204c653948f0ffa4337d2b8840",
+        "docs/contracts/demo-panel.schema.json": "11e098468bb2839a7987f3fe39972f99fa7a983e332ac0d4076130451edbc57a",
+        "docs/contracts/module-manifest.schema.json": "53fffd681593692cf40a2f04434fbb39b26fba4ef15198eb074a9866292c632e",
+        "docs/contracts/platform-operations.openapi.yaml": "40363e45dfd1d3c9841ea43251b4b6a89b0f4fe78fd8155913a9e0c6f3e0856e",
+        "docs/contracts/publisher-signature.schema.json": "15645564b38f504d18c347411fb52aa682d08816277a69b8b7be3e4cedaace64",
+        "docs/contracts/remote-action-request.schema.json": "b6b99aeecb9312fbb645db09aa1379bea5c0910bacf1ce0476bcc974a538ef98",
+        "docs/contracts/remote-panel-request.schema.json": "7d32cc696474175df0352ed85cff6dbf2b73e2886f3a8ee96bdcf6805d09aee2"
+      },
+      "current": {
+        "docs/contracts/automation-rule.schema.json": "d5ad1506f3de8503a0bb3b060eb9bbc01db8a22efc95fabcef099cfaea0dcd0a",
+        "docs/contracts/cloud-event.schema.json": "ca9119a73e6eb6b6537c2c1098148b7fa49c781d5ac1c51ff26189fc05b04bea",
+        "docs/contracts/crm-api.openapi.yaml": "9a4a31f1c98541c6ef325c48d4788ceb0704b558d1c327d2688c378a3a9024cc",
+        "docs/contracts/demo-echo-input.schema.json": "cb06b937cdc90802f8bf3e51bd97db18221efe4b11f0d27ac6cd9e5b4109a1a7",
+        "docs/contracts/demo-echo-output.schema.json": "574e8263605ffc9fe0f7c18004450f7b1ec0772036d25cc4b20174760bc56ded",
+        "docs/contracts/demo-event.schema.json": "12ff9827134c2cbd033238bc1a2e07bc12c9b7204c653948f0ffa4337d2b8840",
+        "docs/contracts/demo-panel.schema.json": "11e098468bb2839a7987f3fe39972f99fa7a983e332ac0d4076130451edbc57a",
+        "docs/contracts/module-manifest.schema.json": "53fffd681593692cf40a2f04434fbb39b26fba4ef15198eb074a9866292c632e",
+        "docs/contracts/platform-operations.openapi.yaml": "40363e45dfd1d3c9841ea43251b4b6a89b0f4fe78fd8155913a9e0c6f3e0856e",
+        "docs/contracts/publisher-signature.schema.json": "15645564b38f504d18c347411fb52aa682d08816277a69b8b7be3e4cedaace64",
+        "docs/contracts/remote-action-request.schema.json": "b6b99aeecb9312fbb645db09aa1379bea5c0910bacf1ce0476bcc974a538ef98",
+        "docs/contracts/remote-panel-request.schema.json": "7d32cc696474175df0352ed85cff6dbf2b73e2886f3a8ee96bdcf6805d09aee2"
+      }
+    },
+    "policyReview": {
+      "basis": "maintainer-reviewed-mvp-delta",
+      "changedFiles": [
+        "scripts/contracts/sdk_surface.py",
+        "tools/contracts/surface/dotnet/packages.lock.json"
+      ],
+      "dualPolicyEvaluation": false,
+      "expires": "2027-02-11T00:00:00+00:00",
+      "independentVerification": false,
+      "owner": "maintainer"
+    },
+    "reason": "CONTRACT_COMPATIBLE",
+    "sdkBaseline": "historical-toolchain",
+    "sdkToolchain": {
+      "base": {
+        "configurationSha256": "b312a75eb102568ebc030f75aac09d038a0876c8c88c2b1fa442aaa89bbfc757",
+        "corvusPackageSha256": "b023226e7cffe4b58578ed51c460424cfadfbfe4b223abae020b6e5960a68051",
+        "openapiTypescript": "7.13.0"
+      },
+      "current": {
+        "configurationSha256": "b312a75eb102568ebc030f75aac09d038a0876c8c88c2b1fa442aaa89bbfc757",
+        "corvusPackageSha256": "b023226e7cffe4b58578ed51c460424cfadfbfe4b223abae020b6e5960a68051",
+        "openapiTypescript": "7.13.0"
+      }
+    },
+    "sdkToolchainChanged": false
+  }
+}

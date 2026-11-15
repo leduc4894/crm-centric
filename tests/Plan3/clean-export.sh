@@ -73,11 +73,13 @@ argument_error() {
   closed_error PLAN3_ARGUMENT_INVALID "$1" 2
 }
 
+mvp_review=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --sha) [ $# -ge 2 ] || argument_error "--sha requires a value"; sha="$2"; shift 2 ;;
     --base-ref) [ $# -ge 2 ] || argument_error "--base-ref requires a value"; base_ref="$2"; shift 2 ;;
     --target) [ $# -ge 2 ] || argument_error "--target requires a value"; target="$2"; shift 2 ;;
+    --mvp-reviewed-policy) mvp_review=1; shift ;;
     --with-browser) with_browser=1; shift ;;
     --keep) keep=1; shift ;;
     -h|--help) usage; exit 0 ;;
@@ -200,6 +202,7 @@ else
 fi
 
 gate_args=(--base-ref "$base_ref")
+[ "$mvp_review" -eq 1 ] && gate_args+=(--mvp-reviewed-policy)
 [ "$with_browser" -eq 1 ] && gate_args+=(--with-browser)
 ( cd "$target" && bash "$target/scripts/check-plan3.sh" "${gate_args[@]}" )
 status=$?

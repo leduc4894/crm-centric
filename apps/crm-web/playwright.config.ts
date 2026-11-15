@@ -20,7 +20,7 @@ export default defineConfig({
   workers: 1,
   forbidOnly: true,
   retries: 0,
-  reporter: [['list']],
+  reporter: process.env.PLAYWRIGHT_JSON_OUTPUT_NAME ? [['json']] : [['list']],
   timeout: 30_000,
   expect: { timeout: 10_000 },
   use: {

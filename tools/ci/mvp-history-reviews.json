@@ -1,0 +1,1239 @@
+{
+  "schema_version": 1,
+  "context": {
+    "candidate": "b1c86f931fdc0a3ab95ea2243c95b35f29637851",
+    "scanner": "8.30.1",
+    "config": "3671e31247f0c04170d6336a7a6290bc9131fbb9fac0402a7b4e479bbaa2c05c",
+    "binary": "88f91962aa2f93ac6ab281d553b9e125f5197bbbce38f9f2437f7299c32e5509"
+  },
+  "decisions": [
+    {
+      "history_finding_id": "8a01248fb7b4575b70b461ff527bb32db7bb587e25790573d0cf42788c62df0e",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 6,
+      "end": 6,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "8c0fe754f977b8f2c4d95ece37e92c3b6a49e2239420ffeecf8234315d97cfd9"
+      ],
+      "field": [
+        "lib/app/keycloak.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "9305fe97a651786b8e2c3f9e23b1d2b2be14b7dbb62cb442ba91efa6304ed604",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 20,
+      "end": 20,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "89ff172db84739f9f2fc895083824d1831bfa6a3e452d14e247218c8592a38af"
+      ],
+      "field": [
+        "lib/lib/boot/jakarta.json.jakarta.json-api-2.1.3.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "816c9e318e52a3271345b41df68c06d7a6d721e72e86d39e4043626fdf45e8aa",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 96,
+      "end": 96,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "cea8c4bdcf51c8cb4ef9245aa87715af3ca470627751c026a6c42b39a5838ff9"
+      ],
+      "field": [
+        "lib/lib/deployment/io.quarkus.quarkus-smallrye-openapi-dev-3.40.1.1.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "ae6924b486675e101f4593e0c31fa03f1facf5d1668628b6187bff8785d2ca35",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 97,
+      "end": 97,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "7bb680424e7ce98710ba7f32e8871a698c439c8cbdefa630b2ec8659701df885"
+      ],
+      "field": [
+        "lib/lib/deployment/io.quarkus.quarkus-smallrye-openapi-spi-3.40.1.1.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "a7b7ca085fa97b8c091a503dbea296a73757548014367da2939392c0fbf8e1e7",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 114,
+      "end": 114,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "c28944ea783374012e15b6a1b3e0b2355a988ffcaa2cf21d85f903d53a7a8964"
+      ],
+      "field": [
+        "lib/lib/deployment/io.smallrye.smallrye-open-api-jaxrs-4.3.5.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "9e687d8218e6502de456e582ace08e4e77426382610ba395e846a8e96d0b7194",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 115,
+      "end": 115,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "0bc0b63b45994b5abc14a837a286768c3d47e43fd036ef81589877b3ee7f2de0"
+      ],
+      "field": [
+        "lib/lib/deployment/io.smallrye.smallrye-open-api-spring-4.3.5.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "95398c8139b4e85fb056efedcedb33474ad6e998f67110f1655621e9512fd5ca",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 116,
+      "end": 116,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "777f6428f342634c7cc53c4a23e93f655918afbc15f1e7ce9ac2df52dd8de5b2"
+      ],
+      "field": [
+        "lib/lib/deployment/io.smallrye.smallrye-open-api-ui-4.3.5.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "ac4104b752da4dd6babb7a1ce850add79e3910927ab9527c1b344b5d065ddf1b",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 117,
+      "end": 117,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "c6b0b4b09c23b5f87f96bbe33b572b8473e511c263a9facca9667f3af1f1f1c6"
+      ],
+      "field": [
+        "lib/lib/deployment/io.smallrye.smallrye-open-api-vertx-4.3.5.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "5996e2a8d0ee81203e5eba8d6a4a544cfd19e32fca62c5d632ccfd4f523f6cd8",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 118,
+      "end": 118,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "65891e066b875a2fe1e116550b89a75cbf080b6d1d765832e8c2705190bce7e1"
+      ],
+      "field": [
+        "lib/lib/deployment/jakarta.servlet.jakarta.servlet-api-6.0.0.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "268c83b1ea4f2e685afb43c3fd58dfc90dcea8389e067f0d178a9fc8a6a5b415",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 123,
+      "end": 123,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "6c995814e671fc9e337ffb49b039c93eea42f3c4d44781713977ca8bb98cba69"
+      ],
+      "field": [
+        "lib/lib/deployment/org.aesh.readline-api-3.18.1.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "60609b35c7e18868ca3e3097e5c49ded215505f85be6ce86f3f7a52cc35dbe33",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 124,
+      "end": 124,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "c5ac3bcfc7b6affc8343d129364cd6b8f522aba75e8c58c516512042f5e3a072"
+      ],
+      "field": [
+        "lib/lib/deployment/org.aesh.terminal-api-3.18.1.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "048b582d923e5dae8dfb2b8dc49d7af005da63952f24645c3b53ece41160dae9",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 171,
+      "end": 171,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "138c687724d5f0aa071d9d6bf1d646b7f795177d69e34822627b46aaafbee64c"
+      ],
+      "field": [
+        "lib/lib/main/io.agroal.agroal-api-3.2.1.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "bff1a9c96a724fed8ab19272c1586dc31269ed4d587815fc1c8af152bc45352d",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 174,
+      "end": 174,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "a1588afb92d5adc01b3f4248235434ecbb3654c0522f2710bd0ae0c357bb5a9e"
+      ],
+      "field": [
+        "lib/lib/main/io.grpc.grpc-api-1.81.0.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "c73c9150272675393bf79acc082c689533c0f9940342dfc8b05f24ada1889b4f",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 207,
+      "end": 207,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "35311b2c8cbb5523114093104418d42fd51d2c9eed39b5a517219ef883a80f2d"
+      ],
+      "field": [
+        "lib/lib/main/io.opentelemetry.instrumentation.opentelemetry-instrumentation-api-2.28.1.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "d74ab86a6dd12320b6eebd6142c87d8fa64c3eb416ea938b52a14f2e693efa86",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 212,
+      "end": 212,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "85c10685dbef98ea4ab9471fb348be6d291f13bcaecfdde090644729d3187bfb"
+      ],
+      "field": [
+        "lib/lib/main/io.opentelemetry.opentelemetry-api-1.62.0.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "49eb856f23b200b4607ba7016a3a52d8e243ae833e85a29484df665a8439b0fd",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 228,
+      "end": 228,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "44d338402ccf7ea1839064280c785b6cd643e8575f13f4157f042a3bdb43c9c4"
+      ],
+      "field": [
+        "lib/lib/main/io.perfmark.perfmark-api-0.27.0.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "e8c636606caa03f6c50050ce75322b506b10963d51e80464e575300d876b7a7f",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 239,
+      "end": 239,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "8a3cab9209b0339d0db52a3adf9629bb8729dffc5d07181c8251e2d52ae4a549"
+      ],
+      "field": [
+        "lib/lib/main/io.quarkus.quarkus-credentials-3.40.1.1.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "740427ab4871ec253dd5828df82154015571e0da63792c19ccefbd83d1be6a5f",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 270,
+      "end": 270,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "f9ec48f174d8e1f02978bb33ecc841d802cb8feabe647573ea0616386888f8fc"
+      ],
+      "field": [
+        "lib/lib/main/io.quarkus.quarkus-smallrye-openapi-3.40.1.1.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "e5e6d684554a37f6d114323996a675c1703875938cdb3cb3d767ecc1ac88724f",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 296,
+      "end": 296,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "4ffd2524a1d7583799338040f5dd108df7430ce9c5d2e6529231b17e37ec36f0"
+      ],
+      "field": [
+        "lib/lib/main/io.smallrye.config.smallrye-config-source-keystore-3.17.2.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "291be19dfe12b0b2842ab81b99fb0799ad50f6c9e1df6b1d784accff6d052ecb",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 302,
+      "end": 302,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "accfaf4af4710e0bf0af904c207dd14cf8755fff617d130ba53135282b871add"
+      ],
+      "field": [
+        "lib/lib/main/io.smallrye.reactive.smallrye-mutiny-vertx-auth-common-3.23.1.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "fcb9523836ec9023174a0bdd35fa838f22bdc9d9de4a4c59b474f62d8293046c",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 309,
+      "end": 309,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "b45310fd7f9192229393ee76baf7ca5cc8f8a0bc6b25dd35bc691efde80c33a6"
+      ],
+      "field": [
+        "lib/lib/main/io.smallrye.reactive.smallrye-reactive-converter-api-3.0.3.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "10dc1519df5f5cc2d8aa73baa9062e84040f9792b9e7accbb91967cc44047b82",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 312,
+      "end": 312,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "52f3ead4465fa433d3b882d9e1e4c7f8acc134a5f23ecf93f823898c121df173"
+      ],
+      "field": [
+        "lib/lib/main/io.smallrye.smallrye-context-propagation-api-2.3.0.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "3f6eabd64673d8a4995dfa7ff4b5e471724bd9c4591eefa9c2580cc0e31d0878",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 317,
+      "end": 317,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "35e92972702d66d49a6e9e657decea692177c9e487b9e4ef3c0725272911d8c4"
+      ],
+      "field": [
+        "lib/lib/main/io.smallrye.smallrye-health-api-4.3.0.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "2c3c8d102aabb8db62fc3a9d1a1f0a15cf36f4873167a1ee7f695c015131941f",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 319,
+      "end": 319,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "893d4ed94cfb6f1cbbd37c323cbc43602d35754a3e0b9a3b1e31a23f92412167"
+      ],
+      "field": [
+        "lib/lib/main/io.smallrye.smallrye-open-api-core-4.3.5.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "0be1605fecaf7f520841937a720c642e4baae7cffbaa80ba5e21b6cd24d57eb2",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 320,
+      "end": 320,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "494a1bb48d76bf289ce05626a1c03adb7839bd981f2b9bcef5ca288176e66d29"
+      ],
+      "field": [
+        "lib/lib/main/io.smallrye.smallrye-open-api-model-4.3.5.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "a3b99823f8c86dcbc32e4c89b5fe84efe3c7d9bcb09326ee03a4931120aae925",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 321,
+      "end": 321,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "56ce9a6df7cf44638cee47bd7a5f1f948cfe151be9e19cc73a90c0e11ff44396"
+      ],
+      "field": [
+        "lib/lib/main/io.vertx.vertx-auth-common-4.5.35.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "d57cf40873242ae831d3318e2631b4e226c9b0997f2ec8cfaad6884b2d8552d3",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 333,
+      "end": 333,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "19d14fa722bf2ef490c7f4b4bc57734d44dcc949d82b14ceaabef9916c638d9b"
+      ],
+      "field": [
+        "lib/lib/main/jakarta.activation.jakarta.activation-api-2.1.4.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "8441097d79a50925a5e7aa063223d03d24f5d5a0c4164d6ad1350ecf4899ec23",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 334,
+      "end": 334,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "37db6635dac158db6bdd37b1903a10166d3e2724709f03a62914f716dd4bde97"
+      ],
+      "field": [
+        "lib/lib/main/jakarta.annotation.jakarta.annotation-api-3.0.0.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "08c4ae0c0b462637e0fc0d50ee946659cd5be949a01e28f20b63de6889201e6d",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 335,
+      "end": 335,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "144465ad54c1a0981cf476914aed2d439c3e37f7f6bc4aa0c2588d18cf147f1f"
+      ],
+      "field": [
+        "lib/lib/main/jakarta.el.jakarta.el-api-6.0.1.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "1389b16a2ca36cc2c0fd2c649be5bf86d518b9cc2bce3ab34bdc820d13b3dc3d",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 336,
+      "end": 336,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "d6984f75af6fc78c324f64fb39e4152b2d909a38d25f5c81fea38509db0a47f5"
+      ],
+      "field": [
+        "lib/lib/main/jakarta.enterprise.jakarta.enterprise.cdi-api-4.1.0.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "c1bb0b756653a42db18b78edcb6a0300f432b233dc2ec0bbf0f83f3047d1f72b",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 338,
+      "end": 338,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "a5d19fd9749ed65bd382c71a22b1c145fba5700d8a849b44ff03169e433b07fb"
+      ],
+      "field": [
+        "lib/lib/main/jakarta.inject.jakarta.inject-api-2.0.1.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "9b10849f29038d63dff2dc6a25503f3c0c724369f4269574c13fc1b67e98fc3e",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 339,
+      "end": 339,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "fbca519d969a75a5c84c2aa26032ab185fcf03354ae36349a97e6984ee0c2fa3"
+      ],
+      "field": [
+        "lib/lib/main/jakarta.interceptor.jakarta.interceptor-api-2.2.0.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "382d41b6b413a4d96208450390b7bfc611c281317870bf1342d4a5f085a88905",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 340,
+      "end": 340,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "4c7af7c055d63a1b7de64abef546628fa764e8aa0ed374f3053927dddbb82ed6"
+      ],
+      "field": [
+        "lib/lib/main/jakarta.mail.jakarta.mail-api-2.1.1.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "dfd3d9eb64814a20f57e90a45345d6962d3114c97e6447fe7f3ee2e9de793566",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 341,
+      "end": 341,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "29e8127d08a29873d164e62177415d573a214e00291d82382f051fac32eb7aec"
+      ],
+      "field": [
+        "lib/lib/main/jakarta.persistence.jakarta.persistence-api-3.2.0.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "67f40d9999fd43a2c121369386802efab228a24fd0d00a1769283b47eec21b4b",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 342,
+      "end": 342,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "9387c5523934b071158301a2fd81b97e6471e62b5e329639dd6d57465bb5f126"
+      ],
+      "field": [
+        "lib/lib/main/jakarta.resource.jakarta.resource-api-2.1.0.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "66fc3ed2dbd91629d4c3808d8af78daebcd7a354da735b911581dab4009a213b",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 343,
+      "end": 343,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "ecabf950c5dd69b03ff2d745111b87fb8990f53b17390ad63e7367b4224ad80c"
+      ],
+      "field": [
+        "lib/lib/main/jakarta.transaction.jakarta.transaction-api-2.0.1.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "4f85c3eefe235bc290c72c6fa91358cbe3c1250b0d5df7230bde04c98c64b6f8",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 344,
+      "end": 344,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "bf831cb0480c20adbccf71289d8f4c5d3e72d1f48d0f682b89c9178e8e303a43"
+      ],
+      "field": [
+        "lib/lib/main/jakarta.validation.jakarta.validation-api-3.1.1.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "47b9084569557f24de89cb18fd0c89212c82fe2842091c36abe6b4a15c585621",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 345,
+      "end": 345,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "ce0353da050b3e6b27d7b1a2cd420efd123cb70e9a63999688725497e7e5ffac"
+      ],
+      "field": [
+        "lib/lib/main/jakarta.ws.rs.jakarta.ws.rs-api-3.1.0.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "d61ac7d8158ca5bf71f4b4bb121ac6a351b770f68eb9b7ec67b7d5bbb511c20d",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 346,
+      "end": 346,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "6203aa491f99f2431c172a2b976ecced161af38bcace9cf198b13106a588c7b5"
+      ],
+      "field": [
+        "lib/lib/main/jakarta.xml.bind.jakarta.xml.bind-api-4.0.5.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "fc56fccaf7cd73a72a41f948d2632ab89b23569caf784c27a602927ed1266d0a",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 347,
+      "end": 347,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "7207726d0ac66a4cf10e6ef177acd78dc6a80d47a1b761daea299a7a9ff8549e"
+      ],
+      "field": [
+        "lib/lib/main/jakarta.xml.soap.jakarta.xml.soap-api-3.0.0.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "de3bae1df9e4d14dab3aafeb7c7859cc68a226352454581ee3430c419dff94e9",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 348,
+      "end": 348,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "8a7af7ce63a21ac47a893b28c2dff7d7d40013942b137e554dd177962f8e3506"
+      ],
+      "field": [
+        "lib/lib/main/javax.cache.cache-api-1.1.1.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "20591894ff68502da25e6141af157a80ce59f51b0fe7a9159fa5deac5c8cdba3",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 361,
+      "end": 361,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "99da06c1fa39b7b983c17356522f29702e3853cbb3955f9b1fd7a9be41ce4288"
+      ],
+      "field": [
+        "lib/lib/main/org.eclipse.microprofile.config.microprofile-config-api-3.1.1.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "206365b4ed1494094fecee16bbc8d8ac4b9d4f250d3c44c281a63e9dd26d555c",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 362,
+      "end": 362,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "2c336ea0e2629fafac784404b832ce764849e5a567330f34e024abdaef29c837"
+      ],
+      "field": [
+        "lib/lib/main/org.eclipse.microprofile.context-propagation.microprofile-context-propagation-api-1.3.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "f616abd138e46059e34c1e66d8954b3f053c987e3c4ded36109693300b8acd0d",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 363,
+      "end": 363,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "ec783a23ab872e0005f92e16f2189bd1b87ea849b68048eea20c318c5f15169a"
+      ],
+      "field": [
+        "lib/lib/main/org.eclipse.microprofile.health.microprofile-health-api-4.0.1.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "f14e4f824ab1096e040fe2b23517cc5263d7b6febbc9cea9f806dae1c8bb0283",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 364,
+      "end": 364,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "bdafae5bf6a3ada07b59266fcedc6b860fa6509ba787644711989324732b26a7"
+      ],
+      "field": [
+        "lib/lib/main/org.eclipse.microprofile.openapi.microprofile-openapi-api-4.1.1.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "21e38a1c7ea544311c8bc0eeee82fb2f4c5d52fb6d510f15ae671bbdf0f15135",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 377,
+      "end": 377,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "51862ee5a19f4e9cb7a4bbce3c708c82f4bf0e5481fe9b9a9b51a160749f9203"
+      ],
+      "field": [
+        "lib/lib/main/org.infinispan.infinispan-api-16.0.15.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "56dd8ef3c61defa8ed224f1b1ad0140305c6ef8a894e3140cfb9a16faa72d766",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 382,
+      "end": 382,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "a7d4d013e2649fdf216c101156b1964219f46b70c878b1383415e6518c8a8a50"
+      ],
+      "field": [
+        "lib/lib/main/org.infinispan.infinispan-counter-api-16.0.15.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "99563bd8cb0003e6ce35efa652041e50e8849b65441952035dcd61ecc13ccdfc",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 398,
+      "end": 398,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "611fbc0f1bdc780752c9ad19a7a55703cdebdffca656ed9c751450015e845373"
+      ],
+      "field": [
+        "lib/lib/main/org.keycloak.keycloak-admin-v2-api-26.8.2.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "3c9313143127171be63162ea5ea1273b4efa76f71d889c451db1996c042de410",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 403,
+      "end": 403,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "b92ade39a7272d9f07b62543d92b407da4ec461fc6bef828b3af8a8a7f1e3f59"
+      ],
+      "field": [
+        "lib/lib/main/org.keycloak.keycloak-config-api-26.8.2.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "81a7d74633b377096270b6c2d22dce4f829744fdb0f7f33e881b2a3f6d284440",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 448,
+      "end": 448,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "ad38f8371d1d5c4f71623462973663ff0d267ec2324f5c41dd29adb6f55b46a9"
+      ],
+      "field": [
+        "lib/lib/main/org.slf4j.slf4j-api-2.0.18.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "5d7ce900ebda23a99841317710c632485fc34a51f11a49a65939d43b50962ef0",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 449,
+      "end": 449,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "9dd0e46656b8b9e8c23604fd50231d7d43709803690ce163cfdea065ef442f28"
+      ],
+      "field": [
+        "lib/lib/main/org.snakeyaml.snakeyaml-engine-2.6.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "4d1d80f0bdac74d76e6326ca585bb8149091e4532c5d36051df60e34f46a4d15",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 453,
+      "end": 453,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "eb7948d4d55d6142b7e4b19cd3c880c54fc4354275dabbc75858f24cb7c4505a"
+      ],
+      "field": [
+        "lib/lib/main/org.wildfly.security.wildfly-elytron-auth-2.9.2.SP1.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "3f235fb4bd914c4effb43b9cc355456206ecf47094c7758eb45f1038b25856ef",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 456,
+      "end": 456,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "007af9850a1d3a8e75432785b8d06e7eca99a3c4f13c64d6330295e815c2cfc0"
+      ],
+      "field": [
+        "lib/lib/main/org.wildfly.security.wildfly-elytron-credential-2.9.2.SP1.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "c7a292e201bb58d3a132ba4e6a57b06c4f599bd4d1fffb8601721e946e8c5210",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 458,
+      "end": 458,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "c8095e90d66953b2bf03b41bf9cfd488853c2f2dc5257400be1a7c8925cdeaa2"
+      ],
+      "field": [
+        "lib/lib/main/org.wildfly.security.wildfly-elytron-keystore-2.9.2.SP1.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "0c81bc2075dfbffeed6252d51834963f05d61ea5e3ad77882d79c8fb834c23aa",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 461,
+      "end": 461,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "bf8afa8d09e1d60de171478bba7e89f436ff56b8c04c7bd14755b4240ebeb569"
+      ],
+      "field": [
+        "lib/lib/main/org.wildfly.security.wildfly-elytron-mechanism-gssapi-2.9.2.SP1.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "42010b2cf8599aa895cb19b679bf47645fa71e844cebd979a07eb9b0d01fd4a8",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 462,
+      "end": 462,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "f7421359a5fa87adad6aa98a4d57e71f7b9b9a833bff0f3153e3263e12d4b149"
+      ],
+      "field": [
+        "lib/lib/main/org.wildfly.security.wildfly-elytron-mechanism-oauth2-2.9.2.SP1.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "66ee0b428544ce9771063e6234532e4492673c78bf4a6b9326f27a3d95a74aec",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 464,
+      "end": 464,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "0c7720988e3ec472b894f9c12e41078c2338d319596d74ce9d787b726c7bd898"
+      ],
+      "field": [
+        "lib/lib/main/org.wildfly.security.wildfly-elytron-password-impl-2.9.2.SP1.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "05e7cd63cacde7009bd2f4486c7a19288a456e4915f55d12619bc32fed58584f",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 471,
+      "end": 471,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "c38e8671b36027e785ce3bfc7bfb22bd95e803f8b8ed3ae8c96737b9b86b1d8d"
+      ],
+      "field": [
+        "lib/lib/main/org.wildfly.security.wildfly-elytron-sasl-gssapi-2.9.2.SP1.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "2d1480dca09b6de529aa16c283650724150077c6d89970c82e9ac193fcfdb25e",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 472,
+      "end": 472,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "bad208762d701de1819097dabf4cb9578099a2f8d2d5c2a26d8b18f8ba039bbd"
+      ],
+      "field": [
+        "lib/lib/main/org.wildfly.security.wildfly-elytron-sasl-oauth2-2.9.2.SP1.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "c0b7e179fbf63b0277d6a0ae3b569e08de025163d3271cd8162489c5a5c51158",
+      "commit": "5b19690a08f9c0bcf7c3edbf3bae1f15817c312e",
+      "blob": "c16332021eb044a725b437ae8b5b56f87d03e2cc",
+      "path": "docs/ci/candidates/keycloak26/diagnostic-runtime-jars.json",
+      "rule": "generic-api-key",
+      "start": 481,
+      "end": 481,
+      "document_sha256": "793c9aa765a4a5a14297aacee6b1716c92ee8206580864a0ef58fb781d129250",
+      "matching_approved_tree_ids": [
+        "3600d5018452e8def1b4279ce2f767a180d899aef8fc0ac2892dec80dd47dc3b"
+      ],
+      "field": [
+        "lib/lib/main/org.yaml.snakeyaml-2.0.jar"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "46cd4f67b3a3fa288610ef6d35ac7c3cf775f1135fbdca4043d2ebe54ac27823",
+      "commit": "00e0ce4ebea101a0a17c4755a21f5406168ada50",
+      "blob": "28cdadfe09febbc7ca6719b8e13fbadcb0794dda",
+      "path": "docs/engineering/evidence/2026-11-13-balanced-mvp-c5cfdd1.json",
+      "rule": "generic-api-key",
+      "start": 259,
+      "end": 259,
+      "document_sha256": "454061b31cb8cae207a3bb8651f9c8c5a0f2755c6c16653085cec0a7ec58284e",
+      "matching_approved_tree_ids": [
+        "1bec03882777d14b0f266a1fee333ef29db9bcf3f6c6c33a07afa99b149bf1cf"
+      ],
+      "field": [
+        "standalone_semantic",
+        "inputHashes",
+        "base",
+        "docs/contracts/crm-api.openapi.yaml"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "15044686eeb80aa9c334821c1c9612f7e99ffe2144bc78b7d7e803dde0ce712c",
+      "commit": "00e0ce4ebea101a0a17c4755a21f5406168ada50",
+      "blob": "28cdadfe09febbc7ca6719b8e13fbadcb0794dda",
+      "path": "docs/engineering/evidence/2026-11-13-balanced-mvp-c5cfdd1.json",
+      "rule": "generic-api-key",
+      "start": 265,
+      "end": 265,
+      "document_sha256": "454061b31cb8cae207a3bb8651f9c8c5a0f2755c6c16653085cec0a7ec58284e",
+      "matching_approved_tree_ids": [
+        "9f3049da275cdef4749717c889a1c01e3cfb64a9a2e86c216372ab441efc8604"
+      ],
+      "field": [
+        "standalone_semantic",
+        "inputHashes",
+        "base",
+        "docs/contracts/platform-operations.openapi.yaml"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "e5751e95b00f008b5a59c41eb1d513535bfaed1c3a8d53b0ab219cc7d42d8ee7",
+      "commit": "00e0ce4ebea101a0a17c4755a21f5406168ada50",
+      "blob": "28cdadfe09febbc7ca6719b8e13fbadcb0794dda",
+      "path": "docs/engineering/evidence/2026-11-13-balanced-mvp-c5cfdd1.json",
+      "rule": "generic-api-key",
+      "start": 273,
+      "end": 273,
+      "document_sha256": "454061b31cb8cae207a3bb8651f9c8c5a0f2755c6c16653085cec0a7ec58284e",
+      "matching_approved_tree_ids": [
+        "1bec03882777d14b0f266a1fee333ef29db9bcf3f6c6c33a07afa99b149bf1cf"
+      ],
+      "field": [
+        "standalone_semantic",
+        "inputHashes",
+        "current",
+        "docs/contracts/crm-api.openapi.yaml"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    },
+    {
+      "history_finding_id": "bffa8ecfb85c6ae9336506eb4921579822480961aeaaa062b7c5c64ba98e4614",
+      "commit": "00e0ce4ebea101a0a17c4755a21f5406168ada50",
+      "blob": "28cdadfe09febbc7ca6719b8e13fbadcb0794dda",
+      "path": "docs/engineering/evidence/2026-11-13-balanced-mvp-c5cfdd1.json",
+      "rule": "generic-api-key",
+      "start": 279,
+      "end": 279,
+      "document_sha256": "454061b31cb8cae207a3bb8651f9c8c5a0f2755c6c16653085cec0a7ec58284e",
+      "matching_approved_tree_ids": [
+        "9f3049da275cdef4749717c889a1c01e3cfb64a9a2e86c216372ab441efc8604"
+      ],
+      "field": [
+        "standalone_semantic",
+        "inputHashes",
+        "current",
+        "docs/contracts/platform-operations.openapi.yaml"
+      ],
+      "count": 1,
+      "owner": "maintainer",
+      "expires": "2027-02-11T00:00:00+00:00"
+    }
+  ]
+}

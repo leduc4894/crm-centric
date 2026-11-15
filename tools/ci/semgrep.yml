@@ -1,0 +1,17 @@
+rules:
+  - id: csharp-sql-command-concatenation
+    languages: [csharp]
+    severity: ERROR
+    message: SQL command text must use parameters.
+    patterns:
+      - pattern-either:
+          - pattern: new SqlCommand($LEFT + $RIGHT, ...)
+          - pattern: new SqlCommand($LEFT + $RIGHT)
+          - pattern: new System.Data.SqlClient.SqlCommand($LEFT + $RIGHT, ...)
+  - id: typescript-dynamic-eval
+    languages: [typescript]
+    severity: ERROR
+    message: Avoid dynamic code execution.
+    pattern-either:
+      - pattern: eval($CODE)
+      - pattern: new Function(...)

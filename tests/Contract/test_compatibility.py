@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import yaml
 
@@ -432,7 +433,20 @@ class CompatibilityTests(unittest.TestCase):
         cs.write_text('System.Console.WriteLine("fixture");\n')
         self.git('add', '.')
         self.git('commit', '-qm', 'historical consumer')
-        status, report = self.gate()
+        # Reproduce hosted npm ci: locked tarballs exist but registry metadata
+        # is absent. Warm an isolated install rather than altering this checkout.
+        with tempfile.TemporaryDirectory(prefix='baseline-consumer-cache-') as temporary:
+            install=Path(temporary)/'install';cache=Path(temporary)/'cache';install.mkdir()
+            for name in ('package.json','package-lock.json','.npmrc','.node-version',
+                         'apps/crm-web/package.json','sdks/typescript/crm/package.json',
+                         'sdks/typescript/operations/package.json'):
+                target=install/name;target.parent.mkdir(parents=True,exist_ok=True)
+                shutil.copyfile(ROOT/name,target)
+            env={**os.environ,'npm_config_cache':str(cache)}
+            warm=subprocess.run(['npm','ci','--ignore-scripts','--no-audit','--no-fund'],
+                                cwd=install,env=env,capture_output=True,text=True,timeout=300)
+            self.assertEqual(0,warm.returncode,'isolated locked install failed (diagnostics suppressed)')
+            with patch.dict(os.environ,{'npm_config_cache':str(cache)}):status, report = self.gate()
         self.assertNotEqual(status, 0)
         self.assertEqual(report['reason'], 'SDK_SURFACE_INCOMPATIBLE')
         self.assertEqual(report['sdkBaseline'], 'historical-toolchain')

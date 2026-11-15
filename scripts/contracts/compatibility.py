@@ -60,7 +60,25 @@ def current_policy_files(repo):
                 paths.add(path.relative_to(repo).as_posix())
     return {path for path in paths if is_policy_path(path) and is_policy(path)}
 
-def check_baseline_configuration(repo, base):
+def policy_identity_preflight(old_hashes, new_hashes, revision=None, transition=None):
+    """Identity only: signed approval never substitutes for semantic evaluation.
+
+    Normal CLI supplies no transition and preserves the Plan 3 fail-closed gate.
+    Independent workflow callers must run both immutable semantic evaluators.
+    """
+    if old_hashes == new_hashes:
+        return
+    if transition is None:
+        raise GateError('CONTRACT_POLICY_REVIEW_REQUIRED')
+    from scripts.ci.policy_transition import VerifiedTransition
+    import time
+    if (not isinstance(transition, VerifiedTransition) or revision is None
+            or transition.revision != revision or transition.expires_at <= time.time()
+            or dict(transition.old_hashes) != old_hashes
+            or dict(transition.new_hashes) != new_hashes):
+        raise GateError('CONTRACT_POLICY_REVIEW_REQUIRED')
+
+def check_baseline_configuration(repo, base, mvp_review=False):
     """Reject incomplete baseline toolchains and unreviewed policy changes."""
     paths = set(git(repo, 'ls-tree', '-r', '--name-only', base, '--', 'tools/contracts', 'scripts/contracts', 'sdks').decode().splitlines())
     marker = 'tools/contracts/toolchain.json'
@@ -75,14 +93,22 @@ def check_baseline_configuration(repo, base):
             raise GateError('SDK_TOOLCHAIN_REVIEW_REQUIRED')
     base_policy = {p for p in git(repo, 'ls-tree', '-r', '--name-only', base).decode().splitlines() if is_policy_path(p) and is_policy(p)}
     current_policy = current_policy_files(repo)
-    base_surface_policy = {p for p in paths if p.startswith('tools/contracts/surface/') or p == 'scripts/contracts/sdk_surface.py'}
+    base_surface_policy = {p for p in paths if p.startswith('tools/contracts/surface/') or p in ('scripts/contracts/sdk_surface.py','scripts/contracts/runtime_packages.py')}
     if base_surface_policy:
         base_policy |= base_surface_policy
         current_policy |= {p.relative_to(repo).as_posix() for p in (repo / 'tools/contracts/surface').rglob('*') if p.is_file()} if (repo / 'tools/contracts/surface').is_dir() else set()
-        if (repo / 'scripts/contracts/sdk_surface.py').is_file():
-            current_policy.add('scripts/contracts/sdk_surface.py')
-    if base_policy != current_policy or any(git(repo, 'show', f'{base}:{p}') != (repo / p).read_bytes() for p in base_policy):
-        raise GateError('CONTRACT_POLICY_REVIEW_REQUIRED')
+        for path in ('scripts/contracts/sdk_surface.py','scripts/contracts/runtime_packages.py'):
+            if (repo/path).is_file(): current_policy.add(path)
+    old_hashes = {p: hashlib.sha256(git(repo, 'show', f'{base}:{p}')).hexdigest() for p in base_policy}
+    new_hashes = {p: sha(repo / p) for p in current_policy}
+    if mvp_review:
+        from scripts.ci.contract_review import approved
+    if mvp_review and approved(old_hashes,new_hashes,base):
+        return {'basis':'maintainer-reviewed-mvp-delta','owner':'maintainer',
+                'expires':'2027-02-11T00:00:00+00:00','independentVerification':False,
+                'dualPolicyEvaluation':False,'changedFiles':sorted(
+                    p for p in old_hashes.keys()|new_hashes.keys() if old_hashes.get(p)!=new_hashes.get(p))}
+    policy_identity_preflight(old_hashes, new_hashes)
 
 def schema_contents(value):
     if not isinstance(value, dict):
@@ -199,7 +225,7 @@ def response_removed(base, current):
                     return True
     return schema_narrowed(base, current)
 
-def run(base_ref, repo, context):
+def run(base_ref, repo, context, mvp_review=False):
     from scripts.contracts.check import ref_files
     import yaml
     from jsonschema import Draft202012Validator
@@ -210,7 +236,8 @@ def run(base_ref, repo, context):
     except (UnicodeError, ValueError):
         raise GateError('CONTRACT_BASE_UNAVAILABLE') from None
     context['baseSha'] = base
-    check_baseline_configuration(repo, base)
+    review=check_baseline_configuration(repo, base, mvp_review)
+    if review: context['policyReview']=review
     current_root = repo / 'docs/contracts'
     required = {'docs/contracts/crm-api.openapi.yaml', 'docs/contracts/platform-operations.openapi.yaml'}
     if not required <= set(paths) or not all((repo / p).is_file() for p in required):
@@ -224,6 +251,23 @@ def run(base_ref, repo, context):
             raise GateError('CONTRACT_TOOL_UNAVAILABLE')
     except (OSError, ValueError, KeyError, TypeError):
         raise GateError('CONTRACT_TOOL_UNAVAILABLE') from None
+    result=evaluate_contract_snapshots(base, paths, repo, context, policy, binary)
+    if review: result['policyReview']=review
+    return result
+
+
+def evaluate_contract_snapshots(base, paths, repo, context, policy, binary,
+                                immutable_base=None, policy_sources=None):
+    """Semantic phase shared with unprivileged immutable transition runners.
+
+    Identity/trust is the coordinator's separate responsibility. The CLI above
+    always executes its unchanged preflight before reaching this routine.
+    """
+    from scripts.contracts.check import ref_files
+    import yaml
+    from jsonschema import Draft202012Validator
+    from jsonschema.exceptions import SchemaError
+    current_root = repo / 'docs/contracts'
     base_inputs = {p for p in paths if p.endswith('.openapi.yaml') or p.endswith('.schema.json')}
     current_inputs = {p.relative_to(repo).as_posix() for p in current_root.rglob('*') if p.is_file() and (p.name.endswith('.openapi.yaml') or p.name.endswith('.schema.json'))}
     hashes = {'base': {}, 'current': {}}
@@ -241,7 +285,7 @@ def run(base_ref, repo, context):
             if path.startswith('docs/contracts/') and '..' not in Path(path).parts:
                 target = oldroot / path
                 target.parent.mkdir(parents=True, exist_ok=True)
-                target.write_bytes(git(repo, 'show', f'{base}:{path}'))
+                target.write_bytes(dict(immutable_base)[path] if immutable_base is not None else git(repo, 'show', f'{base}:{path}'))
         for path in sorted(base_inputs):
             hashes['base'][path] = sha(oldroot / path)
         for path in sorted(current_inputs):
@@ -333,13 +377,13 @@ def run(base_ref, repo, context):
         from scripts.contracts import sdk_surface
         workspace = Path(tmp) / 'surface'
         workspace.mkdir()
-        has_base_toolchain = bool(git(repo, 'ls-tree', '-r', '--name-only', base, '--', 'tools/contracts/toolchain.json').strip())
-        source = repo if (repo / 'tools/contracts/toolchain.json').is_file() else ROOT
+        has_base_toolchain = True if policy_sources else bool(git(repo, 'ls-tree', '-r', '--name-only', base, '--', 'tools/contracts/toolchain.json').strip())
+        source = policy_sources[1] if policy_sources else repo if (repo / 'tools/contracts/toolchain.json').is_file() else ROOT
         result['sdkBaseline'] = 'historical-toolchain' if has_base_toolchain else 'bootstrap-no-released-consumer'
         try:
-            old_sdk = sdk_surface.prepare(workspace / 'old', repo if has_base_toolchain else source, oldroot / 'docs/contracts', git, base if has_base_toolchain else None)
+            old_sdk = sdk_surface.prepare(workspace / 'old', policy_sources[0] if policy_sources else repo if has_base_toolchain else source, oldroot / 'docs/contracts', git, None if policy_sources else base if has_base_toolchain else None)
             new_sdk = sdk_surface.prepare(workspace / 'new', source, snapshot, git)
-            if not sdk_surface.compare(old_sdk, new_sdk, ROOT, workspace, has_base_toolchain, result):
+            if not sdk_surface.compare(old_sdk, new_sdk, source if policy_sources else ROOT, workspace, has_base_toolchain, result):
                 result['reason'] = 'SDK_SURFACE_INCOMPATIBLE'
                 return result
         except (RuntimeError, OSError, ValueError, KeyError, TypeError):
@@ -354,9 +398,10 @@ def main():
     try:
         parser = SafeParser()
         parser.add_argument('--base-ref', default='origin/main')
+        parser.add_argument('--mvp-reviewed-policy', action='store_true')
         args = parser.parse_args()
         repo = Path(git(Path.cwd(), 'rev-parse', '--show-toplevel').decode().strip())
-        report = run(args.base_ref, repo, context)
+        report = run(args.base_ref, repo, context, args.mvp_reviewed_policy)
     except GateError as error:
         report = {**context, 'reason': str(error)}
     except (OSError, ImportError, KeyError, TypeError, ValueError, RecursionError):

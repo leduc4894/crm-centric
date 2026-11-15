@@ -1,0 +1,420 @@
+"""Isolated locked job runner. Raw subprocess diagnostics never leave this process."""
+import argparse
+from contextlib import contextmanager
+import json
+import os
+from pathlib import Path
+import platform
+import re
+import signal
+import subprocess
+import sys
+import tempfile
+import time
+import uuid
+
+from scripts.ci.summary import ReportError, RunIdentity, parse_report
+
+VERSIONS = {'node':'24.22.2','npm':'11.19.1','python':'3.15.2','dotnet':'10.0.403','docker':'29.9.3','compose':'5.7.0'}
+
+def verify_versions(actual):
+    if actual != VERSIONS:
+        raise ValueError('CI_TOOLCHAIN_MISMATCH')
+
+class JobError(Exception):
+    def __init__(self, token): self.token = token
+
+def stop_process_group(process, grace=1):
+    """Signal only the session created for this exact command, including descendants."""
+    try:
+        os.killpg(process.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        return
+    time.sleep(grace)
+    try:
+        os.killpg(process.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    process.wait()
+
+
+def plan3_failure_diagnostic(stdout, stderr):
+    """Project private child output to fixed enums; never trust it as evidence.
+
+    Diagnostic fields do not affect the job verdict. Ambiguous, malformed and
+    unknown values produce `other`; no detail/command/payload string is copied.
+    """
+    steps=frozenset(('locked-install','generated-check','sdk-consumers','compatibility',
+        'frontend-typecheck','frontend-lint','frontend-test','frontend-build',
+        'frontend-leak-scan','browser-e2e'))
+    reasons=frozenset(('PLAN3_ARGUMENT_INVALID','PLAN3_BROWSER_STEP_FAILED',
+        'PLAN3_COMPATIBILITY_FAILED','PLAN3_FRONTEND_STEP_FAILED','PLAN3_GENERATED_CHECK_FAILED',
+        'PLAN3_INTERRUPTED','PLAN3_LOCKED_INSTALL_FAILED','PLAN3_PREREQUISITE_MISSING',
+        'PLAN3_SDK_CONSUMERS_FAILED','PLAN3_SOURCE_MUTATED','PLAN3_STACK_START_FAILED',
+        'PLAN3_STACK_TEARDOWN_FAILED','PLAN3_STEP_FAILED','PLAN3_TEMP_DIRECTORY_UNAVAILABLE',
+        'PLAN3_TERMINATED','PLAN3_TOOLCHAIN_MISMATCH','PLAN3_WORKSPACE_UNAVAILABLE',
+        'CONTRACT_ARGUMENT_INVALID','CONTRACT_BASE_UNAVAILABLE','CONTRACT_BREAKING',
+        'CONTRACT_DIFF_ERROR','CONTRACT_INPUT_INVALID','CONTRACT_INPUT_REVIEW_REQUIRED',
+        'CONTRACT_POLICY_REVIEW_REQUIRED','CONTRACT_TOOL_ERROR','CONTRACT_TOOL_UNAVAILABLE',
+        'SDK_SURFACE_INCOMPATIBLE','SDK_TOOLCHAIN_REVIEW_REQUIRED',
+        'SECURITY_REVIEW_REQUIRED','SCHEMA_COMPATIBILITY_REVIEW_REQUIRED'))
+    step=reason='other'
+    unknown={'plan3Step':step,'plan3Reason':reason}
+    # Never select a tail: it could hide an earlier conflicting envelope.
+    if len(stdout)>1024*1024 or len(stderr)>1024*1024:
+        return unknown
+    class DuplicateKey(ValueError): pass
+    def unique(pairs):
+        result={}
+        for key,value in pairs:
+            if key in result: raise DuplicateKey()
+            result[key]=value
+        return result
+    # Bound parsing work and decode failures; child diagnostics remain private.
+    output=stdout.decode('utf-8',errors='replace')
+    matches=re.findall(r'^plan3 aggregate: FAIL at ([a-z-]+) \(([^\r\n()]*)\)$',output,re.MULTILINE)
+    if len(matches)==1:
+        observed_step,observed_reason=matches[0]
+        if observed_step in steps:
+            step=observed_step
+            if observed_reason in reasons: reason=observed_reason
+    elif not matches:
+        observed=[]
+        for line in stderr.decode('utf-8',errors='replace').splitlines():
+            try: row=json.loads(line,object_pairs_hook=unique)
+            except DuplicateKey: return unknown
+            except (ValueError,RecursionError): continue
+            value=row.get('reason') if isinstance(row,dict) else None
+            if isinstance(value,str) and value in reasons: observed.append(value)
+        if len(observed)==1: reason=observed[0]
+    return {'plan3Step':step,'plan3Reason':reason}
+
+def dotnet_failure_diagnostic(stdout, stderr):
+    """Project only known integration-test families from private test output."""
+    text = (stdout + b'\n' + stderr).decode('utf-8', errors='replace')
+    text = re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', text)
+    classes = (
+        'ContainerRuntimeTests','FakeOidcIssuerTests','HealthTests','ImageEvidenceSecretTests',
+        'KeycloakContainerTests','LocalBootstrapTests','MigrationTests','OperationalSecurityTests',
+        'ReadinessTests','RolePrivilegeTests','SmokeTests','StructuredLoggingTests',
+    )
+    matches=[]
+    for name in classes:
+        escaped=re.escape(name)
+        if (re.search(rf'Integration\.{escaped}\.[^\r\n]*\[FAIL\]',text)
+                or re.search(rf'Failed Integration\.{escaped}\.',text)):
+            matches.append(re.sub(r'(?<!^)(?=[A-Z])','_',name).upper()+'_FAILED')
+    if 'Container operation failed: build exit 1' in text:
+        matches.append('CONTAINER_IMAGE_BUILD_FAILED')
+    process_failures = {
+        'TEST_RUN_ABORTED': ('Test Run Aborted','test run was aborted'),
+        'TESTHOST_FAILED': ('testhost','Test host process'),
+        'MSBUILD_FAILED': (' error MSB','MSBUILD : error'),
+        'DOCKER_UNAVAILABLE': ('Cannot connect to the Docker daemon','docker: not found'),
+        'PERMISSION_FAILED': ('Permission denied','UnauthorizedAccessException'),
+        'DISK_EXHAUSTED': ('No space left on device',),
+        'OUT_OF_MEMORY': ('Out of memory','OutOfMemoryException'),
+        'NO_TESTS_MATCHED': ('No test matches the given testcase filter',),
+    }
+    for token, markers in process_failures.items():
+        if any(marker in text for marker in markers): matches.append(token)
+    return matches or ['OTHER_TESTS_FAILED']
+
+def dotnet_failure_methods(stdout, stderr):
+    """Return only fixed, source-reviewed method identifiers marked FAIL by xUnit."""
+    text=re.sub(r'\x1b\[[0-9;]*[A-Za-z]','',(stdout+b'\n'+stderr).decode('utf-8',errors='replace'))
+    allowed=frozenset((
+        'Nonlocal_hostname_fails_before_startup_without_secret_output',
+        'Idp_database_initializer_creates_nonprivileged_owner',
+        'Cold_import_has_two_pkce_clients_and_canonical_discovery',
+        'Warm_start_preserves_realm_and_detects_drift',
+        'Host_port_override_changes_discovery_consistently',
+        'Api_uses_only_application_secret_as_nonroot',
+        'Unreadable_or_missing_secret_fails_closed',
+        'Arguments_cannot_override_file_configuration',
+        'Published_images_contain_no_sdk_source_or_fixture',
+        'Image_config_history_and_build_context_exclude_sentinels',
+        'Postgres_missing_file_has_safe_diagnostic',
+        'Root_or_invalid_uid_cannot_build_runtime',
+        'Postgres_reads_private_file_then_uses_canonical_privilege_drop',
+        'Keycloak_private_files_and_data_work_as_nonroot_with_management_health',
+    ))
+    observed=[]
+    for line in text.splitlines():
+        if '[FAIL]' not in line: continue
+        found=re.search(r'Integration\.(?:ContainerRuntimeTests|KeycloakContainerTests)\.([A-Za-z0-9_]+)',line)
+        if found and found.group(1) in allowed and found.group(1) not in observed: observed.append(found.group(1))
+    return observed or ['OTHER']
+
+
+def execute(command, timeout=3300, env=None):
+    try:
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                   start_new_session=True, env=env)
+    except OSError:
+        raise JobError('CI_PREREQUISITE_MISSING') from None
+    try:
+        stdout, stderr = process.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        stop_process_group(process)
+        process.communicate()
+        raise JobError('CI_COMMAND_TIMEOUT') from None
+    except BaseException:
+        stop_process_group(process)
+        process.communicate()
+        raise
+    if process.returncode:
+        # Fixed command families only: never echo argv, paths or child output.
+        stages={('dotnet','restore'):'dotnet-restore',('dotnet','build'):'dotnet-build',
+                ('dotnet','test'):'dotnet-test',('npm','ci'):'npm-install',
+                ('docker','pull'):'image-pull',('bash','scripts/check-plan3.sh'):'plan3',
+                (sys.executable,'-m'):'python-suite',('node','-e'):'browser-launch'}
+        stage=stages.get(tuple(command[:2]),'other')
+        diagnostic={'reasonToken':'CI_COMMAND_FAILED','commandStage':stage}
+        if stage=='plan3': diagnostic.update(plan3_failure_diagnostic(stdout,stderr))
+        elif stage=='dotnet-test':
+            diagnostic['dotnetTests'] = dotnet_failure_diagnostic(stdout,stderr)
+            diagnostic['dotnetMethods'] = dotnet_failure_methods(stdout,stderr)
+        print(json.dumps(diagnostic))
+        raise JobError('CI_COMMAND_FAILED')
+    return stdout.decode().strip()
+
+
+def native_suite(command, suites, name, format, output, env=None):
+    try:
+        execute(command, env=env)
+    finally:
+        if output.is_file():
+            payload = output.read_text()
+            suites.append({'name':name,'format':format,
+                           'report':payload if format == 'trx' else json.loads(payload)})
+
+
+def cleanup_resources(owner):
+    """Use fresh label inspection; never infer ownership from resource names."""
+    if len(owner) != 32 or any(char not in '0123456789abcdef' for char in owner):
+        raise JobError('CI_RESOURCE_OWNERSHIP_INVALID')
+    for kind in ('container','network','volume'):
+        listing = ['docker',kind,'ls','-q']
+        if kind == 'container':listing.append('-a')
+        ids = execute(listing+['--filter','label=io.crm-centric.ci-owner='+owner], timeout=30).splitlines()
+        for ident in ids:
+            objects = json.loads(execute(['docker',kind,'inspect',ident],timeout=30))
+            if len(objects) != 1:
+                raise JobError('CI_RESOURCE_OWNERSHIP_INVALID')
+            resource = objects[0]
+            labels = resource.get('Config',{}).get('Labels',{}) if kind == 'container' else resource.get('Labels',{})
+            if not labels or labels.get('io.crm-centric.ci-owner') != owner:
+                continue
+            command = ['docker',kind,'rm']
+            if kind == 'container':command.append('-f')
+            execute(command+[ident], timeout=60)
+
+
+@contextmanager
+def job_resources():
+    # Each invocation has a fresh owner, even when run/attempt identities repeat.
+    previous = os.environ.get('CI_RESOURCE_OWNER')
+    owner = uuid.uuid4().hex
+    os.environ['CI_RESOURCE_OWNER'] = owner
+    try:
+        yield
+    finally:
+        try:
+            cleanup_resources(owner)
+        finally:
+            if previous is None:os.environ.pop('CI_RESOURCE_OWNER',None)
+            else:os.environ['CI_RESOURCE_OWNER'] = previous
+
+
+@contextmanager
+def execution_mode(mode, job, evidence):
+    """MVP executes real fixtures without invoking deferred scanner hooks."""
+    if mode not in ('mvp','hardening'):
+        raise JobError('CI_JOB_INPUT_INVALID')
+    keys=('CI_IMAGE_JOB','CI_IMAGE_EVIDENCE')
+    previous={key:os.environ.get(key) for key in keys}
+    try:
+        for key in keys:os.environ.pop(key,None)
+        if mode=='hardening' and job in ('backend','compose','web-browser'):
+            os.environ.update(CI_IMAGE_JOB=job,CI_IMAGE_EVIDENCE=str(evidence))
+        yield
+    finally:
+        for key,value in previous.items():
+            if value is None:os.environ.pop(key,None)
+            else:os.environ[key]=value
+
+
+def tool_versions():
+    return {'node':execute(['node','--version']).lstrip('v'),
+            'npm':execute(['npm','--version']), 'python':platform.python_version(),
+            'dotnet':execute(['dotnet','--version']),
+            'docker':execute(['docker','version','--format','{{.Server.Version}}']),
+            'compose':execute(['docker','compose','version','--short'])}
+
+def prepare_browser():
+    execute(['npm','exec','--workspace','apps/crm-web','--','playwright','install','chromium'])
+    # A real launch verifies native OS libraries and the locked browser binary.
+    execute(['node','-e', "(async () => { const browser = await require('@playwright/test').chromium.launch(); await browser.close(); })().catch(() => process.exit(1))"],timeout=60)
+
+
+def plan3_commands(identity, mode="hardening"):
+    return [
+        ['bash','tests/Plan3/aggregate-reporting.sh','--base-ref',identity.base_sha],
+        ['bash','tests/Plan3/ci-environment.sh'],
+        ['bash','tests/Plan3/clean-export.sh','--sha',identity.candidate_sha,
+         '--base-ref',identity.base_sha,'--with-browser']+(['--mvp-reviewed-policy'] if mode=='mvp' else []),
+        ['bash','tests/Plan3/negative-cases.sh','--base-ref',identity.base_sha],
+        ['bash','tests/Plan3/scratch-cleanup.sh'],
+    ]
+
+
+def atomic_write(output, report):
+    """Only sanitized reports may reach the exact artifact path, atomically."""
+    output.parent.mkdir(parents=True,exist_ok=True)
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(mode='w', dir=output.parent,
+                prefix='.'+output.stem+'-', suffix='.tmp', delete=False) as stream:
+            temporary = Path(stream.name)
+            json.dump(report,stream)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary,output)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
+
+def publish_report(report, output, identity, mode="hardening"):
+    from scripts.ci.summary import parse_cases
+    # The validation input contains native diagnostic payloads. Keep it private
+    # and outside the always-uploaded artifact tree even on cancellation.
+    with tempfile.TemporaryDirectory(prefix='ci-private-validation-') as directory:
+        private = Path(directory)/'native.json'
+        private.write_text(json.dumps(report))
+        parsed = parse_report('normalized',private,identity,mode=mode)
+    for suite in report['suites']:
+        if 'format' in suite:
+            name = suite['name']
+            cases = parse_cases(suite['format'],suite['report'])
+            suite.clear(); suite.update(name=name, tests=cases)
+    report.update(passed=parsed.passed,failed=parsed.failed,skipped=parsed.skipped,total=parsed.total)
+    atomic_write(output,report)
+    return parsed
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('job', choices=['backend','compose','contracts-sdk','web-browser'])
+    parser.add_argument('--mode', choices=['mvp','hardening'], default='hardening')
+    parser.add_argument('--revision', required=True, type=Path)
+    parser.add_argument('--output', required=True, type=Path)
+    args = parser.parse_args()
+    def cancelled(signum, frame):
+        raise JobError('CI_COMMAND_CANCELLED')
+    signal.signal(signal.SIGTERM, cancelled)
+    signal.signal(signal.SIGINT, cancelled)
+    started = time.monotonic()
+    correlation = str(uuid.uuid4())
+    report = {'job':args.job,'status':'failure','command_id':args.job,
+              'suites':[],'tools':{},'artifacts':[], 'correlation_id':correlation}
+    token = 'CI_JOB_FAILED'
+    try:
+        revision = json.loads(args.revision.read_text())
+        identity = RunIdentity(os.environ['GITHUB_RUN_ID'], os.environ['GITHUB_RUN_ATTEMPT'],
+                               revision['candidate_sha'], revision['base_sha'], revision['merge_sha'])
+        report['identity'] = vars(identity)
+        if execute(['git','rev-parse','HEAD']) != identity.candidate_sha:
+            raise JobError('CI_CANDIDATE_UNAVAILABLE')
+        versions = tool_versions()
+        try:
+            verify_versions(versions)
+        except ValueError:
+            raise JobError('CI_TOOLCHAIN_MISMATCH') from None
+        report['tools'] = {**versions, 'runner_image':os.environ.get('ImageOS','local'),
+                           'runner_version':os.environ.get('ImageVersion','local')}
+        if args.mode=='mvp' and args.job in ('backend','compose','web-browser'):
+            report['image_hardening']={'status':'not-evaluated'}
+        with tempfile.TemporaryDirectory(prefix='ci-job-') as directory, job_resources(), execution_mode(args.mode,args.job,Path(directory)/'image-evidence'):
+            scratch = Path(directory)
+            def py_suite(name, directory):
+                output = scratch / (name+'.json')
+                try:
+                    execute([sys.executable,'-m','scripts.ci.unittest_report',directory,str(output)])
+                finally:
+                    if output.is_file():
+                        report['suites'].append({'name':name,'tests':json.loads(output.read_text())})
+            if args.job in ('backend','compose'):
+                execute(['dotnet','restore','CrmPlatform.sln','--locked-mode'])
+                execute(['dotnet','build','CrmPlatform.sln','-c','Release','--no-restore'])
+                category = 'Category=Compose' if args.job == 'compose' else 'Category!=Compose'
+                native_suite(['dotnet','test','tests/Integration/Integration.csproj','-c','Release',
+                         '--no-build','--no-restore','--filter',category,
+                         '--logger','trx;LogFileName=results.trx','--logger','console;verbosity=normal',
+                         '--results-directory',str(scratch)],
+                             report['suites'],'compose' if args.job == 'compose' else 'non-compose',
+                             'trx',scratch/'results.trx')
+                if args.job == 'backend': py_suite('local','tests/Local')
+            else:
+                execute(['npm','ci','--ignore-scripts','--no-audit','--no-fund'])
+                image = json.loads(Path('tools/contracts/toolchain.json').read_text())['dotnetImage']
+                execute(['docker','pull',image])
+                prepare_browser()
+                if args.job == 'contracts-sdk':
+                    py_suite('contract','tests/Contract')
+                    execute([sys.executable,'scripts/contracts/check.py'])
+                    execute(['bash','tests/ClientConsumers/run.sh'])
+                    execute([sys.executable,'scripts/contracts/compatibility.py','--base-ref',identity.base_sha]+(['--mvp-reviewed-policy'] if args.mode=='mvp' else []))
+                    for command in plan3_commands(identity,args.mode):
+                        execute(command)
+                else:
+                    vitest = scratch/'vitest.json'; browser = scratch/'browser.json'
+                    env = {**os.environ,'PLAYWRIGHT_JSON_OUTPUT_NAME':str(browser),
+                           'PLAYWRIGHT_HTML_OPEN':'never'}
+                    # Plan 3 owns real API stack startup, readiness and teardown.
+                    # Reporter args are supplied through the workspace-local npm config below.
+                    execute(['bash','scripts/check-plan3.sh','--base-ref',identity.base_sha,'--with-browser']+(['--mvp-reviewed-policy'] if args.mode=='mvp' else []),env=env)
+                    execute(['npm','exec','--workspace','apps/crm-web','--','vitest','run',
+                             '--reporter=json','--outputFile='+str(vitest)])
+                    report['suites'].extend([
+                        {'name':'vitest','format':'vitest','report':json.loads(vitest.read_text())},
+                        {'name':'browser','format':'playwright','report':json.loads(browser.read_text())}])
+            if args.mode=='hardening' and args.job in ('backend','compose','web-browser'):
+                from scripts.ci.image_identity import verify_job_evidence
+                from scripts.ci.scan import ScanError
+                records = [json.loads(p.read_text()) for p in (scratch/'image-evidence').glob('*.json')]
+                try:
+                    verify_job_evidence(records,args.job,identity.run_id)
+                except ScanError:
+                    raise JobError('CI_IMAGE_EVIDENCE_INCOMPLETE') from None
+                report['image_evidence'] = records
+        report['status'] = 'success'
+        report['elapsed_seconds'] = time.monotonic()-started
+        publish_report(report,args.output,identity,mode=args.mode)
+        token = 'CI_JOB_COMPLETE'
+    except (JobError, ReportError, ValueError, KeyError, OSError) as failure:
+        report['status'] = 'failure'
+        token = failure.token if isinstance(failure,JobError) else (failure.reason_token if isinstance(failure,ReportError) else 'CI_JOB_INPUT_INVALID')
+    # Retain safe discovered counts on failure; missing suites still fail aggregation.
+    for suite in report['suites']:
+        if 'format' in suite:
+            from scripts.ci.summary import parse_cases
+            name = suite['name']
+            try:
+                cases = parse_cases(suite['format'],suite['report'])
+            except ReportError:
+                cases = []
+            suite.clear(); suite.update(name=name,tests=cases)
+    cases = [case for suite in report['suites'] for case in suite['tests']]
+    report.update(passed=sum(c['outcome']=='passed' for c in cases),
+                  failed=sum(c['outcome']=='failed' for c in cases),
+                  skipped=sum(c['outcome']=='skipped' for c in cases), total=len(cases))
+    report['reason_token'] = token
+    report['elapsed_seconds'] = time.monotonic()-started
+    atomic_write(args.output,report)
+    print(json.dumps({'job':args.job,'status':report['status'],'reasonToken':token,'correlationId':correlation}))
+    return 0 if report['status'] == 'success' else 1
+
+if __name__ == '__main__':
+    sys.exit(main())
