@@ -183,7 +183,7 @@
         "Integration.LocalBootstrapTests.Warm_bootstrap_rejects_relation_or_managed_schema_ownership_drift_without_repair(drift: \"platform_schema_owner\")",
         "Integration.LocalBootstrapTests.Warm_bootstrap_rejects_relation_or_managed_schema_ownership_drift_without_repair(drift: \"platform_history_owner\")",
         "Integration.LocalBootstrapTests.Warm_bootstrap_rejects_relation_or_managed_schema_ownership_drift_without_repair(drift: \"platform_relation_owner\")",
-        "Integration.MigrationTests.Up_creates_only_technical_schema_and_history",
+        "Integration.MigrationTests.Up_creates_platform_schema_and_history",
         "Integration.MigrationTests.Up_twice_is_idempotent",
         "Integration.MigrationTests.Down_then_up_preserves_unowned_objects",
         "Integration.MigrationTests.Ddl_failure_never_reports_success",

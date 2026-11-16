@@ -164,3 +164,15 @@ class SummaryTests(unittest.TestCase):
             parse_report('normalized', Path('/missing'), IDENTITY)
         self.assertNotIn('/missing', str(error.exception))
         with self.assertRaises(ReportError): self.parse({'secret':'SENTINEL'})
+
+class MigrationCoveragePolicyTests(unittest.TestCase):
+    def test_policy_requires_current_migration_schema_test(self):
+        root = Path(__file__).resolve().parents[2]
+        policy = json.loads((root / 'tools/ci/coverage.json').read_text())
+        required = policy['suites']['non-compose']['required']
+        current = 'Integration.MigrationTests.Up_creates_platform_schema_and_history'
+        previous = 'Integration.MigrationTests.Up_creates_only_technical_schema_and_history'
+        self.assertIn(current, required)
+        self.assertNotIn(previous, required)
+        self.assertIn('Task Up_creates_platform_schema_and_history()',
+                      (root / 'tests/Integration/MigrationTests.cs').read_text())
