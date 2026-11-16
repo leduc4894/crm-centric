@@ -129,6 +129,23 @@ public sealed class TenantIsolationTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Forbidden, await Request(b));
     }
 
+    private async Task WaitForLockAsync(int blockedPid, int blockerPid, Task pending)
+    {
+        await using var observer = new NpgsqlConnection(db.AdminConnectionString);
+        await observer.OpenAsync();
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (DateTime.UtcNow < deadline)
+        {
+            await using var cmd = new NpgsqlCommand("SELECT @blocker = ANY(pg_blocking_pids(@blocked))", observer);
+            cmd.Parameters.AddWithValue("blocker", blockerPid);
+            cmd.Parameters.AddWithValue("blocked", blockedPid);
+            if (await cmd.ExecuteScalarAsync() is true) return;
+            Assert.False(pending.IsCompleted, "Operation completed without waiting for the expected PostgreSQL lock.");
+            await Task.Delay(50);
+        }
+        throw new TimeoutException("PostgreSQL did not report the expected blocking relationship.");
+    }
+
     [Fact]
     public async Task Cancellation_while_waiting_for_membership_lock_cleans_connection()
     {
@@ -137,8 +154,15 @@ public sealed class TenantIsolationTests : IAsyncLifetime
         await using var locked = new NpgsqlCommand("UPDATE platform.memberships SET version=version+1 WHERE tenant_id=@id", migration, lockTx);
         locked.Parameters.AddWithValue("id", a); await locked.ExecuteNonQueryAsync();
         await using var app = App(); await app.OpenAsync();
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => VerifiedTenantTransaction.BeginAsync(app, "issuer", "alice", a, cts.Token));
+        using var cts = new CancellationTokenSource();
+        var authorization = VerifiedTenantTransaction.BeginAsync(app, "issuer", "alice", a, cts.Token);
+        try
+        {
+            await WaitForLockAsync(app.ProcessID, migration.ProcessID, authorization);
+            cts.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => authorization);
+        }
+        finally { cts.Cancel(); }
         await lockTx.RollbackAsync();
         await app.CloseAsync(); await app.OpenAsync(); await AssertClean(app, a);
     }
@@ -152,7 +176,7 @@ public sealed class TenantIsolationTests : IAsyncLifetime
         await using var revoke = new NpgsqlCommand("UPDATE platform.memberships SET status='inactive' WHERE tenant_id=@id AND subject='alice'", admin);
         revoke.Parameters.AddWithValue("id", a);
         var pending = revoke.ExecuteNonQueryAsync();
-        await Task.Delay(300); Assert.False(pending.IsCompleted);
+        await WaitForLockAsync(admin.ProcessID, app.ProcessID, pending);
         await tx.CommitAsync(); Assert.Equal(1, await pending.WaitAsync(TimeSpan.FromSeconds(10)));
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => VerifiedTenantTransaction.BeginAsync(app, "issuer", "alice", a, CancellationToken.None));
         await AssertClean(app, a);
