@@ -46,10 +46,10 @@ public sealed class LocalStackSecretTests
         await Audit(stack, sentinels, "LOCAL_SECRET_STATE_MISMATCH", "LOCAL_BOOTSTRAP_FAILED");
         await stack.Sql("ALTER ROLE crm_app NOCREATEDB"); ComposeFixture.Success(await stack.Command("up"));
 
-        await stack.Sql("DELETE FROM platform.\"__EFMigrationsHistory\"; ALTER TABLE platform.\"__EFMigrationsHistory\" ADD CONSTRAINT fixture_block_history CHECK(false) NOT VALID");
+        await stack.Sql("CREATE TABLE public.fixture_migration_backup AS TABLE platform.\"__EFMigrationsHistory\"; DELETE FROM platform.\"__EFMigrationsHistory\"; ALTER TABLE platform.\"__EFMigrationsHistory\" ADD CONSTRAINT fixture_block_history CHECK(false) NOT VALID");
         ComposeFixture.Failure(await stack.Command("up"), "LOCAL_MIGRATION_FAILED");
         await Audit(stack, sentinels, "DATABASE_MIGRATION_FAILED", "LOCAL_MIGRATION_FAILED");
-        await stack.Sql("ALTER TABLE platform.\"__EFMigrationsHistory\" DROP CONSTRAINT fixture_block_history"); ComposeFixture.Success(await stack.Command("up"));
+        await stack.Sql("ALTER TABLE platform.\"__EFMigrationsHistory\" DROP CONSTRAINT fixture_block_history; INSERT INTO platform.\"__EFMigrationsHistory\" SELECT * FROM public.fixture_migration_backup; DROP TABLE public.fixture_migration_backup"); ComposeFixture.Success(await stack.Command("up"));
 
         var idpPassword = Path.Combine(stack.State, "idp_db_password");
         File.SetUnixFileMode(idpPassword, UnixFileMode.None);

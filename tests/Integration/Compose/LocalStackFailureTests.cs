@@ -68,11 +68,11 @@ public sealed class LocalStackFailureTests
         var oldMigration = await stack.Container("crm-migrate");
         // The current migration must actually try to insert its history row and
         // fail at PostgreSQL, rather than run a deliberately broken image.
-        await stack.Sql("DELETE FROM platform.\"__EFMigrationsHistory\"; ALTER TABLE platform.\"__EFMigrationsHistory\" ADD CONSTRAINT fixture_block_history CHECK (false) NOT VALID");
+        await stack.Sql("CREATE TABLE public.fixture_migration_backup AS TABLE platform.\"__EFMigrationsHistory\"; DELETE FROM platform.\"__EFMigrationsHistory\"; ALTER TABLE platform.\"__EFMigrationsHistory\" ADD CONSTRAINT fixture_block_history CHECK (false) NOT VALID");
         ComposeFixture.Failure(await stack.Command("up"), "LOCAL_MIGRATION_FAILED");
         Assert.NotEqual(oldMigration, await stack.Container("crm-migrate")); await NoApi(stack);
         Assert.Equal("0", await stack.Sql("SELECT count(*) FROM platform.\"__EFMigrationsHistory\""));
-        await stack.Sql("ALTER TABLE platform.\"__EFMigrationsHistory\" DROP CONSTRAINT fixture_block_history");
+        await stack.Sql("ALTER TABLE platform.\"__EFMigrationsHistory\" DROP CONSTRAINT fixture_block_history; INSERT INTO platform.\"__EFMigrationsHistory\" SELECT * FROM public.fixture_migration_backup; DROP TABLE public.fixture_migration_backup");
         ComposeFixture.Success(await stack.Command("up")); await stack.Ready();
         Assert.Equal("62", await stack.Sql("SELECT value FROM public.fixture_sentinel"));
         Unchanged(stack, secrets);
