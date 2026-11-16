@@ -17,7 +17,7 @@ PROJECT='tools/contracts/surface/dotnet/Surface.csproj'
 SDK='10.0.403'
 PROFILE={'global.json': 'bd2f7421218da3954279a68a63015aeabda5b7122ec8b47a2f7585b7e284a98d',
  'Directory.Build.props': '2e049cd5d207ac34dcdd6caeee41ca3fd67c65a550c551387142c01880276763',
- 'Directory.Packages.props': '2e2a436556f6cc786eeff91afaf94aadd7e6f6b09b7fa6dd2783991fd3bd2448',
+ 'Directory.Packages.props': '32f8f72efff7ad31344accb63840397725cb9fb8f8b091beac219b86b37d23d6',
  'tools/contracts/surface/dotnet/Surface.csproj': '4bed4f2743d82801c717756ab03c3f77e8fe02ee99055cb5d9fdbac66ea7252f',
  'tools/contracts/surface/dotnet/packages.lock.json': '03eeadc5ef377c17f787ab65f41fb4c8a9c936bb7f7f4171111fdeec8a81cb46'}
 
