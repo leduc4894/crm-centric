@@ -56,6 +56,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapOperationalEndpoints();
+app.MapTenantEndpoints();
 app.Run();
 return 0;
 
