@@ -54,7 +54,8 @@ public static class TenantEndpoints
             var properties = document.RootElement.EnumerateObject().ToArray();
             if (properties.Length != 1 || properties[0].Name != "name" || properties[0].Value.ValueKind != JsonValueKind.String)
                 throw new JsonException();
-            name = properties[0].Value.GetString();
+            try { name = properties[0].Value.GetString(); }
+            catch (InvalidOperationException) { throw new JsonException("Invalid Unicode string."); }
             if (string.IsNullOrWhiteSpace(name) || name.EnumerateRunes().Count() > 200 || name.Contains('\0'))
                 throw new JsonException();
         }
@@ -67,6 +68,11 @@ public static class TenantEndpoints
         var id = Guid.NewGuid();
         var issuer = context.User.FindFirst("iss")!.Value;
         var subject = context.User.FindFirst("sub")!.Value;
+        if (subject.EnumerateRunes().Count() > 256)
+        {
+            await OperationalErrors.WriteProblemAsync(context, 401, "AUTHENTICATION_REQUIRED", context.RequestAborted);
+            return;
+        }
         try
         {
             await using var connection = new NpgsqlConnection(DatabaseOptions.Parse(configuration.GetConnectionString("Platform")).ConnectionString);

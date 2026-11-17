@@ -7,10 +7,11 @@ using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using Platform.Infrastructure.Persistence;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace Integration;
 
-public sealed class TenantProvisioningTests : IAsyncLifetime
+public sealed class TenantProvisioningTests(ITestOutputHelper output) : IAsyncLifetime
 {
     private readonly PostgresFixture db = new();
     private FakeOidcIssuer issuer = null!;
@@ -45,7 +46,9 @@ public sealed class TenantProvisioningTests : IAsyncLifetime
     {
         using var response = await Post("{\"name\":\"Acme\"}");
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var responseJson = await response.Content.ReadAsStringAsync();
+        output.WriteLine("TENANT_RESPONSE_JSON:" + responseJson);
+        using var json = JsonDocument.Parse(responseJson);
         var root = json.RootElement;
         Assert.Equal(new[] { "id", "name", "status" }, root.EnumerateObject().Select(x => x.Name).Order().ToArray());
         var id = root.GetProperty("id").GetGuid();
@@ -131,6 +134,38 @@ public sealed class TenantProvisioningTests : IAsyncLifetime
         await db.Container.StopAsync();
         using var response = await Post("{\"name\":\"Acme\"}");
         await AssertProblem(response, HttpStatusCode.ServiceUnavailable, "IDENTITY_STORE_UNAVAILABLE");
+    }
+
+    [Fact]
+    public async Task Malformed_unicode_name_returns_problem_and_does_not_mutate()
+    {
+        using var response = await Post("{\"name\":\"\\uD800\"}");
+        await AssertProblem(response, HttpStatusCode.BadRequest, "REQUEST_INVALID");
+        await AssertCounts(0, 0, 0);
+    }
+    [Fact]
+    public async Task Subject_length_above_contract_limit_cannot_create_owner()
+    {
+        var token = issuer.IssueToken(new() { Subject = new string('s', 257), Scope = "platform.tenants.create" });
+        using var response = await Post("{\"name\":\"Acme\"}", token: token);
+        await AssertProblem(response, HttpStatusCode.Unauthorized, "AUTHENTICATION_REQUIRED");
+        await AssertCounts(0, 0, 0);
+    }
+    [Fact]
+    public async Task Subject_at_contract_limit_is_allowed()
+    {
+        var token = issuer.IssueToken(new() { Subject = new string('s', 256), Scope = "platform.tenants.create" });
+        using var response = await Post("{\"name\":\"Acme\"}", token: token);
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        await AssertCounts(1, 1, 1);
+    }
+    [Fact]
+    public async Task Signed_owner_role_without_provisioning_scope_does_not_grant_access()
+    {
+        var token = issuer.IssueToken(new() { Subject = "actor", Role = "owner" });
+        using var response = await Post("{\"name\":\"Acme\"}", token: token);
+        await AssertProblem(response, HttpStatusCode.Forbidden, "INSUFFICIENT_SCOPE");
+        await AssertCounts(0, 0, 0);
     }
 
 }
