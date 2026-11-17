@@ -179,5 +179,39 @@ also constrains membership SELECT by transaction-local tenant context. The narro
 `SECURITY DEFINER` bootstrap functions trust the issuer/subject passed by the API:
 a holder able to execute arbitrary SQL with the app credential can supply another
 principal, so neither RLS nor the functions protect against that credential being
-compromised. The functions disclose only the constrained lookup results and perform
-no writes; tenant transaction authorization takes row locks through completion.
+compromised. The foundation lookup functions disclose only constrained results;
+tenant transaction authorization takes row locks through completion. The later
+tenant lifecycle migration also grants the API role narrowly scoped write functions,
+so this credential must be treated as trusted server authority, not as proof of the
+identity supplied to SQL.
+
+## Controlled tenant provisioning
+
+`POST /api/v1/tenants` requires a valid CRM-audience access token whose single,
+well-formed, space-separated OAuth `scope` claim contains the exact case-sensitive
+value `platform.tenants.create`. A tenant header, membership or role claim does not
+grant this scope. The API generates the tenant ID and uses the validated token's
+issuer and subject as the initial active owner. Tenant, owner and redacted audit
+entry are written in one database transaction; an audit error rolls the create back.
+
+The IdP operator is responsible for restricting issuance of that scope to approved
+platform operators and appropriate clients. This is a trust assumption: the API
+validates the token and exact scope but cannot independently verify the IdP's
+assignment process. For initial bootstrap, an authorized IdP administrator must
+establish and audit a controlled operator identity and client, configure the CRM
+audience and narrowly assign this scope through the provider's managed process,
+then verify both allowed issuance and denial to unapproved identities in the target
+environment. The approved operator can then authenticate and invoke the endpoint;
+there is no unauthenticated bootstrap API. Revoke the assignment when no longer
+needed, and protect and review provider administration and issuance logs. Do not
+put access tokens or credentials in commands, source, tickets or logs. The local
+realm metadata does not establish this issuance policy or an end-user login.
+
+The API database credential can execute lifecycle security-definer functions with
+caller-selected arguments. PostgreSQL restrictions and RLS constrain access but do
+not authenticate a claimed issuer or subject supplied by a holder of that
+credential. Keep the credential exclusively with the trusted API, restrict SQL
+access, rotate on compromise and investigate any potentially affected tenant.
+Membership-management authorization is not yet complete: membership role alone is
+not evidence distinguishing a staff identity from a service identity. A verified
+identity binding and its bootstrap need resolution before enabling those endpoints.
