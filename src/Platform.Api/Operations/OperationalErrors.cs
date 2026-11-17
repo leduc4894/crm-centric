@@ -16,7 +16,7 @@ public static class OperationalErrors
         return context.Response.WriteAsJsonAsync(new
         {
             type = "urn:crm:problem:" + reasonToken.ToLowerInvariant().Replace('_', '-'),
-            title = status switch { 400 => "Invalid request", 401 => "Authentication required", 500 => "Internal server error", _ => "Dependency unavailable" },
+            title = status switch { 400 => "Invalid request", 401 => "Authentication required", 403 => "Forbidden", 413 => "Request too large", 415 => "Unsupported media type", 500 => "Internal server error", _ => "Dependency unavailable" },
             status,
             reasonToken,
             correlationId = context.TraceIdentifier

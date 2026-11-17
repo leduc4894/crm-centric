@@ -19,6 +19,7 @@ public sealed record FakeTokenOptions
     public bool OmitIssuer { get; init; }
     public string Audience { get; init; } = "crm-api";
     public string Subject { get; init; } = "fixture-user";
+    public string? Scope { get; init; }
     public bool OmitSubject { get; init; }
     public bool OmitExpiration { get; init; }
     public DateTimeOffset? IssuedAt { get; init; }
@@ -96,11 +97,14 @@ public sealed class FakeOidcIssuer : IAsyncDisposable
         {
             ObjectDisposedException.ThrowIf(disposed, this);
             var now = DateTimeOffset.UtcNow;
+            var claims = new Dictionary<string, object>();
+            if (!options.OmitSubject) claims["sub"] = options.Subject;
+            if (options.Scope is not null) claims["scope"] = options.Scope;
             return tokenHandler.CreateToken(new SecurityTokenDescriptor
             {
                 Issuer = options.OmitIssuer ? null : options.IssuerOverride ?? Issuer.AbsoluteUri,
                 Audience = options.Audience,
-                Claims = options.OmitSubject ? [] : new Dictionary<string, object> { ["sub"] = options.Subject },
+                Claims = claims,
                 IssuedAt = (options.IssuedAt ?? now.AddMinutes(-1)).UtcDateTime,
                 NotBefore = (options.NotBefore ?? now.AddMinutes(-1)).UtcDateTime,
                 Expires = options.OmitExpiration ? null : (options.Expires ?? now.AddMinutes(5)).UtcDateTime,
