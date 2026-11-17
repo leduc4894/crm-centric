@@ -208,4 +208,72 @@ public sealed class TenantLifecycleSchemaTests : IAsyncLifetime
         await Assert.ThrowsAsync<InvalidOperationException>(() => DatabaseRoleGrants.ValidateAsync(migration, db.ApplicationRole, CancellationToken.None));
     }
 
+    [Fact]
+    public async Task Duplicate_tenant_id_leaves_one_tenant_owner_and_audit_entry()
+    {
+        await using var migration = new NpgsqlConnection(db.MigrationConnectionString);
+        await migration.OpenAsync();
+        await using var context = new PlatformDbContext(new DbContextOptionsBuilder<PlatformDbContext>()
+            .UseNpgsql(migration, p => p.MigrationsHistoryTable(PlatformDbContext.HistoryTable, PlatformDbContext.HistorySchema)).Options);
+        await context.Database.MigrateAsync();
+        await DatabaseRoleGrants.ApplyAsync(migration, db.ApplicationRole, CancellationToken.None);
+        await using var app = new NpgsqlConnection(db.ApplicationConnectionString);
+        await app.OpenAsync();
+        var tenant = Guid.NewGuid();
+        await using var create = new NpgsqlCommand("SELECT platform.create_tenant_with_owner(@id,'Example','issuer','subject','correlation')", app);
+        create.Parameters.AddWithValue("id", tenant);
+        await create.ExecuteNonQueryAsync();
+        var error = await Assert.ThrowsAsync<PostgresException>(() => create.ExecuteNonQueryAsync());
+        Assert.Equal(PostgresErrorCodes.UniqueViolation, error.SqlState);
+        await AssertCountsAsync(migration, tenant, 1, 1, 1);
+    }
+
+    [Fact]
+    public async Task Terminating_uncommitted_create_rolls_back_tenant_owner_and_audit()
+    {
+        await using var migration = new NpgsqlConnection(db.MigrationConnectionString);
+        await migration.OpenAsync();
+        await using var context = new PlatformDbContext(new DbContextOptionsBuilder<PlatformDbContext>()
+            .UseNpgsql(migration, p => p.MigrationsHistoryTable(PlatformDbContext.HistoryTable, PlatformDbContext.HistorySchema)).Options);
+        await context.Database.MigrateAsync();
+        await DatabaseRoleGrants.ApplyAsync(migration, db.ApplicationRole, CancellationToken.None);
+        await using var app = new NpgsqlConnection(db.ApplicationConnectionString);
+        await app.OpenAsync();
+        var tenant = Guid.NewGuid();
+        await using var transaction = await app.BeginTransactionAsync();
+        await using (var create = new NpgsqlCommand("SELECT platform.create_tenant_with_owner(@id,'Example','issuer','subject','correlation')", app, transaction))
+        {
+            create.Parameters.AddWithValue("id", tenant);
+            await create.ExecuteNonQueryAsync();
+        }
+        await using var admin = new NpgsqlConnection(db.AdminConnectionString);
+        await admin.OpenAsync();
+        await using (var terminate = new NpgsqlCommand("SELECT pg_terminate_backend(@pid)", admin))
+        {
+            terminate.Parameters.AddWithValue("pid", app.ProcessID);
+            Assert.Equal(true, await terminate.ExecuteScalarAsync());
+        }
+        await Assert.ThrowsAnyAsync<NpgsqlException>(async () =>
+        {
+            await using var probe = new NpgsqlCommand("SELECT 1", app, transaction);
+            await probe.ExecuteNonQueryAsync();
+        });
+        await AssertCountsAsync(migration, tenant, 0, 0, 0);
+    }
+
+    private static async Task AssertCountsAsync(NpgsqlConnection connection, Guid tenant, long tenants, long owners, long entries)
+    {
+        await using var verify = new NpgsqlCommand("""
+            SELECT (SELECT count(*) FROM platform.tenants WHERE id=@tenant),
+                   (SELECT count(*) FROM platform.memberships WHERE tenant_id=@tenant AND role='owner'),
+                   (SELECT count(*) FROM audit.entries WHERE tenant_id=@tenant)
+            """, connection);
+        verify.Parameters.AddWithValue("tenant", tenant);
+        await using var reader = await verify.ExecuteReaderAsync();
+        Assert.True(await reader.ReadAsync());
+        Assert.Equal(tenants, reader.GetInt64(0));
+        Assert.Equal(owners, reader.GetInt64(1));
+        Assert.Equal(entries, reader.GetInt64(2));
+    }
+
 }
