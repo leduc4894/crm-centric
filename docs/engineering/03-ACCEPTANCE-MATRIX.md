@@ -2,7 +2,7 @@
 
 > **Phạm vi CI MVP 2026-11-12:** áp dụng [quyết định Plan 4](09-WAVE-0-CI-MVP-SCOPE.md). W0P4 cũ có mục chuyển sang hardening; không suy diễn Wave 0 hoặc P0 đã pass. Các invariant và RT-* trong bảng vẫn giữ nguyên.
 
-**Contract tested** chỉ nghĩa shape/fixture đã kiểm tra. Mọi `RT-*` là test ID dự kiến, chưa có executable implementation, chưa pass. Gate chung: tenant isolation ở API+SQL/RLS+worker+replay.
+**Contract tested** chỉ nghĩa shape/fixture đã kiểm tra. Các `RT-*` là acceptance test ID; một số phần đã có executable tests như evidence bên dưới, nhưng các ID vẫn OPEN cho tới khi đủ phạm vi. Gate chung: tenant isolation ở API+SQL/RLS+worker+replay.
 
 | Story | Contract / invariant | Contract evidence hiện có | Runtime test ID cần xây | Wave / trạng thái |
 |---|---|---|---|---|
@@ -45,3 +45,25 @@
 Ghi commit SHA, command, pinned image/tool versions, environment/resources, fixture seed, pass/fail, redacted trace IDs, SQL assertions và artifact path. Load test có p95/error rate/sample count/warmup/duration; DR có last recoverable commit timestamp/downtime để tính RPO/RTO. Không chỉ ảnh UI.
 
 Không đóng wave/P0 bằng tài liệu này; cập nhật evidence sau mỗi wave exit và chạy suite theo AGENTS.md.
+
+## Wave 1 identity and tenant foundation — local evidence
+
+Implementation commits through `5ec82de` add bearer validation, restricted
+membership lookup, verified tenant transactions and the contract-compatible tenant
+list. Public OpenAPI and JSON Schema files have no diff from `40bc290`. PostgreSQL
+integration tests exercise RLS, connection-pool reset, membership revocation and
+role privilege checks; OIDC tests use a local fake issuer, including key rotation
+and transport rejection. Focused Task 4 regression: 39 passed, 0 failed, 0 skipped;
+contract shape tests: 27 passed, 0 failed, 0 skipped. Full Release integration suite on `d93b738`: 118 passed, 0 failed, 0 skipped (36.3245 minutes), using native SDK 10.0.403 and PostgreSQL Testcontainers. These are partial evidence,
+not complete RT-OIDC-01 or RT-TENANT-01: browser PKCE/logout, real-client audience,
+worker/replay isolation and full Wave 1/P0 acceptance remain open. The SQL bootstrap
+trust boundary and migration/rollback are documented in
+[IdP configuration](../operations/05-IDP-CONFIGURATION.md#wave-1-api-identity-and-tenant-foundation).
+
+Local Wave 0 workflow rehearsals with a simulated push identity (base `40bc290`,
+candidate `b7a8b21`) reported backend 127/127, contracts-sdk 88/88, web-browser
+58/58 and security 1/1 pass with no skips. The Compose job **failed** with
+`CI_COMMAND_FAILED`; a diagnostic run reproduced `LOCAL_START_TIMEOUT` in the
+parallel-project isolation test. The full integration run passed that test, but
+the exact cause of the gate timeout remains undetermined; the gate stays open.
+These local rehearsals do not replace a hosted CI run on the final candidate.

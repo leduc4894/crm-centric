@@ -1,7 +1,7 @@
 # Identity provider configuration
 
 The local profile provides an identity provider, metadata inspection and API bearer
-validation. Browser login, tenant authorization and production deployment are not
+validation. Browser login, full tenant lifecycle and production deployment are not
 complete.
 A CRM Contact is not an authenticated Identity User. Wave 1 must use stable issuer/sub
 and explicit tenant-scoped linkage rather than matching email addresses.
@@ -107,7 +107,7 @@ requires an explicit operator choice outside normal lifecycle commands.
 The clean-source run and named persisted-realm/drift tests are mapped under
 W0P2-10 in [Plan 2 evidence](../engineering/06-WAVE-0-PLAN-2-VERIFICATION.md).
 They verify local metadata and management inspection; browser/end-user login,
-CRM audience enforcement and production authentication remain OPEN.
+real-client audience issuance and production authentication remain OPEN.
 
 ## Production design checklist (guidance, not deployment evidence)
 
@@ -119,7 +119,7 @@ CRM audience enforcement and production authentication remain OPEN.
   signature, issuer, audience, expiry and accepted algorithms. Give browser apps
   separate public clients, required S256, exact HTTPS redirects/origins and only
   necessary scopes. Decide audience mappers explicitly; local metadata does not
-  implement them or API enforcement.
+  implement them; the API enforces its configured audience.
 - Keep discovery/JWKS reachable from browsers and resource servers. Cache keys
   within a defined lifetime, refresh for unknown key IDs, overlap signing keys
   for outstanding tokens, and test rollover and emergency retirement. Private
@@ -142,3 +142,42 @@ CRM audience enforcement and production authentication remain OPEN.
 No production instance was deployed or production authentication verified by
 these local checks. Remote DemoModule E2E, duplicate consumption, tenant isolation,
 outage/recovery and restore acceptance remain separate gates.
+
+## Wave 1 API identity and tenant foundation
+
+The API requires `Oidc:Issuer`, `Oidc:Audience` and `Oidc:MetadataAddress` at
+startup. The issuer must exactly match the token `iss`, including its spelling and
+trailing slash; the discovery address is a separate reachable backchannel and does
+not replace the public issuer. The audience is the intended resource-server value
+(for local Compose, `crm-api`). Missing or invalid configuration stops startup
+with `OIDC_CONFIGURATION_INVALID` and a correlation ID. HTTPS is required for
+issuer and metadata; HTTP is allowed only for loopback when explicitly enabled by
+`Oidc:AllowHttpLoopback` in Development or Testing. Metadata and JWKS retrieval
+do not follow redirects. Tokens require a valid RS256 signature, issuer, audience,
+expiration, valid lifetime and nonempty issuer/subject, with zero clock skew.
+Bearer tokens and subject values must not be logged. Provider keys are fetched
+through discovery/JWKS; the configured library defaults observed in integration
+tests are a 12-hour automatic refresh and a 5-minute minimum requested refresh.
+Overlap keys for outstanding tokens and plan emergency retirement separately;
+these intervals do not promise immediate removal of an old cached key.
+
+The local realm's browser clients do not yet configure the `crm-api` audience
+mapper; successful metadata inspection is not an end-user login or token acceptance
+proof. Configure and verify real audience issuance during the browser-login slice.
+Never commit provider keys, API credentials or tokens. Deliver production credentials
+through an appropriate secret mechanism and restrict use of the application DB
+credential to the API.
+
+Migration `20261116000000_TenantFoundation` creates tenants, memberships, RLS and
+restricted lookup functions. Apply migrations with the designated migrator role;
+use a backup and an intentional deployment/rollback plan before changing a durable
+database. The migration down path drops the lookup functions and new tables, and
+therefore removes tenant and membership data; restore from backup as appropriate.
+Rollback was exercised on a disposable PostgreSQL database and is not a restore drill.
+The application role cannot directly read tenant rows or mutate memberships; RLS
+also constrains membership SELECT by transaction-local tenant context. The narrow
+`SECURITY DEFINER` bootstrap functions trust the issuer/subject passed by the API:
+a holder able to execute arbitrary SQL with the app credential can supply another
+principal, so neither RLS nor the functions protect against that credential being
+compromised. The functions disclose only the constrained lookup results and perform
+no writes; tenant transaction authorization takes row locks through completion.
