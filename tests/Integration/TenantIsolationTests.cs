@@ -2,9 +2,11 @@ using Integration.Fixtures;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using Platform.Infrastructure.Identity;
+using Platform.Api.Identity;
 using Platform.Infrastructure.Persistence;
 using Xunit;
 using System.Net;
+using System.Security.Claims;
 using System.Net.Http.Headers;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
@@ -181,4 +183,90 @@ public sealed class TenantIsolationTests : IAsyncLifetime
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => VerifiedTenantTransaction.BeginAsync(app, "issuer", "alice", a, CancellationToken.None));
         await AssertClean(app, a);
     }
+    [Fact]
+    public async Task Mutation_transactions_serialize_per_tenant_and_allow_other_tenants()
+    {
+        await using var first = new NpgsqlConnection(db.ApplicationConnectionString); await first.OpenAsync();
+        await using var second = new NpgsqlConnection(db.ApplicationConnectionString); await second.OpenAsync();
+        await using var other = new NpgsqlConnection(db.ApplicationConnectionString); await other.OpenAsync();
+        await using var tx1 = await MembershipMutationTransaction.BeginAsync(first, "issuer", "alice", a, CancellationToken.None);
+        Assert.Equal("owner", await TenantAuthorization.GetActiveRoleAsync(first, tx1, a, "issuer", "alice", CancellationToken.None));
+        Assert.Null(await TenantAuthorization.GetActiveRoleAsync(first, tx1, b, "issuer", "bob", CancellationToken.None));
+        var pending = MembershipMutationTransaction.BeginAsync(second, "issuer", "alice", a, CancellationToken.None);
+        await WaitForLockAsync(second.ProcessID, first.ProcessID, pending);
+        await using (var txOther = await MembershipMutationTransaction.BeginAsync(other, "issuer", "bob", b, CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10)))
+            await txOther.CommitAsync();
+        await tx1.CommitAsync();
+        await using var tx2 = await pending.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.Equal("owner", await TenantAuthorization.GetActiveRoleAsync(second, tx2, a, "issuer", "alice", CancellationToken.None));
+        await tx2.CommitAsync();
+        await AssertClean(second, a);
+    }
+
+    [Fact]
+    public async Task Cancelled_mutation_lock_wait_cleans_connection_and_context()
+    {
+        await using var first = new NpgsqlConnection(db.ApplicationConnectionString); await first.OpenAsync();
+        await using var waiting = App(); await waiting.OpenAsync();
+        await using var held = await MembershipMutationTransaction.BeginAsync(first, "issuer", "alice", a, CancellationToken.None);
+        using var cancel = new CancellationTokenSource();
+        var pending = MembershipMutationTransaction.BeginAsync(waiting, "issuer", "alice", a, cancel.Token);
+        await WaitForLockAsync(waiting.ProcessID, first.ProcessID, pending);
+        cancel.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending);
+        await held.RollbackAsync();
+        await waiting.CloseAsync(); await waiting.OpenAsync(); await AssertClean(waiting, a);
+    }
+
+    [Fact]
+    public async Task Mutation_rechecks_membership_after_waiting_for_advisory_lock()
+    {
+        await using var first = new NpgsqlConnection(db.ApplicationConnectionString); await first.OpenAsync();
+        await using var second = new NpgsqlConnection(db.ApplicationConnectionString); await second.OpenAsync();
+        await using var admin = new NpgsqlConnection(db.MigrationConnectionString); await admin.OpenAsync();
+        // Administrative writer follows the same tenant lock protocol.
+        await using var revokeTx = await admin.BeginTransactionAsync();
+        await using (var advisory = new NpgsqlCommand("SELECT pg_advisory_xact_lock(hashtextextended('crm.membership:' || @tenant::uuid::text,0))", admin, revokeTx))
+        { advisory.Parameters.AddWithValue("tenant", a); await advisory.ExecuteNonQueryAsync(); }
+        await using (var revoke = new NpgsqlCommand("UPDATE platform.memberships SET status='inactive' WHERE tenant_id=@tenant AND subject='alice'", admin, revokeTx))
+        { revoke.Parameters.AddWithValue("tenant", a); Assert.Equal(1, await revoke.ExecuteNonQueryAsync()); }
+        var pending = MembershipMutationTransaction.BeginAsync(second, "issuer", "alice", a, CancellationToken.None);
+        await WaitForLockAsync(second.ProcessID, admin.ProcessID, pending);
+        await revokeTx.CommitAsync();
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(async () => await pending.WaitAsync(TimeSpan.FromSeconds(10)));
+        await AssertClean(second, a);
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => MembershipMutationTransaction.BeginAsync(first, "issuer", "inactive", b, CancellationToken.None));
+        await AssertClean(first, b);
+    }
+
+    [Fact]
+    public async Task Authorization_rejects_invalid_context_inactive_and_role_claim_forgery()
+    {
+        await using var c = App(); await c.OpenAsync();
+        var context = new DefaultHttpContext();
+        context.User = new ClaimsPrincipal(new ClaimsIdentity(new[] { new Claim("iss", "issuer"), new Claim("sub", "inactive"), new Claim(ClaimTypes.Role, "owner") }, "test"));
+        var missing = await TenantAuthorization.BeginAsync(context, c, false, CancellationToken.None);
+        Assert.Equal("TENANT_CONTEXT_INVALID", missing.ReasonToken); await AssertClean(c, a);
+        context.Request.Headers["X-Tenant-Id"] = "not-a-uuid";
+        var malformed = await TenantAuthorization.BeginAsync(context, c, false, CancellationToken.None);
+        Assert.Equal("TENANT_CONTEXT_INVALID", malformed.ReasonToken); await AssertClean(c, a);
+        context.Request.Headers["X-Tenant-Id"] = b.ToString();
+        var inactive = await TenantAuthorization.BeginAsync(context, c, false, CancellationToken.None);
+        Assert.Equal("TENANT_ACCESS_DENIED", inactive.ReasonToken); await AssertClean(c, a);
+        await using (var admin = new NpgsqlConnection(db.MigrationConnectionString))
+        {
+            await admin.OpenAsync();
+            await PostgresFixture.ExecuteAsync(admin, $"UPDATE platform.memberships SET status='active' WHERE tenant_id='{b}' AND subject='inactive'");
+        }
+        var forged = await TenantAuthorization.BeginAsync(context, c, false, CancellationToken.None);
+        Assert.Equal("INSUFFICIENT_SCOPE", forged.ReasonToken); await AssertClean(c, a);
+        context.User = new ClaimsPrincipal(new ClaimsIdentity(new[] { new Claim("iss", "issuer"), new Claim("sub", "alice") }, "test"));
+        var wrongTenant = await TenantAuthorization.BeginAsync(context, c, true, CancellationToken.None);
+        Assert.Equal("TENANT_ACCESS_DENIED", wrongTenant.ReasonToken); await AssertClean(c, a);
+        context.Request.Headers["X-Tenant-Id"] = a.ToString();
+        var authorized = await TenantAuthorization.BeginAsync(context, c, false, CancellationToken.None);
+        Assert.Null(authorized.ReasonToken); Assert.NotNull(authorized.Transaction);
+        await authorized.Transaction!.DisposeAsync(); await AssertClean(c, a);
+    }
+
 }
