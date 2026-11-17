@@ -43,11 +43,11 @@ public sealed class OidcAuthenticationTests
         };
     }
 
-    private static ApiFactory Factory(FakeOidcIssuer issuer) => new(new Dictionary<string, string?>
+    private static ApiFactory Factory(FakeOidcIssuer issuer, string audience = "crm-api") => new(new Dictionary<string, string?>
     {
         ["ConnectionStrings:Platform"] = "Host=localhost;Database=unused;Username=unused",
         ["Oidc:Issuer"] = issuer.Issuer.AbsoluteUri,
-        ["Oidc:Audience"] = "crm-api",
+        ["Oidc:Audience"] = audience,
         ["Oidc:MetadataAddress"] = new Uri(issuer.Issuer, ".well-known/openid-configuration").AbsoluteUri,
         ["Oidc:AllowHttpLoopback"] = "true"
     });
@@ -114,6 +114,31 @@ public sealed class OidcAuthenticationTests
             Assert.Equal(response.Headers.GetValues("X-Correlation-Id").Single(), body.RootElement.GetProperty("correlationId").GetString());
         }
     }
+    [Theory]
+    [InlineData("crm-api", "crm-api/")]
+    [InlineData("crm-api/", "crm-api")]
+    public async Task Audience_trailing_slash_mismatch_is_rejected(string configuredAudience, string tokenAudience)
+    {
+        await using var issuer = await FakeOidcIssuer.StartAsync();
+        await using var baseFactory = Factory(issuer, configuredAudience);
+        await using var factory = baseFactory.WithWebHostBuilder(builder => builder.ConfigureTestServices(services => services.AddTransient<IStartupFilter, AuthProbe>()));
+        using var client = factory.CreateClient();
+        async Task<HttpResponseMessage> Send(string audience)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, "/test-auth");
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", issuer.IssueToken(new() { Audience = audience }));
+            return await client.SendAsync(request);
+        }
+        using var valid = await Send(configuredAudience);
+        Assert.Equal(HttpStatusCode.OK, valid.StatusCode);
+        using var invalid = await Send(tokenAudience);
+        Assert.Equal(HttpStatusCode.Unauthorized, invalid.StatusCode);
+        Assert.Equal("application/problem+json", invalid.Content.Headers.ContentType?.MediaType);
+        using var body = JsonDocument.Parse(await invalid.Content.ReadAsStringAsync());
+        Assert.Equal("AUTHENTICATION_REQUIRED", body.RootElement.GetProperty("reasonToken").GetString());
+        Assert.Equal(invalid.Headers.GetValues("X-Correlation-Id").Single(), body.RootElement.GetProperty("correlationId").GetString());
+    }
+
     [Fact]
     public async Task Discovery_issuer_cannot_override_configured_issuer()
     {

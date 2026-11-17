@@ -35,6 +35,7 @@ public static class AuthenticationSetup
                     IssuerValidator = (issuer, _, _) => string.Equals(issuer, oidc.Issuer, StringComparison.Ordinal)
                         ? issuer : throw new SecurityTokenInvalidIssuerException(),
                     ValidateAudience = true, ValidAudience = oidc.Audience,
+                    IgnoreTrailingSlashWhenValidatingAudience = false,
                     ValidateIssuerSigningKey = true, RequireSignedTokens = true,
                     ValidateLifetime = true, RequireExpirationTime = true,
                     ClockSkew = TimeSpan.Zero,
