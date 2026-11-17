@@ -63,7 +63,10 @@ trust boundary and migration/rollback are documented in
 Local Wave 0 workflow rehearsals with a simulated push identity (base `40bc290`,
 candidate `b7a8b21`) reported backend 127/127, contracts-sdk 88/88, web-browser
 58/58 and security 1/1 pass with no skips. The Compose job **failed** with
-`CI_COMMAND_FAILED`; a diagnostic run reproduced `LOCAL_START_TIMEOUT` in the
-parallel-project isolation test. The full integration run passed that test, but
-the exact cause of the gate timeout remains undetermined; the gate stays open.
-These local rehearsals do not replace a hosted CI run on the final candidate.
+`CI_COMMAND_FAILED`; a diagnostic run and a focused rerun reproduced
+`LOCAL_START_TIMEOUT` in the parallel-project isolation test. A later simulated
+push rehearsal on candidate `78038b5` passed Compose 16/16, 0 skipped, in
+1794.5 seconds. Both runs used real local Compose; no timeout or runtime change was
+made between failure and success. The timeout cause remains undetermined and the
+test remains a reliability concern. These local rehearsals do not replace a hosted
+CI run on the final candidate.
