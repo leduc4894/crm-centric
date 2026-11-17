@@ -28,3 +28,5 @@
 
 ## Migration/rollback
 Expand schema trước, test prior-version fixture, backfill/check constraints rồi deploy compatible readers/writers. Khi lỗi, pause dispatch nếu contract incompatible, rollback image chỉ khi schema còn compatible; destructive changes dùng forward-fix/restore procedure đã diễn tập. Không sửa trực tiếp audit/inbox để giả completion. Secret rotation/revocation không bị undo bởi application rollback.
+
+Tenant lifecycle migration giữ trạng thái membership nội bộ `active`/`inactive`; API ánh xạ `inactive` thành `revoked`, nên rollback binary chỉ được thực hiện với phiên bản hiểu cùng biểu diễn này. Migration từ chối downgrade khi `audit.entries` có dữ liệu. Khi cần khắc phục, giữ audit nguyên vẹn, sao lưu và kiểm tra khả năng restore, sau đó ưu tiên forward-fix; không xóa audit để ép downgrade. Chỉ thực hiện khôi phục dữ liệu theo quy trình backup/restore đã kiểm chứng và kiểm tra isolation trước khi mở ghi trở lại.

@@ -10,6 +10,29 @@ public sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> option
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(HistorySchema);
+        modelBuilder.Entity<AuditEntryRow>(entity =>
+        {
+            entity.ToTable("entries", "audit", table =>
+            {
+                table.HasCheckConstraint("entries_actor_issuer_check", "char_length(actor_issuer) BETWEEN 1 AND 2048");
+                table.HasCheckConstraint("entries_actor_subject_check", "char_length(actor_subject) BETWEEN 1 AND 2048");
+                table.HasCheckConstraint("entries_action_check", "action IN ('tenant.created','membership.updated')");
+                table.HasCheckConstraint("entries_summary_check", "char_length(summary) <= 512");
+                table.HasCheckConstraint("entries_correlation_id_check", "char_length(correlation_id) BETWEEN 1 AND 128");
+            });
+            entity.HasKey(x => x.Id).HasName("entries_pkey");
+            entity.HasIndex(x => new { x.TenantId, x.CreatedAt, x.Id }).HasDatabaseName("entries_tenant_created");
+            entity.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
+            entity.Property(x => x.TenantId).HasColumnName("tenant_id");
+            entity.Property(x => x.ActorIssuer).HasColumnName("actor_issuer");
+            entity.Property(x => x.ActorSubject).HasColumnName("actor_subject");
+            entity.Property(x => x.Action).HasColumnName("action");
+            entity.Property(x => x.TargetId).HasColumnName("target_id");
+            entity.Property(x => x.Summary).HasColumnName("summary");
+            entity.Property(x => x.CorrelationId).HasColumnName("correlation_id");
+            entity.Property(x => x.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()");
+            entity.HasOne<TenantRow>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict).HasConstraintName("entries_tenant_id_fkey");
+        });
         modelBuilder.Entity<TenantRow>(entity =>
         {
             entity.ToTable("tenants", table =>
@@ -64,4 +87,17 @@ internal sealed class MembershipRow
     public required string Role { get; set; }
     public required string Status { get; set; }
     public long Version { get; set; }
+}
+
+internal sealed class AuditEntryRow
+{
+    public Guid Id { get; set; }
+    public Guid TenantId { get; set; }
+    public required string ActorIssuer { get; set; }
+    public required string ActorSubject { get; set; }
+    public required string Action { get; set; }
+    public Guid TargetId { get; set; }
+    public required string Summary { get; set; }
+    public required string CorrelationId { get; set; }
+    public DateTime CreatedAt { get; set; }
 }

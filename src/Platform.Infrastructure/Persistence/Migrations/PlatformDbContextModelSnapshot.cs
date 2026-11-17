@@ -23,6 +23,71 @@ namespace Platform.Infrastructure.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("Platform.Infrastructure.Persistence.AuditEntryRow", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("action");
+
+                    b.Property<string>("ActorIssuer")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("actor_issuer");
+
+                    b.Property<string>("ActorSubject")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("actor_subject");
+
+                    b.Property<string>("CorrelationId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("correlation_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("Summary")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("summary");
+
+                    b.Property<Guid>("TargetId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("target_id");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.HasKey("Id")
+                        .HasName("entries_pkey");
+
+                    b.HasIndex("TenantId", "CreatedAt", "Id")
+                        .HasDatabaseName("entries_tenant_created");
+
+                    b.ToTable("entries", "audit", t =>
+                        {
+                            t.HasCheckConstraint("entries_action_check", "action IN ('tenant.created','membership.updated')");
+
+                            t.HasCheckConstraint("entries_actor_issuer_check", "char_length(actor_issuer) BETWEEN 1 AND 2048");
+
+                            t.HasCheckConstraint("entries_actor_subject_check", "char_length(actor_subject) BETWEEN 1 AND 2048");
+
+                            t.HasCheckConstraint("entries_correlation_id_check", "char_length(correlation_id) BETWEEN 1 AND 128");
+
+                            t.HasCheckConstraint("entries_summary_check", "char_length(summary) <= 512");
+                        });
+                });
+
             modelBuilder.Entity("Platform.Infrastructure.Persistence.MembershipRow", b =>
                 {
                     b.Property<Guid>("TenantId")
@@ -107,6 +172,16 @@ namespace Platform.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("tenants_status_check", "status IN ('active','suspended')");
                         });
+                });
+
+            modelBuilder.Entity("Platform.Infrastructure.Persistence.AuditEntryRow", b =>
+                {
+                    b.HasOne("Platform.Infrastructure.Persistence.TenantRow", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("entries_tenant_id_fkey");
                 });
 
             modelBuilder.Entity("Platform.Infrastructure.Persistence.MembershipRow", b =>

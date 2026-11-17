@@ -47,7 +47,7 @@ public sealed class MigrationTests : IAsyncLifetime
         await AssertHistoryCountAsync(connection, 0);
         await AssertSentinelAsync(connection);
         Assert.Equal(0, (await MigratorProcess.RunAsync(database.MigrationConnectionString, database.ApplicationRole)).ExitCode);
-        await AssertHistoryCountAsync(connection, 2);
+        await AssertHistoryCountAsync(connection, 3);
         await AssertSentinelAsync(connection);
     }
 
@@ -125,6 +125,8 @@ public sealed class MigrationTests : IAsyncLifetime
         await using (var reader = await schemas.ExecuteReaderAsync())
         {
             Assert.True(await reader.ReadAsync());
+            Assert.Equal("audit", reader.GetString(0));
+            Assert.True(await reader.ReadAsync());
             Assert.Equal("platform", reader.GetString(0));
             Assert.True(await reader.ReadAsync());
             Assert.Equal("public", reader.GetString(0));
@@ -141,6 +143,6 @@ public sealed class MigrationTests : IAsyncLifetime
         await using var rows = await history.ExecuteReaderAsync();
         var migrations = new List<string>();
         while (await rows.ReadAsync()) migrations.Add(rows.GetString(0));
-        Assert.Equal(new[] { "20261108144703_InitialPlatformInfrastructure", "20261116000000_TenantFoundation" }, migrations);
+        Assert.Equal(new[] { "20261108144703_InitialPlatformInfrastructure", "20261116000000_TenantFoundation", "20261118000000_TenantLifecycle" }, migrations);
     }
 }
