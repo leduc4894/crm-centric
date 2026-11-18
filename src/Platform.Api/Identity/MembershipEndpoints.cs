@@ -136,7 +136,7 @@ public static class MembershipEndpoints
                     else if (name == "status" && value is "active" or "revoked") status=value == "revoked" ? "inactive" : value;
                     else throw new JsonException();
                 }
-                if (seen.Count == 0) throw new JsonException();
+                if (seen.Count == 0 || (role == "owner" && current.Role == "owner")) throw new JsonException();
             }
             catch (JsonException) { await Error(context,400,"REQUEST_INVALID"); return; }
             var result=await LifecycleStore.UpdateMembershipAsync(connection,transaction,tenant,parsed,version,role,status,context.User.FindFirst("iss")!.Value,context.User.FindFirst("sub")!.Value,context.TraceIdentifier,context.RequestAborted);

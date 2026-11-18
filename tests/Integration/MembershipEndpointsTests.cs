@@ -209,4 +209,73 @@ public sealed class MembershipEndpointsTests(ITestOutputHelper output) : IAsyncL
         using var response=await Send(HttpMethod.Get,"/api/v1/memberships",subject:"service"); await Problem(response,HttpStatusCode.Forbidden,"TENANT_ACCESS_DENIED");
     }
 
+    [Fact]
+    public async Task Owner_role_field_is_invalid_even_when_request_also_revokes_existing_owner()
+    {
+        var second=Guid.NewGuid(); await Execute($"INSERT INTO platform.memberships VALUES ('{tenant}','{second}','{issuer.Issuer.AbsoluteUri}','second','owner','active',1)");
+        using var response=await Send(HttpMethod.Patch,$"/api/v1/memberships/{owner}",body:"{\"role\":\"owner\",\"status\":\"revoked\"}",match:"\"v1\"");
+        await Problem(response,HttpStatusCode.BadRequest,"REQUEST_INVALID");
+        Assert.Equal(1L,await Scalar($"SELECT version FROM platform.memberships WHERE id='{owner}'"));
+        Assert.Equal(1L,await Scalar($"SELECT count(*) FROM platform.memberships WHERE id='{owner}' AND role='owner' AND status='active'"));
+        Assert.Equal(0L,await Scalar("SELECT count(*) FROM audit.entries"));
+    }
+
+    [Fact]
+    public async Task Actual_reader_writer_deadlock_rolls_back_one_transaction_and_patch_remains_atomic()
+    {
+        await using var admin = new NpgsqlConnection(db.AdminConnectionString); await admin.OpenAsync();
+        await using var tx = await admin.BeginTransactionAsync();
+        await using (var setup = new NpgsqlCommand("SET LOCAL deadlock_timeout='50ms'; SELECT id FROM platform.memberships WHERE id=@id FOR SHARE",admin,tx))
+        { setup.Parameters.AddWithValue("id",agent); await setup.ExecuteNonQueryAsync(); }
+        var patch = Send(HttpMethod.Patch,$"/api/v1/memberships/{agent}",body:"{\"status\":\"active\"}",match:"\"v1\"");
+        await using var observer = new NpgsqlConnection(db.AdminConnectionString); await observer.OpenAsync();
+        var waiting = false;
+        for(var i=0; i<100 && !waiting; i++)
+        {
+            await using var probe=new NpgsqlCommand("SELECT EXISTS (SELECT FROM pg_stat_activity WHERE wait_event_type='Lock' AND query LIKE '%platform.update_membership%')",observer);
+            waiting = (bool)(await probe.ExecuteScalarAsync())!;
+            if (!waiting) await Task.Delay(50);
+        }
+        Assert.True(waiting,"PATCH did not wait for the reader lock");
+        var victimWasReader=false;
+        try
+        {
+            await using var cross=new NpgsqlCommand("UPDATE platform.memberships SET role=role WHERE id=@id",admin,tx); cross.Parameters.AddWithValue("id",owner);
+            await cross.ExecuteNonQueryAsync().WaitAsync(TimeSpan.FromSeconds(15));
+            await tx.CommitAsync();
+        }
+        catch (PostgresException ex) when (ex.SqlState == "40P01") { victimWasReader=true; await tx.RollbackAsync(); }
+        using var response=await patch.WaitAsync(TimeSpan.FromSeconds(15));
+        Assert.Equal(HttpStatusCode.OK,response.StatusCode);
+        Assert.Equal(2L,await Scalar($"SELECT version FROM platform.memberships WHERE id='{agent}'"));
+        Assert.Equal(1L,await Scalar("SELECT count(*) FROM audit.entries"));
+        Assert.Equal(1L,await Scalar($"SELECT count(*) FROM platform.memberships WHERE id='{agent}' AND status='active'"));
+        _ = victimWasReader; // Either PostgreSQL victim is safe: API retries or reader rolls back.
+    }
+
+    [Fact]
+    public async Task Connection_lost_during_commit_is_not_retried()
+    {
+        await Execute("CREATE SEQUENCE audit.commit_attempts");
+        await using (var admin=new NpgsqlConnection(db.AdminConnectionString))
+        {
+            await admin.OpenAsync();
+            await using var setup=new NpgsqlCommand("""
+                CREATE FUNCTION audit.terminate_commit_test() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog AS $$
+                BEGIN
+                    PERFORM pg_catalog.nextval('audit.commit_attempts');
+                    PERFORM pg_catalog.pg_terminate_backend(pg_catalog.pg_backend_pid());
+                    RETURN NEW;
+                END $$;
+                CREATE CONSTRAINT TRIGGER terminate_commit_test AFTER INSERT ON audit.entries DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION audit.terminate_commit_test();
+                """,admin);
+            await setup.ExecuteNonQueryAsync();
+        }
+        using var response=await Send(HttpMethod.Patch,$"/api/v1/memberships/{agent}",body:"{\"status\":\"active\"}",match:"\"v1\"");
+        await Problem(response,HttpStatusCode.ServiceUnavailable,"IDENTITY_STORE_UNAVAILABLE");
+        Assert.Equal(1L,await Scalar("SELECT count(*) FROM audit.commit_attempts WHERE is_called AND last_value=1"));
+        Assert.Equal(1L,await Scalar($"SELECT version FROM platform.memberships WHERE id='{agent}'"));
+        Assert.Equal(0L,await Scalar("SELECT count(*) FROM audit.entries"));
+    }
+
 }
