@@ -52,7 +52,11 @@ public static class TenantEndpoints
             if (document.RootElement.ValueKind != JsonValueKind.Object)
                 throw new JsonException();
             var properties = document.RootElement.EnumerateObject().ToArray();
-            if (properties.Length != 1 || properties[0].Name != "name" || properties[0].Value.ValueKind != JsonValueKind.String)
+            if (properties.Length != 1) throw new JsonException();
+            string propertyName;
+            try { propertyName = properties[0].Name; }
+            catch (InvalidOperationException) { throw new JsonException("Invalid Unicode property name."); }
+            if (propertyName != "name" || properties[0].Value.ValueKind != JsonValueKind.String)
                 throw new JsonException();
             try { name = properties[0].Value.GetString(); }
             catch (InvalidOperationException) { throw new JsonException("Invalid Unicode string."); }

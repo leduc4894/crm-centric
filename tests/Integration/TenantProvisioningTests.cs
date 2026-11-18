@@ -168,4 +168,12 @@ public sealed class TenantProvisioningTests(ITestOutputHelper output) : IAsyncLi
         await AssertCounts(0, 0, 0);
     }
 
+    [Fact]
+    public async Task Malformed_unicode_property_name_returns_problem_and_does_not_mutate()
+    {
+        using var response = await Post("{\"\\uD800\":\"x\"}");
+        await AssertProblem(response, HttpStatusCode.BadRequest, "REQUEST_INVALID");
+        await AssertCounts(0, 0, 0);
+    }
+
 }
