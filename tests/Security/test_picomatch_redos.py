@@ -6,11 +6,12 @@ import unittest
 class PicomatchSecurityTests(unittest.TestCase):
     def test_repeated_wildcards_do_not_block_event_loop(self):
         patterns = ('+(*)', '+(*a)', '*(*a)', '+(**a)', '+(*{a,b})',
-                    '+(*a|b)', '+(**a|b)', '+(a*|b*)', '+(a|**a)', '+(*a|z*)')
+                    '+(*a|b)', '+(**a|b)', '+(a*|b*)', '+(a|**a)', '+(*a|z*)',
+                    '+(a|?(a))', '+({a,aa})', '+(@(a|aa))', '+(ab|abab)')
         for pattern in patterns:
             with self.subTest(pattern=pattern):
                 result = subprocess.run(
-                    ['node', '-e', 'require("picomatch")(process.argv[1])("a".repeat(30)+"/")', pattern],
+                    ['node', '-e', 'require("picomatch")(process.argv[1])((process.argv[1] === "+(ab|abab)" ? "ab" : "a").repeat(30)+"/")', pattern],
                     stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=2, check=False,
                     env=os.environ.copy())
                 self.assertEqual(0, result.returncode, result.stderr.decode(errors='replace'))
