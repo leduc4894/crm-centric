@@ -139,3 +139,8 @@ A sequential local `web-browser` rehearsal on `1ca5f3a` failed with
 `CI_COMMAND_FAILED` / `PLAN3_SOURCE_MUTATED` after 310.21 seconds, with no case
 counts. Documentation was edited during that rehearsal; a separate rerun on a
 clean committed candidate is required. The failure is retained as evidence.
+
+A clean-worktree local `web-browser` rehearsal on `0d932ab` (code unchanged
+from `81ecf23`) subsequently passed 58/58 with 0 skipped in 334.25 seconds.
+The preceding source-mutated rehearsal remains a failure; both runs are local
+simulations and do not establish hosted CI or browser OIDC acceptance.
