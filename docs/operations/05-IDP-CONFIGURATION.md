@@ -212,9 +212,9 @@ caller-selected arguments. PostgreSQL restrictions and RLS constrain access but 
 not authenticate a claimed issuer or subject supplied by a holder of that
 credential. Keep the credential exclusively with the trusted API, restrict SQL
 access, rotate on compromise and investigate any potentially affected tenant.
-Membership-management authorization is not yet complete: membership role alone is
-not evidence distinguishing a staff identity from a service identity. A verified
-identity binding and its bootstrap need resolution before enabling those endpoints.
+Membership role alone is not evidence distinguishing a staff identity from a
+service identity; membership management also requires the controlled verified
+staff binding described below.
 
 ### Verified staff bindings for membership management
 

@@ -70,3 +70,61 @@ push rehearsal on candidate `78038b5` passed Compose 16/16, 0 skipped, in
 made between failure and success. The timeout cause remains undetermined and the
 test remains a reliability concern. These local rehearsals do not replace a hosted
 CI run on the final candidate.
+
+## Wave 1 tenant lifecycle — local evidence
+
+On code commit `0b79061`, tenant provisioning and membership read/update use
+transactional audit and tenant-scoped authorization; a separately verified
+staff binding is required for `team.manage`. The application database credential
+is a trusted API credential and does not itself authenticate a caller-supplied
+issuer/subject. Real PostgreSQL focused regressions reported 37/37 for lifecycle,
+migrations, privilege and authorization; 22/22 for staff authorization and
+tenant isolation; 13/13 for provisioning and existing tenant endpoints; and
+38/38 for membership endpoints, authorization and isolation, with an additional
+signed service-owner denial test 1/1. Review fixes passed 7/7, including a real
+reader/writer deadlock and backend termination during commit; loss of a successful
+commit acknowledgement was not simulated. Nine real HTTP response examples were
+validated against the existing OpenAPI membership schemas. Some individual tests
+were added after implementation; complete per-behavior RED evidence is not claimed.
+
+The local security rehearsal on `81ecf23` failed `CI_SCAN_FINDINGS`: the required
+vulnerability scanner identified `CVE-2026-112366` in `picomatch` 4.0.7 as HIGH,
+with no fixed version in its result; gitleaks passed. [NVD](https://nvd.nist.gov/vuln/detail/CVE-2026-112366)
+reports affected versions through 4.0.7 and the [maintainer issue](https://github.com/micromatch/picomatch/issues/247)
+remains open. Advisory sources disagree; a separate Snyk advisory has been revoked.
+No exception or policy relaxation is implied. The earlier run without the prepared
+scanner path failed `CI_SCAN_INCOMPLETE`. These local tests do not close RT-IAM-01,
+RT-TENANT-01, Wave 1, P0 or hosted CI; invites, browser sessions and wider tenant
+and recovery acceptance remain open.
+
+Prepared full Contract unittest discovery passed 88/88 with no skips in 1439.065s;
+it began on `0b79061` and continued during a later source fix, so it does not prove
+a complete final-candidate gate. The earlier unprepared run failed 15 and skipped 7;
+its failed result is retained in the handoff. The final-code security rehearsal
+remains blocked as above.
+
+Full Release integration run started on `0b79061` finished FAIL: 180 passed,
+1 failed, 0 skipped (50.474 minutes). `Parallel_projects_do_not_share_resources`
+failed `LOCAL_START_TIMEOUT` while starting parallel Compose projects. Source
+changed during the run; it is not a final-tree result. The failure reproduces
+an earlier intermittent timeout; root cause has not been established.
+
+A separate local simulated `contracts-sdk` workflow rehearsal on `81ecf23` passed
+88/88, 0 skipped in 2507.26s (`CI_JOB_COMPLETE`); it is not hosted CI. A final-tree
+non-Compose integration regression is in progress and has reported a Keycloak
+management-health startup failure; no final count is claimed yet.
+
+Final-code Release non-Compose regression on `81ecf23` failed: 165 passed, 1 failed,
+0 skipped in 16.7393 minutes. `Keycloak_private_files_and_data_work_as_nonroot_with_management_health`
+failed because management health did not become ready. Startup log capture contained
+no ERROR, Exception, OOM or startup-complete markers; resource contention while the
+contract/browser rehearsal ran is possible but not established as the cause.
+
+Sequential focused diagnostics on `81ecf23`: Keycloak management-health test
+passed 1/1 (55.36 seconds) after the non-Compose failure; parallel Compose project
+test failed again 0/1 with `LOCAL_START_TIMEOUT` (3.2358 minutes). An independent
+two-stack diagnostic reproduced one timeout: both databases became healthy,
+both bootstrap/migration containers exited 0 and both APIs became healthy;
+one Keycloak exited 137 with Docker `OOMKilled=true`, while the other eventually
+became healthy. This establishes the cause for that diagnostic instance only,
+not every previous timeout. No timeout, runtime or security policy was changed.
