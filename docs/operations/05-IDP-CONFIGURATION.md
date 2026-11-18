@@ -215,3 +215,43 @@ access, rotate on compromise and investigate any potentially affected tenant.
 Membership-management authorization is not yet complete: membership role alone is
 not evidence distinguishing a staff identity from a service identity. A verified
 identity binding and its bootstrap need resolution before enabling those endpoints.
+
+### Verified staff bindings for membership management
+
+A valid access token and active owner/admin membership do not themselves prove
+that a principal is staff. `team.manage` additionally requires an active
+`platform.staff_bindings` record for the exact validated `(issuer, sub)`.
+Existing memberships and tenant provisioning do not create bindings; until an
+operator verifies and registers the principal, membership management fails
+closed. Service principals must never be registered as staff. An issuer must
+maintain stable subject identifiers and the operator must verify both their
+issuer and subject against an authoritative staff identity source; email or
+token role claims alone are not sufficient. The database owner/migration
+credential is trusted to perform this verification and must be protected and
+accessible only through the controlled operator process. The application role
+cannot read or write this table, or read or alter the audit table.
+
+Bootstrap is an offline, restricted database operation, not an unauthenticated
+API. Under an approved change ticket, a designated operator independently
+verifies the human's exact issuer and subject and records an opaque, bounded
+verification ticket reference (never a token, password or sensitive evidence).
+Using a parameterized SQL client and the privileged migration-owner credential,
+insert `(issuer, subject, 'active', verification_reference)` into
+`platform.staff_bindings` in a transaction; commit only after checking the
+record. Do not bulk-copy existing memberships or infer staff from ownership.
+The insert automatically writes `audit.staff_binding_changes` in the same
+transaction; failure of the audit insert aborts the change. Review the audit by
+privileged access under the organization's retention policy, along with the
+verification evidence in its protected system of record.
+
+For departure, compromised identity, or verification withdrawal, update that
+exact row to `status='revoked'` with an updated verification ticket reference
+in a transaction; audit is written automatically. Revocation waits for already
+authorized membership transactions holding the binding's share lock. Requests
+starting after revocation commits are denied. Reactivation requires a new
+independent verification and ticket reference before changing the existing row
+to `active`; do not delete bindings or audit records. Use parameterized values
+and do not log tokens or verification evidence. The migration refuses downgrade
+when bindings or their audit exist; retain backups and prefer a forward fix.
+An operator with database-owner powers can bypass SQL controls: restrict and
+audit that credential externally, including schema and trigger changes.

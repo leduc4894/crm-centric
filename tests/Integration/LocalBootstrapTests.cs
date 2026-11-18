@@ -102,7 +102,7 @@ public sealed class LocalBootstrapTests : IAsyncLifetime
         Assert.False(applicationCanCreateSchema);
         Assert.True(await Check("SELECT has_database_privilege(current_user,current_database(),'CREATE')", "crm_migrator"));
         Assert.True(await Check("SELECT NOT EXISTS(SELECT FROM pg_database d CROSS JOIN LATERAL aclexplode(d.datacl) a WHERE d.datname=current_database() AND a.grantee=0)"));
-        Assert.True(await Check("SELECT count(*)=3 FROM platform.\"__EFMigrationsHistory\"", "crm_app"));
+        Assert.True(await Check("SELECT count(*)=4 FROM platform.\"__EFMigrationsHistory\"", "crm_app"));
         var logs = (await database.GetLogsAsync());
         foreach (var value in new[] { File.ReadAllText(secrets.ApplicationFile), File.ReadAllText(secrets.MigratorFile) })
             Assert.False((logs.Stdout + logs.Stderr).Contains(value, StringComparison.Ordinal), "Credential appeared in database logs.");
@@ -177,7 +177,7 @@ public sealed class LocalBootstrapTests : IAsyncLifetime
         AssertSafe(await Bootstrap(), false);
         Assert.True(await Check(ownerPreserved), "Bootstrap silently repaired relation/schema ownership.");
         Assert.True(await Check("SELECT count(*)=1 AND min(id)=42 FROM public.sentinel"));
-        Assert.True(await Check("SELECT count(*)=3 FROM platform.\"__EFMigrationsHistory\""));
+        Assert.True(await Check("SELECT count(*)=4 FROM platform.\"__EFMigrationsHistory\""));
     }
 
 }

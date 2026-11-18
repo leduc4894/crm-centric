@@ -1,5 +1,7 @@
 using Integration.Fixtures;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql;
 using Platform.Infrastructure.Identity;
 using Platform.Api.Identity;
@@ -40,6 +42,107 @@ public sealed class TenantIsolationTests : IAsyncLifetime
     }
     public Task DisposeAsync() => db.DisposeAsync();
     private NpgsqlConnection App() => new(new NpgsqlConnectionStringBuilder(db.ApplicationConnectionString) { MaxPoolSize = 1 }.ConnectionString);
+    [Fact]
+    public async Task Owner_without_verified_staff_binding_is_denied()
+    {
+        await using var connection = App(); await connection.OpenAsync();
+        var context = new DefaultHttpContext();
+        context.User = new ClaimsPrincipal(new ClaimsIdentity(new[] { new Claim("iss", "issuer"), new Claim("sub", "alice") }, "test"));
+        context.Request.Headers["X-Tenant-Id"] = a.ToString();
+        var result = await TenantAuthorization.BeginAsync(context, connection, false, CancellationToken.None);
+        if (result.Transaction is not null) await result.Transaction.DisposeAsync();
+        Assert.Equal("TENANT_ACCESS_DENIED", result.ReasonToken);
+        await AssertClean(connection, a);
+    }
+    private static DefaultHttpContext Actor(Guid tenant, string subject)
+    {
+        var context = new DefaultHttpContext();
+        context.User = new ClaimsPrincipal(new ClaimsIdentity(new[] { new Claim("iss", "issuer"), new Claim("sub", subject) }, "test"));
+        context.Request.Headers["X-Tenant-Id"] = tenant.ToString();
+        return context;
+    }
+    [Fact]
+    public async Task Staff_binding_is_required_and_revocation_waits_for_authorized_transaction()
+    {
+        await using var admin = new NpgsqlConnection(db.MigrationConnectionString); await admin.OpenAsync();
+        await PostgresFixture.ExecuteAsync(admin, "INSERT INTO platform.staff_bindings VALUES ('issuer','alice','active','verification-ticket')");
+        await using var app = App(); await app.OpenAsync();
+        var result = await TenantAuthorization.BeginAsync(Actor(a, "alice"), app, false, CancellationToken.None);
+        Assert.Null(result.ReasonToken); Assert.NotNull(result.Transaction);
+        await using var revoke = new NpgsqlCommand("UPDATE platform.staff_bindings SET status='revoked' WHERE issuer='issuer' AND subject='alice'", admin);
+        var pending = revoke.ExecuteNonQueryAsync();
+        await WaitForLockAsync(admin.ProcessID, app.ProcessID, pending);
+        await result.Transaction!.CommitAsync();
+        await result.Transaction.DisposeAsync();
+        Assert.Equal(1, await pending.WaitAsync(TimeSpan.FromSeconds(10)));
+        var denied = await TenantAuthorization.BeginAsync(Actor(a, "alice"), app, false, CancellationToken.None);
+        Assert.Equal("TENANT_ACCESS_DENIED", denied.ReasonToken);
+        await AssertClean(app, a);
+        await using var audit = new NpgsqlCommand("SELECT count(*) FROM audit.staff_binding_changes WHERE issuer='issuer' AND subject='alice'", admin);
+        Assert.Equal(2L, await audit.ExecuteScalarAsync());
+    }
+    [Fact]
+    public async Task Application_role_cannot_create_read_modify_or_delete_staff_bindings_or_audit()
+    {
+        await using var app = App(); await app.OpenAsync();
+        foreach (var sql in new[] {
+            "INSERT INTO platform.staff_bindings VALUES ('issuer','alice','active','fake')",
+            "SELECT * FROM platform.staff_bindings", "UPDATE platform.staff_bindings SET status='active'",
+            "DELETE FROM platform.staff_bindings", "TRUNCATE platform.staff_bindings",
+            "SELECT * FROM audit.staff_binding_changes", "INSERT INTO audit.staff_binding_changes DEFAULT VALUES",
+            "UPDATE audit.staff_binding_changes SET new_status='active'", "DELETE FROM audit.staff_binding_changes",
+            "TRUNCATE audit.staff_binding_changes" })
+        {
+            var ex = await Assert.ThrowsAsync<PostgresException>(() => PostgresFixture.ExecuteAsync(app, sql));
+            Assert.Equal(PostgresErrorCodes.InsufficientPrivilege, ex.SqlState);
+        }
+    }
+    [Fact]
+    public async Task Service_owner_without_binding_remains_denied_even_with_another_subject_binding()
+    {
+        await using var admin = new NpgsqlConnection(db.MigrationConnectionString); await admin.OpenAsync();
+        await PostgresFixture.ExecuteAsync(admin, $"INSERT INTO platform.memberships VALUES ('{a}',gen_random_uuid(),'issuer','service-account','owner','active',1); INSERT INTO platform.staff_bindings VALUES ('other-issuer','service-account','active','ticket')");
+        await using var app = App(); await app.OpenAsync();
+        foreach (var mutation in new[] { false, true })
+        {
+            var result = await TenantAuthorization.BeginAsync(Actor(a, "service-account"), app, mutation, CancellationToken.None);
+            if (result.Transaction is not null) await result.Transaction.DisposeAsync();
+            Assert.Equal("TENANT_ACCESS_DENIED", result.ReasonToken);
+            await AssertClean(app, a);
+        }
+    }
+    [Fact]
+    public async Task Authorization_waiting_for_staff_revocation_rechecks_committed_status()
+    {
+        await using var admin = new NpgsqlConnection(db.MigrationConnectionString); await admin.OpenAsync();
+        await PostgresFixture.ExecuteAsync(admin, "INSERT INTO platform.staff_bindings VALUES ('issuer','alice','active','ticket')");
+        await using var transaction = await admin.BeginTransactionAsync();
+        await PostgresFixture.ExecuteAsync(admin, "UPDATE platform.staff_bindings SET status='revoked' WHERE issuer='issuer' AND subject='alice'");
+        await using var app = App(); await app.OpenAsync();
+        var pending = TenantAuthorization.BeginAsync(Actor(a, "alice"), app, true, CancellationToken.None);
+        await WaitForLockAsync(app.ProcessID, admin.ProcessID, pending);
+        await transaction.CommitAsync();
+        var denied = await pending.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.Equal("TENANT_ACCESS_DENIED", denied.ReasonToken);
+        await AssertClean(app, a);
+    }
+    [Fact]
+    public async Task Staff_binding_write_rolls_back_if_audit_fails_and_populated_audit_prevents_downgrade()
+    {
+        await using var admin = new NpgsqlConnection(db.MigrationConnectionString); await admin.OpenAsync();
+        await PostgresFixture.ExecuteAsync(admin, """
+            CREATE FUNCTION audit.reject_binding_change() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'test audit failure'; END $$;
+            CREATE TRIGGER fail_binding_audit BEFORE INSERT ON audit.staff_binding_changes FOR EACH ROW EXECUTE FUNCTION audit.reject_binding_change();
+            """);
+        await Assert.ThrowsAsync<PostgresException>(() => PostgresFixture.ExecuteAsync(admin, "INSERT INTO platform.staff_bindings VALUES ('issuer','alice','active','ticket')"));
+        await using (var check = new NpgsqlCommand("SELECT count(*) FROM platform.staff_bindings", admin)) Assert.Equal(0L, await check.ExecuteScalarAsync());
+        await PostgresFixture.ExecuteAsync(admin, "DROP TRIGGER fail_binding_audit ON audit.staff_binding_changes; DROP FUNCTION audit.reject_binding_change(); INSERT INTO platform.staff_bindings VALUES ('issuer','alice','active','ticket')");
+        await using var dbContext = new PlatformDbContext(new DbContextOptionsBuilder<PlatformDbContext>().UseNpgsql(admin, p => p.MigrationsHistoryTable(PlatformDbContext.HistoryTable, PlatformDbContext.HistorySchema)).Options);
+        var ex = await Assert.ThrowsAsync<PostgresException>(() => dbContext.GetService<IMigrator>().MigrateAsync("20261118000000_TenantLifecycle"));
+        Assert.Contains("staff binding audit exists", ex.MessageText);
+        await using var remaining = new NpgsqlCommand("SELECT count(*) FROM audit.staff_binding_changes", admin);
+        Assert.Equal(1L, await remaining.ExecuteScalarAsync());
+    }
     private static async Task<long> Count(NpgsqlConnection c, Guid tenant) {
         await using var cmd = new NpgsqlCommand("SELECT count(*) FROM platform.memberships WHERE tenant_id=@id", c);
         cmd.Parameters.AddWithValue("id", tenant);
@@ -256,7 +359,7 @@ public sealed class TenantIsolationTests : IAsyncLifetime
         await using (var admin = new NpgsqlConnection(db.MigrationConnectionString))
         {
             await admin.OpenAsync();
-            await PostgresFixture.ExecuteAsync(admin, $"UPDATE platform.memberships SET status='active' WHERE tenant_id='{b}' AND subject='inactive'");
+            await PostgresFixture.ExecuteAsync(admin, $"UPDATE platform.memberships SET status='active' WHERE tenant_id='{b}' AND subject='inactive'; INSERT INTO platform.staff_bindings VALUES ('issuer','inactive','active','ticket'), ('issuer','alice','active','ticket')");
         }
         var forged = await TenantAuthorization.BeginAsync(context, c, false, CancellationToken.None);
         Assert.Equal("INSUFFICIENT_SCOPE", forged.ReasonToken); await AssertClean(c, a);

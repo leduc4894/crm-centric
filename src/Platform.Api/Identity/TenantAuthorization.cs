@@ -44,7 +44,7 @@ public static class TenantAuthorization
     public sealed record AuthorizationResult(Guid TenantId, NpgsqlTransaction? Transaction, string? ReasonToken);
 
     // Caller owns the returned transaction. Principal must already be authenticated.
-    // This only verifies membership; identity-kind verification is a separate prerequisite.
+    // A locked, operator-verified staff binding and active tenant membership are both required.
     public static async Task<AuthorizationResult> BeginAsync(HttpContext context, NpgsqlConnection connection, bool mutation, CancellationToken ct)
     {
         if (!TryGetTenantId(context.Request.Headers, out var tenantId))
@@ -66,6 +66,14 @@ public static class TenantAuthorization
         }
         try
         {
+            await using var staff = new NpgsqlCommand("SELECT platform.lock_verified_staff(@issuer,@subject)", connection, transaction);
+            staff.Parameters.AddWithValue("issuer", issuer);
+            staff.Parameters.AddWithValue("subject", subject);
+            if (await staff.ExecuteScalarAsync(ct) is not true)
+            {
+                await transaction.DisposeAsync();
+                return new(tenantId, null, "TENANT_ACCESS_DENIED");
+            }
             var role = await GetActiveRoleAsync(connection, transaction, tenantId, issuer, subject, ct);
             if (role is not null && HasTeamManage(role)) return new(tenantId, transaction, null);
             await transaction.DisposeAsync();

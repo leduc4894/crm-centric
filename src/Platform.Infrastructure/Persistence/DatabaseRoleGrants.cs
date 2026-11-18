@@ -11,7 +11,7 @@ public static class DatabaseRoleGrants
         await using var command = new NpgsqlCommand($"""
             GRANT USAGE ON SCHEMA platform TO {role};
             GRANT SELECT ON TABLE platform."__EFMigrationsHistory", platform.memberships TO {role};
-            GRANT EXECUTE ON FUNCTION platform.list_principal_tenants(text,text,uuid,integer), platform.lock_active_membership(text,text,uuid), platform.create_tenant_with_owner(uuid,text,text,text,text), platform.update_membership(uuid,uuid,bigint,text,text,text,text,text) TO {role};
+            GRANT EXECUTE ON FUNCTION platform.list_principal_tenants(text,text,uuid,integer), platform.lock_active_membership(text,text,uuid), platform.create_tenant_with_owner(uuid,text,text,text,text), platform.update_membership(uuid,uuid,bigint,text,text,text,text,text), platform.lock_verified_staff(text,text) TO {role};
             """, connection);
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
@@ -39,7 +39,7 @@ public static class DatabaseRoleGrants
                   )
                   AND NOT EXISTS (
                     SELECT FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
-                    WHERE n.nspname='platform' AND p.proname IN ('create_tenant_with_owner','update_membership')
+                    WHERE n.nspname='platform' AND p.proname IN ('create_tenant_with_owner','update_membership','lock_verified_staff','audit_staff_binding_change')
                     AND (has_function_privilege('public', p.oid, 'EXECUTE') OR NOT p.prosecdef OR ('search_path=pg_catalog' = ANY(p.proconfig)) IS DISTINCT FROM true)
                   )
                   AND NOT EXISTS (
@@ -50,12 +50,12 @@ public static class DatabaseRoleGrants
                   )
                   AND NOT EXISTS (
                     SELECT FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
-                    WHERE n.nspname='audit' AND c.relname='entries'
+                    WHERE n.nspname='audit' AND c.relname IN ('entries','staff_binding_changes')
                     AND (has_table_privilege(rolname, c.oid, 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER') OR has_any_column_privilege(rolname, c.oid, 'SELECT,INSERT,UPDATE,REFERENCES'))
                   )
                   AND NOT EXISTS (
                     SELECT FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
-                    WHERE n.nspname='platform' AND c.relname='tenants'
+                    WHERE n.nspname='platform' AND c.relname IN ('tenants','staff_bindings')
                     AND (has_table_privilege(rolname, c.oid, 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
                       OR has_any_column_privilege(rolname, c.oid, 'SELECT,INSERT,UPDATE,REFERENCES'))
                   )
