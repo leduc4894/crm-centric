@@ -1,0 +1,9 @@
+# Temporary picomatch 4.0.7 backport
+
+This is a locally maintained, conservative mitigation for CVE-2026-112366, not an upstream release or a general proof against ReDoS. It keeps the package name and version `picomatch@4.0.7` so dependency scanners continue to identify the original package and advisory. Do not suppress the advisory or infer that the security gate passes from these files.
+
+The original MIT-licensed npm tarball is `picomatch-4.0.7-upstream.tgz` (SHA-256 `697b463be3cdbd9ffc8f4194fd5019a69ddf95875fb703d78b2b115cc9e740a8`); the original lockfile's SHA-512 integrity identifies the same source. `cve-2026-112366.patch` is the complete local change; the patched tarball is `picomatch-4.0.7-crm-backport.tgz` (SHA-256 `1ea32dc7254a192465d69c0f3fa340ab892d086b1c28718486c8c85c4f165dd3`). Both archives contain the upstream LICENSE.
+
+The patch literalizes repeated extglobs whose body contains `*`, even when `maxExtglobRecursion` is false. This deliberately changes matching semantics for patterns such as `+(*)` and may also literalize safe patterns containing a quoted or escaped star. Ordinary globs and repeated extglobs without `*` remain governed by upstream behavior. This conservative compatibility cost must be evaluated for any new consumer. Raw RegExp inputs, other ReDoS classes and all possible parser interactions are outside the proven scope. Remove this override and backport once an upstream stable fix is available and verified.
+
+To reproduce the archive, extract the upstream tarball into an empty temporary directory, run `patch -d package -p1 < cve-2026-112366.patch`, then from that temporary directory run `tar --sort=name --mtime='UTC 1970-01-01' --owner=0 --group=0 --numeric-owner -cf - package | gzip -n > picomatch-4.0.7-crm-backport.tgz` and compare its SHA-256 above. Use the committed lockfile and `npm ci`; do not run patching against a shared `node_modules` tree.
