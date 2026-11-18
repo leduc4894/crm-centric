@@ -128,3 +128,14 @@ both bootstrap/migration containers exited 0 and both APIs became healthy;
 one Keycloak exited 137 with Docker `OOMKilled=true`, while the other eventually
 became healthy. This establishes the cause for that diagnostic instance only,
 not every previous timeout. No timeout, runtime or security policy was changed.
+
+A subsequent sequential local `backend` workflow rehearsal on `1ca5f3a`
+(code unchanged from `81ecf23`; intervening commit is documentation) passed
+191/191 with 0 skipped in 848.16 seconds. The earlier 165/166 non-Compose failure
+remains recorded; the successful rerun does not establish its cause. This local
+simulation does not replace hosted CI.
+
+A sequential local `web-browser` rehearsal on `1ca5f3a` failed with
+`CI_COMMAND_FAILED` / `PLAN3_SOURCE_MUTATED` after 310.21 seconds, with no case
+counts. Documentation was edited during that rehearsal; a separate rerun on a
+clean committed candidate is required. The failure is retained as evidence.
