@@ -112,6 +112,8 @@ services:
         LOCAL_GID: ${LOCAL_GID}
     command: [start-dev, --import-realm]
     environment:
+      # Bound each local JVM when multiple isolated stacks share a Docker host.
+      JAVA_OPTS_KC_HEAP: "-Xms64m -Xmx512m"
       KC_HOSTNAME: http://localhost:${LOCAL_IDP_PORT}
       KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
       KC_HTTP_MANAGEMENT_SCHEME: http
