@@ -144,3 +144,16 @@ A clean-worktree local `web-browser` rehearsal on `0d932ab` (code unchanged
 from `81ecf23`) subsequently passed 58/58 with 0 skipped in 334.25 seconds.
 The preceding source-mutated rehearsal remains a failure; both runs are local
 simulations and do not establish hosted CI or browser OIDC acceptance.
+
+### Deferred security follow-up — 2026-11-18
+
+The user requested deferring further review of the locally maintained `picomatch`
+backport and security scanner findings. This is not a security exception and does
+not change the gate verdict: on candidate `054b6e0`, local security remained
+FAIL `CI_SCAN_FINDINGS` (one Trivy finding and 68 Gitleaks metadata records
+requiring revalidation after provenance changed). The backport has deliberately
+conservative compatibility effects and lacks a completed independent security
+review. No owner or return date was specified. Plan 2 exit and Wave 1/P0
+acceptance remain open until the required review and gate evidence are complete.
+Details and earlier passing and failing runs are in the
+[gate debugging handoff](../handoff/2026-11-18-gate-debug-handoff.md).
