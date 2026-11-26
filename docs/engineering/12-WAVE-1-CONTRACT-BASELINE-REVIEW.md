@@ -1,6 +1,6 @@
 # Wave 1 identity contract — baseline review package
 
-Status: **OPEN, prepared for independent review**. This is an author's technical assessment, not an independent security approval, trusted-baseline change, waiver, deployment approval, or passing gate. Wave 1 and P0 remain OPEN. Under the user's conditional work-order decision, Wave 2 can begin only after all other applicable Wave 1 requirements and gates pass, with the security gate remaining deferred and honestly reported.
+Status: **OPEN; independent technical review completed, human baseline decision pending**. The review is not a formal security approval, trusted-baseline change, waiver, deployment approval, or passing gate. Wave 1 and P0 remain OPEN. Under the user's conditional work-order decision, Wave 2 can begin only after all other applicable Wave 1 requirements and gates pass, with the security gate remaining deferred and honestly reported.
 
 ## Exact scope
 
@@ -25,3 +25,11 @@ An independent reviewer must assess the token-purpose invariant, every affected 
 3. After the baseline is actually advanced, verify its immutable SHA and ancestry, compare the candidate to that real trusted baseline and run contracts-sdk and web-browser with the unchanged gate. Record actual outputs and any remaining breaking changes. Separately run the remaining required non-security exit checks and assess the final candidate.
 
 No trusted baseline, branch, scanner, policy, deployment or remote state was changed while preparing this package. A merge, push, hosted settings change or formal exception is not implied by preparation.
+
+## Follow-up evidence and independent review
+
+On committed candidate `fa9f75c3ec3d7295cd3b7c2498a32e4b8bf70e86` with base `40bc2905b7750b139ff0607000127a3e5c06e2d8`, local full integration PASS 245/245, no skips; backend gate PASS 256/256, correlation `f3e28244-8f3f-44bb-84f5-7f93af95c69b`; Compose gate PASS 16/16, correlation `17ae1185-9dc2-4cbc-9f95-a4caf84e881e`. Frontend typecheck, lint, build and unit tests PASS (116/116); real-provider Chromium PASS 1/1; ordinary browser E2E PASS 7 with one provider skip, which was exercised separately. All are local, not hosted CI. These results belong only to `fa9f75c`; later documentation changes are different commits.
+
+An independent reviewer examined the contract/security change and fixture commits through `fa9f75c` and identified no critical implementation finding. Important unresolved conditions are issuer-exclusive token-purpose guarantees and consumer readiness, plus the separate trusted-baseline decision and gate evidence. This is an independent technical review, not an affirmative rollout, maintainer approval or baseline advancement. The reviewer also identified stale ADR wording; the follow-up updates that wording without changing behavior.
+
+Read-only GitHub inspection found remote `main` at the base SHA above; the authenticated account reported admin access, the classic branch protection endpoint returned 404 and the repository rulesets endpoint returned an empty list. These observations do not prove an external review mechanism exists or is absent outside the repository. No settings were changed.
