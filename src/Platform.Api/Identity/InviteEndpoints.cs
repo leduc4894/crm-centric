@@ -1,5 +1,8 @@
 using System.Globalization;
 using System.Text.Json;
+using System.Text;
+using Npgsql;
+using Platform.Infrastructure.Configuration;
 using Platform.Api.Operations;
 using Platform.Infrastructure.Identity;
 
@@ -11,6 +14,7 @@ public static class InviteEndpoints
     {
         var group = endpoints.MapGroup("/api/v1/invites").RequireAuthorization();
         group.MapPost("", CreateAsync);
+        group.MapPost("/accept", AcceptAsync);
         group.MapGet("", ListAsync);
         group.MapDelete("/{id}", RevokeAsync);
         return endpoints;
@@ -23,13 +27,11 @@ public static class InviteEndpoints
         TenantEndpointTransaction.RunAsync(c, config, mutation, (connection, transaction, tenant, commit) =>
             action(new(connection, transaction, tenant, c.User.FindFirst("iss")!.Value, c.User.FindFirst("sub")!.Value), tenant, commit));
 
-    private static async Task CreateAsync(HttpContext c, IConfiguration config)
+    private const int MaxBodyBytes = 8192;
+
+    private static async Task<(byte[] Body, int Length)> ReadBodyAsync(HttpContext c)
     {
-        // Finish bounded client I/O before the tenant-wide mutation transaction.
-        // Report validation errors after tenant authorization, like the other management operations.
-        const int maxBytes = 8192;
-        var jsonContent = c.Request.HasJsonContentType();
-        var body = jsonContent ? new byte[maxBytes + 1] : Array.Empty<byte>();
+        var body = c.Request.HasJsonContentType() ? new byte[MaxBodyBytes + 1] : Array.Empty<byte>();
         var length = 0;
         while (length < body.Length)
         {
@@ -37,11 +39,64 @@ public static class InviteEndpoints
             if (count == 0) break;
             length += count;
         }
+        return (body, length);
+    }
+
+    private static async Task AcceptAsync(HttpContext c, IConfiguration config)
+    {
+        if (c.Request.Headers.ContainsKey("X-Tenant-Id")) { await Error(c, 400); return; }
+        if (!c.Request.HasJsonContentType()) { await Error(c, 415); return; }
+        var (body, length) = await ReadBodyAsync(c);
+        if (length > MaxBodyBytes) { await Error(c, 413); return; }
+        byte[] hash;
+        try
+        {
+            using var doc = JsonDocument.Parse(body.AsMemory(0, length));
+            var fields = doc.RootElement.EnumerateObject();
+            if (!fields.MoveNext() || !fields.Current.NameEquals("token") ||
+                !InviteToken.TryHash(fields.Current.Value.GetString()!, out hash) || fields.MoveNext())
+            { await Error(c, 400); return; }
+        }
+        catch (Exception e) when (e is JsonException or InvalidOperationException) { await Error(c, 400); return; }
+        var subject = c.User.FindFirst("sub")!.Value;
+        if (subject.EnumerateRunes().Count() > 256 || !VerifiedEmail.TryGet(c.User, out var normalized))
+        { await Error(c, 403, "INVITE_IDENTITY_INVALID"); return; }
+        try
+        {
+            await using var connection = new NpgsqlConnection(DatabaseOptions.Parse(config.GetConnectionString("Platform")).ConnectionString);
+            await connection.OpenAsync(c.RequestAborted);
+            var result = await InviteStore.AcceptAsync(connection, hash, c.User.FindFirst("iss")!.Value, subject, normalized,
+                c.TraceIdentifier, c.RequestAborted);
+            if (result.Membership is { } membership)
+            {
+                await c.Response.WriteAsJsonAsync(membership, c.RequestAborted);
+                return;
+            }
+            var status = result.Outcome switch
+            {
+                "INVITE_NOT_FOUND" => 404,
+                "INVITE_IDENTITY_INVALID" => 403,
+                "INVITE_STATE_CONFLICT" or "MEMBERSHIP_EXISTS" => 409,
+                _ => throw new InvalidDataException("Unknown invitation outcome.")
+            };
+            await Error(c, status, result.Outcome);
+        }
+        catch (Exception ex) when (ex is NpgsqlException or TimeoutException or InvalidDataException)
+        {
+            if (!c.Response.HasStarted) await Error(c, 503, "IDENTITY_STORE_UNAVAILABLE");
+        }
+    }
+
+    private static async Task CreateAsync(HttpContext c, IConfiguration config)
+    {
+        // Finish bounded client I/O before the tenant-wide mutation transaction.
+        // Report validation errors after tenant authorization, like the other management operations.
+        var (body, length) = await ReadBodyAsync(c);
 
         await Run(c, config, true, async (store, _, commit) =>
         {
-            if (!jsonContent) { await Error(c, 415); return; }
-            if (length > maxBytes) { await Error(c, 413); return; }
+            if (!c.Request.HasJsonContentType()) { await Error(c, 415); return; }
+            if (length > MaxBodyBytes) { await Error(c, 413); return; }
             string? email = null, role = null;
             try
             {

@@ -1,4 +1,6 @@
 using System.Net;
+using System.Text;
+using System.Text.Json;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using Microsoft.AspNetCore.Builder;
@@ -22,6 +24,10 @@ public sealed record FakeTokenOptions
     public string? Scope { get; init; }
     public string? PayloadType { get; init; }
     public bool IncludeVerifiedEmail { get; init; }
+    public bool DuplicateEmail { get; init; }
+    public bool DuplicateVerification { get; init; }
+    public object Email { get; init; } = "Alice@Example.COM";
+    public object Verification { get; init; } = true;
     public string? Role { get; init; }
     public bool OmitSubject { get; init; }
     public bool OmitExpiration { get; init; }
@@ -105,12 +111,12 @@ public sealed class FakeOidcIssuer : IAsyncDisposable
             if (options.PayloadType is not null) claims["typ"] = options.PayloadType;
             if (options.IncludeVerifiedEmail)
             {
-                claims["email"] = "Alice@Example.COM";
-                claims["email_verified"] = true;
+                claims["email"] = options.Email;
+                claims["email_verified"] = options.Verification;
             }
             if (options.Scope is not null) claims["scope"] = options.Scope;
             if (options.Role is not null) claims["role"] = options.Role;
-            return tokenHandler.CreateToken(new SecurityTokenDescriptor
+            var encoded = tokenHandler.CreateToken(new SecurityTokenDescriptor
             {
                 Issuer = options.OmitIssuer ? null : options.IssuerOverride ?? Issuer.AbsoluteUri,
                 Audience = options.Audience,
@@ -120,6 +126,25 @@ public sealed class FakeOidcIssuer : IAsyncDisposable
                 Expires = options.OmitExpiration ? null : (options.Expires ?? now.AddMinutes(5)).UtcDateTime,
                 SigningCredentials = new SigningCredentials(signingKeys[^1].SecurityKey, SecurityAlgorithms.RsaSha256)
             });
+            if (!options.DuplicateEmail && !options.DuplicateVerification) return encoded;
+
+            var token = new JsonWebToken(encoded);
+            using var payload = JsonDocument.Parse(Base64UrlEncoder.DecodeBytes(token.EncodedPayload));
+            using var bytes = new MemoryStream();
+            using (var writer = new Utf8JsonWriter(bytes))
+            {
+                writer.WriteStartObject();
+                foreach (var claim in payload.RootElement.EnumerateObject())
+                {
+                    claim.WriteTo(writer);
+                    if ((options.DuplicateEmail && claim.NameEquals("email")) ||
+                        (options.DuplicateVerification && claim.NameEquals("email_verified")))
+                        claim.WriteTo(writer);
+                }
+                writer.WriteEndObject();
+            }
+            return tokenHandler.CreateToken(Encoding.UTF8.GetString(bytes.ToArray()),
+                new SigningCredentials(signingKeys[^1].SecurityKey, SecurityAlgorithms.RsaSha256));
         }
     }
 

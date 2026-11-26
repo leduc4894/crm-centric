@@ -5,6 +5,8 @@ namespace Platform.Infrastructure.Identity;
 
 public sealed record InviteView(Guid Id, string Email, string Role, DateTime ExpiresAt, string Status);
 
+public sealed record InviteAcceptance(string Outcome, LifecycleMembership? Membership);
+
 public sealed class InviteStore(NpgsqlConnection connection, NpgsqlTransaction transaction, Guid tenant, string issuer, string subject)
 {
     private NpgsqlCommand Command(string sql)
@@ -46,5 +48,40 @@ public sealed class InviteStore(NpgsqlConnection connection, NpgsqlTransaction t
         cmd.Parameters.AddWithValue("id", id);
         cmd.Parameters.AddWithValue("correlation", correlation);
         return (string?)await cmd.ExecuteScalarAsync(ct) ?? throw new InvalidDataException("Missing invitation outcome.");
+    }
+
+    public static async Task<InviteAcceptance> AcceptAsync(NpgsqlConnection connection, byte[] tokenHash, string issuer,
+        string subject, string normalizedEmail, string correlationId, CancellationToken ct)
+    {
+        for (var attempt = 0; ; attempt++)
+        {
+            var commitStarted = false;
+            try
+            {
+                await using var tx = await connection.BeginTransactionAsync(ct);
+                await using var cmd = new NpgsqlCommand(
+                    "SELECT outcome,member_id,invited_role FROM platform.accept_invite(@hash,@issuer,@subject,@email,@correlation)", connection, tx);
+                cmd.Parameters.AddWithValue("hash", tokenHash);
+                cmd.Parameters.AddWithValue("issuer", issuer);
+                cmd.Parameters.AddWithValue("subject", subject);
+                cmd.Parameters.AddWithValue("email", normalizedEmail);
+                cmd.Parameters.AddWithValue("correlation", correlationId);
+                LifecycleMembership membership;
+                await using (var reader = await cmd.ExecuteReaderAsync(ct))
+                {
+                    if (!await reader.ReadAsync(ct)) throw new InvalidDataException("Missing invitation outcome.");
+                    var outcome = reader.GetString(0);
+                    if (outcome != "accepted") return new(outcome, null);
+                    membership = new(reader.GetGuid(1), issuer, subject, reader.GetString(2), "active", 1);
+                }
+                commitStarted = true;
+                await tx.CommitAsync(ct);
+                return new("accepted", membership);
+            }
+            catch (PostgresException ex) when (!commitStarted && attempt < 2 && ex.SqlState is "40P01" or "40001")
+            {
+                await Task.Delay(25 * (attempt + 1), ct);
+            }
+        }
     }
 }

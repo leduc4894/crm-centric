@@ -122,6 +122,44 @@ namespace Platform.Infrastructure.Persistence.Migrations
                     VALUES(gen_random_uuid(),t,iss,sub,'invite.revoked',target,'Invitation revoked',correlation);
                   RETURN 'revoked';
                 END $f$;
+                CREATE FUNCTION platform.accept_invite(digest bytea, iss text, sub text, normalized text, correlation text)
+                RETURNS TABLE(outcome text, member_id uuid, invited_role text)
+                LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog AS $f$
+                DECLARE t uuid; invitation platform.invites%ROWTYPE; accepted timestamptz;
+                BEGIN
+                  t := platform.invite_tenant_for_hash(digest);
+                  IF t IS NULL THEN outcome := 'INVITE_NOT_FOUND'; RETURN NEXT; RETURN; END IF;
+                  PERFORM pg_advisory_xact_lock(hashtextextended('crm.membership:' || t::text,0));
+                  PERFORM set_config('crm.tenant_id',t::text,true);
+                  PERFORM 1 FROM platform.tenants WHERE id=t AND status='active' FOR SHARE;
+                  IF NOT FOUND THEN outcome := 'INVITE_IDENTITY_INVALID'; RETURN NEXT; RETURN; END IF;
+                  SELECT i.* INTO invitation FROM platform.invites i WHERE i.tenant_id=t AND i.token_hash=digest FOR UPDATE;
+                  IF NOT FOUND THEN outcome := 'INVITE_NOT_FOUND'; RETURN NEXT; RETURN; END IF;
+                  IF NOT platform.lock_verified_staff(iss,sub) OR invitation.normalized_email IS DISTINCT FROM normalized THEN
+                    outcome := 'INVITE_IDENTITY_INVALID'; RETURN NEXT; RETURN;
+                  END IF;
+                  accepted := clock_timestamp();
+                  IF invitation.revoked_at IS NOT NULL OR invitation.accepted_at IS NOT NULL OR invitation.expires_at<=accepted THEN
+                    outcome := 'INVITE_STATE_CONFLICT'; RETURN NEXT; RETURN;
+                  END IF;
+                  member_id := gen_random_uuid();
+                  INSERT INTO platform.memberships(tenant_id,id,issuer,subject,role,status,version)
+                    VALUES(t,member_id,iss,sub,invitation.role,'active',1)
+                    ON CONFLICT (tenant_id,issuer,subject) DO NOTHING;
+                  IF NOT FOUND THEN outcome := 'MEMBERSHIP_EXISTS'; member_id := NULL; RETURN NEXT; RETURN; END IF;
+                  accepted := clock_timestamp();
+                  IF invitation.expires_at<=accepted THEN
+                    -- Roll back the membership inserted above even for a direct function caller.
+                    RAISE EXCEPTION USING ERRCODE='P1010', MESSAGE='INVITE_STATE_CONFLICT';
+                  END IF;
+                  UPDATE platform.invites SET accepted_at=accepted WHERE tenant_id=t AND id=invitation.id;
+                  INSERT INTO audit.entries(id,tenant_id,actor_issuer,actor_subject,action,target_id,summary,correlation_id)
+                    VALUES(gen_random_uuid(),t,iss,sub,'invite.accepted',invitation.id,'Invitation accepted',correlation);
+                  outcome := 'accepted'; invited_role := invitation.role; RETURN NEXT;
+                EXCEPTION WHEN SQLSTATE 'P1010' THEN
+                  outcome := 'INVITE_STATE_CONFLICT'; member_id := NULL; invited_role := NULL; RETURN NEXT;
+                END $f$;
+                REVOKE ALL ON FUNCTION platform.accept_invite(bytea,text,text,text,text) FROM PUBLIC;
                 REVOKE ALL ON FUNCTION platform.create_invite(uuid,text,text,text,bytea,text,text,text), platform.list_invites(uuid,text,text,uuid,integer), platform.revoke_invite(uuid,text,text,text,uuid), platform.require_invite_manager(uuid,text,text) FROM PUBLIC;
                 REVOKE ALL ON FUNCTION platform.invite_tenant_for_hash(bytea) FROM PUBLIC;
                 """);
@@ -137,6 +175,7 @@ namespace Platform.Infrastructure.Persistence.Migrations
                     RAISE EXCEPTION 'invite or audit data exists; back up and use a forward fix';
                   END IF;
                 END $body$;
+                DROP FUNCTION platform.accept_invite(bytea,text,text,text,text);
                 DROP FUNCTION platform.create_invite(uuid,text,text,text,bytea,text,text,text), platform.list_invites(uuid,text,text,uuid,integer), platform.revoke_invite(uuid,text,text,text,uuid), platform.require_invite_manager(uuid,text,text);
                 DROP FUNCTION platform.invite_tenant_for_hash(bytea);
                 """);
