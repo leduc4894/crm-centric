@@ -143,6 +143,18 @@ def dotnet_failure_diagnostic(stdout, stderr):
     ):
         if name in compose_families:
             matches.append(token)
+    # Only a Compose failure's own xUnit error-message line may establish its
+    # startup timeout; unrelated log lines must not be attributed to the test.
+    lines = text.splitlines()
+    for index, line in enumerate(lines[:-2]):
+        if not re.match(r'^\s*Failed\s+Integration\.Compose\.', line):
+            continue
+        if not next(_compose_failure_records(line), None) or lines[index + 1].strip() != 'Error Message:':
+            continue
+        stage, separator, detail = lines[index + 2].strip().partition(': ')
+        if separator and stage in ('operation', 'initial startup') and 'LOCAL_START_TIMEOUT' in detail.split(', '):
+            matches.append('LOCAL_START_TIMEOUT')
+            break
     if 'Container operation failed: build exit 1' in text:
         matches.append('CONTAINER_IMAGE_BUILD_FAILED')
     process_failures = {

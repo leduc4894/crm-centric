@@ -169,6 +169,20 @@ class ProcessTests(unittest.TestCase):
         mismatch = b'Integration.Compose.LocalStackSecretTests.Cold_up_needs_no_host_sdk [FAIL]'
         self.assertEqual(['OTHER'], dotnet_failure_methods(mismatch, b''))
 
+    def test_compose_safe_startup_reason_is_bound_to_failure_details(self):
+        from scripts.ci.jobs import dotnet_failure_diagnostic
+        name = b'Integration.Compose.LocalStackTests.Api_uses_trusted_tls_backchannel_with_unchanged_public_issuer'
+        output = (b'  Failed ' + name + b' [1 m]\n  Error Message:\n'
+                  b'   initial startup: status, status, LOCAL_START_TIMEOUT\n  Stack Trace:\nprivate-sentinel')
+        self.assertEqual(['COMPOSE_LOCAL_STACK_TESTS_FAILED', 'LOCAL_START_TIMEOUT'],
+                         dotnet_failure_diagnostic(output, b''))
+        unrelated = (b'  Failed ' + name + b' [1 m]\n  Error Message:\n   TLS failure\n'
+                     b'  Stack Trace:\n'
+                     b'  Failed Integration.Other.Other_test [1 s]\n  Error Message:\n'
+                     b'   operation: status, LOCAL_START_TIMEOUT\n')
+        self.assertEqual(['COMPOSE_LOCAL_STACK_TESTS_FAILED'], dotnet_failure_diagnostic(unrelated, b''))
+        self.assertEqual(['OTHER_TESTS_FAILED'], dotnet_failure_diagnostic(b'private-sentinel LOCAL_START_TIMEOUT', b''))
+
     def test_failed_compose_command_does_not_echo_private_output(self):
         import contextlib, io, json
         process = unittest.mock.Mock(returncode=1)
