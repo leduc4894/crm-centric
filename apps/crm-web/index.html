@@ -2,6 +2,13 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <meta name="referrer" content="no-referrer" />
+    <script>
+      if (location.pathname === "/auth/callback") {
+        window.__crmOidcCallback = location.href;
+        history.replaceState(null, "", "/auth/callback");
+      }
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>CRM Centric</title>
   </head>
