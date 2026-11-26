@@ -157,3 +157,11 @@ review. No owner or return date was specified. Plan 2 exit and Wave 1/P0
 acceptance remain open until the required review and gate evidence are complete.
 Details and earlier passing and failing runs are in the
 [gate debugging handoff](../handoff/2026-11-18-gate-debug-handoff.md).
+
+### Security follow-up — 2026-11-26
+
+GitHub withdrew GHSA-fc5q-39xc-vjpf. The local security workflow on `48c3ff5` still failed with `CI_SCAN_FINDINGS`. Gitleaks verified 68 metadata records under the existing policy. A dependency-input diagnostic identified Trivy's HIGH finding as CVE-2026-115563 in `mcp` 1.29.0. Semgrep 1.185.0 pins that version and the attempted locked upgrade to 1.30.0 failed dependency resolution. The user elected to wait for an upstream fix. The security gate remains FAIL and the deferral grants no exception.
+
+### Wave 1 Plan 3 invitation and audit evidence
+
+The [Plan 3 handoff](../handoff/2026-11-26-wave-1-invites-audit-handoff.md) records signed-bearer and real PostgreSQL coverage for tenant isolation, invitation expiry, revoke/accept races, verified staff and email, atomic membership and audit, and a lost acknowledgement after durable commit. Local audit tests cover permission, tenant isolation and cursor pagination. RT-IAM-01 remains open for the browser OIDC flow, independent A/B sessions and the full token-security suite. Plan 2 exit and Wave 1/P0 acceptance remain open.

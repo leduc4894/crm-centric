@@ -255,3 +255,21 @@ and do not log tokens or verification evidence. The migration refuses downgrade
 when bindings or their audit exist; retain backups and prefer a forward fix.
 An operator with database-owner powers can bypass SQL controls: restrict and
 audit that credential externally, including schema and trigger changes.
+
+## Invitation acceptance and recovery
+
+Configure the CRM audience on the Keycloak client. All invitation and tenant audit routes require exactly one signed payload member `typ` with string value `"Bearer"`. This discriminator distinguishes a Keycloak access token from an ID token with the same audience. Invitation acceptance additionally requires the email scope. After the provider verifies ownership of the address, issue the following signed access-token payload members exactly once.
+
+| Member | Required JSON value |
+| --- | --- |
+| `typ` | String `"Bearer"` |
+| `email` | String containing the recipient's address |
+| `email_verified` | Boolean `true` |
+
+Validate the mapping with a dedicated test identity. Keep tokens and signed payloads out of logs, tickets and CI output. The API validates the bearer first and uses its issuer and subject to identify the caller. Acceptance also requires an active independently verified staff binding for that identity. An email match never establishes a staff binding or links a CRM contact.
+
+Creation and acceptance use the same ASCII address comparison. Preserve the case of the dot-atom local part (1–64 characters). Fold the domain to lowercase (1–253 characters, labels of 1–63 letters, digits or hyphens, each starting and ending with a letter or digit). The complete address is limited to 320 characters. Supply the address exactly as verified, without whitespace, quoted local parts, display names or Unicode. Plus tags and dots are significant.
+
+Deliver the single-use token manually to the verified recipient over a confidential channel. It expires after 24 hours. For creation with an uncertain outcome, check the tenant list and audit, revoke the matching pending invitation and issue a fresh one. After an ambiguous acceptance, inspect membership and tenant audit before taking further action. A durable acceptance consumes the invitation and records membership and audit together. See [TLS and redaction requirements](01-DEPLOYMENT-OBSERVABILITY.md).
+
+Apply migration `20261126000000_Invitations` as the migration owner. The runtime login uses narrowly granted functions for invitation operations and tenant audit reads. Keep owner credentials outside the application. Earlier revisions of this unreleased migration assumed disposable development databases. Recreate such a disposable database from the current migration chain. For a database holding real data, take a verified backup and plan a forward migration. Downgrade locks the invitation and audit tables and refuses to proceed when invitations or invitation audit entries exist.
