@@ -144,18 +144,20 @@ public sealed class ComposeFixture : IAsyncDisposable
         if (arguments[0] == "run" && Environment.GetEnvironmentVariable("CI_IMAGE_EVIDENCE") is not null)
         {
             var capture = await ContainerImages.Docker(false, arguments);
-            return new(capture.ExitCode, capture.Output + capture.Error);
+            return new(capture.ExitCode, capture.Output + (capture.ExitCode == 0 ? "" : capture.Error));
         }
         var p = new ProcessStartInfo("docker") { RedirectStandardOutput = true, RedirectStandardError = true };
         foreach (var arg in arguments) p.ArgumentList.Add(arg);
-        return await Run(p, 120);
+        return await Run(p, 120, stdoutOnSuccess: arguments[0] == "run");
     }
-    private static async Task<Result> Run(ProcessStartInfo info, int timeout)
+    private static async Task<Result> Run(ProcessStartInfo info, int timeout, bool stdoutOnSuccess = false)
     {
         using var p = Process.Start(info)!; var stdout = p.StandardOutput.ReadToEndAsync(); var stderr = p.StandardError.ReadToEndAsync();
         try { await p.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(timeout)); }
         catch { p.Kill(true); throw; }
-        return new(p.ExitCode, await stdout + await stderr);
+        var output = await stdout;
+        var error = await stderr;
+        return new(p.ExitCode, output + (stdoutOnSuccess && p.ExitCode == 0 ? "" : error));
     }
     public async Task<string> Container(string service)
     {

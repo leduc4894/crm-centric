@@ -7,6 +7,25 @@ namespace Integration.Compose;
 public sealed class LocalStackTests
 {
     [Fact]
+    public async Task Docker_run_keeps_diagnostics_out_of_json_response()
+    {
+        var result = await ComposeFixture.Docker("run", "--rm", ContainerImages.Pins["DOTNET_SDK_IMAGE"],
+            "sh", "-c", "printf '{\"issuer\":\"expected\"}'; printf 'diagnostic\\n' >&2");
+        Assert.Equal(0, result.ExitCode);
+        using var body = System.Text.Json.JsonDocument.Parse(result.Output);
+        Assert.Equal("expected", body.RootElement.GetProperty("issuer").GetString());
+    }
+
+    [Fact]
+    public async Task Docker_run_keeps_stderr_when_command_fails()
+    {
+        var result = await ComposeFixture.Docker("run", "--rm", ContainerImages.Pins["DOTNET_SDK_IMAGE"],
+            "sh", "-c", "printf 'failure diagnostic\\n' >&2; exit 7");
+        Assert.Equal(7, result.ExitCode);
+        Assert.Contains("failure diagnostic", result.Output);
+    }
+
+    [Fact]
     public async Task Existing_v1_stack_migrates_tls_without_losing_data_and_rejects_missing_tls_afterwards()
     {
         await using var stack = new ComposeFixture();
