@@ -85,6 +85,12 @@ public sealed class KeycloakContainerTests(ContainerImages images)
         using var warmAdmin = await stack.Admin();
         var clients = await warmAdmin.GetFromJsonAsync<JsonElement>("admin/realms/crm-local/clients?clientId=crm-web-local");
         var id = clients[0].GetProperty("id").GetString();
+        using (var enablePassword = await warmAdmin.PutAsJsonAsync($"admin/realms/crm-local/clients/{id}", new { directAccessGrantsEnabled = true }))
+            Assert.Equal(HttpStatusCode.NoContent, enablePassword.StatusCode);
+        Assert.Equal("drift", await stack.InspectRealm());
+        using (var disablePassword = await warmAdmin.PutAsJsonAsync($"admin/realms/crm-local/clients/{id}", new { directAccessGrantsEnabled = false }))
+            Assert.Equal(HttpStatusCode.NoContent, disablePassword.StatusCode);
+        Assert.Equal("ready", await stack.InspectRealm());
         var mappers = await warmAdmin.GetFromJsonAsync<JsonElement>($"admin/realms/crm-local/clients/{id}/protocol-mappers/models");
         var mapper = Assert.Single(mappers.EnumerateArray(), x => x.GetProperty("name").GetString() == "crm-api-audience");
         using var response = await warmAdmin.DeleteAsync($"admin/realms/crm-local/clients/{id}/protocol-mappers/models/{mapper.GetProperty("id").GetString()}");
