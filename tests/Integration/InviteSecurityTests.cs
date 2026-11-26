@@ -56,12 +56,13 @@ public sealed class InviteSecurityTests
     [InlineData("\"email\":\"Alice@Example.COM\",\"email_verified\":[true]", false)]
     [InlineData("\"email\":\"Alice@Example.COM\",\"email_verified\":false,\"email_verified\":true", false)]
     [InlineData("\"email\":\"Other@example.com\",\"email\":\"Alice@Example.COM\",\"email_verified\":true", false)]
+    [InlineData("\"email\":\"Alice@Example.COM\",\"email_verified\":true,\"typ\":\"Bearer\"", false)]
     public async Task Validated_JWT_preserves_scalar_types_and_duplicate_members(string fields, bool expected)
     {
         using var rsa = RSA.Create(2048);
         var key = new RsaSecurityKey(rsa);
         var handler = new JsonWebTokenHandler { MapInboundClaims = false, SetDefaultTimesOnTokenCreation = false };
-        var payload = "{\"iss\":\"issuer\",\"aud\":\"api\",\"exp\":" +
+        var payload = "{\"typ\":\"Bearer\",\"iss\":\"issuer\",\"aud\":\"api\",\"exp\":" +
             DateTimeOffset.UtcNow.AddMinutes(5).ToUnixTimeSeconds() + "," + fields + "}";
         var encoded = handler.CreateToken(payload, new SigningCredentials(key, SecurityAlgorithms.RsaSha256));
         var result = await handler.ValidateTokenAsync(encoded, new TokenValidationParameters

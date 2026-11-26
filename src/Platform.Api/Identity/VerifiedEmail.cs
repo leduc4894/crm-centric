@@ -14,12 +14,18 @@ public static class VerifiedEmail
         if (token is JsonWebToken jwt)
         {
             using var payload = JsonDocument.Parse(Base64UrlEncoder.DecodeBytes(jwt.EncodedPayload));
+            var tokenTypes = 0;
             var emails = 0;
             var verified = 0;
             var valid = true;
             foreach (var property in payload.RootElement.EnumerateObject())
             {
-                if (property.NameEquals("email"))
+                if (property.NameEquals("typ"))
+                {
+                    tokenTypes++;
+                    valid &= property.Value.ValueKind == JsonValueKind.String && property.Value.ValueEquals("Bearer");
+                }
+                else if (property.NameEquals("email"))
                 {
                     emails++;
                     valid &= property.Value.ValueKind == JsonValueKind.String;
@@ -30,7 +36,7 @@ public static class VerifiedEmail
                     valid &= property.Value.ValueKind == JsonValueKind.True;
                 }
             }
-            if (valid && emails == 1 && verified == 1)
+            if (valid && tokenTypes == 1 && emails == 1 && verified == 1)
                 return;
         }
 

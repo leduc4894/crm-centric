@@ -20,10 +20,13 @@ public static class DatabaseRoleGrants
     {
         await using var command = new NpgsqlCommand("""
             SELECT EXISTS (
-                SELECT FROM pg_roles WHERE rolname = @role AND rolname <> current_user
-                  AND rolcanlogin AND NOT rolsuper AND NOT rolbypassrls
-                  AND NOT EXISTS (SELECT FROM pg_roles privileged WHERE (privileged.rolsuper OR privileged.rolbypassrls) AND pg_has_role(@role, privileged.oid, 'MEMBER'))
-                  AND NOT has_database_privilege(rolname, current_database(), 'CREATE')
+              SELECT FROM pg_roles WHERE rolname = @role AND rolname <> current_user
+                AND rolcanlogin AND NOT rolsuper AND NOT rolbypassrls
+                AND NOT EXISTS (SELECT FROM pg_roles privileged WHERE (privileged.rolsuper OR privileged.rolbypassrls) AND pg_has_role(@role, privileged.oid, 'MEMBER'))
+            ) AND (
+              -- Evaluate the login and every role it can assume, including non-inherited grants.
+              SELECT bool_and(
+                  NOT has_database_privilege(rolname, current_database(), 'CREATE')
                   AND NOT has_schema_privilege(rolname, 'public', 'CREATE')
                   AND NOT EXISTS (
                     SELECT FROM pg_namespace n WHERE n.nspname IN ('platform','audit')
@@ -59,6 +62,8 @@ public static class DatabaseRoleGrants
                     AND (has_table_privilege(rolname, c.oid, 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
                       OR has_any_column_privilege(rolname, c.oid, 'SELECT,INSERT,UPDATE,REFERENCES'))
                   )
+              )
+              FROM pg_roles WHERE pg_has_role(@role, oid, 'SET')
             )
             """, connection);
         command.Parameters.AddWithValue("role", applicationRole);

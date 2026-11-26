@@ -20,6 +20,8 @@ public sealed record FakeTokenOptions
     public string Audience { get; init; } = "crm-api";
     public string Subject { get; init; } = "fixture-user";
     public string? Scope { get; init; }
+    public string? PayloadType { get; init; }
+    public bool IncludeVerifiedEmail { get; init; }
     public string? Role { get; init; }
     public bool OmitSubject { get; init; }
     public bool OmitExpiration { get; init; }
@@ -100,6 +102,12 @@ public sealed class FakeOidcIssuer : IAsyncDisposable
             var now = DateTimeOffset.UtcNow;
             var claims = new Dictionary<string, object>();
             if (!options.OmitSubject) claims["sub"] = options.Subject;
+            if (options.PayloadType is not null) claims["typ"] = options.PayloadType;
+            if (options.IncludeVerifiedEmail)
+            {
+                claims["email"] = "Alice@Example.COM";
+                claims["email_verified"] = true;
+            }
             if (options.Scope is not null) claims["scope"] = options.Scope;
             if (options.Role is not null) claims["role"] = options.Role;
             return tokenHandler.CreateToken(new SecurityTokenDescriptor

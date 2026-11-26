@@ -37,7 +37,11 @@ public sealed class OidcAuthenticationTests
                 context.TraceIdentifier = Guid.NewGuid().ToString("N");
                 var result = await context.AuthenticateAsync();
                 if (!result.Succeeded) { await context.ChallengeAsync(); return; }
-                await context.Response.WriteAsJsonAsync(new { subject = result.Principal!.FindFirst("sub")?.Value });
+                await context.Response.WriteAsJsonAsync(new
+                {
+                    subject = result.Principal!.FindFirst("sub")?.Value,
+                    verifiedInviteEmail = VerifiedEmail.TryGet(result.Principal, out _)
+                });
             });
             next(app);
         };
@@ -114,6 +118,26 @@ public sealed class OidcAuthenticationTests
             Assert.Equal(response.Headers.GetValues("X-Correlation-Id").Single(), body.RootElement.GetProperty("correlationId").GetString());
         }
     }
+    [Theory]
+    [InlineData("Bearer", true)]
+    [InlineData("ID", false)]
+    [InlineData(null, false)]
+    public async Task Invite_evidence_requires_signed_access_token_type_even_with_same_audience(string? type, bool expected)
+    {
+        await using var issuer = await FakeOidcIssuer.StartAsync();
+        await using var baseFactory = Factory(issuer);
+        await using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services => services.AddTransient<IStartupFilter, AuthProbe>()));
+        using var client = factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/test-auth");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer",
+            issuer.IssueToken(new() { IncludeVerifiedEmail = true, PayloadType = type }));
+        using var response = await client.SendAsync(request);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal(expected, body.RootElement.GetProperty("verifiedInviteEmail").GetBoolean());
+    }
+
     [Theory]
     [InlineData("crm-api", "crm-api/")]
     [InlineData("crm-api/", "crm-api")]

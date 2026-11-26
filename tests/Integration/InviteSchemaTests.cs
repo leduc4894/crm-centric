@@ -98,6 +98,24 @@ public sealed class InviteSchemaTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Grant_validation_checks_noninherited_switchable_role()
+    {
+        await using var admin = new NpgsqlConnection(db.AdminConnectionString);
+        await admin.OpenAsync();
+        var login = PostgresFixture.Quote(db.ApplicationRole);
+        await Scalar(admin, $"CREATE ROLE invite_reader NOLOGIN; GRANT invite_reader TO {login} WITH INHERIT FALSE, SET TRUE");
+        await Scalar(owner, "GRANT USAGE ON SCHEMA platform TO invite_reader");
+        await Scalar(owner, "GRANT SELECT(token_hash) ON platform.invites TO invite_reader");
+        await using var app = new NpgsqlConnection(db.ApplicationConnectionString);
+        await app.OpenAsync();
+        const string privilege = "SELECT has_column_privilege(current_user,'platform.invites','token_hash','SELECT')";
+        Assert.Equal(false, await Scalar(app, privilege));
+        await Scalar(app, "SET ROLE invite_reader");
+        Assert.Equal(true, await Scalar(app, privilege));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => DatabaseRoleGrants.ValidateAsync(owner, db.ApplicationRole, default));
+    }
+
+    [Fact]
     public async Task Constraints_enforce_digest_length_global_uniqueness_role_expiry_and_terminal_state()
     {
         await Insert(tenant, new byte[32]);
