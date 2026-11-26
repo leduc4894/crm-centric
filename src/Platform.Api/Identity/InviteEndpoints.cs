@@ -25,38 +25,41 @@ public static class InviteEndpoints
 
     private static async Task CreateAsync(HttpContext c, IConfiguration config)
     {
-        string? email = null, role = null, normalized = null;
+        // Finish bounded client I/O before the tenant-wide mutation transaction.
+        // Report validation errors after tenant authorization, like the other management operations.
+        const int maxBytes = 8192;
+        var jsonContent = c.Request.HasJsonContentType();
+        var body = jsonContent ? new byte[maxBytes + 1] : Array.Empty<byte>();
+        var length = 0;
+        while (length < body.Length)
+        {
+            var count = await c.Request.Body.ReadAsync(body.AsMemory(length), c.RequestAborted);
+            if (count == 0) break;
+            length += count;
+        }
+
         await Run(c, config, true, async (store, _, commit) =>
         {
-            if (normalized is null)
+            if (!jsonContent) { await Error(c, 415); return; }
+            if (length > maxBytes) { await Error(c, 413); return; }
+            string? email = null, role = null;
+            try
             {
-                if (!c.Request.HasJsonContentType()) { await Error(c, 415); return; }
-                try
+                using var doc = JsonDocument.Parse(body.AsMemory(0, length));
+                if (doc.RootElement.ValueKind != JsonValueKind.Object) throw new JsonException();
+                foreach (var field in doc.RootElement.EnumerateObject())
                 {
-                    using var buffer = new MemoryStream();
-                    var chunk = new byte[1024];
-                    int count;
-                    while ((count = await c.Request.Body.ReadAsync(chunk, c.RequestAborted)) != 0)
-                    {
-                        if (buffer.Length + count > 8192) { await Error(c, 413); return; }
-                        buffer.Write(chunk, 0, count);
-                    }
-                    using var doc = JsonDocument.Parse(buffer.ToArray());
-                    if (doc.RootElement.ValueKind != JsonValueKind.Object) throw new JsonException();
-                    foreach (var field in doc.RootElement.EnumerateObject())
-                    {
-                        if (field.Value.ValueKind != JsonValueKind.String) throw new JsonException();
-                        if (field.Name == "email" && email is null) email = field.Value.GetString();
-                        else if (field.Name == "role" && role is null) role = field.Value.GetString();
-                        else throw new JsonException();
-                    }
+                    if (field.Value.ValueKind != JsonValueKind.String) throw new JsonException();
+                    if (field.Name == "email" && email is null) email = field.Value.GetString();
+                    else if (field.Name == "role" && role is null) role = field.Value.GetString();
+                    else throw new JsonException();
                 }
-                catch (Exception e) when (e is JsonException or InvalidOperationException) { await Error(c, 400); return; }
-                if (role is not ("admin" or "agent" or "operator") || !InviteEmail.TryNormalize(email!, out normalized))
-                { await Error(c, 400); return; }
             }
+            catch (Exception e) when (e is JsonException or InvalidOperationException) { await Error(c, 400); return; }
+            if (role is not ("admin" or "agent" or "operator") || !InviteEmail.TryNormalize(email!, out var normalized))
+            { await Error(c, 400); return; }
             var (token, hash) = InviteToken.Create();
-            var row = await store.CreateAsync(hash, email!, normalized, role!, c.TraceIdentifier, c.RequestAborted);
+            var row = await store.CreateAsync(hash, email!, normalized, role, c.TraceIdentifier, c.RequestAborted);
             await commit();
             c.Response.StatusCode = 201;
             await c.Response.WriteAsJsonAsync(new { row.Id, row.Email, row.Role, row.ExpiresAt, row.Status, token }, c.RequestAborted);

@@ -58,16 +58,16 @@ app.Use(async (context, next) =>
 {
     if (context.Request.Path.StartsWithSegments("/api/v1/invites"))
     {
-        var peer = context.Connection.RemoteIpAddress;
-        var viaTlsProxy = trustedTlsProxy is not null && peer?.MapToIPv6().Equals(trustedTlsProxy.MapToIPv6()) == true
-            && context.Request.Headers["X-Forwarded-Proto"] is { Count: 1 } proto && proto[0] == "https";
-        var local = app.Environment.IsEnvironment("Testing") || (app.Environment.IsDevelopment() && peer is not null && System.Net.IPAddress.IsLoopback(peer));
         // The host's automatic forwarding can rewrite both scheme and peer before this middleware.
-        if (!local && automaticForwarding)
+        if (automaticForwarding)
         {
             await OperationalErrors.WriteProblemAsync(context, 503, "TLS_CONFIGURATION_INVALID", context.RequestAborted);
             return;
         }
+        var peer = context.Connection.RemoteIpAddress;
+        var viaTlsProxy = trustedTlsProxy is not null && peer?.MapToIPv6().Equals(trustedTlsProxy.MapToIPv6()) == true
+            && context.Request.Headers["X-Forwarded-Proto"] is { Count: 1 } proto && proto[0] == "https";
+        var local = app.Environment.IsEnvironment("Testing") || (app.Environment.IsDevelopment() && peer is not null && System.Net.IPAddress.IsLoopback(peer));
         if (!local && !context.Request.IsHttps && !viaTlsProxy)
         {
             await OperationalErrors.WriteProblemAsync(context, 400, "HTTPS_REQUIRED", context.RequestAborted);

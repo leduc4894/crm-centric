@@ -286,4 +286,85 @@ public sealed class InviteManagementTests : IAsyncLifetime
             """, c);
         Assert.True((bool?)await state.ExecuteScalarAsync());
     }
+
+    [Theory]
+    [InlineData(true,503)]
+    [InlineData(false,401)]
+    public async Task Development_checks_forwarding_configuration_before_loopback_exception(bool automatic, int expected)
+    {
+        using var development = factory.WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment("Development");
+            builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(new Dictionary<string,string?>
+            {
+                ["FORWARDEDHEADERS_ENABLED"] = automatic.ToString()
+            }));
+        });
+        var response = await development.Server.SendAsync(context =>
+        {
+            context.Connection.RemoteIpAddress = IPAddress.Loopback;
+            context.Request.Scheme = "http";
+            context.Request.Method = "GET";
+            context.Request.Path = Path;
+        });
+        Assert.Equal(expected,response.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Invitation_input_is_read_before_tenant_mutation_locks()
+    {
+        await using var observer = new NpgsqlConnection(db.AdminConnectionString);
+        await observer.OpenAsync();
+        using var prior = await Send(HttpMethod.Post, Path, body: ValidBody);
+        Assert.Equal(HttpStatusCode.Created, prior.StatusCode);
+        using var created = JsonDocument.Parse(await prior.Content.ReadAsStringAsync());
+        var revokePath = Path + "/" + created.RootElement.GetProperty("id").GetGuid();
+        var revoked = false;
+        using var input = new ObservedInput(Encoding.UTF8.GetBytes(ValidBody), async () =>
+        {
+            await using var check = new NpgsqlCommand("""
+                SELECT EXISTS (SELECT FROM pg_locks l JOIN pg_stat_activity a ON a.pid=l.pid
+                  WHERE a.datname=current_database() AND a.usename=@role AND l.locktype='advisory' AND l.granted)
+                """, observer);
+            check.Parameters.AddWithValue("role",db.ApplicationRole);
+            Assert.False((bool)(await check.ExecuteScalarAsync())!);
+            if (!revoked)
+            {
+                // This valid upload resumes after an independent request has committed its revocation.
+                using var response = await Send(HttpMethod.Delete, revokePath).WaitAsync(TimeSpan.FromSeconds(10));
+                Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+                revoked = true;
+            }
+        });
+        var result = await factory.Server.SendAsync(context =>
+        {
+            context.Request.Method = "POST";
+            context.Request.Path = Path;
+            context.Request.ContentType = "application/json";
+            context.Request.Body = input;
+            context.Request.Headers.Authorization = "Bearer " + issuer.IssueToken(new() { Subject="owner" });
+            context.Request.Headers["X-Tenant-Id"] = tenant.ToString();
+        });
+        Assert.Equal(201,result.Response.StatusCode);
+        Assert.True(input.ReadObserved);
+        Assert.True(revoked);
+        foreach (var invalidBody in new[] { "{", new string(' ', 8193) })
+        {
+            using var denied = await Send(HttpMethod.Post, Path, "agent", invalidBody);
+            Assert.Equal(HttpStatusCode.Forbidden, denied.StatusCode);
+        }
+        using var tooLarge = await Send(HttpMethod.Post, Path, body: new string(' ', 8193));
+        Assert.Equal(HttpStatusCode.RequestEntityTooLarge, tooLarge.StatusCode);
+    }
+
+    private sealed class ObservedInput(byte[] data, Func<Task> observe) : MemoryStream(data)
+    {
+        public bool ReadObserved { get; private set; }
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken ct = default)
+        {
+            await observe();
+            ReadObserved = true;
+            return await base.ReadAsync(buffer,ct);
+        }
+    }
 }
