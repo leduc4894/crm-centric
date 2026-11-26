@@ -297,7 +297,8 @@ public sealed class ContainerRuntimeTests(ContainerImages images)
                 "--mount", Mount(password, "/run/secrets/db-password"), "--mount", Mount(admin, "/run/secrets/admin-password"),
                 "--env", "KC_DB_URL=jdbc:postgresql://" + db.Container.Name.TrimStart('/') + ":5432/" + db.DatabaseName, "--env", "KC_DB_USERNAME=keycloak",
                 "--env", "KC_DB_PASSWORD_FILE=/run/secrets/db-password", "--env", "KC_BOOTSTRAP_ADMIN_USERNAME=local-admin",
-                "--env", "KC_BOOTSTRAP_ADMIN_PASSWORD_FILE=/run/secrets/admin-password", "--env", "KC_HOSTNAME=http://localhost:8080", images.Keycloak, "start-dev");
+                "--env", "KC_BOOTSTRAP_ADMIN_PASSWORD_FILE=/run/secrets/admin-password", "--env", "KC_HOSTNAME=http://localhost:8080",
+                "--env", "JAVA_OPTS_KC_HEAP=-Xms64m -Xmx512m", images.Keycloak, "start-dev");
             var healthy = false;
             for (var attempt = 0; attempt < 100; attempt++)
             {
