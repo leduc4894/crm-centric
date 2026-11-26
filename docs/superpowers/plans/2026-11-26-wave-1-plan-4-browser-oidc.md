@@ -1,0 +1,77 @@
+# Wave 1 Plan 4 — Browser OIDC and Tenant Selection Implementation Plan
+
+> **For agentic workers:** Use `superpowers:executing-plans` sequentially, one coding agent, with RED → GREEN and small reviewable commits. The user explicitly requests only necessary focused tests: do not run a full suite or full workflow in this plan.
+
+**Goal:** Enable a user to sign in through the existing OIDC provider using Authorization Code + PKCE, select an authorized tenant, and sign out, with focused tests and a real local Keycloak browser flow.
+
+**Architecture:** React delegates OIDC protocol, state/nonce/PKCE and token validation to a maintained standards-based browser OIDC library. The SPA keeps issued tokens only in memory, fetches tenant membership from the existing bearer-protected API, and supplies the selected tenant only on explicit tenant-bound calls; API authorization remains authoritative. A narrowly scoped development proxy forwards the tenant-list API to loopback while retaining the existing anonymous health proxy protections.
+
+**Tech stack:** existing React/TypeScript/Vite, locked Node 24.22.2 / npm 11.19.1, Keycloak, ASP.NET Core, PostgreSQL/Testcontainers, Vitest and Playwright; pinned browser OIDC dependency chosen and verified during Task 1.
+
+**Spec:** [Wave 1 design](../specs/2026-11-15-wave-1-identity-tenancy-design.md), [delivery map](2026-11-15-wave-1-delivery.md), [identity and security](../../architecture/03-IDENTITY-TENANCY-SECURITY.md), [P0 access decisions](../../architecture/07-P0-ACCESS-AND-STATE.md), [IdP operations](../../operations/05-IDP-CONFIGURATION.md), [Plan 3 merge handoff](../../handoff/2026-11-26-wave-1-plan-3-merge-handoff.md).
+
+## Baseline and constraints
+
+- Baseline `main` `1f87d2f` ahead of `origin/main` by 53 at planning time; verify actual checkout and handoffs before work. Plan 3 locally merged and focused 59/59 passed; full gates were deferred. Security gate remains FAIL for Semgrep MCP finding and user deferred follow-up; no waiver. Existing untracked handoffs and linked worktree are user state; preserve them.
+- OIDC Authorization Code + PKCE S256, exact issuer, client and callback, state and nonce validation; no custom OAuth implementation, password grant, implicit flow, client secret or contact/email identity linking. Use standard library-supported validation and document exact guarantees; JWT API validation remains backend's responsibility.
+- Access/ID/refresh tokens are never in localStorage, sessionStorage, IndexedDB, URL query/fragment, logs or test artifacts. The short-lived OIDC transaction state, nonce and PKCE verifier may be stored in same-origin sessionStorage only across the authorization redirect, with expiry and one-time cleanup; never persist tokens there. Do not request `offline_access`; disable silent iframe/automatic refresh. A full page reload clears in-memory session and requires sign-in again. Session termination calls supported IdP logout with approved exact redirect and clears memory even on failure; test provider session termination separately from local clear.
+- No bearer on health routes; credentials never sent to another origin, to health, third party, navigation links or arbitrary URLs. Tenant selection comes only from `GET /api/v1/tenants`, held in memory and invalidated on sign-out/account change/401; suspended tenants displayed but not selectable. API verifies all tenant access and staff binding regardless of client selection.
+- Every closed application error presents safe reason token and correlation ID without token, callback URL, raw provider payload, PII or stack. No telemetry containing authorization URL, query, body, headers or OAuth state. Disable browser traces/video/screenshots and access logs of callback parameters in tests; remove callback query with `history.replaceState` before rendering, logging, or network requests other than token exchange.
+- User explicitly prohibits full suite in this task. Use only named focused unit/contract/security tests and the targeted real-provider Playwright spec; typecheck, lint and build are allowed checks, not full tests. Do not run `npm test` without a file, `dotnet test` without a filter, or broad CI/workflow jobs. Full suite and required gates remain deferred, with Wave 1/P0 acceptance OPEN. At a future wave exit follow applicable acceptance/AGENTS instructions unless the user changes this direction.
+
+## Review focus
+
+1. Forged/expired/replayed callback, wrong issuer/state/nonce/PKCE or altered redirect: fail closed, clean URL/state, issue no authenticated request (Tasks 1, 4).
+2. Tokens in browser storage, browser history, request headers to wrong paths, log output or redirect/referrer: test sentinel and storage/network capture; never print real credentials (Tasks 1–4).
+3. Stale tenant from previous user, suspended membership, cross-tenant header or fetch after logout: clear selection and demonstrate server denial using independent sessions (Tasks 2–4).
+4. Metadata, JWKS, discovery, API or provider unavailable; token expiration/logout failure: bounded error, local cleanup and no implicit success (Tasks 1–4).
+5. Local IdP audience and token type/verified-email configuration drifting on warm start; demo client isolation and production HTTPS: preserve local bootstrap inspection and test actual issued access token against API without exposing it (Tasks 3–4).
+
+## Task 1 — OIDC browser boundary
+
+**Files:** `apps/crm-web/package.json`, `package-lock.json`, create `apps/crm-web/src/auth/oidcConfig.ts`, `auth/authClient.ts`, `auth/AuthProvider.tsx`, `auth/oidcConfig.test.ts`, `auth/authClient.test.ts`, `auth/AuthProvider.test.tsx`; modify `apps/crm-web/src/main.tsx`.
+
+**Interfaces:** `parseOidcConfig(env): OidcConfig` validates issuer, client ID, exact callback/logout return URLs and production HTTPS; local HTTP permitted only explicit localhost development profile. `AuthClient` exposes `login(): Promise<void>`, `completeCallback(url: string): Promise<void>`, `logout(): Promise<void>`, `getAccessToken(): string | null`, `subscribe(...)`; authenticated identity is tied to validated `(issuer,sub)`. Only OIDC adapter knows library internals; views never receive raw tokens.
+
+- [ ] RED: write focused Vitest tests for unauthenticated start, state/nonce/PKCE S256, wrong/missing/duplicate state, invalid callback, ID-token validation, replay, issuer mismatch, expiry, URL cleanup, no token persistence, safe error and logout cleanup. Assert behavior using controllable protocol fixtures and avoid mocking away the state/security validation being tested.
+- [ ] Verify latest applicable **stable supported** `oidc-client-ts` release from official package/primary documentation at implementation time; record exact chosen version and support/lock rationale, add an exact package pin (no range) and update `package-lock.json` by npm. Confirm the library validates callback state, nonce and issuer and supports an in-memory user store with a separate session transaction store. If it cannot satisfy these guarantees or typechecking, stop and document the blocker rather than hand-roll OIDC. No dependency installation is necessary in this documentation-only planning session.
+- [ ] Implement library adapter with in-memory user/token store and bounded, single-use session transaction store; exact configured issuer and client, auth code + S256. Strictly validate public config and safe callback navigation. An access token must never appear in serialized application state. Never place an ID token in an ordinary link; let the standards library form the end-session request and keep its parameters out of logs and referrers.
+- [ ] GREEN: `npm exec --workspace @crm-centric/crm-web -- vitest run src/auth/oidcConfig.test.ts src/auth/authClient.test.ts src/auth/AuthProvider.test.tsx` and record counts; include tests for reload without persisted user, reentrant callbacks and logout failure. Commit `feat(web): add secure OIDC browser session`.
+
+## Task 2 — Tenant list, selection and guarded UI
+
+**Files:** create `apps/crm-web/src/tenant/tenantClient.ts`, `tenant/TenantProvider.tsx`, `tenant/TenantPicker.tsx`, corresponding `*.test.ts(x)`; modify `apps/crm-web/src/App.tsx`; add focused proxy implementation/tests in `apps/crm-web/config/tenantProxy.ts`, `tenantProxy.test.ts`, `devServer.ts`, `devServer.test.ts`.
+
+**Interfaces:** `listTenants(accessToken, cursor?, signal?)` fetches same-origin `/api/v1/tenants` with bearer and returns contract `TenantPage`; `TenantProvider` holds selected active tenant per authenticated identity and resets it on logout, token expiry, 401 or identity change. All pages must be available via `nextCursor`; do not silently discard tenants beyond the first page. Provide `selectedTenantId` to future API clients, never claim it is authorization.
+
+- [ ] RED tests for multiple pages, empty list, suspended tenant, stale fetch after logout/identity switch, invalid response/cursor, API errors/timeout and safe correlation output. Prove Bearer only on exact tenant-list request, no cookie or tenant header there, and `X-Tenant-Id` only on a deliberately tenant-bound request. Health tests continue to prove no credentials.
+- [ ] Implement explicit sign-in/out, selected active tenant and accessible loading/error states; cancellation and identity generation prevent stale promises from restoring previous user's state. No backend route or contract changes. Keep existing health UI operational.
+- [ ] Existing dev proxy currently strips authorization and allows only health paths. Add **separate exact-path GET-only** tenant-list proxy to the existing validated numeric loopback target, with no redirects, no cookie forwarding and no request logging; pass authorization only to that exact route. Do not weaken existing health proxy strip plugin or introduce a broad `/api` proxy. Production same-origin routing/TLS is documented, not provisioned by this plan.
+- [ ] GREEN: `npm exec --workspace @crm-centric/crm-web -- vitest run src/tenant/tenantClient.test.ts src/tenant/TenantProvider.test.tsx src/tenant/TenantPicker.test.tsx config/tenantProxy.test.ts config/devServer.test.ts config/healthProxy.test.ts src/health/healthClient.test.ts` and record counts. Commit `feat(web): select verified tenant after login`.
+
+## Task 3 — Local Keycloak audience and logout configuration
+
+**Files:** `infra/keycloak/crm-local-realm.json`, `scripts/local/realm.py`, corresponding focused realm tests located by `rg --files tests | rg -i 'realm|keycloak'`, `docs/operations/05-IDP-CONFIGURATION.md`.
+
+**Interfaces:** local `crm-web-local` remains public, code flow + required S256, exact callback `http://localhost:5173/auth/callback`, exact permitted logout return `http://localhost:5173/`; `demo-module-local` retains separate client and original configuration. Configure an audience mapper that issues `crm-api` in the **access token**, not by weakening API issuer/audience checks; no new admin credentials or persistent test users in repository.
+
+- [ ] RED focused realm inspection tests for CRM access-token audience mapper, exact logout URI, absent wildcard/implicit/password grants, preservation of demo client and warm-start drift detection. Existing Keycloak startup import skips existing realms: a changed JSON file alone cannot update a warm realm. Define an explicit operator-run migration/inspection procedure with no silent mutation of user data; test cold and deliberately stale warm realm.
+- [ ] Implement minimal client/mapper configuration and update `scripts/local/realm.py` inspection so old warm state is reported as drift with existing reason/correlation conventions. Avoid printing actual token payloads. Document an opt-in repair/recreate procedure that identifies data-loss impact and requires separate user authorization before deleting real volumes; automated tests use disposable resources only.
+- [ ] Run only the new realm-specific tests and the existing directly affected realm validation test modules, naming exact files after discovery; if an integration fixture starts real Keycloak, run its narrow test filter. Record commands/results, no broad Compose suite. Commit `feat(local): configure browser OIDC audience`.
+
+## Task 4 — Real-provider focused browser proof
+
+**Files:** create `apps/crm-web/tests/e2e/browser-oidc.spec.ts`, test-owned disposable setup/teardown under `tests/Integration/Fixtures/` or `apps/crm-web/tests/e2e/` as appropriate, and a dedicated Playwright config if needed; update test documentation.
+
+**Interfaces:** fixture creates a uniquely owned Keycloak realm/client/test identities and real PostgreSQL/API with known local TLS configuration; seed two tenants, independent user A/B memberships and verified staff bindings via test-owned operator fixture. No production or existing developer data. Each browser context is isolated. Avoid logging credentials, token payloads or ephemeral setup secrets; cleanup only exact generated owner-labeled resources.
+
+- [ ] RED: real Keycloak login → code callback with PKCE → CRM API returns tenant list, select A, sign out → provider session ends; separate B sees B only; attempting a tenant-bound endpoint using A token with B tenant ID is rejected by API. Exercise failed state/replay and no credentials on health using focused negative browser cases. Include token lifetime/expired session, provider unavailable and logout failure where reproducible with bounded control. Do not pass real tokens through stdout, screenshots or trace artifacts.
+- [ ] Configure browser and API issuer/backchannel reachability and test fixture audience without disabling exact validation. Intercept request metadata safely to assert no token in storage/URL/history or wrong origin; use synthetic sentinels for leak-output tests. Real IdP browser flow is required evidence; fake issuer tests alone are not enough. Test-owned client/account and staff-binding setup is not a production bootstrap mechanism.
+- [ ] GREEN: run only `npm exec --workspace @crm-centric/crm-web -- playwright test tests/e2e/browser-oidc.spec.ts --project=chromium` with the dedicated test-owned setup, plus directly touched API tests using a specific `dotnet test ... --filter` if backend configuration changed. Record exact commands, pass/fail/skip and external prerequisites. Never launch the entire Playwright or integration suite. Commit `test(web): verify browser login and tenant isolation`.
+
+## Task 5 — Focused verification and handoff
+
+**Files:** `apps/crm-web/README.md`, `docs/operations/05-IDP-CONFIGURATION.md`, `docs/engineering/03-ACCEPTANCE-MATRIX.md`, `docs/handoff/YYYY-MM-DD-wave-1-plan-4-handoff.md`.
+
+- [ ] Run targeted tests listed above only once on final candidate unless a subsequent change or failure warrants rerun. Run `npm run typecheck`, `npm run lint`, `npm run build` as applicable, and contract compatibility check only if public contract changed (a breaking change needs ADR/consumer plan). Run `git diff --check`. Report exact commands and actual counts; no full-suite claim.
+- [ ] Document config, issuer/audience, state/session behavior, reverse-proxy trust, logout limitations and operator procedure. Record actual real-IdP A/B evidence and remaining gaps in acceptance matrix, not production acceptance. Keep deferred Semgrep security FAIL and full suite/workflows open. Wave 1 exit remains OPEN; do not suggest this plan alone closes Wave 1 or P0. Commit documentation with updated handoff.
