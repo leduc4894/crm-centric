@@ -232,6 +232,14 @@ def execute(command, timeout=3300, env=None):
         stages={('dotnet','restore'):'dotnet-restore',('dotnet','build'):'dotnet-build',
                 ('dotnet','test'):'dotnet-test',('npm','ci'):'npm-install',
                 ('docker','pull'):'image-pull',('bash','scripts/check-plan3.sh'):'plan3',
+                (sys.executable,'scripts/contracts/check.py'):'contract-generated-check',
+                ('bash','tests/ClientConsumers/run.sh'):'contract-consumers',
+                (sys.executable,'scripts/contracts/compatibility.py'):'contract-compatibility',
+                ('bash','tests/Plan3/aggregate-reporting.sh'):'plan3-aggregate-reporting',
+                ('bash','tests/Plan3/ci-environment.sh'):'plan3-ci-environment',
+                ('bash','tests/Plan3/clean-export.sh'):'plan3-clean-export',
+                ('bash','tests/Plan3/negative-cases.sh'):'plan3-negative-cases',
+                ('bash','tests/Plan3/scratch-cleanup.sh'):'plan3-scratch-cleanup',
                 (sys.executable,'-m'):'python-suite',('node','-e'):'browser-launch'}
         stage=stages.get(tuple(command[:2]),'other')
         diagnostic={'reasonToken':'CI_COMMAND_FAILED','commandStage':stage}

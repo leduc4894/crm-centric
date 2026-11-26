@@ -109,6 +109,28 @@ class ProcessTests(unittest.TestCase):
             self.assertEqual(expected,json.loads(stream.getvalue()))
             self.assertNotIn('private',stream.getvalue())
 
+    def test_contract_commands_identify_failed_stage_without_exposing_output(self):
+        import contextlib, io, json
+        commands = [
+            ([sys.executable, 'scripts/contracts/check.py'], 'contract-generated-check'),
+            (['bash', 'tests/ClientConsumers/run.sh'], 'contract-consumers'),
+            ([sys.executable, 'scripts/contracts/compatibility.py', '--base-ref', 'private'], 'contract-compatibility'),
+            (['bash', 'tests/Plan3/aggregate-reporting.sh'], 'plan3-aggregate-reporting'),
+            (['bash', 'tests/Plan3/ci-environment.sh'], 'plan3-ci-environment'),
+            (['bash', 'tests/Plan3/clean-export.sh'], 'plan3-clean-export'),
+            (['bash', 'tests/Plan3/negative-cases.sh'], 'plan3-negative-cases'),
+            (['bash', 'tests/Plan3/scratch-cleanup.sh'], 'plan3-scratch-cleanup'),
+        ]
+        process = unittest.mock.Mock(returncode=1)
+        process.communicate.return_value = (b'private-output', b'private-error')
+        for command, stage in commands:
+            with self.subTest(stage=stage):
+                stream = io.StringIO()
+                with contextlib.redirect_stdout(stream), patch('scripts.ci.jobs.subprocess.Popen', return_value=process):
+                    with self.assertRaises(JobError): execute(command)
+                self.assertEqual({'reasonToken': 'CI_COMMAND_FAILED', 'commandStage': stage}, json.loads(stream.getvalue()))
+                self.assertNotIn('private', stream.getvalue())
+
     def test_dotnet_failure_projects_only_known_test_family(self):
         import contextlib,io,json
         process=unittest.mock.Mock(returncode=1)
