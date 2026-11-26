@@ -50,6 +50,19 @@ public sealed class TenantProvisioningTests(ITestOutputHelper output) : IAsyncLi
         await AssertCounts(0, 0, 0);
     }
     [Fact]
+    public async Task Consumer_rejects_missing_or_ambiguous_access_token_type_for_provisioning()
+    {
+        foreach (var options in new[] {
+            new FakeTokenOptions { Subject = "actor", Scope = "platform.tenants.create", PayloadType = null },
+            new FakeTokenOptions { Subject = "actor", Scope = "platform.tenants.create", PayloadType = new[] { "Bearer" } },
+            new FakeTokenOptions { Subject = "actor", Scope = "platform.tenants.create", DuplicatePayloadType = true } })
+        {
+            using var response = await Post("{\"name\":\"Acme\"}", token: issuer.IssueToken(options));
+            await AssertProblem(response, HttpStatusCode.Unauthorized, "AUTHENTICATION_REQUIRED");
+        }
+        await AssertCounts(0, 0, 0);
+    }
+    [Fact]
     public async Task Valid_provisioner_creates_tenant_owner_and_audit_and_can_list_it()
     {
         using var response = await Post("{\"name\":\"Acme\"}");

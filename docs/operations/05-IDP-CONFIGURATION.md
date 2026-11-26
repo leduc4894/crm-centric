@@ -282,7 +282,7 @@ audit that credential externally, including schema and trigger changes.
 
 ## Invitation acceptance and recovery
 
-Configure the CRM audience on the Keycloak client. All invitation and tenant audit routes require exactly one signed payload member `typ` with string value `"Bearer"`. This discriminator distinguishes a Keycloak access token from an ID token with the same audience. Invitation acceptance additionally requires the email scope. After the provider verifies ownership of the address, issue the following signed access-token payload members exactly once.
+Configure the CRM audience on the Keycloak client. All implemented Wave 1 tenant, membership, invitation and tenant audit routes require exactly one signed payload member `typ` with string value `"Bearer"`. This discriminator distinguishes a Keycloak access token from an ID token with the same audience only when the issuer reserves it exclusively for access tokens. The expanded requirement is a behavioral break for previously accepted access tokens without this profile; inventory and migrate every issuer and consumer before rollout as described in [ADR-019](../architecture/09-ADR-019-ACCESS-TOKEN-PROFILE.md). Invitation acceptance additionally requires the email scope. After the provider verifies ownership of the address, issue the following signed access-token payload members exactly once.
 
 | Member | Required JSON value |
 | --- | --- |

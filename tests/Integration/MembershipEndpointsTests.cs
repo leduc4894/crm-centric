@@ -65,6 +65,28 @@ public sealed class MembershipEndpointsTests(ITestOutputHelper output) : IAsyncL
         using var response = await client.SendAsync(request);
         await Problem(response, HttpStatusCode.Unauthorized, "AUTHENTICATION_REQUIRED");
     }
+    [Theory]
+    [InlineData("tenant-list")]
+    [InlineData("membership-list")]
+    [InlineData("membership-get")]
+    [InlineData("membership-patch")]
+    public async Task Consumer_rejects_missing_or_ambiguous_access_token_type(string route)
+    {
+        var path = route switch { "tenant-list" => "/api/v1/tenants", "membership-list" => "/api/v1/memberships", _ => $"/api/v1/memberships/{agent}" };
+        foreach (var options in new[] {
+            new FakeTokenOptions { Subject = "owner", PayloadType = null },
+            new FakeTokenOptions { Subject = "owner", PayloadType = new[] { "Bearer" } },
+            new FakeTokenOptions { Subject = "owner", DuplicatePayloadType = true } })
+        {
+            using var request = new HttpRequestMessage(route == "membership-patch" ? HttpMethod.Patch : HttpMethod.Get, path);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", issuer.IssueToken(options));
+            request.Headers.Add("X-Tenant-Id", tenant.ToString());
+            if (route == "membership-patch") { request.Headers.TryAddWithoutValidation("If-Match", "\"v1\""); request.Content = new StringContent("{\"status\":\"active\"}", Encoding.UTF8, "application/json"); }
+            using var response = await client.SendAsync(request);
+            await Problem(response, HttpStatusCode.Unauthorized, "AUTHENTICATION_REQUIRED");
+        }
+        Assert.Equal(0L, await Scalar("SELECT count(*) FROM audit.entries"));
+    }
     [Fact]
     public async Task Owner_reads_tenant_membership_with_revoked_mapping_and_etag()
     {

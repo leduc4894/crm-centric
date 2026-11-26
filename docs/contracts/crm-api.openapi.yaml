@@ -2368,6 +2368,12 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+      description: >-
+        For implemented Wave 1 tenant, membership, invitation, and tenant audit
+        routes, the trusted issuer must reserve exactly one signed JWT payload
+        member typ with string value Bearer exclusively for access tokens. An
+        ID token or a token missing this profile is rejected. See ADR-019 for
+        compatibility and migration; other P0 routes remain specification only.
     webhookSignature:
       type: apiKey
       in: header
