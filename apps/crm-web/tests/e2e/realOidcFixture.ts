@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { randomBytes, randomUUID } from 'node:crypto';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, readlink, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createServer } from 'node:net';
@@ -29,6 +29,37 @@ async function command(program: string, args: string[], env: NodeJS.ProcessEnv, 
 async function responseOk(response: Response, stage: string): Promise<Response> {
   if (!response.ok) throw new Error(`E2E_${stage}_FAILED ${response.status}`); return response;
 }
+
+/** Never propagate Playwright errors whose diagnostic text can contain form data. */
+export async function privateOperation<T>(action: () => Promise<T>): Promise<T> {
+  try { return await action(); } catch { throw new Error('E2E_PRIVATE_OPERATION_FAILED'); }
+}
+
+/** Fail closed unless the loopback listener belongs to a process in the spawned Vite group. */
+export async function listenerOwnedByProcessGroup(portNumber: number, group: number): Promise<boolean> {
+  if (process.platform !== 'linux' || !Number.isInteger(group) || group <= 0) return false;
+  const hexPort = portNumber.toString(16).toUpperCase().padStart(4, '0');
+  let lines: string[];
+  try { lines = (await readFile('/proc/net/tcp', 'utf8')).trim().split('\n').slice(1); }
+  catch { return false; }
+  const sockets = lines.map((line) => line.trim().split(/\s+/))
+    .filter((fields) => fields[1] === `0100007F:${hexPort}` && fields[3] === '0A')
+    .map((fields) => fields[9]);
+  if (sockets.length !== 1 || !sockets[0]) return false;
+  const target = `socket:[${sockets[0]}]`;
+  for (const pid of await readdir('/proc')) {
+    if (!/^\d+$/.test(pid)) continue;
+    try {
+      const stat = await readFile(`/proc/${pid}/stat`, 'utf8');
+      if (Number(stat.slice(stat.lastIndexOf(')') + 2).split(' ')[2]) !== group) continue;
+      for (const fd of await readdir(`/proc/${pid}/fd`)) {
+        try { if (await readlink(`/proc/${pid}/fd/${fd}`) === target) return true; } catch { /* process closed a descriptor */ }
+      }
+    } catch { /* process ended or belongs to another user */ }
+  }
+  return false;
+}
+
 export class RealOidcFixture {
   private stateDir = '';
   private env: NodeJS.ProcessEnv = {};
@@ -66,6 +97,15 @@ export class RealOidcFixture {
         expect(storage.local.includes(token)).toBe(false); expect(storage.session.includes(token)).toBe(false);
         expect(this.requestUrls.some((url) => url.includes(token))).toBe(false);
       }
+      const devtools = await a.context().newCDPSession(a);
+      const history = await devtools.send('Page.getNavigationHistory');
+      expect(history.entries.length).toBeGreaterThan(0);
+      for (const token of this.issuedTokens) expect(history.entries.some((entry) => entry.url.includes(token))).toBe(false);
+      await devtools.detach();
+      const healthRequest = a.waitForRequest((request) => new URL(request.url()).pathname === '/health/ready');
+      await a.getByRole('button', { name: 'Check again' }).click();
+      const healthHeaders = await (await healthRequest).allHeaders();
+      expect(Boolean(healthHeaders['authorization'] || healthHeaders['cookie'] || healthHeaders['x-tenant-id'])).toBe(false);
       expect(storage.session).not.toContain('crm.oidc.transaction');
       expect(storage.db).toEqual([]);
       expect(new URL(storage.url).search).toBe('');
@@ -73,6 +113,16 @@ export class RealOidcFixture {
       const same = await fetch(`http://127.0.0.1:${this.apiPort}/api/v1/memberships`, { headers: { authorization: this.tokens[0]!, 'x-tenant-id': this.tenantIds[0]! } });
       const cross = await fetch(`http://127.0.0.1:${this.apiPort}/api/v1/memberships`, { headers: { authorization: this.tokens[0]!, 'x-tenant-id': this.tenantIds[1]! } });
       expect(same.status, 'own tenant request').toBe(200); expect(cross.status, 'cross tenant request').toBe(403);
+      const consumedCallback = this.callbackUrl;
+      expect(consumedCallback).not.toBe('');
+      let replayTenantRequests = 0;
+      a.on('request', (request) => { if (new URL(request.url()).pathname === '/api/v1/tenants') replayTenantRequests++; });
+      await privateOperation(() => a.goto(consumedCallback));
+      await expect(a.getByRole('alert')).toContainText('OIDC_CALLBACK_FAILED');
+      await expect(a.getByRole('button', { name: 'Sign out' })).toHaveCount(0);
+      expect(replayTenantRequests).toBe(0);
+      await a.getByRole('button', { name: 'Sign in' }).click();
+      await expect(a.getByRole('button', { name: 'Sign out' })).toBeVisible({ timeout: 30_000 });
       await a.getByRole('button', { name: 'Sign out' }).click();
       await expect(a.getByRole('button', { name: 'Sign in' })).toBeVisible();
       await a.getByRole('button', { name: 'Sign in' }).click();
@@ -94,7 +144,7 @@ export class RealOidcFixture {
       wrongState.on('request', (request) => { if (new URL(request.url()).pathname === '/api/v1/tenants') authenticatedRequests++; });
       // Playwright does not route a later navigation redirect; intercept the login POST
       // and change only its Location response header before the browser follows it.
-      await wrongState.route((url) => url.pathname.includes('/login-actions/authenticate'), async (route) => {
+      await wrongState.route((url) => url.pathname.includes('/login-actions/authenticate'), async (route) => privateOperation(async () => {
         const original = await route.fetch({ maxRedirects: 0 });
         const location = original.headers()['location'];
         if (!location) { await route.fulfill({ response: original }); return; }
@@ -102,9 +152,9 @@ export class RealOidcFixture {
         if (target.origin !== webOrigin || target.pathname !== '/auth/callback') { await route.fulfill({ response: original }); return; }
         target.searchParams.set('state', 'synthetic-wrong-state'); changedState = true;
         await route.fulfill({ response: original, headers: { ...original.headers(), location: target.href } });
-      });
+      }));
       await wrongState.goto(webOrigin); await wrongState.getByRole('button', { name: 'Sign in' }).click();
-      await wrongState.locator('#username').fill(this.users[0]!); await wrongState.locator('#password').fill(this.password); await wrongState.locator('#kc-login').click();
+      await privateOperation(async () => { await wrongState.locator('#username').fill(this.users[0]!); await wrongState.locator('#password').fill(this.password); await wrongState.locator('#kc-login').click(); });
       await expect.poll(() => changedState, { message: 'callback interception reached' }).toBe(true);
       await expect(wrongState.getByRole('alert')).toContainText('OIDC_CALLBACK_FAILED');
       expect(authenticatedRequests).toBe(0);
@@ -143,10 +193,15 @@ export class RealOidcFixture {
     if (!/^[a-f0-9]{12,64}$/.test(containers)) throw new Error('E2E_OWNED_DB_INVALID');
     const sql = `INSERT INTO platform.tenants VALUES ('${this.tenantIds[0]}','Tenant A','active',now()),('${this.tenantIds[1]}','Tenant B','active',now());\n` + this.subjects.map((sub, i) => `INSERT INTO platform.memberships VALUES ('${this.tenantIds[i]}',gen_random_uuid(),'${this.issuer}','${sub}','owner','active',1); INSERT INTO platform.staff_bindings VALUES ('${this.issuer}','${sub}','active','e2e');`).join('\n');
     await command('docker', ['exec', '-i', containers, 'psql', '-U', 'postgres', '-d', 'crm', '-v', 'ON_ERROR_STOP=1'], this.env, sql);
-    const listener = createServer(); await new Promise<void>((resolve, reject) => { listener.once('error', () => reject(new Error('E2E_WEB_PORT_OCCUPIED'))); listener.listen(5173, '127.0.0.1', resolve); }); await new Promise<void>((resolve) => listener.close(() => resolve()));
     this.server = spawn('npm', ['run', 'dev'], { cwd: root, env: { ...this.env, VITE_OIDC_ISSUER: this.issuer, VITE_OIDC_CLIENT_ID: 'crm-web-local', VITE_OIDC_CALLBACK_URL: `${webOrigin}/auth/callback`, VITE_OIDC_LOGOUT_URL: `${webOrigin}/`, VITE_OIDC_LOCAL_HTTP: 'true' }, stdio: 'ignore', detached: true });
     const deadline = Date.now() + 120_000;
-    while (Date.now() < deadline) { if (this.server.exitCode !== null) throw new Error('E2E_WEB_START_FAILED'); try { if ((await fetch(webOrigin)).ok) return; } catch { /* startup */ } await new Promise((resolve) => setTimeout(resolve, 500)); }
+    while (Date.now() < deadline) {
+      if (this.server.exitCode !== null) throw new Error('E2E_WEB_START_FAILED');
+      if (this.server.pid && await listenerOwnedByProcessGroup(5173, this.server.pid)) {
+        try { if ((await fetch(webOrigin)).ok && await listenerOwnedByProcessGroup(5173, this.server.pid)) return; } catch { /* startup */ }
+      }
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
     throw new Error('E2E_WEB_UNAVAILABLE');
   }
   private async signIn(browser: Browser, index: number, useClock = false): Promise<Page> {
@@ -168,7 +223,7 @@ export class RealOidcFixture {
       if (url.origin === webOrigin && url.pathname.startsWith('/health/') && (headers.authorization || headers.cookie || headers['x-tenant-id'])) this.healthCredentials = true;
     });
     await page.goto(webOrigin); await page.getByRole('button', { name: 'Sign in' }).click();
-    await page.locator('#username').fill(this.users[index]!); await page.locator('#password').fill(this.password); await page.locator('#kc-login').click();
+    await privateOperation(async () => { await page.locator('#username').fill(this.users[index]!); await page.locator('#password').fill(this.password); await page.locator('#kc-login').click(); });
     await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible({ timeout: 30_000 });
     return page;
   }

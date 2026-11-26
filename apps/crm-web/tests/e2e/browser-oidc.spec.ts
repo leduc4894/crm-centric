@@ -57,3 +57,16 @@ test('real provider signs in isolated tenants and terminates provider session', 
   const fixture = new RealOidcFixture();
   await fixture.run(browser);
 });
+
+
+test('redacts a forced browser credential-fill failure', async ({ page }) => {
+  const { privateOperation } = await import('./realOidcFixture.ts');
+  const sentinel = 'SYNTHETIC_PASSWORD_SECRET_8c0b';
+  let captured: unknown;
+  try { await privateOperation(() => page.locator('#not-present').fill(sentinel, { timeout: 250 })); } catch (error) { captured = error; }
+  expect(captured).toBeInstanceOf(Error);
+  const failure = captured as Error;
+  expect(failure.message).toBe('E2E_PRIVATE_OPERATION_FAILED');
+  expect(failure.stack?.includes(sentinel)).toBe(false);
+  expect(failure.cause).toBeUndefined();
+});
