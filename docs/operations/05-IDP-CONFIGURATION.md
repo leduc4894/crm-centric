@@ -1,8 +1,8 @@
 # Identity provider configuration
 
 The local profile provides an identity provider, metadata inspection and API bearer
-validation. Browser login, full tenant lifecycle and production deployment are not
-complete.
+validation and a browser OIDC slice. Full tenant lifecycle, production deployment and
+Wave 1 acceptance remain incomplete.
 A CRM Contact is not an authenticated Identity User. Wave 1 must use stable issuer/sub
 and explicit tenant-scoped linkage rather than matching email addresses.
 
@@ -21,8 +21,8 @@ native Bash/timeout health probe checks that actual container's management liste
 Authorization Code with required PKCE S256. Implicit grants, direct password grants
 and service accounts are disabled. Redirect placeholders are exactly
 `http://localhost:5173/auth/callback` and `http://localhost:5180/auth/callback`;
-origins are the corresponding URLs without paths. No wildcard, frontend callback,
-seeded user, client secret or signing private key is supplied. The CRM client has
+origins are the corresponding URLs without paths. No wildcard, seeded user, client
+secret or signing private key is supplied. The CRM client has
 an exact post-logout return `http://localhost:5173/` and a dedicated audience mapper
 adding `crm-api` to access tokens, not ID tokens. The demo client remains separate.
 Public discovery/JWKS and client metadata do not establish a working application
@@ -128,8 +128,9 @@ requires an explicit operator choice outside normal lifecycle commands.
 
 The clean-source run and named persisted-realm/drift tests are mapped under
 W0P2-10 in [Plan 2 evidence](../engineering/06-WAVE-0-PLAN-2-VERIFICATION.md).
-They verify local metadata and management inspection; browser/end-user login,
-real-client audience issuance and production authentication remain OPEN.
+Those historical checks verify metadata and management inspection only. A separate disposable
+real-provider browser test now covers end-user login and CRM audience acceptance; production
+authentication remains OPEN.
 
 ## Production design checklist (guidance, not deployment evidence)
 
@@ -140,8 +141,8 @@ real-client audience issuance and production authentication remain OPEN.
 - Configure each resource server's exact issuer and intended API audience. Validate
   signature, issuer, audience, expiry and accepted algorithms. Give browser apps
   separate public clients, required S256, exact HTTPS redirects/origins and only
-  necessary scopes. Decide audience mappers explicitly; local metadata does not
-  implement them; the API enforces its configured audience.
+  necessary scopes. Decide audience mappers explicitly; the local CRM client has one
+  for the local API, and the API enforces its configured audience.
 - Keep discovery/JWKS reachable from browsers and resource servers. Cache keys
   within a defined lifetime, refresh for unknown key IDs, overlap signing keys
   for outstanding tokens, and test rollover and emergency retirement. Private
@@ -183,9 +184,10 @@ tests are a 12-hour automatic refresh and a 5-minute minimum requested refresh.
 Overlap keys for outstanding tokens and plan emergency retirement separately;
 these intervals do not promise immediate removal of an old cached key.
 
-The local realm's browser clients do not yet configure the `crm-api` audience
-mapper; successful metadata inspection is not an end-user login or token acceptance
-proof. Configure and verify real audience issuance during the browser-login slice.
+The local CRM browser client configures the `crm-api` audience on its access token;
+metadata inspection alone is not token acceptance proof. The disposable real-provider
+browser test separately verifies an issued token against the API. See the
+[web setup and limitations](../../apps/crm-web/README.md#browser-sign-in-and-tenant-selection).
 Never commit provider keys, API credentials or tokens. Deliver production credentials
 through an appropriate secret mechanism and restrict use of the application DB
 credential to the API.

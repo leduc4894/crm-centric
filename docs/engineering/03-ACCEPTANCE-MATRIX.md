@@ -167,3 +167,23 @@ GitHub withdrew GHSA-fc5q-39xc-vjpf. The local security workflow on `48c3ff5` st
 The [Plan 3 handoff](../handoff/2026-11-26-wave-1-invites-audit-handoff.md) records signed-bearer and real PostgreSQL coverage for tenant isolation, invitation expiry, revoke/accept races, verified staff and email, atomic membership and audit, and a lost acknowledgement after durable commit. Local audit tests cover permission, tenant isolation and cursor pagination. RT-IAM-01 remains open for the browser OIDC flow, independent A/B sessions and the full token-security suite. Plan 2 exit and Wave 1/P0 acceptance remain open.
 
 The user directed that slice verification cover changed behavior and reserved the full suite and required workflows for Wave 1 exit. Signed-bearer, invitation and audit regressions on the final feature code passed 59/59. The full integration attempts on documentation candidate `bdf14a9` were cancelled, including the standalone clone run stopped at the user's request. This candidate has no complete integration result or workflow verdict. The [slice handoff](../handoff/2026-11-26-wave-1-invites-audit-handoff.md#final-slice-verification-scope) records earlier failures, targeted results and the checks that never started.
+
+
+### Wave 1 Plan 4 browser OIDC — focused local evidence
+
+The [browser E2E handoff](../handoff/2026-11-26-wave-1-browser-e2e-task-4-handoff.md)
+records a disposable real Keycloak/PostgreSQL/API Chromium run: code + S256 login for
+independent A/B accounts, tenant lists and selection, same-tenant API 200 and cross-tenant
+403, provider logout, state/replay, and selected outage, expiration and token-leak checks.
+Expiration was simulated using the browser clock. Browser history and callback ordering
+evidence is Chromium-only; the fixture's listener ownership check requires Linux. The
+[OIDC](../handoff/2026-11-26-wave-1-oidc-task-1-handoff.md),
+[tenant](../handoff/2026-11-26-wave-1-tenant-task-2-handoff.md) and
+[Keycloak](../handoff/2026-11-26-wave-1-keycloak-task-3-handoff.md) handoffs record
+focused unit, security and cold/warm realm verification.
+
+This evidence does not close RT-OIDC-01 or RT-TENANT-01: the full token-security suite,
+worker/replay isolation and Wave 1 exit checks remain open. P0 acceptance also still requires
+remote DemoModule E2E, concurrent duplicate, tenant isolation, outage/recovery and restore
+drills. The existing Semgrep security gate remains FAIL without a waiver; no full suite or
+required workflows were run in Plan 4.

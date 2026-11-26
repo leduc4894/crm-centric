@@ -2,8 +2,8 @@
 
 Minimal React + TypeScript workspace for the CRM platform frontend.
 
-This slice delivers the workspace, the platform shell, the restricted same-origin development proxy
-and the operational health UI with its browser end-to-end tests.
+This slice provides the platform shell, browser OIDC sign-in, tenant selection, a restricted
+same-origin development proxy and the operational health UI.
 
 ## Prerequisites
 
@@ -75,16 +75,17 @@ point.
 
 ### Proxy allowlist
 
-The dev server proxies exactly two paths to the loopback API:
+The dev server proxies the following exact paths to the validated loopback API:
 
 | Path           | Target                             |
 | -------------- | ---------------------------------- |
 | `/health/live` | `http://127.0.0.1:${LOCAL_API_PORT:-5080}` |
 | `/health/ready`| `http://127.0.0.1:${LOCAL_API_PORT:-5080}` |
+| `GET /api/v1/tenants` | `http://127.0.0.1:${LOCAL_API_PORT:-5080}` |
 
-Every other path, including the identity provider, the admin API and the business API, is served by
-the dev server itself and is never forwarded. The allowlist is validated at startup and a wildcard
-CORS origin is never configured.
+The tenant-list proxy accepts GET only, forwards its bearer header but strips cookies and the
+tenant header, and rejects upstream redirects. Other API and IdP paths are not forwarded.
+The health allowlist is validated at startup and a wildcard CORS origin is never configured.
 
 ### Credential stripping at the proxy boundary
 
@@ -107,6 +108,39 @@ affected, but the control now applies to every proxied request.
 `Accept`, `Content-Type` and `X-Correlation-Id` are legitimate request headers and are forwarded
 unchanged. The `Host` header is still the browser host (`localhost:5173`) because the proxy keeps
 `changeOrigin: false`; that behaviour is tracked separately and is not changed here.
+
+## Browser sign-in and tenant selection
+
+Set these public Vite settings before starting the development server (the values are not secrets):
+
+```bash
+VITE_OIDC_ISSUER=http://localhost:8080/realms/crm-local \
+VITE_OIDC_CLIENT_ID=crm-web-local \
+VITE_OIDC_CALLBACK_URL=http://localhost:5173/auth/callback \
+VITE_OIDC_LOGOUT_URL=http://localhost:5173/ \
+VITE_OIDC_LOCAL_HTTP=true npm run dev -w apps/crm-web
+```
+
+The issuer must match discovery exactly; callback and logout URLs must match the browser origin
+and the provider's registered exact URLs. The HTTP flag works only for localhost in development;
+production requires HTTPS. Local Keycloak client audience and warm-realm procedures are documented
+in [IdP configuration](../../docs/operations/05-IDP-CONFIGURATION.md). The API must use the
+same issuer and its configured `crm-api` audience. No client secret belongs in browser config.
+
+The browser uses code + S256 with state and nonce; a short-lived single-use transaction is held
+in session storage through the redirect. Issued tokens and selected tenant remain in memory, so a
+full reload requires signing in again. The list supports pagination and suspended tenants cannot be
+selected. Selection is not authorization: the API validates tenant membership and staff binding.
+Logout clears local memory before submitting a provider logout request. Provider availability and
+session termination are separate from local cleanup; logout is not a promise that issued tokens are
+immediately revoked.
+
+Production ingress must serve the SPA and tenant-list API on the same HTTPS origin, route the exact
+callback to the SPA, preserve the intended authorization header only on API routes, and strip
+untrusted forwarding headers. The development proxy does not provide production routing. The built
+callback prelude must execute before resources load: configure a CSP hash or nonce for the actual
+emitted inline script and accommodate Trusted Types if enforced; do not enable unrestricted inline
+scripts. The focused ordering evidence currently covers Chromium, not all browsers.
 
 ## The health UI
 
@@ -235,8 +269,7 @@ Without this the byte-for-byte generated check reports `SDK_GENERATED_MISMATCH`.
 
 ## What this slice does not provide
 
-- No authentication flow and no identity provider callback.
-- No tenant context, no authorization headers and no token storage.
+- No production IdP deployment or production reverse proxy.
 - No business API calls and no contact data.
 - No liveness indicator; the page shows the readiness state, which covers the database and the
   schema only and is not evidence of user, tenant or business readiness.
@@ -246,8 +279,8 @@ Without this the byte-for-byte generated check reports `SDK_GENERATED_MISMATCH`.
 The isolated browser proof creates a new Docker Compose project with its own Keycloak,
 PostgreSQL and API, provisions disposable test identities and two tenant memberships, and
 removes its owner-labeled resources afterward. It does not use an existing local stack.
-Docker, the pinned Node/npm toolchain, Chromium and its system libraries must be available;
-`localhost:5173` must be free. From the repository root run:
+Docker, Linux `/proc`, the pinned Node/npm toolchain, Chromium and its system libraries must be
+available; `localhost:5173` must be free. The fixture fails closed if it cannot verify listener ownership. From the repository root run:
 
 ```bash
 CRM_REAL_OIDC_TEST=1 npm exec --workspace @crm-centric/crm-web -- playwright test tests/e2e/browser-oidc.spec.ts --project=chromium --grep 'real provider signs'
