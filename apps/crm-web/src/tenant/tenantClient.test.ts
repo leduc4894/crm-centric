@@ -15,6 +15,13 @@ describe('listTenants', () => {
     expect(new Headers(init.headers).has('x-tenant-id')).toBe(false);
     expect(init.credentials).toBe('omit'); expect(init.redirect).toBe('error');
   });
+  it('accepts tenant names up to 200 Unicode code points', async () => {
+    const name = '😀'.repeat(200);
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ items: [{ ...tenant, name }], nextCursor: null }))));
+    expect((await listTenants('synthetic-token')).items[0]?.name).toBe(name);
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ items: [{ ...tenant, name: name + '😀' }], nextCursor: null }))));
+    await expect(listTenants('synthetic-token')).rejects.toMatchObject({ reasonToken: 'WEB_TENANT_CONTRACT_INVALID' });
+  });
   it('rejects malformed pages, cursor and server payload without leaking it', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ items: [{ ...tenant, status: 'unknown' }], nextCursor: null }))));
     await expect(listTenants('synthetic-token')).rejects.toThrow(/WEB_TENANT_CONTRACT_INVALID [\w-]+/);

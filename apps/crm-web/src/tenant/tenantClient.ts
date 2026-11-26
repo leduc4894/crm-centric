@@ -17,7 +17,7 @@ function validPage(value: unknown): value is TenantPage {
   return page.items.every((v: unknown) => {
     if (!v || typeof v !== 'object' || Array.isArray(v)) return false;
     const item = v as Record<string, unknown>;
-    return Object.keys(item).every((key) => ['id', 'name', 'status'].includes(key)) && typeof item.id === 'string' && uuid.test(item.id) && typeof item.name === 'string' && item.name.length >= 1 && item.name.length <= 200 && (item.status === 'active' || item.status === 'suspended');
+    return Object.keys(item).every((key) => ['id', 'name', 'status'].includes(key)) && typeof item.id === 'string' && uuid.test(item.id) && typeof item.name === 'string' && [...item.name].length >= 1 && [...item.name].length <= 200 && (item.status === 'active' || item.status === 'suspended');
   });
 }
 export async function listTenants(accessToken: string, cursor?: string, signal?: AbortSignal): Promise<TenantPage> {
