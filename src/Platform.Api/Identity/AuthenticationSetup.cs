@@ -48,6 +48,8 @@ public static class AuthenticationSetup
                         if (string.IsNullOrWhiteSpace(context.Principal?.FindFirst("iss")?.Value) ||
                             string.IsNullOrWhiteSpace(context.Principal?.FindFirst("sub")?.Value))
                             context.Fail("Missing identity claims.");
+                        else
+                            VerifiedEmail.ApplyValidatedPayload(context.Principal!, context.SecurityToken);
                         return Task.CompletedTask;
                     },
                     OnChallenge = async context =>

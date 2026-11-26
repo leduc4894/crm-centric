@@ -16,7 +16,7 @@ public sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> option
             {
                 table.HasCheckConstraint("entries_actor_issuer_check", "char_length(actor_issuer) BETWEEN 1 AND 2048");
                 table.HasCheckConstraint("entries_actor_subject_check", "char_length(actor_subject) BETWEEN 1 AND 2048");
-                table.HasCheckConstraint("entries_action_check", "action IN ('tenant.created','membership.updated')");
+                table.HasCheckConstraint("entries_action_check", "action IN ('tenant.created','membership.updated','invite.created','invite.revoked','invite.accepted')");
                 table.HasCheckConstraint("entries_summary_check", "char_length(summary) <= 512");
                 table.HasCheckConstraint("entries_correlation_id_check", "char_length(correlation_id) BETWEEN 1 AND 128");
             });
@@ -32,6 +32,31 @@ public sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> option
             entity.Property(x => x.CorrelationId).HasColumnName("correlation_id");
             entity.Property(x => x.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()");
             entity.HasOne<TenantRow>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict).HasConstraintName("entries_tenant_id_fkey");
+        });
+        modelBuilder.Entity<InviteRow>(entity =>
+        {
+            entity.ToTable("invites", table =>
+            {
+                table.HasCheckConstraint("invites_token_hash_check", "octet_length(token_hash)=32");
+                table.HasCheckConstraint("invites_email_check", "char_length(email) BETWEEN 1 AND 320");
+                table.HasCheckConstraint("invites_normalized_email_check", "char_length(normalized_email) BETWEEN 1 AND 320");
+                table.HasCheckConstraint("invites_role_check", "role IN ('admin','agent','operator')");
+                table.HasCheckConstraint("invites_expires_at_check", "expires_at=created_at + interval '24 hours'");
+                table.HasCheckConstraint("invites_check", "accepted_at IS NULL OR revoked_at IS NULL");
+            });
+            entity.HasKey(x => new { x.TenantId, x.Id }).HasName("invites_pkey");
+            entity.HasIndex(x => x.TokenHash).IsUnique().HasDatabaseName("invites_token_hash_key");
+            entity.Property(x => x.TenantId).HasColumnName("tenant_id");
+            entity.Property(x => x.Id).HasColumnName("id");
+            entity.Property(x => x.TokenHash).HasColumnName("token_hash");
+            entity.Property(x => x.Email).HasColumnName("email");
+            entity.Property(x => x.NormalizedEmail).HasColumnName("normalized_email");
+            entity.Property(x => x.Role).HasColumnName("role");
+            entity.Property(x => x.CreatedAt).HasColumnName("created_at");
+            entity.Property(x => x.ExpiresAt).HasColumnName("expires_at");
+            entity.Property(x => x.AcceptedAt).HasColumnName("accepted_at");
+            entity.Property(x => x.RevokedAt).HasColumnName("revoked_at");
+            entity.HasOne<TenantRow>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Restrict).HasConstraintName("invites_tenant_id_fkey");
         });
         modelBuilder.Entity<TenantRow>(entity =>
         {
@@ -100,4 +125,18 @@ internal sealed class AuditEntryRow
     public required string Summary { get; set; }
     public required string CorrelationId { get; set; }
     public DateTime CreatedAt { get; set; }
+}
+
+internal sealed class InviteRow
+{
+    public Guid TenantId { get; set; }
+    public Guid Id { get; set; }
+    public required byte[] TokenHash { get; set; }
+    public required string Email { get; set; }
+    public required string NormalizedEmail { get; set; }
+    public required string Role { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime ExpiresAt { get; set; }
+    public DateTime? AcceptedAt { get; set; }
+    public DateTime? RevokedAt { get; set; }
 }

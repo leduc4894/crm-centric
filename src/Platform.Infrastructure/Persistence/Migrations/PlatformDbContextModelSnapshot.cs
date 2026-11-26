@@ -76,7 +76,7 @@ namespace Platform.Infrastructure.Persistence.Migrations
 
                     b.ToTable("entries", "audit", t =>
                         {
-                            t.HasCheckConstraint("entries_action_check", "action IN ('tenant.created','membership.updated')");
+                            t.HasCheckConstraint("entries_action_check", "action IN ('tenant.created','membership.updated','invite.created','invite.revoked','invite.accepted')");
 
                             t.HasCheckConstraint("entries_actor_issuer_check", "char_length(actor_issuer) BETWEEN 1 AND 2048");
 
@@ -85,6 +85,75 @@ namespace Platform.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("entries_correlation_id_check", "char_length(correlation_id) BETWEEN 1 AND 128");
 
                             t.HasCheckConstraint("entries_summary_check", "char_length(summary) <= 512");
+                        });
+                });
+
+            modelBuilder.Entity("Platform.Infrastructure.Persistence.InviteRow", b =>
+                {
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime?>("AcceptedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("accepted_at");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("email");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<string>("NormalizedEmail")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("normalized_email");
+
+                    b.Property<DateTime?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("revoked_at");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("role");
+
+                    b.Property<byte[]>("TokenHash")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("token_hash");
+
+                    b.HasKey("TenantId", "Id")
+                        .HasName("invites_pkey");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique()
+                        .HasDatabaseName("invites_token_hash_key");
+
+                    b.ToTable("invites", "platform", t =>
+                        {
+                            t.HasCheckConstraint("invites_check", "accepted_at IS NULL OR revoked_at IS NULL");
+
+                            t.HasCheckConstraint("invites_email_check", "char_length(email) BETWEEN 1 AND 320");
+
+                            t.HasCheckConstraint("invites_expires_at_check", "expires_at=created_at + interval '24 hours'");
+
+                            t.HasCheckConstraint("invites_normalized_email_check", "char_length(normalized_email) BETWEEN 1 AND 320");
+
+                            t.HasCheckConstraint("invites_role_check", "role IN ('admin','agent','operator')");
+
+                            t.HasCheckConstraint("invites_token_hash_check", "octet_length(token_hash)=32");
                         });
                 });
 
@@ -182,6 +251,16 @@ namespace Platform.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("entries_tenant_id_fkey");
+                });
+
+            modelBuilder.Entity("Platform.Infrastructure.Persistence.InviteRow", b =>
+                {
+                    b.HasOne("Platform.Infrastructure.Persistence.TenantRow", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("invites_tenant_id_fkey");
                 });
 
             modelBuilder.Entity("Platform.Infrastructure.Persistence.MembershipRow", b =>

@@ -47,7 +47,7 @@ public sealed class MigrationTests : IAsyncLifetime
         await AssertHistoryCountAsync(connection, 0);
         await AssertSentinelAsync(connection);
         Assert.Equal(0, (await MigratorProcess.RunAsync(database.MigrationConnectionString, database.ApplicationRole)).ExitCode);
-        await AssertHistoryCountAsync(connection, 4);
+        await AssertHistoryCountAsync(connection, 5);
         await AssertSentinelAsync(connection);
     }
 
@@ -137,12 +137,12 @@ public sealed class MigrationTests : IAsyncLifetime
         {
             var names = new List<string>();
             while (await reader.ReadAsync()) names.Add(reader.GetString(0));
-            Assert.Equal(new[] { "__EFMigrationsHistory", "memberships", "staff_bindings", "tenants" }, names);
+            Assert.Equal(new[] { "__EFMigrationsHistory", "invites", "memberships", "staff_bindings", "tenants" }, names);
         }
         await using var history = new NpgsqlCommand("SELECT \"MigrationId\" FROM platform.\"__EFMigrationsHistory\" ORDER BY \"MigrationId\"", connection);
         await using var rows = await history.ExecuteReaderAsync();
         var migrations = new List<string>();
         while (await rows.ReadAsync()) migrations.Add(rows.GetString(0));
-        Assert.Equal(new[] { "20261108144703_InitialPlatformInfrastructure", "20261116000000_TenantFoundation", "20261118000000_TenantLifecycle", "20261118010000_VerifiedStaffBindings" }, migrations);
+        Assert.Equal(new[] { "20261108144703_InitialPlatformInfrastructure", "20261116000000_TenantFoundation", "20261118000000_TenantLifecycle", "20261118010000_VerifiedStaffBindings", "20261126000000_Invitations" }, migrations);
     }
 }
