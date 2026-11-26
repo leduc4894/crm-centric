@@ -24,6 +24,8 @@ export function tenantProxy(target: ProxyTarget): Plugin {
           const forwarded: Record<string, string> = { 'cache-control': 'no-store' };
           if (typeof response.headers['content-type'] === 'string') forwarded['content-type'] = response.headers['content-type'];
           if (typeof response.headers['x-correlation-id'] === 'string') forwarded['x-correlation-id'] = response.headers['x-correlation-id'];
+          response.on('aborted', () => res.destroy());
+          response.on('error', () => res.destroy());
           res.writeHead(response.statusCode ?? 502, forwarded); response.pipe(res);
         });
         upstream.on('timeout', () => upstream.destroy());

@@ -28,3 +28,12 @@ it('does not relay redirects from the loopback upstream', async () => {
   const result = await fetch(`http://127.0.0.1:${address.port}/api/v1/tenants`, { redirect: 'manual', headers: { authorization: 'Bearer synthetic' } });
   expect(result.status).toBe(502); expect(result.headers.get('location')).toBeNull();
 });
+it('closes the client response if the upstream terminates mid-body', async () => {
+  api = createHttpServer((_req, res) => { res.writeHead(200, { 'content-type': 'application/json', 'content-length': '100' }); res.write('partial'); setTimeout(() => res.destroy(), 20); });
+  await new Promise<void>((resolve) => api!.listen(0, '127.0.0.1', resolve));
+  const target = api.address(); if (!target || typeof target === 'string') throw new Error('No address');
+  vite = await createServer({ ...createWebConfig({ LOCAL_API_PORT: String(target.port) }), configFile: false, appType: 'custom' }); await vite.listen(0);
+  const address = vite.httpServer!.address(); if (!address || typeof address === 'string') throw new Error('No address');
+  const result = await fetch(`http://127.0.0.1:${address.port}/api/v1/tenants`);
+  await expect(Promise.race([result.text(), new Promise((_, reject) => setTimeout(() => reject(new Error('response hung')), 1000))])).rejects.not.toThrow('response hung');
+});

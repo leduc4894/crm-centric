@@ -51,3 +51,24 @@ it('rejects repeated pagination cursors instead of presenting a loop', async () 
   await screen.findByText('First'); act(() => screen.getByText('More').click());
   await screen.findByText('WEB_TENANT_CONTRACT_INVALID');
 });
+it('does not invalidate a newer account when an older request returns 401 before React is notified', async () => {
+  let state: AuthState = { status: 'authenticated', issuer: 'https://id.example/', subject: 'a' };
+  let resolve!: (value: Response) => void;
+  const invalidate = vi.fn();
+  const client = { getSnapshot: () => state, subscribe: () => () => undefined, getAccessToken: () => state.status === 'authenticated' ? state.subject : null, invalidate, login: async () => undefined, logout: async () => undefined } as unknown as AuthClient;
+  vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>((r) => { resolve = r; })));
+  render(<AuthProvider client={client}><TenantProvider><Probe /></TenantProvider></AuthProvider>);
+  await waitFor(() => expect(resolve).toBeDefined());
+  state = { status: 'authenticated', issuer: 'https://id.example/', subject: 'b' };
+  await act(async () => resolve(new Response('', { status: 401 })));
+  expect(invalidate).not.toHaveBeenCalled();
+});
+it('does not invalidate a new session for the same identity when an old token receives 401', async () => {
+  let token = 'first-token'; let resolve!: (value: Response) => void; const invalidate = vi.fn();
+  const client = { getSnapshot: () => ({ status: 'authenticated', issuer: 'https://id.example/', subject: 'a' }), subscribe: () => () => undefined, getAccessToken: () => token, invalidate, login: async () => undefined, logout: async () => undefined } as unknown as AuthClient;
+  vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>((r) => { resolve = r; })));
+  render(<AuthProvider client={client}><TenantProvider><Probe /></TenantProvider></AuthProvider>);
+  await waitFor(() => expect(resolve).toBeDefined()); token = 'new-token';
+  await act(async () => resolve(new Response('', { status: 401 })));
+  expect(invalidate).not.toHaveBeenCalled();
+});
