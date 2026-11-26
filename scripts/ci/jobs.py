@@ -89,6 +89,37 @@ def plan3_failure_diagnostic(stdout, stderr):
         if len(observed)==1: reason=observed[0]
     return {'plan3Step':step,'plan3Reason':reason}
 
+# These public identifiers are reviewed source names, not arbitrary test output.
+_COMPOSE_FAILURE_METHODS = {
+    'LocalStackTests': frozenset((
+        'Existing_v1_stack_migrates_tls_without_losing_data_and_rejects_missing_tls_afterwards',
+        'Api_uses_trusted_tls_backchannel_with_unchanged_public_issuer',
+        'Cold_up_needs_no_host_sdk', 'Warm_up_revalidates_oneshots_and_preserves_data',
+        'Down_up_keeps_secrets_volumes_and_realm', 'Sql_and_secret_mount_boundaries_hold',
+    )),
+    'LocalStackFailureTests': frozenset((
+        'Crm_db_outage_recovers_same_api_instance', 'Idp_outage_does_not_change_crm_readiness',
+        'Bootstrap_and_migration_failure_block_new_api', 'Partial_init_retry_and_mismatched_secrets_are_safe',
+        'Realm_drift_is_not_overwritten', 'Foreign_listener_cannot_supply_smoke_success',
+        'Concurrent_lifecycle_is_rejected_including_distinct_state_paths',
+        'Parallel_projects_do_not_share_resources', 'Shutdown_is_bounded',
+    )),
+    'LocalStackSecretTests': frozenset(('Secrets_and_request_sentinels_are_absent_across_success_and_failure',)),
+}
+
+
+def _compose_failure_records(text):
+    # Bind the class and method to one complete xUnit failure record. Free-form
+    # diagnostic text must never be interpreted as another failing test.
+    name = r'Integration\.Compose\.(LocalStackTests|LocalStackFailureTests|LocalStackSecretTests)\.([A-Za-z0-9_]+)'
+    xunit = re.compile(r'^\s*(?:\[xUnit\.net [^\]\r\n]{1,40}\]\s+)?' + name + r'\s+\[FAIL\]\s*$')
+    summary = re.compile(r'^\s*Failed\s+' + name + r'(?:\s+\[[^\]\r\n]{1,32}\])?\s*$')
+    for line in text.splitlines():
+        found = xunit.fullmatch(line) or summary.fullmatch(line)
+        if found:
+            yield found.group(1), found.group(2)
+
+
 def dotnet_failure_diagnostic(stdout, stderr):
     """Project only known integration-test families from private test output."""
     text = (stdout + b'\n' + stderr).decode('utf-8', errors='replace')
@@ -104,6 +135,14 @@ def dotnet_failure_diagnostic(stdout, stderr):
         if (re.search(rf'Integration\.{escaped}\.[^\r\n]*\[FAIL\]',text)
                 or re.search(rf'Failed Integration\.{escaped}\.',text)):
             matches.append(re.sub(r'(?<!^)(?=[A-Z])','_',name).upper()+'_FAILED')
+    compose_families = {family for family, _ in _compose_failure_records(text)}
+    for name, token in (
+        ('LocalStackTests', 'COMPOSE_LOCAL_STACK_TESTS_FAILED'),
+        ('LocalStackFailureTests', 'COMPOSE_LOCAL_STACK_FAILURE_TESTS_FAILED'),
+        ('LocalStackSecretTests', 'COMPOSE_LOCAL_STACK_SECRET_TESTS_FAILED'),
+    ):
+        if name in compose_families:
+            matches.append(token)
     if 'Container operation failed: build exit 1' in text:
         matches.append('CONTAINER_IMAGE_BUILD_FAILED')
     process_failures = {
@@ -144,6 +183,8 @@ def dotnet_failure_methods(stdout, stderr):
         if '[FAIL]' not in line: continue
         found=re.search(r'Integration\.(?:ContainerRuntimeTests|KeycloakContainerTests)\.([A-Za-z0-9_]+)',line)
         if found and found.group(1) in allowed and found.group(1) not in observed: observed.append(found.group(1))
+    for family, name in _compose_failure_records(text):
+        if name in _COMPOSE_FAILURE_METHODS[family] and name not in observed: observed.append(name)
     return observed or ['OTHER']
 
 

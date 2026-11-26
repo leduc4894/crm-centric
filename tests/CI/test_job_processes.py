@@ -137,6 +137,53 @@ class ProcessTests(unittest.TestCase):
         self.assertEqual(['Cold_import_has_two_pkce_clients_and_canonical_discovery'],
             dotnet_failure_methods(b'Integration.KeycloakContainerTests.Cold_import_has_two_pkce_clients_and_canonical_discovery [FAIL]',b''))
 
+    def test_compose_failure_reports_only_allowlisted_test_identity(self):
+        from scripts.ci.jobs import dotnet_failure_diagnostic, dotnet_failure_methods
+        output = (b"[xUnit.net 00:01] Integration.Compose.LocalStackTests."
+                  b"Api_uses_trusted_tls_backchannel_with_unchanged_public_issuer [FAIL]\n"
+                  b"  Failed Integration.Compose.LocalStackFailureTests."
+                  b"Parallel_projects_do_not_share_resources [1 s]\n"
+                  b"  Failed Integration.Compose.LocalStackTests.private_payload [1 s]\n")
+        self.assertEqual(['COMPOSE_LOCAL_STACK_TESTS_FAILED', 'COMPOSE_LOCAL_STACK_FAILURE_TESTS_FAILED'],
+                         dotnet_failure_diagnostic(output, b''))
+        self.assertEqual(['Api_uses_trusted_tls_backchannel_with_unchanged_public_issuer',
+                          'Parallel_projects_do_not_share_resources'], dotnet_failure_methods(output, b''))
+        self.assertEqual(['OTHER'], dotnet_failure_methods(b'Failed Integration.Compose.LocalStackTests.private_payload', b''))
+
+    def test_compose_diagnostics_reject_payload_and_mismatched_family(self):
+        from scripts.ci.jobs import dotnet_failure_diagnostic, dotnet_failure_methods
+        examples = [
+            b'Error message: Integration.Compose.LocalStackTests.Cold_up_needs_no_host_sdk [FAIL]',
+            b'Failed Integration.Other.Some_test [1 s] payload Integration.Compose.LocalStackTests.Cold_up_needs_no_host_sdk',
+        ]
+        for line in examples:
+            with self.subTest(line=line):
+                self.assertEqual(['OTHER_TESTS_FAILED'], dotnet_failure_diagnostic(line, b''))
+                self.assertEqual(['OTHER'], dotnet_failure_methods(line, b''))
+
+    def test_compose_new_method_reports_fixed_family_but_not_method(self):
+        from scripts.ci.jobs import dotnet_failure_diagnostic, dotnet_failure_methods
+        output = b'Integration.Compose.LocalStackSecretTests.New_unreviewed_method [FAIL]'
+        self.assertEqual(['COMPOSE_LOCAL_STACK_SECRET_TESTS_FAILED'], dotnet_failure_diagnostic(output, b''))
+        self.assertEqual(['OTHER'], dotnet_failure_methods(output, b''))
+        mismatch = b'Integration.Compose.LocalStackSecretTests.Cold_up_needs_no_host_sdk [FAIL]'
+        self.assertEqual(['OTHER'], dotnet_failure_methods(mismatch, b''))
+
+    def test_failed_compose_command_does_not_echo_private_output(self):
+        import contextlib, io, json
+        process = unittest.mock.Mock(returncode=1)
+        process.communicate.return_value = (
+            b'Failed Integration.Compose.LocalStackFailureTests.Parallel_projects_do_not_share_resources [1 s]\nprivate-sentinel', b'')
+        stream = io.StringIO()
+        with contextlib.redirect_stdout(stream), patch('scripts.ci.jobs.subprocess.Popen', return_value=process):
+            with self.assertRaises(JobError):
+                execute(['dotnet', 'test', 'private-sentinel'])
+        diagnostic = json.loads(stream.getvalue())
+        self.assertEqual('CI_COMMAND_FAILED', diagnostic['reasonToken'])
+        self.assertEqual(['COMPOSE_LOCAL_STACK_FAILURE_TESTS_FAILED'], diagnostic['dotnetTests'])
+        self.assertEqual(['Parallel_projects_do_not_share_resources'], diagnostic['dotnetMethods'])
+        self.assertNotIn('private-sentinel', stream.getvalue())
+
     def test_plan3_failure_reports_only_bounded_nested_step_and_reason(self):
         import contextlib,io,json
         process=unittest.mock.Mock(returncode=1)
