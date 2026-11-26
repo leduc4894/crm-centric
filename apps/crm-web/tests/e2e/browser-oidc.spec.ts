@@ -49,3 +49,11 @@ test('cleans callback before built resources are requested', async ({ page }) =>
     await verifyCleanupBeforeResources(page, `http://127.0.0.1:${address.port}`);
   } finally { await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve())); }
 });
+
+test('real provider signs in isolated tenants and terminates provider session', async ({ browser }) => {
+  test.skip(process.env['CRM_REAL_OIDC_TEST'] !== '1', 'Requires isolated real-provider fixture');
+  test.setTimeout(900_000);
+  const { RealOidcFixture } = await import('./realOidcFixture.ts');
+  const fixture = new RealOidcFixture();
+  await fixture.run(browser);
+});

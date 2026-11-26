@@ -240,3 +240,20 @@ Without this the byte-for-byte generated check reports `SDK_GENERATED_MISMATCH`.
 - No business API calls and no contact data.
 - No liveness indicator; the page shows the readiness state, which covers the database and the
   schema only and is not evidence of user, tenant or business readiness.
+
+### Real-provider OIDC browser proof
+
+The isolated browser proof creates a new Docker Compose project with its own Keycloak,
+PostgreSQL and API, provisions disposable test identities and two tenant memberships, and
+removes its owner-labeled resources afterward. It does not use an existing local stack.
+Docker, the pinned Node/npm toolchain, Chromium and its system libraries must be available;
+`localhost:5173` must be free. From the repository root run:
+
+```bash
+CRM_REAL_OIDC_TEST=1 npm exec --workspace @crm-centric/crm-web -- playwright test tests/e2e/browser-oidc.spec.ts --project=chromium --grep 'real provider signs'
+```
+
+The fixture keeps generated credentials and tokens in memory, and browser traces, video and
+screenshots are disabled. It checks A/B tenant membership and a cross-tenant API denial,
+provider logout, callback state/replay, session expiration, and selected failure and leak
+paths. It is focused evidence, not the full Wave 1 or P0 acceptance suite.
