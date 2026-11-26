@@ -50,14 +50,14 @@ public sealed class InviteSecurityTests
         Assert.False(VerifiedEmail.TryGet(Principal(email, yes, yes), out _));
     }
     [Theory]
-    [InlineData("\"email\":\"Alice@Example.COM\",\"email_verified\":true", true)]
-    [InlineData("\"email\":\"Alice@Example.COM\",\"email_verified\":\"true\"", false)]
-    [InlineData("\"email\":[\"Alice@Example.COM\"],\"email_verified\":true", false)]
-    [InlineData("\"email\":\"Alice@Example.COM\",\"email_verified\":[true]", false)]
-    [InlineData("\"email\":\"Alice@Example.COM\",\"email_verified\":false,\"email_verified\":true", false)]
-    [InlineData("\"email\":\"Other@example.com\",\"email\":\"Alice@Example.COM\",\"email_verified\":true", false)]
-    [InlineData("\"email\":\"Alice@Example.COM\",\"email_verified\":true,\"typ\":\"Bearer\"", false)]
-    public async Task Validated_JWT_preserves_scalar_types_and_duplicate_members(string fields, bool expected)
+    [InlineData("boolean", "\"email\":\"Alice@Example.COM\",\"email_verified\":true", true)]
+    [InlineData("string", "\"email\":\"Alice@Example.COM\",\"email_verified\":\"true\"", false)]
+    [InlineData("array_email", "\"email\":[\"Alice@Example.COM\"],\"email_verified\":true", false)]
+    [InlineData("array_verified", "\"email\":\"Alice@Example.COM\",\"email_verified\":[true]", false)]
+    [InlineData("duplicate_verified", "\"email\":\"Alice@Example.COM\",\"email_verified\":false,\"email_verified\":true", false)]
+    [InlineData("duplicate_email", "\"email\":\"Other@example.com\",\"email\":\"Alice@Example.COM\",\"email_verified\":true", false)]
+    [InlineData("duplicate_type", "\"email\":\"Alice@Example.COM\",\"email_verified\":true,\"typ\":\"Bearer\"", false)]
+    public async Task Validated_JWT_preserves_scalar_types_and_duplicate_members(string scenario, string fields, bool expected)
     {
         using var rsa = RSA.Create(2048);
         var key = new RsaSecurityKey(rsa);
@@ -72,6 +72,6 @@ public sealed class InviteSecurityTests
         Assert.True(result.IsValid);
         var principal = new ClaimsPrincipal(result.ClaimsIdentity);
         AccessTokenEvidence.ValidatePurposeAndFilterEmail(principal, result.SecurityToken);
-        Assert.Equal(expected, VerifiedEmail.TryGet(principal, out _));
+        Assert.True(expected == VerifiedEmail.TryGet(principal, out _), $"Unexpected verified-email result for {scenario}.");
     }
 }
