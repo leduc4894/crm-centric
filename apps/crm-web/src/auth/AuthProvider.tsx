@@ -4,6 +4,8 @@ import { parseOidcConfig } from './oidcConfig.ts';
 
 interface AuthContextValue { state: AuthState; login(): Promise<void>; logout(): Promise<void> }
 const Context = createContext<AuthContextValue | null>(null);
+const ClientContext = createContext<AuthClient | null>(null);
+export function useAuthClient(): AuthClient | null { return useContext(ClientContext); }
 export function useAuth(): AuthContextValue {
   const value = useContext(Context); if (!value) throw new Error('OIDC_CONTEXT_MISSING'); return value;
 }
@@ -14,7 +16,7 @@ export function AuthProvider({ client, children, callbackUrl }: { client: AuthCl
   useEffect(() => {
     if (callbackUrl && !started.current) { started.current = true; void client.completeCallback(callbackUrl).catch(() => undefined); }
   }, [client, callbackUrl]);
-  return <Context.Provider value={{ state, login: () => client.login(), logout: () => client.logout() }}>{children}</Context.Provider>;
+  return <ClientContext.Provider value={client}><Context.Provider value={{ state, login: () => client.login(), logout: () => client.logout() }}>{children}</Context.Provider></ClientContext.Provider>;
 }
 export function ConfiguredAuthProvider({ children, callbackUrl }: { children: ReactNode; callbackUrl?: string | undefined }) {
   const [result] = useState(() => {

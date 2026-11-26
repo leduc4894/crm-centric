@@ -159,3 +159,9 @@ describe('OIDC browser session', () => {
     await expect(f.client.logout()).rejects.toThrow(/OIDC_LOGOUT_FAILED/); expect(f.client.getAccessToken()).toBeNull();
   });
 });
+it('clears an authenticated session and reports a safe correlation when the API returns 401', async () => {
+  const f = fixture(); await f.login(); await f.client.completeCallback(f.callback());
+  f.client.invalidate();
+  expect(f.client.getAccessToken()).toBeNull();
+  expect(f.client.getSnapshot()).toMatchObject({ status: 'error', reasonToken: 'WEB_TENANT_UNAUTHORIZED', correlationId: expect.any(String) });
+});

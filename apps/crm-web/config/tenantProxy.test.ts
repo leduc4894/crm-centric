@@ -1,0 +1,30 @@
+import { createServer as createHttpServer, type IncomingMessage, type Server } from 'node:http';
+import { afterEach, expect, it } from 'vitest';
+import { createServer, type ViteDevServer } from 'vite';
+import { createWebConfig } from './devServer';
+let api: Server | undefined; let vite: ViteDevServer | undefined;
+afterEach(async () => { await vite?.close(); await new Promise<void>((resolve) => api ? api.close(() => resolve()) : resolve()); vite = undefined; api = undefined; });
+it('relays only exact GET tenant-list route with bearer, without cookie or tenant header', async () => {
+  const calls: { path: string; method: string; headers: IncomingMessage['headers'] }[] = [];
+  api = createHttpServer((req, res) => { calls.push({ path: req.url!, method: req.method!, headers: req.headers }); res.end('{}'); });
+  await new Promise<void>((resolve) => api!.listen(0, '127.0.0.1', resolve));
+  const target = api.address(); if (!target || typeof target === 'string') throw new Error('No address');
+  vite = await createServer({ ...createWebConfig({ LOCAL_API_PORT: String(target.port) }), configFile: false, appType: 'custom' }); await vite.listen(0);
+  const address = vite.httpServer!.address(); if (!address || typeof address === 'string') throw new Error('No address');
+  const origin = `http://127.0.0.1:${address.port}`;
+  const headers = { authorization: 'Bearer synthetic', cookie: 'session=synthetic', 'x-tenant-id': 'synthetic' };
+  expect((await fetch(`${origin}/api/v1/tenants?cursor=abc`, { headers })).status).toBe(200);
+  expect((await fetch(`${origin}/api/v1/tenants`, { method: 'POST', headers })).status).toBe(405);
+  expect((await fetch(`${origin}/api/v1/tenants/extra`, { headers })).status).toBe(404);
+  expect(calls).toHaveLength(1); expect(calls[0]?.path).toBe('/api/v1/tenants?cursor=abc');
+  expect(calls[0]?.headers.authorization).toBe('Bearer synthetic'); expect(calls[0]?.headers.cookie).toBeUndefined(); expect(calls[0]?.headers['x-tenant-id']).toBeUndefined();
+});
+it('does not relay redirects from the loopback upstream', async () => {
+  api = createHttpServer((_req, res) => { res.writeHead(302, { location: 'http://example.com/steal' }); res.end(); });
+  await new Promise<void>((resolve) => api!.listen(0, '127.0.0.1', resolve));
+  const target = api.address(); if (!target || typeof target === 'string') throw new Error('No address');
+  vite = await createServer({ ...createWebConfig({ LOCAL_API_PORT: String(target.port) }), configFile: false, appType: 'custom' }); await vite.listen(0);
+  const address = vite.httpServer!.address(); if (!address || typeof address === 'string') throw new Error('No address');
+  const result = await fetch(`http://127.0.0.1:${address.port}/api/v1/tenants`, { redirect: 'manual', headers: { authorization: 'Bearer synthetic' } });
+  expect(result.status).toBe(502); expect(result.headers.get('location')).toBeNull();
+});

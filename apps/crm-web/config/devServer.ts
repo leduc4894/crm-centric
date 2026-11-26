@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import react from '@vitejs/plugin-react';
 import type { Plugin, UserConfig } from 'vite';
+import { tenantProxy } from './tenantProxy.ts';
 import { workspaceAliases } from './aliases.ts';
 import {
   assertExactProxyPaths,
@@ -42,15 +43,14 @@ function callbackPrelude(): Plugin {
  *
  * The proxy target and the proxy allowlist are validated before the configuration is returned, so
  * a malformed or non-loopback target fails with a reason token and a correlation ID before any
- * server is started. Only the two operational health paths are proxied; the identity provider, the
- * admin API and the business API are never reachable through the dev server.
+ * server is started. Only the two health paths and the exact GET tenant-list path are proxied; other API paths remain unavailable.
  */
 export function createWebConfig(env: NodeJS.ProcessEnv = process.env): UserConfig {
   const target = resolveProxyTarget(env);
   assertExactProxyPaths(HEALTH_PROXY_PATHS);
 
   return {
-    plugins: [react(), credentialStripPlugin(), callbackPrelude()],
+    plugins: [react(), credentialStripPlugin(), tenantProxy(target), callbackPrelude()],
     resolve: {
       alias: workspaceAliases
     },

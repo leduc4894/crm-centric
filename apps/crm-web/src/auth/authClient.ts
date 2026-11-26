@@ -43,6 +43,7 @@ export class AuthClient {
   private clear() { if (this.expiryTimer !== undefined) clearTimeout(this.expiryTimer); this.expiryTimer = undefined; this.accessToken = null; this.idToken = null; this.expires = 0; this.setState({ status: 'anonymous' }); }
   private scheduleExpiry() { this.expiryTimer = setTimeout(() => { if (Date.now() >= this.expires) this.clear(); else this.scheduleExpiry(); }, Math.min(Math.max(0, this.expires - Date.now()), 2147483647)); }
   private fail(reasonToken: string): Error { const correlationId = crypto.randomUUID(); this.setState({ status: 'error', reasonToken, correlationId }); return new Error(`${reasonToken} ${correlationId}`); }
+  invalidate(): void { this.generation++; this.clear(); this.setState({ status: 'error', reasonToken: 'WEB_TENANT_UNAUTHORIZED', correlationId: crypto.randomUUID() }); }
   getAccessToken(): string | null { if (this.accessToken && Date.now() >= this.expires) this.clear(); return this.accessToken; }
   private options() { return { [oauth.customFetch]: (input: string, init: unknown) => this.env.fetch(input, init as RequestInit), [oauth.allowInsecureRequests]: this.config.allowLocalHttp, signal: AbortSignal.timeout(10000) }; }
   private async metadata() {
