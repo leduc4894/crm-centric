@@ -59,11 +59,6 @@ def generate(output_root):
         ts_tool.mkdir()
         for filename in ('package.json', 'package-lock.json', '.npmrc'):
             shutil.copyfile(ROOT / filename, ts_tool / filename)
-        local_package = ROOT / 'tools/contracts/vendor/picomatch/picomatch-4.0.7-crm-backport.tgz'
-        if local_package.is_file():
-            target = ts_tool / local_package.relative_to(ROOT)
-            target.parent.mkdir(parents=True)
-            shutil.copyfile(local_package, target)
         run(['npm', 'ci', '--offline', '--ignore-scripts', '--no-audit', '--no-fund'], cwd=ts_tool, reason='SDK_TOOLCHAIN_UNAVAILABLE')
         executable = ts_tool / 'node_modules/.bin/openapi-typescript'
         tool = temp / 'tool'
