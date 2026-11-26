@@ -8,7 +8,7 @@ public static class AuditEndpoints
 {
     public static IEndpointRouteBuilder MapAuditEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapGet("/api/v1/audit", ListAsync).RequireAuthorization();
+        endpoints.MapGet("/api/v1/audit", ListAsync).RequireAuthorization().WithMetadata(new RequireAccessToken());
         return endpoints;
     }
 

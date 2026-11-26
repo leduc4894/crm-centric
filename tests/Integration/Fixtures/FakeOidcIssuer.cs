@@ -22,7 +22,8 @@ public sealed record FakeTokenOptions
     public string Audience { get; init; } = "crm-api";
     public string Subject { get; init; } = "fixture-user";
     public string? Scope { get; init; }
-    public string? PayloadType { get; init; }
+    public object? PayloadType { get; init; } = "Bearer";
+    public bool DuplicatePayloadType { get; init; }
     public bool IncludeVerifiedEmail { get; init; }
     public bool DuplicateEmail { get; init; }
     public bool DuplicateVerification { get; init; }
@@ -126,7 +127,7 @@ public sealed class FakeOidcIssuer : IAsyncDisposable
                 Expires = options.OmitExpiration ? null : (options.Expires ?? now.AddMinutes(5)).UtcDateTime,
                 SigningCredentials = new SigningCredentials(signingKeys[^1].SecurityKey, SecurityAlgorithms.RsaSha256)
             });
-            if (!options.DuplicateEmail && !options.DuplicateVerification) return encoded;
+            if (!options.DuplicateEmail && !options.DuplicateVerification && !options.DuplicatePayloadType) return encoded;
 
             var token = new JsonWebToken(encoded);
             using var payload = JsonDocument.Parse(Base64UrlEncoder.DecodeBytes(token.EncodedPayload));
@@ -137,7 +138,8 @@ public sealed class FakeOidcIssuer : IAsyncDisposable
                 foreach (var claim in payload.RootElement.EnumerateObject())
                 {
                     claim.WriteTo(writer);
-                    if ((options.DuplicateEmail && claim.NameEquals("email")) ||
+                    if ((options.DuplicatePayloadType && claim.NameEquals("typ")) ||
+                        (options.DuplicateEmail && claim.NameEquals("email")) ||
                         (options.DuplicateVerification && claim.NameEquals("email_verified")))
                         claim.WriteTo(writer);
                 }

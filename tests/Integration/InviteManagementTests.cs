@@ -51,6 +51,45 @@ public sealed class InviteManagementTests : IAsyncLifetime
         Assert.Equal(code, response.StatusCode); Assert.Equal("application/problem+json", response.Content.Headers.ContentType!.MediaType);
         using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync()); Assert.Equal(reason, json.RootElement.GetProperty("reasonToken").GetString()); Assert.Equal(response.Headers.GetValues("X-Correlation-Id").Single(), json.RootElement.GetProperty("correlationId").GetString());
     }
+    [Theory]
+    [InlineData("id")]
+    [InlineData("duplicate")]
+    [InlineData("array")]
+    [InlineData("missing")]
+    [InlineData("access")]
+    public async Task Privileged_routes_require_access_token_independently_of_email(string kind)
+    {
+        var options = new FakeTokenOptions { Subject = "owner" };
+        options = kind switch
+        {
+            "id" => options with { PayloadType = "ID", IncludeVerifiedEmail = true },
+            "duplicate" => options with { DuplicatePayloadType = true },
+            "array" => options with { PayloadType = new[] { "Bearer" } },
+            "missing" => options with { PayloadType = null },
+            _ => options
+        };
+        var bearer = issuer.IssueToken(options);
+        var routes = new List<(HttpMethod Method, string Path)>
+        {
+            (HttpMethod.Get, "/api/v1/invites"),
+            (HttpMethod.Get, "/api/v1/audit")
+        };
+        if (kind != "access")
+        {
+            routes.Add((HttpMethod.Post, "/api/v1/invites"));
+            routes.Add((HttpMethod.Delete, "/api/v1/invites/" + Guid.NewGuid()));
+        }
+        foreach (var route in routes)
+        {
+            using var req = new HttpRequestMessage(route.Method, route.Path);
+            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearer);
+            req.Headers.Add("X-Tenant-Id", tenant.ToString());
+            using var response = await client.SendAsync(req);
+            if (kind == "access") Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            else await Problem(response, HttpStatusCode.Unauthorized, "AUTHENTICATION_REQUIRED");
+        }
+    }
+
     [Fact]
     public async Task Owner_creates_lists_and_revokes_once()
     {

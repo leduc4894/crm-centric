@@ -13,10 +13,10 @@ public static class InviteEndpoints
     public static IEndpointRouteBuilder MapInviteEndpoints(this IEndpointRouteBuilder endpoints)
     {
         var group = endpoints.MapGroup("/api/v1/invites").RequireAuthorization();
-        group.MapPost("", CreateAsync);
+        group.MapPost("", CreateAsync).WithMetadata(new RequireAccessToken());
         group.MapPost("/accept", AcceptAsync);
-        group.MapGet("", ListAsync);
-        group.MapDelete("/{id}", RevokeAsync);
+        group.MapGet("", ListAsync).WithMetadata(new RequireAccessToken());
+        group.MapDelete("/{id}", RevokeAsync).WithMetadata(new RequireAccessToken());
         return endpoints;
     }
 

@@ -1,50 +1,9 @@
 using System.Security.Claims;
-using System.Text.Json;
-using Microsoft.IdentityModel.JsonWebTokens;
-using Microsoft.IdentityModel.Tokens;
 
 namespace Platform.Api.Identity;
 
 public static class VerifiedEmail
 {
-    // The handler flattens JSON arrays and can collapse duplicate object members.
-    // Inspect the signed payload after bearer validation, while those distinctions still exist.
-    public static void ApplyValidatedPayload(ClaimsPrincipal principal, SecurityToken token)
-    {
-        if (token is JsonWebToken jwt)
-        {
-            using var payload = JsonDocument.Parse(Base64UrlEncoder.DecodeBytes(jwt.EncodedPayload));
-            var tokenTypes = 0;
-            var emails = 0;
-            var verified = 0;
-            var valid = true;
-            foreach (var property in payload.RootElement.EnumerateObject())
-            {
-                if (property.NameEquals("typ"))
-                {
-                    tokenTypes++;
-                    valid &= property.Value.ValueKind == JsonValueKind.String && property.Value.ValueEquals("Bearer");
-                }
-                else if (property.NameEquals("email"))
-                {
-                    emails++;
-                    valid &= property.Value.ValueKind == JsonValueKind.String;
-                }
-                else if (property.NameEquals("email_verified"))
-                {
-                    verified++;
-                    valid &= property.Value.ValueKind == JsonValueKind.True;
-                }
-            }
-            if (valid && tokenTypes == 1 && emails == 1 && verified == 1)
-                return;
-        }
-
-        foreach (var identity in principal.Identities)
-            foreach (var claim in identity.FindAll("email_verified").ToArray())
-                identity.RemoveClaim(claim);
-    }
-
     public static bool TryGet(ClaimsPrincipal principal, out string normalized)
     {
         normalized = string.Empty;

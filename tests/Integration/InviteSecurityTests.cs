@@ -71,7 +71,7 @@ public sealed class InviteSecurityTests
         });
         Assert.True(result.IsValid);
         var principal = new ClaimsPrincipal(result.ClaimsIdentity);
-        VerifiedEmail.ApplyValidatedPayload(principal, result.SecurityToken);
+        AccessTokenEvidence.ValidatePurposeAndFilterEmail(principal, result.SecurityToken);
         Assert.Equal(expected, VerifiedEmail.TryGet(principal, out _));
     }
 }
