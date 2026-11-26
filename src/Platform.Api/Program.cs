@@ -52,12 +52,37 @@ using (PlatformLogging.BeginOperation(app.Logger, "crm-api", "startup", Guid.New
     app.Logger.LogInformation("Application configured");
 
 app.UseOperationalErrors();
+System.Net.IPAddress.TryParse(app.Configuration["Invites:TrustedTlsProxy"], out var trustedTlsProxy);
+var automaticForwarding = string.Equals(app.Configuration["FORWARDEDHEADERS_ENABLED"], "true", StringComparison.OrdinalIgnoreCase);
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.StartsWithSegments("/api/v1/invites"))
+    {
+        var peer = context.Connection.RemoteIpAddress;
+        var viaTlsProxy = trustedTlsProxy is not null && peer?.MapToIPv6().Equals(trustedTlsProxy.MapToIPv6()) == true
+            && context.Request.Headers["X-Forwarded-Proto"] is { Count: 1 } proto && proto[0] == "https";
+        var local = app.Environment.IsEnvironment("Testing") || (app.Environment.IsDevelopment() && peer is not null && System.Net.IPAddress.IsLoopback(peer));
+        // The host's automatic forwarding can rewrite both scheme and peer before this middleware.
+        if (!local && automaticForwarding)
+        {
+            await OperationalErrors.WriteProblemAsync(context, 503, "TLS_CONFIGURATION_INVALID", context.RequestAborted);
+            return;
+        }
+        if (!local && !context.Request.IsHttps && !viaTlsProxy)
+        {
+            await OperationalErrors.WriteProblemAsync(context, 400, "HTTPS_REQUIRED", context.RequestAborted);
+            return;
+        }
+    }
+    await next();
+});
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapOperationalEndpoints();
 app.MapTenantEndpoints();
 app.MapMembershipEndpoints();
+app.MapInviteEndpoints();
 app.Run();
 return 0;
 

@@ -26,36 +26,6 @@ public static class MembershipEndpoints
         return new(m.Id, m.Issuer, m.Subject, m.Role, m.Status switch { "active" => "active", "inactive" => "revoked", _ => throw new InvalidDataException("Unknown membership state.") }, m.Version);
     }
     private static async Task Error(HttpContext context, int status, string reason) => await OperationalErrors.WriteProblemAsync(context, status, reason, context.RequestAborted);
-    private static async Task RunAsync(HttpContext context, IConfiguration configuration, bool mutation, Func<NpgsqlConnection, NpgsqlTransaction, Guid, Func<Task>, Task> operation)
-    {
-        for (var attempt = 0; ; attempt++)
-        {
-            var commitStarted = false;
-            try
-            {
-                await using var connection = new NpgsqlConnection(DatabaseOptions.Parse(configuration.GetConnectionString("Platform")).ConnectionString);
-                await connection.OpenAsync(context.RequestAborted);
-                var auth = await TenantAuthorization.BeginAsync(context, connection, mutation, context.RequestAborted);
-                if (auth.Transaction is null)
-                {
-                    await Error(context, auth.ReasonToken == "TENANT_CONTEXT_INVALID" ? 400 : 403, auth.ReasonToken!);
-                    return;
-                }
-                await using var transaction = auth.Transaction;
-                await operation(connection, transaction, auth.TenantId, async () => { commitStarted = true; await transaction.CommitAsync(context.RequestAborted); });
-                return;
-            }
-            catch (PostgresException ex) when (ex.SqlState is "40P01" or "40001" && attempt < 2 && !commitStarted && !context.Response.HasStarted)
-            {
-                await Task.Delay(25 * (attempt + 1), context.RequestAborted);
-            }
-            catch (Exception ex) when (ex is NpgsqlException or TimeoutException or InvalidDataException)
-            {
-                if (!context.Response.HasStarted) await Error(context, 503, "IDENTITY_STORE_UNAVAILABLE");
-                return;
-            }
-        }
-    }
     private static async Task<LifecycleMembership?> Fetch(NpgsqlConnection connection, NpgsqlTransaction transaction, Guid tenant, Guid id, CancellationToken ct)
     {
         await using var command = new NpgsqlCommand("SELECT id,issuer,subject,role,status,version FROM platform.memberships WHERE tenant_id=@tenant AND id=@id", connection, transaction);
@@ -65,7 +35,7 @@ public static class MembershipEndpoints
     }
     private static async Task GetAsync(HttpContext context, IConfiguration configuration, string id)
     {
-        await RunAsync(context, configuration, false, async (connection, transaction, tenant, commit) =>
+        await TenantEndpointTransaction.RunAsync(context, configuration, false, async (connection, transaction, tenant, commit) =>
         {
             if (!Guid.TryParseExact(id,"D",out var parsed)) { await Error(context,400,"REQUEST_INVALID"); return; }
             var row = await Fetch(connection,transaction,tenant,parsed,context.RequestAborted);
@@ -78,7 +48,7 @@ public static class MembershipEndpoints
     }
     private static async Task ListAsync(HttpContext context, IConfiguration configuration)
     {
-        await RunAsync(context, configuration, false, async (connection, transaction, tenant, commit) =>
+        await TenantEndpointTransaction.RunAsync(context, configuration, false, async (connection, transaction, tenant, commit) =>
         {
             var query=context.Request.Query;
             if ((query.TryGetValue("limit",out var limits) && limits.Count != 1) || (query.TryGetValue("cursor",out var cursors) && cursors.Count != 1)) { await Error(context,400,"REQUEST_INVALID"); return; }
@@ -98,7 +68,7 @@ public static class MembershipEndpoints
     private static async Task PatchAsync(HttpContext context, IConfiguration configuration, string id)
     {
         byte[]? cachedBody = null;
-        await RunAsync(context, configuration, true, async (connection, transaction, tenant, commit) =>
+        await TenantEndpointTransaction.RunAsync(context, configuration, true, async (connection, transaction, tenant, commit) =>
         {
             if (!Guid.TryParseExact(id, "D", out var parsed)) { await Error(context,400,"REQUEST_INVALID"); return; }
             var current = await Fetch(connection, transaction, tenant, parsed, context.RequestAborted);

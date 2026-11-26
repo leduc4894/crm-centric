@@ -70,3 +70,9 @@ dotnet test tests/Integration/Integration.csproj -c Release --no-build --no-rest
 
 ## Capacity
 - Start single-tenant/small load benchmark; resource budgets per host. Avoid bundling Temporal/RabbitMQ/ClickHouse into MVP on a 16GB dev machine unless needed.
+
+### Invitation transport and delivery
+
+Serve the API over HTTPS or configure `Invites__TrustedTlsProxy` with the IP address of the single directly connected TLS terminator. The proxy must overwrite `X-Forwarded-Proto` with the client connection scheme and restrict access to its forwarding listener. Leave automatic unrestricted forwarded-header processing disabled. Plain HTTP is available to the Testing host and loopback Development clients. Keep invite bodies, response bodies and query strings out of proxy and application logs.
+
+An authorized administrator receives the invite token once after the database acknowledges commit. If the connection fails during commit or delivery, review the tenant's invitation list and audit, revoke any matching pending invitation, then create and deliver a new invitation. A list or retry cannot recover the original token.
