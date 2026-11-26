@@ -1,5 +1,6 @@
+import { randomUUID } from 'node:crypto';
 import react from '@vitejs/plugin-react';
-import type { UserConfig } from 'vite';
+import type { Plugin, UserConfig } from 'vite';
 import { workspaceAliases } from './aliases.ts';
 import {
   assertExactProxyPaths,
@@ -10,6 +11,22 @@ import {
   HEALTH_PROXY_PATHS,
   resolveProxyTarget
 } from './healthProxy.ts';
+
+/** Keep the callback prelude ahead of scripts injected by Vite and its plugins. */
+function callbackPrelude(): Plugin {
+  return {
+    name: 'crm-callback-prelude',
+    transformIndexHtml: {
+      order: 'post',
+      handler(html) {
+        const pattern = /\s*<!-- oidc-callback-prelude-start -->[\s\S]*?<!-- oidc-callback-prelude-end -->/;
+        const match = html.match(pattern);
+        if (!match || !html.includes('<head>')) throw new Error(`WEB_CALLBACK_PRELUDE_MISSING ${randomUUID()}`);
+        return html.replace(pattern, '').replace('<head>', `<head>${match[0]}`);
+      }
+    }
+  };
+}
 
 /**
  * Builds the web application configuration.
@@ -24,7 +41,7 @@ export function createWebConfig(env: NodeJS.ProcessEnv = process.env): UserConfi
   assertExactProxyPaths(HEALTH_PROXY_PATHS);
 
   return {
-    plugins: [react(), credentialStripPlugin()],
+    plugins: [react(), credentialStripPlugin(), callbackPrelude()],
     resolve: {
       alias: workspaceAliases
     },

@@ -45,19 +45,28 @@ export class AuthClient {
   private fail(reasonToken: string): Error { const correlationId = crypto.randomUUID(); this.setState({ status: 'error', reasonToken, correlationId }); return new Error(`${reasonToken} ${correlationId}`); }
   getAccessToken(): string | null { if (this.accessToken && Date.now() >= this.expires) this.clear(); return this.accessToken; }
   private options() { return { [oauth.customFetch]: (input: string, init: unknown) => this.env.fetch(input, init as RequestInit), [oauth.allowInsecureRequests]: this.config.allowLocalHttp, signal: AbortSignal.timeout(10000) }; }
-  private async metadata() { return oauth.processDiscoveryResponse(new URL(this.config.issuer), await oauth.discoveryRequest(new URL(this.config.issuer), this.options())); }
+  private async metadata() {
+    const as = await oauth.processDiscoveryResponse(new URL(this.config.issuer), await oauth.discoveryRequest(new URL(this.config.issuer), this.options()));
+    for (const endpoint of [as.authorization_endpoint, as.token_endpoint, as.jwks_uri, as.end_session_endpoint]) {
+      if (endpoint === undefined) continue;
+      const url = new URL(endpoint);
+      if (url.username || url.password || url.hash || (url.protocol !== 'https:' && !(this.config.allowLocalHttp && url.protocol === 'http:' && url.hostname === 'localhost'))) throw new Error();
+    }
+    return as;
+  }
   async login(): Promise<void> {
-    this.generation++;
+    const generation = ++this.generation;
     try {
       this.clear(); this.env.storage.removeItem(transactionKey);
       const as = await this.metadata();
-      if (!as.authorization_endpoint) throw new Error();
+      if (generation !== this.generation || !as.authorization_endpoint) throw new Error();
       const tx: Transaction = { state: oauth.generateRandomState(), nonce: oauth.generateRandomNonce(), verifier: oauth.generateRandomCodeVerifier(), created: Date.now() };
       const challenge = await oauth.calculatePKCECodeChallenge(tx.verifier);
+      if (generation !== this.generation) throw new Error();
       const url = new URL(as.authorization_endpoint);
       url.search = new URLSearchParams({ client_id: this.config.clientId, redirect_uri: this.config.callbackUrl, response_type: 'code', scope: 'openid', state: tx.state, nonce: tx.nonce, code_challenge: challenge, code_challenge_method: 'S256' }).toString();
       this.env.storage.setItem(transactionKey, JSON.stringify(tx)); this.env.navigate(url.href);
-    } catch { try { this.env.storage.removeItem(transactionKey); } catch { /* storage is unavailable; the session remains unauthenticated */ } throw this.fail('OIDC_LOGIN_FAILED'); }
+    } catch { if (generation !== this.generation) throw new Error(`OIDC_LOGIN_FAILED ${crypto.randomUUID()}`); try { this.env.storage.removeItem(transactionKey); } catch { /* storage is unavailable; the session remains unauthenticated */ } throw this.fail('OIDC_LOGIN_FAILED'); }
   }
   async completeCallback(callbackUrl: string): Promise<void> {
     let raw: string | null;
@@ -85,12 +94,12 @@ export class AuthClient {
     finally { this.busy = false; }
   }
   async logout(): Promise<void> {
-    this.generation++;
+    const generation = ++this.generation;
     const idToken = this.idToken; this.clear();
     try {
       this.env.storage.removeItem(transactionKey);
-      const as = await this.metadata(); if (!as.end_session_endpoint || !idToken) throw new Error();
+      const as = await this.metadata(); if (generation !== this.generation || !as.end_session_endpoint || !idToken) throw new Error();
       await this.env.logout(as.end_session_endpoint, { id_token_hint: idToken, post_logout_redirect_uri: this.config.logoutUrl, client_id: this.config.clientId });
-    } catch { throw this.fail('OIDC_LOGOUT_FAILED'); }
+    } catch { if (generation !== this.generation) throw new Error(`OIDC_LOGOUT_FAILED ${crypto.randomUUID()}`); throw this.fail('OIDC_LOGOUT_FAILED'); }
   }
 }

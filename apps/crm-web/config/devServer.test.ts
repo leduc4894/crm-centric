@@ -251,3 +251,19 @@ describe('the dev server port', () => {
     }
   });
 });
+
+it('places callback cleanup and referrer protection before Vite scripts', async () => {
+  const server = await createServer({ ...createWebConfig({}), server: { ...createWebConfig({}).server, middlewareMode: true }, appType: 'spa' });
+  try {
+    const { readFile } = await import('node:fs/promises');
+    const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+    const transformed = await server.transformIndexHtml('/auth/callback?code=sentinel', html);
+    const cleanup = transformed.indexOf('history.replaceState');
+    const referrer = transformed.indexOf('name="referrer"');
+    const firstModule = transformed.indexOf('<script type="module"');
+    expect(cleanup).toBeGreaterThan(-1);
+    expect(referrer).toBeGreaterThan(-1);
+    expect(cleanup).toBeLessThan(firstModule);
+    expect(referrer).toBeLessThan(firstModule);
+  } finally { await server.close(); }
+});
