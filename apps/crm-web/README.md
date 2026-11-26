@@ -87,10 +87,10 @@ The tenant-list proxy accepts GET only, forwards its bearer header but strips co
 tenant header, and rejects upstream redirects. Other API and IdP paths are not forwarded.
 The health allowlist is validated at startup and a wildcard CORS origin is never configured.
 
-### Credential stripping at the proxy boundary
+### Health proxy credential stripping
 
-The operational endpoints are anonymous by contract, so the proxy removes the credential-bearing
-headers before the upstream request is sent. The stripped list is explicit and small:
+The health endpoints are anonymous by contract. For these two paths, the health proxy removes
+the following headers before the upstream request is sent:
 
 | Header | Reason |
 | --- | --- |
@@ -103,11 +103,16 @@ outgoing request, so the credentials are never part of that copy. The proxy's ow
 not the only mechanism: Vite emits that hook only when the outgoing request carries no `Expect`
 header, so a request with `Expect: 100-continue` would otherwise keep its credentials. A browser
 cannot send `Expect` — it is a forbidden header name — so the browser threat model was never
-affected, but the control now applies to every proxied request.
+affected, but this control applies to both health paths.
 
-`Accept`, `Content-Type` and `X-Correlation-Id` are legitimate request headers and are forwarded
-unchanged. The `Host` header is still the browser host (`localhost:5173`) because the proxy keeps
-`changeOrigin: false`; that behaviour is tracked separately and is not changed here.
+For health requests, `Accept`, `Content-Type` and `X-Correlation-Id` are forwarded unchanged.
+The health proxy keeps the browser `Host` header because `changeOrigin` is false.
+
+The separate tenant-list proxy builds its upstream request headers independently: it sets
+`Accept: application/json` and forwards `Authorization` when present. It does not forward the
+incoming cookie, tenant, content-type, correlation or host headers; the HTTP client supplies the
+upstream host. Its response forwards content type and correlation ID when present, sets
+`Cache-Control: no-store`, and rejects redirects.
 
 ## Browser sign-in and tenant selection
 

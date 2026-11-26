@@ -16,3 +16,13 @@ Verification on Task 5 candidate, Node 24.22.2/npm 11.19.1 with local `.local/pl
 Limitations and next steps: independent final branch review remains required. Existing security gate remains FAIL due to the previously recorded Semgrep dependency finding; npm install reported nine moderate findings that have not been investigated. Production CSP must authorize the actual emitted callback script with a hash or nonce and account for Trusted Types; no production deployment was verified. Wave 1 and P0 acceptance remain OPEN, including the required exit suite/workflows and remote DemoModule, concurrency, tenant isolation, outage/recovery and restore drills.
 
 Branch `wave-1`; Task 5 began at `e4f6a85`. The commit containing this handoff identifies the final documentation and provenance changes. The pre-existing uncommitted branch-split and Plan 4 handoff modifications were preserved, not staged. No push or deployment. After the final review, record any findings and exact resulting commit, then perform remaining wave-exit work only when requested.
+
+
+## Documentation review repair
+
+The Task 5 review identified ambiguous proxy documentation: the health credential-stripping and
+header-forwarding behavior had been described as applying to every proxied path. The web README
+now distinguishes the health proxy from the separate tenant-list proxy and describes the headers
+each actually forwards. This is documentation-only; no runtime code changed. `git diff --check`
+and `git diff --cached --check`: PASS before commit. Runtime tests were not rerun because this
+repair changed documentation only. Independent scoped review remains next.
