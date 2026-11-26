@@ -173,6 +173,28 @@ def inspect_realm(public_base_url: str, admin_secret_files: AdminSecretFiles, ti
                     client.get('attributes', {}).get('pkce.code.challenge.method') != 'S256' or
                     'secret' in client):
                 raise _Drift()
+            if name == 'crm-web-local':
+                if client.get('attributes', {}).get('post.logout.redirect.uris') != 'http://localhost:5173/':
+                    raise _Drift()
+                client_id = client.get('id')
+                try:
+                    if not isinstance(client_id, str) or str(uuid.UUID(client_id)) != client_id:
+                        raise _Drift()
+                except ValueError:
+                    raise _Drift() from None
+                mappers = request(f'/admin/realms/crm-local/clients/{client_id}/protocol-mappers/models', token=token, persisted=True)
+                if not isinstance(mappers, list):
+                    raise _Drift()
+                matches = [mapper for mapper in mappers if isinstance(mapper, dict) and mapper.get('name') == 'crm-api-audience']
+                if len(matches) != 1:
+                    raise _Drift()
+                mapper = matches[0]
+                config = mapper.get('config')
+                if (mapper.get('protocol') != 'openid-connect' or mapper.get('protocolMapper') != 'oidc-audience-mapper' or
+                        not isinstance(config, dict) or config.get('included.custom.audience') != 'crm-api' or
+                        config.get('included.client.audience') not in (None, '') or
+                        config.get('access.token.claim') != 'true' or config.get('id.token.claim') != 'false'):
+                    raise _Drift()
         return result('ready')
     except _Drift:
         return result('drift', 'LOCAL_REALM_DRIFT')

@@ -1,4 +1,5 @@
 import importlib.util
+import json
 from pathlib import Path
 import tempfile
 import unittest
@@ -9,6 +10,90 @@ class RealmBoundaryTests(unittest.TestCase):
     def setUp(self):
         self.module = importlib.util.module_from_spec(SPEC)
         SPEC.loader.exec_module(self.module)
+
+    def test_import_configures_exact_crm_audience_and_logout_without_changing_demo(self):
+        realm = json.loads((Path(__file__).parents[2] / 'infra/keycloak/crm-local-realm.json').read_text())
+        crm, demo = realm['clients']
+        self.assertEqual('crm-web-local', crm['clientId'])
+        self.assertEqual('http://localhost:5173/', crm['attributes']['post.logout.redirect.uris'])
+        mapper, = crm['protocolMappers']
+        self.assertEqual('oidc-audience-mapper', mapper['protocolMapper'])
+        self.assertEqual('crm-api', mapper['config']['included.custom.audience'])
+        self.assertEqual('true', mapper['config']['access.token.claim'])
+        self.assertEqual('false', mapper['config']['id.token.claim'])
+        self.assertEqual('demo-module-local', demo['clientId'])
+        self.assertNotIn('protocolMappers', demo)
+        self.assertEqual({'pkce.code.challenge.method': 'S256'}, demo['attributes'])
+        for client in (crm, demo):
+            self.assertFalse(client['implicitFlowEnabled'])
+            self.assertFalse(client['directAccessGrantsEnabled'])
+            self.assertEqual('S256', client['attributes']['pkce.code.challenge.method'])
+            self.assertTrue(all('*' not in uri for uri in client['redirectUris']))
+
+    def test_inspection_detects_stale_client_and_mapper_configuration(self):
+        import copy
+        from http.server import BaseHTTPRequestHandler, HTTPServer
+        import threading
+
+        config = json.loads((Path(__file__).parents[2] / 'infra/keycloak/crm-local-realm.json').read_text())
+        clients = copy.deepcopy(config['clients'])
+        crm, _ = clients
+        crm['id'] = '11111111-1111-4111-8111-111111111111'
+        mapper = crm.pop('protocolMappers')[0]
+        cases = [
+            ('ready', lambda client, mappers: None),
+            ('drift', lambda client, mappers: client['attributes'].pop('post.logout.redirect.uris')),
+            ('drift', lambda client, mappers: client['attributes'].__setitem__('post.logout.redirect.uris', '*')),
+            ('drift', lambda client, mappers: mappers.clear()),
+            ('drift', lambda client, mappers: mappers.append(copy.deepcopy(mappers[0]))),
+            ('drift', lambda client, mappers: mappers[0]['config'].__setitem__('included.custom.audience', 'wrong')),
+            ('drift', lambda client, mappers: mappers[0]['config'].__setitem__('access.token.claim', 'false')),
+            ('drift', lambda client, mappers: mappers[0]['config'].__setitem__('id.token.claim', 'true')),
+        ]
+        for expected, mutate in cases:
+            with self.subTest(expected=expected, mutate=mutate), tempfile.TemporaryDirectory() as directory:
+                current = copy.deepcopy(clients)
+                mappers = [copy.deepcopy(mapper)]
+                mutate(current[0], mappers)
+                class Peer(BaseHTTPRequestHandler):
+                    def log_message(self, *_args):
+                        pass
+                    def do_POST(self):
+                        self.rfile.read(int(self.headers.get('Content-Length', '0')))
+                        self.reply({'access_token': 'test-only-sentinel'})
+                    def do_GET(self):
+                        base = f'http://localhost:{self.server.server_port}/realms/crm-local'
+                        paths = {
+                            '/realms/crm-local/.well-known/openid-configuration': {
+                                'issuer': base, **{field: base + '/protocol/openid-connect' + suffix
+                                    for field, suffix in {'authorization_endpoint': '/auth', 'token_endpoint': '/token',
+                                                          'end_session_endpoint': '/logout', 'jwks_uri': '/certs'}.items()}},
+                            '/realms/crm-local/protocol/openid-connect/certs': {'keys': [{'kty': 'RSA'}]},
+                            '/admin/realms/crm-local': {'realm': 'crm-local', 'enabled': True},
+                            '/admin/realms/crm-local/clients': current,
+                            '/admin/realms/crm-local/clients/11111111-1111-4111-8111-111111111111/protocol-mappers/models': mappers,
+                        }
+                        self.reply(paths[self.path])
+                    def reply(self, payload):
+                        body = json.dumps(payload).encode()
+                        self.send_response(200)
+                        self.send_header('Content-Length', str(len(body)))
+                        self.end_headers()
+                        self.wfile.write(body)
+                password = Path(directory) / 'password'
+                password.write_text('test-only-sentinel')
+                password.chmod(0o600)
+                with HTTPServer(('127.0.0.1', 0), Peer) as server:
+                    thread = threading.Thread(target=server.serve_forever)
+                    thread.start()
+                    try:
+                        result = self.module.inspect_realm(f'http://localhost:{server.server_port}', self.module.AdminSecretFiles(password), 2)
+                        self.assertEqual(expected, result.status)
+                        self.assertEqual(None if expected == 'ready' else 'LOCAL_REALM_DRIFT', result.reason_token)
+                        self.assertEqual(32, len(result.correlation_id))
+                    finally:
+                        server.shutdown()
+                        thread.join()
 
     def test_untrusted_url_or_secret_is_unavailable_without_network_or_secret_output(self):
         with tempfile.TemporaryDirectory() as directory:

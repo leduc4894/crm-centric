@@ -22,9 +22,11 @@ Authorization Code with required PKCE S256. Implicit grants, direct password gra
 and service accounts are disabled. Redirect placeholders are exactly
 `http://localhost:5173/auth/callback` and `http://localhost:5180/auth/callback`;
 origins are the corresponding URLs without paths. No wildcard, frontend callback,
-seeded user, client secret or signing private key is supplied. Placeholder metadata
-and public discovery/JWKS do not establish a working application login or audience
-validation by CRM.
+seeded user, client secret or signing private key is supplied. The CRM client has
+an exact post-logout return `http://localhost:5173/` and a dedicated audience mapper
+adding `crm-api` to access tokens, not ID tokens. The demo client remains separate.
+Public discovery/JWKS and client metadata do not establish a working application
+login or audience validation by CRM.
 
 The public browser hostname differs from container DNS. The API and Keycloak share a
 dedicated OIDC network; the API reads discovery and JWKS over
@@ -62,6 +64,26 @@ timeouts; it creates no background worker. It connects to numeric IPv4 loopback
 and preserves canonical localhost Host. It never writes tokens, repairs drift,
 or logs responses.
 Lifecycle callers must validate Docker project/port ownership before calling it.
+
+### Upgrade a persistent local realm
+
+Import runs only for a missing realm. An existing realm does not acquire new client
+settings when the JSON changes, and inspection reports `LOCAL_REALM_DRIFT` with a
+correlation ID until its actual configuration matches. The operator may inspect the
+`crm-web-local` client using the Keycloak admin console, after backing up the realm
+configuration and its database: confirm the exact post-logout URI above, and the
+client-level `crm-api-audience` mapper (`oidc-audience-mapper`) with custom audience
+`crm-api`, access-token claim enabled and ID-token claim disabled. Do not change
+`demo-module-local` or replace issuer/audience checks. Inspect the status again after
+any change; metadata inspection alone does not prove an issued token works.
+
+Repair is explicit and opt-in: an operator may add or update these two settings in
+the existing client after recording its prior values, then rerun local inspection.
+To roll back, restore the saved prior client settings; the updated inspector will
+report drift until its expected settings are restored. Recreating a realm or volume
+deletes stored identity and configuration data; it is not an automatic migration
+and requires separate authorization before deleting any real data. Tests use only
+disposable, test-owned resources.
 
 The bootstrap admin password is read from its owner-only 0600 file, and only sent
 in an in-memory form body to master realm `admin-cli` to manage metadata. It is not

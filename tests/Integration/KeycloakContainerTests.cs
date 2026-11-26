@@ -56,6 +56,16 @@ public sealed class KeycloakContainerTests(ContainerImages images)
             Assert.Equal(new[] { $"http://localhost:{port}/auth/callback" }, client.GetProperty("redirectUris").EnumerateArray().Select(x => x.GetString()));
             Assert.Equal(new[] { $"http://localhost:{port}" }, client.GetProperty("webOrigins").EnumerateArray().Select(x => x.GetString()));
         }
+        var crm = Assert.Single(clients.EnumerateArray(), x => x.GetProperty("clientId").GetString() == "crm-web-local");
+        Assert.Equal("http://localhost:5173/", crm.GetProperty("attributes").GetProperty("post.logout.redirect.uris").GetString());
+        var crmId = crm.GetProperty("id").GetString();
+        var mappers = await admin.GetFromJsonAsync<JsonElement>($"admin/realms/crm-local/clients/{crmId}/protocol-mappers/models");
+        var mapper = Assert.Single(mappers.EnumerateArray(), x => x.GetProperty("name").GetString() == "crm-api-audience");
+        Assert.Equal("oidc-audience-mapper", mapper.GetProperty("protocolMapper").GetString());
+        var config = mapper.GetProperty("config");
+        Assert.Equal("crm-api", config.GetProperty("included.custom.audience").GetString());
+        Assert.Equal("true", config.GetProperty("access.token.claim").GetString());
+        Assert.Equal("false", config.GetProperty("id.token.claim").GetString());
         Assert.Empty((await admin.GetFromJsonAsync<JsonElement>("admin/realms/crm-local/users")).EnumerateArray());
         await stack.AssertDatabaseIsolation();
         Assert.Equal("ready", await stack.InspectRealm());
@@ -75,15 +85,17 @@ public sealed class KeycloakContainerTests(ContainerImages images)
         using var warmAdmin = await stack.Admin();
         var clients = await warmAdmin.GetFromJsonAsync<JsonElement>("admin/realms/crm-local/clients?clientId=crm-web-local");
         var id = clients[0].GetProperty("id").GetString();
-        using var response = await warmAdmin.PutAsJsonAsync("admin/realms/crm-local/clients/" + id, new { directAccessGrantsEnabled = true });
+        var mappers = await warmAdmin.GetFromJsonAsync<JsonElement>($"admin/realms/crm-local/clients/{id}/protocol-mappers/models");
+        var mapper = Assert.Single(mappers.EnumerateArray(), x => x.GetProperty("name").GetString() == "crm-api-audience");
+        using var response = await warmAdmin.DeleteAsync($"admin/realms/crm-local/clients/{id}/protocol-mappers/models/{mapper.GetProperty("id").GetString()}");
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         await stack.Restart();
         using var driftAdmin = await stack.Admin();
         var after = await driftAdmin.GetFromJsonAsync<JsonElement>("admin/realms/crm-local");
         Assert.Equal(before.GetProperty("id").GetString(), after.GetProperty("id").GetString());
         Assert.Equal("drift", await stack.InspectRealm());
-        var persisted = await driftAdmin.GetFromJsonAsync<JsonElement>("admin/realms/crm-local/clients/" + id);
-        Assert.True(persisted.GetProperty("directAccessGrantsEnabled").GetBoolean());
+        var persisted = await driftAdmin.GetFromJsonAsync<JsonElement>($"admin/realms/crm-local/clients/{id}/protocol-mappers/models");
+        Assert.DoesNotContain(persisted.EnumerateArray(), x => x.GetProperty("name").GetString() == "crm-api-audience");
         await ContainerImages.Docker("stop", stack.Keycloak);
         Assert.Equal("unavailable", await stack.InspectRealm());
     }
