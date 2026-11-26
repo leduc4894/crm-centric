@@ -9,3 +9,11 @@ Verification: Git status, branch tips, 53 commit count and worktree list inspect
 ## Move documentation to Wave 1
 
 User subsequently requested committing the untracked handoffs and Plan 4 to `wave-1` and removing those untracked copies from the `main` checkout. Branch `wave-1` is checked out in `.local/worktrees/wave-1-invites-audit`; the eight documents were copied to that worktree and committed there. The corresponding main-checkout copies are removed only after verifying their committed bytes, except this handoff, whose new section is the sole deliberate difference. No product code, remote state or tests were changed/run. Check Git status and log for the resulting commit and clean main state.
+
+## Primary checkout correction
+
+User clarified that `wave-1` should be used from the primary checkout, not a separate worktree. The separate worktree already existed before the branch split; no worktree was created for this action. Restored that existing worktree to its original `feat/wave-1-invites-audit` branch and switched the primary checkout to `wave-1` at `8df821b`. Local `main` remains at Wave 0 `40bc290`. No tests, push, remote change or worktree deletion. This clarification is uncommitted handoff work.
+
+## Remove unused worktree
+
+User requested removal of the unused `.local/worktrees/wave-1-invites-audit` worktree. Its tracked/untracked Git status was clean and no independent process referencing that path was observed. Preserved ignored `.local` and `.superpowers` contents under `.local/worktree-preservation/2026-11-26-wave-1-invites-audit/` before `git worktree remove`; disposable build output was removed with the worktree. The local feature branch and all commits remain. No tests or remote changes. This handoff update is uncommitted.
