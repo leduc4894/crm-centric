@@ -46,6 +46,25 @@ public sealed class MembershipEndpointsTests(ITestOutputHelper output) : IAsyncL
         Assert.Equal(code,response.StatusCode); Assert.Equal("application/problem+json",response.Content.Headers.ContentType!.MediaType);
         using var json=JsonDocument.Parse(await response.Content.ReadAsStringAsync()); Assert.Equal(reason,json.RootElement.GetProperty("reasonToken").GetString()); Assert.Equal(response.Headers.GetValues("X-Correlation-Id").Single(),json.RootElement.GetProperty("correlationId").GetString());
     }
+    [Theory]
+    [InlineData("tenant-list")]
+    [InlineData("membership-list")]
+    [InlineData("membership-get")]
+    [InlineData("membership-patch")]
+    public async Task Same_audience_id_token_cannot_authorize_identity_routes(string route)
+    {
+        var path = route switch {
+            "tenant-list" => "/api/v1/tenants",
+            "membership-list" => "/api/v1/memberships",
+            _ => $"/api/v1/memberships/{agent}"
+        };
+        using var request = new HttpRequestMessage(route == "membership-patch" ? HttpMethod.Patch : HttpMethod.Get, path);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", issuer.IssueToken(new() { Subject = "owner", PayloadType = "ID" }));
+        request.Headers.Add("X-Tenant-Id", tenant.ToString());
+        if (route == "membership-patch") { request.Headers.TryAddWithoutValidation("If-Match", "\"v1\""); request.Content = new StringContent("{\"status\":\"active\"}", Encoding.UTF8, "application/json"); }
+        using var response = await client.SendAsync(request);
+        await Problem(response, HttpStatusCode.Unauthorized, "AUTHENTICATION_REQUIRED");
+    }
     [Fact]
     public async Task Owner_reads_tenant_membership_with_revoked_mapping_and_etag()
     {

@@ -13,8 +13,8 @@ public static class TenantEndpoints
 {
     public static IEndpointRouteBuilder MapTenantEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapGet("/api/v1/tenants", ListAsync).RequireAuthorization();
-        endpoints.MapPost("/api/v1/tenants", CreateAsync).RequireAuthorization();
+        endpoints.MapGet("/api/v1/tenants", ListAsync).RequireAuthorization().WithMetadata(new RequireAccessToken());
+        endpoints.MapPost("/api/v1/tenants", CreateAsync).RequireAuthorization().WithMetadata(new RequireAccessToken());
         return endpoints;
     }
 

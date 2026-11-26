@@ -12,9 +12,9 @@ public static class MembershipEndpoints
 {
     public static IEndpointRouteBuilder MapMembershipEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapGet("/api/v1/memberships", ListAsync).RequireAuthorization();
-        endpoints.MapGet("/api/v1/memberships/{id}", GetAsync).RequireAuthorization();
-        endpoints.MapPatch("/api/v1/memberships/{id}", PatchAsync).RequireAuthorization();
+        endpoints.MapGet("/api/v1/memberships", ListAsync).RequireAuthorization().WithMetadata(new RequireAccessToken());
+        endpoints.MapGet("/api/v1/memberships/{id}", GetAsync).RequireAuthorization().WithMetadata(new RequireAccessToken());
+        endpoints.MapPatch("/api/v1/memberships/{id}", PatchAsync).RequireAuthorization().WithMetadata(new RequireAccessToken());
         return endpoints;
     }
     private sealed record ResponseMembership(Guid Id, string Issuer, string Subject, string Role, string Status, long Version);

@@ -42,6 +42,14 @@ public sealed class TenantProvisioningTests(ITestOutputHelper output) : IAsyncLi
         return await client.SendAsync(req);
     }
     [Fact]
+    public async Task Same_audience_id_token_with_provisioning_scope_cannot_create_tenant()
+    {
+        var token = issuer.IssueToken(new() { Subject = "actor", Scope = "platform.tenants.create", PayloadType = "ID" });
+        using var response = await Post("{\"name\":\"Acme\"}", token: token);
+        await AssertProblem(response, HttpStatusCode.Unauthorized, "AUTHENTICATION_REQUIRED");
+        await AssertCounts(0, 0, 0);
+    }
+    [Fact]
     public async Task Valid_provisioner_creates_tenant_owner_and_audit_and_can_list_it()
     {
         using var response = await Post("{\"name\":\"Acme\"}");
