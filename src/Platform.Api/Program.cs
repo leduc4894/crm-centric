@@ -83,6 +83,7 @@ app.MapOperationalEndpoints();
 app.MapTenantEndpoints();
 app.MapMembershipEndpoints();
 app.MapInviteEndpoints();
+app.MapAuditEndpoints();
 app.Run();
 return 0;
 

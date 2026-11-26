@@ -5,6 +5,8 @@ using Platform.Infrastructure.Identity;
 
 namespace Platform.Api.Identity;
 
+public enum TenantPermission { TeamManage, AuditRead }
+
 public static class TenantAuthorization
 {
     public static bool HasTeamManage(string role) => role is "owner" or "admin";
@@ -45,7 +47,8 @@ public static class TenantAuthorization
 
     // Caller owns the returned transaction. Principal must already be authenticated.
     // A locked, operator-verified staff binding and active tenant membership are both required.
-    public static async Task<AuthorizationResult> BeginAsync(HttpContext context, NpgsqlConnection connection, bool mutation, CancellationToken ct)
+    public static async Task<AuthorizationResult> BeginAsync(HttpContext context, NpgsqlConnection connection, bool mutation, CancellationToken ct,
+        TenantPermission permission = TenantPermission.TeamManage)
     {
         if (!TryGetTenantId(context.Request.Headers, out var tenantId))
             return new(default, null, "TENANT_CONTEXT_INVALID");
@@ -75,7 +78,13 @@ public static class TenantAuthorization
                 return new(tenantId, null, "TENANT_ACCESS_DENIED");
             }
             var role = await GetActiveRoleAsync(connection, transaction, tenantId, issuer, subject, ct);
-            if (role is not null && HasTeamManage(role)) return new(tenantId, transaction, null);
+            var permitted = permission switch
+            {
+                TenantPermission.TeamManage => role is not null && HasTeamManage(role),
+                TenantPermission.AuditRead => role is "owner" or "admin",
+                _ => false
+            };
+            if (permitted) return new(tenantId, transaction, null);
             await transaction.DisposeAsync();
             return new(tenantId, null, "INSUFFICIENT_SCOPE");
         }

@@ -6,7 +6,8 @@ namespace Platform.Api.Identity;
 
 internal static class TenantEndpointTransaction
 {
-    internal static async Task RunAsync(HttpContext context, IConfiguration configuration, bool mutation, Func<NpgsqlConnection, NpgsqlTransaction, Guid, Func<Task>, Task> operation)
+    internal static async Task RunAsync(HttpContext context, IConfiguration configuration, bool mutation, Func<NpgsqlConnection, NpgsqlTransaction, Guid, Func<Task>, Task> operation,
+        TenantPermission permission = TenantPermission.TeamManage)
     {
         for (var attempt = 0; ; attempt++)
         {
@@ -15,7 +16,7 @@ internal static class TenantEndpointTransaction
             {
                 await using var connection = new NpgsqlConnection(DatabaseOptions.Parse(configuration.GetConnectionString("Platform")).ConnectionString);
                 await connection.OpenAsync(context.RequestAborted);
-                var auth = await TenantAuthorization.BeginAsync(context, connection, mutation, context.RequestAborted);
+                var auth = await TenantAuthorization.BeginAsync(context, connection, mutation, context.RequestAborted, permission);
                 if (auth.Transaction is null)
                 {
                     await OperationalErrors.WriteProblemAsync(context, auth.ReasonToken == "TENANT_CONTEXT_INVALID" ? 400 : 403, auth.ReasonToken!, context.RequestAborted);

@@ -81,6 +81,17 @@ namespace Platform.Infrastructure.Persistence.Migrations
                     RAISE insufficient_privilege;
                   END IF;
                 END $f$;
+                CREATE FUNCTION platform.list_audit_entries(t uuid, iss text, sub text, anchor_time timestamptz, anchor_id uuid, take_count integer)
+                RETURNS TABLE(id uuid,actor text,action text,target uuid,stamp timestamptz,correlation text,summary text)
+                LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog AS $f$
+                BEGIN
+                  PERFORM platform.require_invite_manager(t,iss,sub);
+                  RETURN QUERY SELECT e.id,coalesce(m.id::text,'unlinked'),e.action,e.target_id,e.created_at,e.correlation_id,e.summary
+                    FROM audit.entries e LEFT JOIN platform.memberships m
+                      ON m.tenant_id=t AND m.issuer=e.actor_issuer AND m.subject=e.actor_subject
+                    WHERE e.tenant_id=t AND ((anchor_time IS NULL AND anchor_id IS NULL) OR (e.created_at,e.id)<(anchor_time,anchor_id))
+                    ORDER BY e.created_at DESC,e.id DESC LIMIT least(101,greatest(1,take_count));
+                END $f$;
                 CREATE FUNCTION platform.create_invite(t uuid, iss text, sub text, correlation text, digest bytea, original text, normalized text, invited_role text)
                 RETURNS TABLE(id uuid,expires_at timestamptz) LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog AS $f$
                 DECLARE new_id uuid := gen_random_uuid(); created timestamptz;
@@ -160,7 +171,7 @@ namespace Platform.Infrastructure.Persistence.Migrations
                   outcome := 'INVITE_STATE_CONFLICT'; member_id := NULL; invited_role := NULL; RETURN NEXT;
                 END $f$;
                 REVOKE ALL ON FUNCTION platform.accept_invite(bytea,text,text,text,text) FROM PUBLIC;
-                REVOKE ALL ON FUNCTION platform.create_invite(uuid,text,text,text,bytea,text,text,text), platform.list_invites(uuid,text,text,uuid,integer), platform.revoke_invite(uuid,text,text,text,uuid), platform.require_invite_manager(uuid,text,text) FROM PUBLIC;
+                REVOKE ALL ON FUNCTION platform.list_audit_entries(uuid,text,text,timestamptz,uuid,integer), platform.create_invite(uuid,text,text,text,bytea,text,text,text), platform.list_invites(uuid,text,text,uuid,integer), platform.revoke_invite(uuid,text,text,text,uuid), platform.require_invite_manager(uuid,text,text) FROM PUBLIC;
                 REVOKE ALL ON FUNCTION platform.invite_tenant_for_hash(bytea) FROM PUBLIC;
                 """);
         }
@@ -176,7 +187,7 @@ namespace Platform.Infrastructure.Persistence.Migrations
                   END IF;
                 END $body$;
                 DROP FUNCTION platform.accept_invite(bytea,text,text,text,text);
-                DROP FUNCTION platform.create_invite(uuid,text,text,text,bytea,text,text,text), platform.list_invites(uuid,text,text,uuid,integer), platform.revoke_invite(uuid,text,text,text,uuid), platform.require_invite_manager(uuid,text,text);
+                DROP FUNCTION platform.list_audit_entries(uuid,text,text,timestamptz,uuid,integer), platform.create_invite(uuid,text,text,text,bytea,text,text,text), platform.list_invites(uuid,text,text,uuid,integer), platform.revoke_invite(uuid,text,text,text,uuid), platform.require_invite_manager(uuid,text,text);
                 DROP FUNCTION platform.invite_tenant_for_hash(bytea);
                 """);
             migrationBuilder.DropTable(
