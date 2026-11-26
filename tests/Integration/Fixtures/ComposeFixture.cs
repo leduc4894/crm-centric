@@ -26,7 +26,32 @@ public sealed class ComposeFixture : IAsyncDisposable
         public string SafeDiagnostic => string.Join(", ", Output.Split('\n', StringSplitOptions.RemoveEmptyEntries).Select(line =>
         { try { using var json = JsonDocument.Parse(line); return json.RootElement.ValueKind == JsonValueKind.Object && json.RootElement.TryGetProperty("reasonToken", out var token) && token.ValueKind == JsonValueKind.String ? token.GetString() : "status"; } catch (JsonException) { return "non-json diagnostic"; } }));
     }
-    public static void Success(Result result, string stage = "operation") => Assert.True(result.ExitCode == 0, stage + ": " + result.SafeDiagnostic);
+    public static void Success(Result result, string stage = "operation")
+    {
+        if (stage is "COMPOSE_TLS_STARTUP_FAILED" or "COMPOSE_TLS_DISCOVERY_FAILED" or "COMPOSE_TLS_MANAGEMENT_FAILED")
+        {
+            if (result.ExitCode != 0)
+            {
+                var timeout = false;
+                foreach (var line in result.Output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                {
+                    try
+                    {
+                        using var json = JsonDocument.Parse(line);
+                        if (json.RootElement.ValueKind == JsonValueKind.Object
+                            && json.RootElement.TryGetProperty("reasonToken", out var reason)
+                            && reason.ValueKind == JsonValueKind.String
+                            && reason.ValueEquals("LOCAL_START_TIMEOUT")) timeout = true;
+                    }
+                    catch (JsonException) { /* Non-JSON lines are ignored; the stage failure remains reported. */ }
+                }
+                var cause = timeout ? " cause=LOCAL_START_TIMEOUT" : "";
+                Assert.Fail($"reasonToken={stage} correlationId={Guid.NewGuid():N}{cause}");
+            }
+            return;
+        }
+        Assert.True(result.ExitCode == 0, stage + ": " + result.SafeDiagnostic);
+    }
     private static string FindRoot() { var d = new DirectoryInfo(AppContext.BaseDirectory); while (d is not null && !File.Exists(Path.Combine(d.FullName, "CrmPlatform.sln"))) d = d.Parent; return d?.FullName ?? throw new InvalidOperationException(); }
     public ProcessStartInfo CommandInfo(string action, string? state = null, string? root = null, int? startTimeout = null)
     {

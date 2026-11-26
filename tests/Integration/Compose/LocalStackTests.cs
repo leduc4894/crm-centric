@@ -39,7 +39,7 @@ public sealed class LocalStackTests
     public async Task Api_uses_trusted_tls_backchannel_with_unchanged_public_issuer()
     {
         await using var stack = new ComposeFixture();
-        ComposeFixture.Success(await stack.Command("up", startTimeout: 90));
+        ComposeFixture.Success(await stack.Command("up", startTimeout: 90), "COMPOSE_TLS_STARTUP_FAILED");
         var apiId = await stack.Container("crm-api");
         var certificate = stack.State + ".tls/cert.pem";
         var discovery = await ComposeFixture.Docker("run", "--rm", "--network", "container:" + apiId,
@@ -47,14 +47,25 @@ public sealed class LocalStackTests
             ContainerImages.Pins["DOTNET_SDK_IMAGE"], "curl", "--silent", "--show-error", "--fail",
             "--noproxy", "*", "--cacert", "/tmp/ca.pem",
             "https://keycloak:8443/realms/crm-local/.well-known/openid-configuration");
-        Assert.Equal(0, discovery.ExitCode);
-        using var body = System.Text.Json.JsonDocument.Parse(discovery.Output);
-        Assert.Equal($"http://localhost:{stack.IdpPort}/realms/crm-local", body.RootElement.GetProperty("issuer").GetString());
-        Assert.Equal("https://keycloak:8443/realms/crm-local/protocol/openid-connect/certs", body.RootElement.GetProperty("jwks_uri").GetString());
+        ComposeFixture.Success(discovery, "COMPOSE_TLS_DISCOVERY_FAILED");
+        var validDiscovery = false;
+        try
+        {
+            using var body = System.Text.Json.JsonDocument.Parse(discovery.Output);
+            validDiscovery = body.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object
+                && body.RootElement.TryGetProperty("issuer", out var issuer)
+                && issuer.ValueKind == System.Text.Json.JsonValueKind.String
+                && issuer.GetString() == $"http://localhost:{stack.IdpPort}/realms/crm-local"
+                && body.RootElement.TryGetProperty("jwks_uri", out var jwks)
+                && jwks.ValueKind == System.Text.Json.JsonValueKind.String
+                && jwks.GetString() == "https://keycloak:8443/realms/crm-local/protocol/openid-connect/certs";
+        }
+        catch (System.Text.Json.JsonException) { /* Report malformed discovery through the safe stage token below. */ }
+        ComposeFixture.Success(new(validDiscovery ? 0 : 1, ""), "COMPOSE_TLS_DISCOVERY_FAILED");
         var management = await ComposeFixture.Docker("run", "--rm", "--network", "container:" + apiId,
             ContainerImages.Pins["DOTNET_SDK_IMAGE"], "curl", "--silent", "--fail", "--noproxy", "*",
             "--connect-timeout", "2", "http://keycloak:9000/health/ready");
-        Assert.NotEqual(0, management.ExitCode);
+        ComposeFixture.Success(new(management.ExitCode == 0 ? 1 : 0, ""), "COMPOSE_TLS_MANAGEMENT_FAILED");
     }
 
     [Fact]

@@ -183,6 +183,27 @@ class ProcessTests(unittest.TestCase):
         self.assertEqual(['COMPOSE_LOCAL_STACK_TESTS_FAILED'], dotnet_failure_diagnostic(unrelated, b''))
         self.assertEqual(['OTHER_TESTS_FAILED'], dotnet_failure_diagnostic(b'private-sentinel LOCAL_START_TIMEOUT', b''))
 
+    def test_tls_stage_diagnostic_is_bounded_to_failing_test(self):
+        from scripts.ci.jobs import dotnet_failure_diagnostic
+        test = b'Integration.Compose.LocalStackTests.Api_uses_trusted_tls_backchannel_with_unchanged_public_issuer'
+        for stage in ('STARTUP', 'DISCOVERY', 'MANAGEMENT'):
+            with self.subTest(stage=stage):
+                token = 'COMPOSE_TLS_' + stage + '_FAILED'
+                output = (b'  Failed ' + test + b' [1 m]\n  Error Message:\n   reasonToken='
+                          + token.encode() + b' correlationId=0123456789abcdef0123456789abcdef\n  Stack Trace:\n')
+                self.assertEqual(['COMPOSE_LOCAL_STACK_TESTS_FAILED', token], dotnet_failure_diagnostic(output, b''))
+        startup_timeout = (b'  Failed ' + test + b' [1 m]\n  Error Message:\n'
+                           b'   reasonToken=COMPOSE_TLS_STARTUP_FAILED correlationId=0123456789abcdef0123456789abcdef cause=LOCAL_START_TIMEOUT\n')
+        self.assertEqual(['COMPOSE_LOCAL_STACK_TESTS_FAILED', 'COMPOSE_TLS_STARTUP_FAILED', 'LOCAL_START_TIMEOUT'],
+                         dotnet_failure_diagnostic(startup_timeout, b''))
+        invalid = (b'  Failed ' + test + b' [1 m]\n  Error Message:\n'
+                   b'   reasonToken=COMPOSE_TLS_DISCOVERY_FAILED correlationId=not-a-guid private-sentinel\n')
+        self.assertEqual(['COMPOSE_LOCAL_STACK_TESTS_FAILED'], dotnet_failure_diagnostic(invalid, b''))
+        unrelated = (b'  Failed ' + test + b' [1 m]\n  Error Message:\n   unrelated\n  Stack Trace:\n'
+                     b'  Failed Integration.Other.Other [1 s]\n  Error Message:\n'
+                     b'   reasonToken=COMPOSE_TLS_DISCOVERY_FAILED correlationId=0123456789abcdef0123456789abcdef\n')
+        self.assertEqual(['COMPOSE_LOCAL_STACK_TESTS_FAILED'], dotnet_failure_diagnostic(unrelated, b''))
+
     def test_failed_compose_command_does_not_echo_private_output(self):
         import contextlib, io, json
         process = unittest.mock.Mock(returncode=1)

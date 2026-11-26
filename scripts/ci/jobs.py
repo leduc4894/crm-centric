@@ -151,10 +151,21 @@ def dotnet_failure_diagnostic(stdout, stderr):
             continue
         if not next(_compose_failure_records(line), None) or lines[index + 1].strip() != 'Error Message:':
             continue
-        stage, separator, detail = lines[index + 2].strip().partition(': ')
+        detail_line = lines[index + 2].strip()
+        stage, separator, detail = detail_line.partition(': ')
         if separator and stage in ('operation', 'initial startup') and 'LOCAL_START_TIMEOUT' in detail.split(', '):
-            matches.append('LOCAL_START_TIMEOUT')
-            break
+            if 'LOCAL_START_TIMEOUT' not in matches:
+                matches.append('LOCAL_START_TIMEOUT')
+        record = next(_compose_failure_records(line), None)
+        if record == ('LocalStackTests', 'Api_uses_trusted_tls_backchannel_with_unchanged_public_issuer'):
+            safe_stage = re.fullmatch(
+                r'reasonToken=(COMPOSE_TLS_STARTUP_FAILED|COMPOSE_TLS_DISCOVERY_FAILED|COMPOSE_TLS_MANAGEMENT_FAILED) '
+                r'correlationId=[0-9a-f]{32}( cause=LOCAL_START_TIMEOUT)?', detail_line)
+            if safe_stage:
+                if safe_stage.group(1) not in matches:
+                    matches.append(safe_stage.group(1))
+                if safe_stage.group(2) and safe_stage.group(1) == 'COMPOSE_TLS_STARTUP_FAILED' and 'LOCAL_START_TIMEOUT' not in matches:
+                    matches.append('LOCAL_START_TIMEOUT')
     if 'Container operation failed: build exit 1' in text:
         matches.append('CONTAINER_IMAGE_BUILD_FAILED')
     process_failures = {
