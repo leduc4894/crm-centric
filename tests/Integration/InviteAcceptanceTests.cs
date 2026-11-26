@@ -15,7 +15,7 @@ namespace Integration;
 
 public sealed class InviteAcceptanceTests : IAsyncLifetime
 {
-    private readonly PostgresFixture db = new();
+    private readonly PostgresFixture db = new(durableCommits: true);
     private readonly Guid tenant = Guid.NewGuid();
     private readonly (string Token, byte[] Hash) invite = InviteToken.Create();
     private readonly OperationalSecurityTests.Capture logs = new();
@@ -41,13 +41,15 @@ public sealed class InviteAcceptanceTests : IAsyncLifetime
             INSERT INTO platform.invites(tenant_id,id,token_hash,email,normalized_email,role,created_at,expires_at)
             VALUES (@t,gen_random_uuid(),@hash,'Alice@Example.COM','Alice@example.com','operator',now(),now()+interval '24 hours')
             """);
-        app = new ApiFactory(new Dictionary<string,string?> {
-            ["ConnectionStrings:Platform"] = db.ApplicationConnectionString, ["Oidc:Issuer"] = issuer.Issuer.AbsoluteUri,
-            ["Oidc:Audience"] = "crm-api", ["Oidc:MetadataAddress"] = new Uri(issuer.Issuer,".well-known/openid-configuration").AbsoluteUri,
-            ["Oidc:AllowHttpLoopback"] = "true" });
+        app = CreateApp(db.ApplicationConnectionString);
         client = app.CreateClient();
         app.Services.GetRequiredService<ILoggerFactory>().AddProvider(logs);
     }
+
+    private ApiFactory CreateApp(string connectionString) => new(new Dictionary<string,string?> {
+            ["ConnectionStrings:Platform"] = connectionString, ["Oidc:Issuer"] = issuer.Issuer.AbsoluteUri,
+            ["Oidc:Audience"] = "crm-api", ["Oidc:MetadataAddress"] = new Uri(issuer.Issuer,".well-known/openid-configuration").AbsoluteUri,
+            ["Oidc:AllowHttpLoopback"] = "true" });
 
     public async Task DisposeAsync()
     {
@@ -68,13 +70,13 @@ public sealed class InviteAcceptanceTests : IAsyncLifetime
         return await cmd.ExecuteScalarAsync();
     }
 
-    private async Task<HttpResponseMessage> Accept(FakeTokenOptions? identity, string? body = null, bool tenantHeader = false)
+    private async Task<HttpResponseMessage> Accept(FakeTokenOptions? identity, string? body = null, bool tenantHeader = false, HttpClient? transport = null)
     {
         using var req = new HttpRequestMessage(HttpMethod.Post,"/api/v1/invites/accept");
         if (identity != null) req.Headers.Authorization = new("Bearer",issuer.IssueToken(identity));
         if (tenantHeader) req.Headers.Add("X-Tenant-Id",tenant.ToString());
         req.Content = body is null ? JsonContent.Create(new { token = invite.Token }) : new StringContent(body,Encoding.UTF8,"application/json");
-        return await client.SendAsync(req);
+        return await (transport ?? client).SendAsync(req);
     }
 
     private async Task Problem(HttpResponseMessage response, HttpStatusCode code, string reason)
@@ -300,5 +302,63 @@ public sealed class InviteAcceptanceTests : IAsyncLifetime
         await using var count = new NpgsqlCommand("SELECT last_value FROM audit.attempts WHERE is_called",admin);
         Assert.Equal(attempts,await count.ExecuteScalarAsync());
         await State(0);
+    }
+
+    [Fact]
+    public async Task Lost_commit_reply_reports_unavailable_after_durable_acceptance()
+    {
+        Assert.Equal("on",await Sql("SHOW fsync"));
+        Assert.Equal("on",await Sql("SHOW synchronous_commit"));
+        Assert.Equal("on",await Sql("SHOW full_page_writes"));
+        // PostgreSQL counts every function invocation (including a retry that finds the invite consumed).
+        // A deferred trigger tells the independent observer when COMMIT is already running on the server.
+        await Sql("""
+            ALTER FUNCTION platform.accept_invite(bytea,text,text,text,text) RENAME TO accept_invite_impl;
+            CREATE SEQUENCE platform.accept_attempts;
+            CREATE FUNCTION platform.accept_invite(bytea,text,text,text,text)
+            RETURNS TABLE(outcome text,member_id uuid,invited_role text)
+            LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog AS $$
+            BEGIN
+              PERFORM nextval('platform.accept_attempts');
+              RETURN QUERY SELECT * FROM platform.accept_invite_impl($1,$2,$3,$4,$5);
+            END $$;
+            REVOKE ALL ON FUNCTION platform.accept_invite(bytea,text,text,text,text) FROM PUBLIC;
+            CREATE FUNCTION audit.gate_commit() RETURNS trigger LANGUAGE plpgsql AS $$
+            BEGIN PERFORM pg_advisory_xact_lock(98765); RETURN NEW; END $$;
+            CREATE CONSTRAINT TRIGGER gate_commit AFTER INSERT ON audit.entries DEFERRABLE INITIALLY DEFERRED
+              FOR EACH ROW EXECUTE FUNCTION audit.gate_commit();
+            """);
+        await Sql($"GRANT EXECUTE ON FUNCTION platform.accept_invite(bytea,text,text,text,text) TO {PostgresFixture.Quote(db.ApplicationRole)}");
+        await using var observer = new NpgsqlConnection(db.AdminConnectionString);
+        await observer.OpenAsync();
+        await PostgresFixture.ExecuteAsync(observer,"SELECT pg_advisory_lock(98765)");
+        var settings = new NpgsqlConnectionStringBuilder(db.ApplicationConnectionString);
+        await using var gate = new PostgresReplyGate(settings.Port);
+        settings.Host = "127.0.0.1";
+        settings.Port = gate.Port;
+        settings.Pooling = false;
+        await using var proxiedApp = CreateApp(settings.ConnectionString);
+        using var proxiedClient = proxiedApp.CreateClient();
+        var response = Accept(Verified, transport:proxiedClient);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        await using var blockedCommit = new NpgsqlCommand("""
+            SELECT EXISTS (SELECT FROM pg_stat_activity
+              WHERE usename=@role AND pg_backend_pid()=ANY(pg_blocking_pids(pid)) AND lower(trim(query)) LIKE 'commit%')
+            """,observer);
+        blockedCommit.Parameters.AddWithValue("role",db.ApplicationRole);
+        while (await blockedCommit.ExecuteScalarAsync(timeout.Token) is not true)
+            await Task.Delay(25, timeout.Token);
+        gate.HoldReplies();
+        await PostgresFixture.ExecuteAsync(observer,"SELECT pg_advisory_unlock(98765)");
+        while (await Sql("SELECT count(*) FROM audit.entries WHERE action='invite.accepted'") is not 1L)
+            await Task.Delay(25, timeout.Token);
+        await gate.ReplyWithheld.WaitAsync(timeout.Token);
+        gate.Disconnect();
+        await Problem(await response.WaitAsync(timeout.Token),HttpStatusCode.ServiceUnavailable,"IDENTITY_STORE_UNAVAILABLE");
+        await State(1);
+        Assert.Equal(1L,await Sql("SELECT last_value FROM platform.accept_attempts"));
+        await Problem(await Accept(Verified),HttpStatusCode.Conflict,"INVITE_STATE_CONFLICT");
+        Assert.Equal(2L,await Sql("SELECT last_value FROM platform.accept_attempts"));
+        await State(1);
     }
 }
