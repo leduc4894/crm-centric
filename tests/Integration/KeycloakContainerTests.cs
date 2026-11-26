@@ -172,6 +172,7 @@ public sealed class KeycloakContainerTests(ContainerImages images)
             await ContainerImages.Docker("run", "--detach", "--name", Keycloak, "--network", name, "--publish", $"127.0.0.1:{Port}:8080",
                 "--env", "KC_DB_URL=jdbc:postgresql://" + Db + ":5432/keycloak", "--env", "KC_DB_USERNAME=keycloak",
                 "--env", "KC_BOOTSTRAP_ADMIN_USERNAME=local-admin", "--env", "KC_HOSTNAME=" + BaseUrl,
+                "--env", "JAVA_OPTS_KC_HEAP=-Xms64m -Xmx512m",
                 "--mount", Mount("db-password", "/run/secrets/idp_db_password"), "--mount", Mount("admin-password", "/run/secrets/idp_admin_password"),
                 images.Keycloak, "start-dev", "--import-realm");
             await Ready();
