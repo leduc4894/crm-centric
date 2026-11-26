@@ -263,7 +263,8 @@ it('places callback cleanup and referrer protection before Vite scripts', async 
     const firstModule = transformed.indexOf('<script type="module"');
     expect(cleanup).toBeGreaterThan(-1);
     expect(referrer).toBeGreaterThan(-1);
-    expect(cleanup).toBeLessThan(firstModule);
-    expect(referrer).toBeLessThan(firstModule);
+    expect(firstModule).toBe(-1);
+    expect(transformed).toContain('document.write(');
+    expect(referrer).toBeLessThan(cleanup);
   } finally { await server.close(); }
 });

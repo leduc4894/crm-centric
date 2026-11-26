@@ -22,7 +22,16 @@ function callbackPrelude(): Plugin {
         const pattern = /\s*<!-- oidc-callback-prelude-start -->[\s\S]*?<!-- oidc-callback-prelude-end -->/;
         const match = html.match(pattern);
         if (!match || !html.includes('<head>')) throw new Error(`WEB_CALLBACK_PRELUDE_MISSING ${randomUUID()}`);
-        return html.replace(pattern, '').replace('<head>', `<head>${match[0]}`);
+        const delayed: string[] = [];
+        let remaining = html.replace(pattern, '');
+        remaining = remaining.replace(/<script\b(?=[^>]*\btype=["']module["'])[^>]*>[\s\S]*?<\/script>/gi, (tag) => { delayed.push(tag); return ''; });
+        remaining = remaining.replace(/<link\b(?=[^>]*\brel=["'](?:modulepreload|preload|stylesheet)["'])[^>]*\/?>/gi, (tag) => { delayed.push(tag); return ''; });
+        if (/<(?:script\b[^>]*\bsrc|link\b[^>]*\bhref|img\b|iframe\b|audio\b|video\b|source\b|embed\b|object\b)/i.test(remaining)) {
+          throw new Error(`WEB_CALLBACK_RESOURCE_UNSAFE ${randomUUID()}`);
+        }
+        const encoded = JSON.stringify(delayed.join('')).replace(/</g, '\\u003c');
+        const prelude = match[0].replace('</script>', `document.write(${encoded});</script>`);
+        return remaining.replace('<head>', `<head>${prelude}`);
       }
     }
   };
