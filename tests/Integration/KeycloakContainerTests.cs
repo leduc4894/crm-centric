@@ -87,13 +87,17 @@ public sealed class KeycloakContainerTests(ContainerImages images)
         var id = clients[0].GetProperty("id").GetString();
         using (var enablePassword = await warmAdmin.PutAsJsonAsync($"admin/realms/crm-local/clients/{id}", new { directAccessGrantsEnabled = true }))
             Assert.Equal(HttpStatusCode.NoContent, enablePassword.StatusCode);
+        await stack.Restart();
+        using var grantAdmin = await stack.Admin();
+        var persistedGrant = await grantAdmin.GetFromJsonAsync<JsonElement>($"admin/realms/crm-local/clients/{id}");
+        Assert.True(persistedGrant.GetProperty("directAccessGrantsEnabled").GetBoolean());
         Assert.Equal("drift", await stack.InspectRealm());
-        using (var disablePassword = await warmAdmin.PutAsJsonAsync($"admin/realms/crm-local/clients/{id}", new { directAccessGrantsEnabled = false }))
+        using (var disablePassword = await grantAdmin.PutAsJsonAsync($"admin/realms/crm-local/clients/{id}", new { directAccessGrantsEnabled = false }))
             Assert.Equal(HttpStatusCode.NoContent, disablePassword.StatusCode);
         Assert.Equal("ready", await stack.InspectRealm());
-        var mappers = await warmAdmin.GetFromJsonAsync<JsonElement>($"admin/realms/crm-local/clients/{id}/protocol-mappers/models");
+        var mappers = await grantAdmin.GetFromJsonAsync<JsonElement>($"admin/realms/crm-local/clients/{id}/protocol-mappers/models");
         var mapper = Assert.Single(mappers.EnumerateArray(), x => x.GetProperty("name").GetString() == "crm-api-audience");
-        using var response = await warmAdmin.DeleteAsync($"admin/realms/crm-local/clients/{id}/protocol-mappers/models/{mapper.GetProperty("id").GetString()}");
+        using var response = await grantAdmin.DeleteAsync($"admin/realms/crm-local/clients/{id}/protocol-mappers/models/{mapper.GetProperty("id").GetString()}");
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         await stack.Restart();
         using var driftAdmin = await stack.Admin();
