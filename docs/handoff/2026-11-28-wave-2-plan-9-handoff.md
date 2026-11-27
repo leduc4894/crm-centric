@@ -172,3 +172,43 @@ that same `frontend-leak-scan` (correlation
 scan, build, browser stylesheet smoke and related tests passed as recorded above.
 The frontend CSS loading change and exact pinned scope update are ready to push
 as a single candidate. Hosted results and any new security delta remain pending.
+
+## Run 46049997742 and browser follow-up diagnosis
+
+Run https://github.com/leduc4894/crm-centric/actions/runs/46049997742 completed
+on head `beab93443f46a53aac5fe4af041c0df69059411a`, merge
+`d2bec0915032921412babd5df66c23466d22c294`: backend, Compose and contracts-sdk
+PASS; contracts summary 137/137, zero skips, CI_JOB_COMPLETE. Web passed Plan 3
+including frontend test and leak scan, then failed an unclassified follow-up
+command (`CI_COMMAND_FAILED`, stage `other`, correlation
+`62feb518-e42b-40c3-89f1-c121e77126d8`). Security and aggregate FAIL.
+Real provider Playwright and contacts Playwright each passed 1/1 locally with
+isolated real provider and also with the exact JSON reporter, zero skips/flaky;
+callback cleanup passed 2/2, with the known non-fatal health proxy refusal warning.
+Focused JSON Vitest reporter passed 5/5. No assertion that the CI failure was
+transient or that the local passes explain it.
+
+Prepared fixed safe stage diagnostics distinguishing provider, contacts and
+Vitest, and safe allowlisted failed-file extraction from bounded job-owned Vitest
+JSON reports; no raw assertion/title/payload is emitted, invalid paths and
+symlinks are rejected. New tests failed before implementation; focused CI process
+tests passed 26/26. Exact diagnostic/test hashes are pinned by the reviewed
+candidate scope; 11 required review tests (including eight nested scope cases)
+passed. An intermediate actual-base gate returned review-required due to stale
+pin constants; pins were corrected and a final actual-base gate is running.
+Next: wait for its result, then push one candidate and monitor without overlapping
+CI. If web fails the new diagnostics should identify its follow-up stage/file.
+
+Security: 105 blocked Gitleaks and one blocked Trivy again. Between exact merges
+of 46047196348 and 46049997742 all 15 changed Gitleaks IDs matched previous
+findings by rule, file and in-memory-only value fingerprint, with zero ambiguous
+or unmatched; Trivy IDs/verdicts unchanged. No new security finding detected in
+that exact comparison; no security clearance or waiver.
+
+The final actual-base gate with the corrected diagnostic pins returned
+`CONTRACT_BREAKING_REVIEWED`, correlation `dad5f770-ec19-42e8-be37-90ff1377c775`,
+both historical and packaged contact consumer checks passed; both SDK surface
+breaks remain reported. Focused Plan 3 scope tests passed 11/11 after the final
+pins. Preparing one hosted rerun; the web follow-up stage remains undiagnosed on
+GitHub until that run produces the bounded diagnostic. Candidate-owned review,
+not independent enforcement.
