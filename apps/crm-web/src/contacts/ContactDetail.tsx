@@ -31,6 +31,7 @@ export function ContactDetail({ client: transport, id }: { client: CrmClient; id
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const writing = useRef(false);
+  const pendingRecord = useRef<Snapshot | null>(null);
   const [readOnly, setReadOnly] = useState(false);
   const [deleteFailed, setDeleteFailed] = useState(false);
   useEffect(() => {
@@ -56,6 +57,10 @@ export function ContactDetail({ client: transport, id }: { client: CrmClient; id
   function accept(result: Snapshot) {
     if (result.data.id.toLowerCase() !== id.toLowerCase()) throw new CrmError('WEB_CRM_CONTRACT_INVALID');
     setRecord(result);
+  }
+  function stageRecord(result: Snapshot) {
+    if (result.data.id.toLowerCase() !== id.toLowerCase() || !result.etag) throw new CrmError('WEB_CRM_CONTRACT_INVALID');
+    pendingRecord.current = result;
   }
   async function updateVersion(etag: string | null) {
     if (!etag) throw new CrmError('WEB_CRM_CONTRACT_INVALID');
@@ -84,22 +89,27 @@ export function ContactDetail({ client: transport, id }: { client: CrmClient; id
   const run: RecordWrite = async (write, refresh, onForbidden) => {
     if (!record || busy || writing.current || readOnly || reconcile || editing || deleteFailed) return false;
     writing.current = true;
+    pendingRecord.current = null;
+    let refreshing = false;
     setBusy(true); setPanelFailure(null);
     try {
       if (!record.etag) throw new CrmError('WEB_CRM_CONTRACT_INVALID');
       await write(record.etag);
+      refreshing = true;
       await refresh();
+      if (pendingRecord.current) accept(pendingRecord.current);
       return true;
     } catch (cause) {
       const error = safeError(cause);
       setPanelFailure(error);
-      if (error.status === 403) {
+      if (refreshing) requestReview(refresh);
+      else if (error.status === 403) {
         if (onForbidden) onForbidden(); else setReadOnly(true);
       } else if (error.status === 412 || error.status === 404 || !error.status || error.status >= 500) {
         requestReview(refresh);
       }
       return false;
-    } finally { writing.current = false; setBusy(false); }
+    } finally { pendingRecord.current = null; writing.current = false; setBusy(false); }
   };
   async function review() {
     if (!reconcile || busy) return;
@@ -140,7 +150,7 @@ export function ContactDetail({ client: transport, id }: { client: CrmClient; id
         <><dl><dt>Email</dt><dd>{record.data.email ?? '—'}</dd><dt>Điện thoại</dt><dd>{record.data.phone ?? '—'}</dd></dl>
         {!readOnly && <div className="contact-actions"><button disabled={locked} onClick={() => setEditing(true)}>Chỉnh sửa</button>
         <button disabled={locked} onClick={() => setConfirm(true)}>Xóa liên hệ</button></div>}</>}
-    </section><ContactAttributes client={client} id={id} disabled={locked} run={run} register={register} onRecord={accept} /></div>
+    </section><ContactAttributes client={client} id={id} disabled={locked} run={run} register={register} onRecord={stageRecord} /></div>
       <ContactTimeline client={client} id={id} disabled={locked} run={run} onVersion={updateVersion} /></div>}
     {confirm && record && <DeleteDialog name={record.data.displayName} onCancel={() => setConfirm(false)} onConfirm={() => void remove()} />}
   </>;

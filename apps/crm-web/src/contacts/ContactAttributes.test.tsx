@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
-import { cleanup, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { setup, data, id, field, itemId, page, record, click, change } from './recordTestSupport';
 import { queryKeys } from './queryKeys';
 import type { useContactQueryScope } from './queryScope';
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.useRealTimers(); });
 it('stores contact and attribute reads in the scoped query cache', async () => {
   let scope: ReturnType<typeof useContactQueryScope> | undefined;
   setup((_req, path) => path.endsWith('/custom-fields') ? page([field]) : path.endsWith('/fields/' + itemId) ? Response.json({ value: 1 }) : undefined, value => { scope = value; });
@@ -160,14 +160,14 @@ it.each(['1e131072', '1e-16384', '123456789012345678901234567890123', '1.00E+0']
   await waitFor(() => expect(raw).toBe(token));
   await screen.findByDisplayValue(token);
 });
-it('retains a tag draft and write lock after 412 when sibling refresh fails', async () => {
+it.each([403, 404, 500])('retains a tag draft and write lock after 412 when sibling refresh returns %i', async status => {
   let writes = 0;
   let reads = 0;
   const tag = { id: itemId, name: 'VIP' };
   setup((req, path) => {
     if (path.endsWith('/v1/tags')) return page([tag]);
     if (path.endsWith('/custom-fields')) return page([field]);
-    if (path.endsWith('/fields/' + itemId)) return ++reads > 1 ? new Response(null, { status: 403 }) : new Response('{"value":1}');
+    if (path.endsWith('/fields/' + itemId)) return ++reads > 1 ? new Response(null, { status }) : new Response('{"value":1}');
     if (path.endsWith('/tags/' + itemId) && req.method === 'PUT') { writes++; return new Response(null, { status: 412 }); }
   });
   await change('Thẻ có sẵn', itemId); await click('Gắn thẻ');
@@ -218,4 +218,71 @@ it('serializes simultaneous submissions from different attribute forms', async (
   fireEvent.submit(screen.getByRole('button', { name: 'Lưu Amount' }).closest('form')!);
   await waitFor(() => expect(calls.filter(req => ['POST', 'PUT'].includes(req.method))).toHaveLength(1));
   release(Response.json({ id: itemId, name: 'VIP' }, { status: 201 }));
+});
+it.each([403, 404, 409, 500])('keeps write locked and draft after successful field write followed by refresh %i', async status => {
+  let reads = 0, writes = 0;
+  setup((req, path) => {
+    if (path.endsWith('/custom-fields')) return page([field]);
+    if (path.endsWith('/fields/' + itemId)) {
+      if (req.method === 'PUT') { writes++; return record(2); }
+      return ++reads === 1 ? new Response('{"value":1}') : new Response(null, { status });
+    }
+  });
+  await screen.findByDisplayValue('1');
+  await change('Amount', '123'); await click('Lưu Amount');
+  await screen.findByRole('button', { name: 'Đối chiếu dữ liệu' });
+  expect(screen.getByRole('button', { name: 'Lưu Amount' }).matches(':disabled')).toBe(true);
+  expect((screen.getByLabelText('Amount') as HTMLInputElement).value).toBe('123');
+  expect(writes).toBe(1);
+});
+it.each(['missing', 'invalid'])('keeps field draft and requires review on a %s ETag write response', async mode => {
+  let writes = 0;
+  setup((req, path) => {
+    if (path.endsWith('/custom-fields')) return page([field]);
+    if (path.endsWith('/fields/' + itemId)) {
+      if (req.method === 'PUT') { writes++; return Response.json({ ...data, version: 2 }, mode === 'invalid' ? { headers: { ETag: 'W/"v2"' } } : undefined); }
+      return new Response('{"value":1}');
+    }
+  });
+  await screen.findByDisplayValue('1'); await change('Amount', '123'); await click('Lưu Amount');
+  await screen.findByRole('button', { name: 'Đối chiếu dữ liệu' });
+  expect((screen.getByLabelText('Amount') as HTMLInputElement).value).toBe('123');
+  expect(screen.getByRole('button', { name: 'Lưu Amount' }).matches(':disabled')).toBe(true);
+  expect(writes).toBe(1);
+});
+it('keeps tag selection and requires review after an attachment returns no ETag', async () => {
+  let writes = 0;
+  setup((req, path) => {
+    if (path.endsWith('/v1/tags')) return page([{ id: itemId, name: 'VIP' }]);
+    if (path.endsWith('/tags/' + itemId) && req.method === 'PUT') { writes++; return Response.json({ ...data, version: 2 }); }
+  });
+  await change('Thẻ có sẵn', itemId); await click('Gắn thẻ');
+  await screen.findByRole('button', { name: 'Đối chiếu dữ liệu' });
+  expect((screen.getByLabelText('Thẻ có sẵn') as HTMLSelectElement).value).toBe(itemId);
+  expect(screen.getByRole('button', { name: 'Gắn thẻ' }).matches(':disabled')).toBe(true);
+  expect(writes).toBe(1);
+});
+it('keeps a tag draft after a literal timeout without retrying', async () => {
+  const calls = setup((req, path) => {
+    if (path.endsWith('/v1/tags') && req.method === 'POST') return new Promise((_resolve, reject) => req.signal.addEventListener('abort', () => reject(req.signal.reason)));
+  });
+  await change('Tên thẻ mới', 'Timeout draft');
+  vi.useFakeTimers();
+  const { fireEvent } = await import('@testing-library/react');
+  fireEvent.click(screen.getByRole('button', { name: 'Tạo thẻ' }));
+  await act(async () => { await vi.advanceTimersByTimeAsync(10000); });
+  vi.useRealTimers();
+  await screen.findByRole('button', { name: 'Đối chiếu dữ liệu' });
+  expect((screen.getByLabelText('Tên thẻ mới') as HTMLInputElement).value).toBe('Timeout draft');
+  expect(calls.filter(req => req.method === 'POST')).toHaveLength(1);
+});
+it.each(['null', '""'])('leaves existing optional string %s unchanged until edited', async raw => {
+  const calls = setup((req, path) => {
+    if (path.endsWith('/custom-fields')) return page([{ ...field, dataType: 'string' }]);
+    if (path.endsWith('/fields/' + itemId)) return new Response('{"value":' + raw + '}');
+  });
+  const input = await screen.findByLabelText('Amount') as HTMLInputElement;
+  await waitFor(() => expect(input.value).toBe(''));
+  expect(screen.getByRole('button', { name: 'Lưu Amount' }).matches(':disabled')).toBe(true);
+  expect(calls.filter(req => req.method === 'PUT')).toHaveLength(0);
 });
