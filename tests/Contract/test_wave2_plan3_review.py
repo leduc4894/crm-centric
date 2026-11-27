@@ -171,7 +171,9 @@ class Plan3ReviewTests(unittest.TestCase):
             for path in files: path.unlink(missing_ok=True)
 
     def test_snapshot_drift_cannot_be_approved_even_if_worktree_is_restored(self):
+        import io
         import shutil
+        import tarfile
         original = shutil.copytree
         def changed_copy(src, dst, *args, **kwargs):
             result = original(src, dst, *args, **kwargs)
@@ -183,3 +185,48 @@ class Plan3ReviewTests(unittest.TestCase):
             with self.assertRaises(gate.GateError) as failure:
                 self.evaluate()
         self.assertEqual('CONTRACT_POLICY_REVIEW_REQUIRED', str(failure.exception))
+        # Local git attributes can silently change the archive while the
+        # approved commit and ordinary working files remain unchanged.
+        attributes = self.repo / '.git/info/attributes'
+        previous = attributes.read_bytes() if attributes.exists() else None
+        try:
+            for line in (b'docs/contracts/contact-event-intent.schema.json export-ignore\n',
+                         b'tests/CI/test_scan.py export-subst\n'):
+                with self.subTest(attribute=line):
+                    attributes.write_bytes(line)
+                    with tempfile.TemporaryDirectory() as temporary:
+                        with self.assertRaises(gate.GateError) as failure:
+                            gate.materialize_plan3_source(self.repo, Path(temporary) / 'archive')
+                        self.assertEqual('CONTRACT_POLICY_REVIEW_REQUIRED', str(failure.exception))
+        finally:
+            if previous is None: attributes.unlink(missing_ok=True)
+            else: attributes.write_bytes(previous)
+
+        original_git = gate.git
+        for kind in ('extra', 'symlink', 'mode', 'contents'):
+            with self.subTest(archive_injection=kind), tempfile.TemporaryDirectory() as temporary:
+                def modified_archive(repo, *args):
+                    output = original_git(repo, *args)
+                    if args and args[0] == 'archive':
+                        buffer = io.BytesIO(output)
+                        with tarfile.open(fileobj=buffer, mode='a') as archive:
+                            entry = tarfile.TarInfo('docs/contracts/crm-api.openapi.yaml' if kind in ('mode', 'contents') else 'injected-extra')
+                            if kind == 'symlink':
+                                entry.type = tarfile.SYMTYPE
+                                entry.linkname = 'docs/contracts/crm-api.openapi.yaml'
+                                archive.addfile(entry)
+                            elif kind in ('mode', 'contents'):
+                                content = original_git(repo, 'show', CANDIDATE + ':docs/contracts/crm-api.openapi.yaml')
+                                if kind == 'contents': content += b'\n# unreviewed\n'
+                                entry.mode = 0o755 if kind == 'mode' else 0o644
+                                entry.size = len(content)
+                                archive.addfile(entry, io.BytesIO(content))
+                            else:
+                                entry.size = 4
+                                archive.addfile(entry, io.BytesIO(b'evil'))
+                        return buffer.getvalue()
+                    return output
+                with patch.object(gate, 'git', side_effect=modified_archive):
+                    with self.assertRaises(gate.GateError) as failure:
+                        gate.materialize_plan3_source(self.repo, Path(temporary) / 'archive')
+                self.assertEqual('CONTRACT_POLICY_REVIEW_REQUIRED', str(failure.exception))

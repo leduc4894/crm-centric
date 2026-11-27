@@ -198,6 +198,8 @@ def materialize_plan3_source(repo, destination):
         destination.mkdir()
         with tarfile.open(fileobj=io.BytesIO(archive_data)) as archive:
             archive.extractall(destination, filter='data')
+        if not plan3_archive_matches_tree(repo, destination):
+            raise GateError('CONTRACT_POLICY_REVIEW_REQUIRED')
         git_dir = git(repo, 'rev-parse', '--absolute-git-dir').decode('utf-8').strip()
         (destination / '.git').write_text('gitdir: ' + git_dir + '\n')
         for relative in ('.local/plan3-tools',):
@@ -208,6 +210,45 @@ def materialize_plan3_source(repo, destination):
                 link.symlink_to(source.resolve(), target_is_directory=True)
     except (GateError, OSError, UnicodeError, ValueError, tarfile.TarError):
         raise GateError('CONTRACT_POLICY_REVIEW_REQUIRED') from None
+
+def plan3_archive_matches_tree(repo, root):
+    """Reject Git archive omissions, substitutions and extra filesystem entries."""
+    try:
+        tree = {}
+        directories = set()
+        for item in git(repo, 'ls-tree', '-rz', '--full-tree', PLAN3_REVIEW_COMMIT).split(b'\0'):
+            if not item:
+                continue
+            metadata, raw_name = item.split(b'\t', 1)
+            mode, kind, oid = metadata.decode('ascii').split()
+            path = raw_name.decode('utf-8')
+            if kind != 'blob' or mode not in ('100644', '100755'):
+                return False
+            tree[path] = (mode, oid)
+            directories.update(parent.as_posix() for parent in Path(path).parents if str(parent) != '.')
+        actual_files, actual_directories = set(), set()
+        for item in root.rglob('*'):
+            info = item.lstat()
+            relative = item.relative_to(root).as_posix()
+            if stat.S_ISDIR(info.st_mode):
+                actual_directories.add(relative)
+            elif stat.S_ISREG(info.st_mode):
+                actual_files.add(relative)
+            else:
+                return False
+        if actual_files != set(tree) or actual_directories != directories:
+            return False
+        for path, (mode, oid) in tree.items():
+            item = root / path
+            info = item.lstat()
+            if not stat.S_ISREG(info.st_mode) or bool(info.st_mode & 0o111) != (mode == '100755'):
+                return False
+            data = item.read_bytes()
+            if hashlib.sha1(b'blob ' + str(len(data)).encode('ascii') + b'\0' + data).hexdigest() != oid:
+                return False
+        return True
+    except (GateError, OSError, UnicodeError, ValueError):
+        return False
 
 def plan3_contract_snapshot_matches(approved, snapshot):
     try:
