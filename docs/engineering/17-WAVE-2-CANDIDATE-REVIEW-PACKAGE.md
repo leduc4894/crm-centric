@@ -93,3 +93,12 @@ fixture now provides a real router; its exact test-file bytes are also separatel
 hash-pinned by the scope. No application contract or runtime implementation was
 changed. Scope tests reject changes to each pinned exception. This additional
 test-only delta remains candidate-owned and is not independent enforcement.
+
+The next CI run exposed a frontend leak scan failure: Vite inserted an absolute
+checkout path in a development style element. The two exact frontend changes
+move the existing stylesheet link into `index.html` and remove its JS import;
+they are pinned separately in the candidate-owned scope. This changes frontend
+asset loading and must be included in review; it does not change the contact API
+contract. Local leak scan and browser stylesheet loading passed. The final hosted
+candidate must still be tested; this is not an independent review or security
+clearance.

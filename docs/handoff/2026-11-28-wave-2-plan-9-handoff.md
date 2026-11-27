@@ -139,3 +139,36 @@ updated, returned `CONTRACT_BREAKING_REVIEWED`, correlation
 `b2cdbd98-ebbd-4367-a104-523978e1caa9`; both historical consumer checks and
 packaged contact checks passed while the two SDK surface breaks remain explicit.
 Candidate-owned, not independent enforcement. Ready for one hosted rerun.
+
+## Leak scan diagnosis
+
+Run 46047196348 web advanced past frontend tests and failed
+`frontend-leak-scan` (correlation `0a984e96-4a64-4ba8-ae99-d470b975ebdf`).
+Focused leak scan reproduced one `browser:document: absolute-checkout-path`
+finding. Safe DOM inspection found it only in Vite's `STYLE` element
+`data-vite-dev-id` for the app's `shell.css`. Moved that existing stylesheet
+from the App JS import into a link in `index.html`, preserving the callback
+prelude and same-origin CSS. The leak scan then passed over seven artifact files,
+browser and process; after a production build it passed again. Browser smoke
+confirmed one loaded stylesheet with 48 rules and the app shell present; the
+production build succeeded, and focused query/list/router Vitest passed 16/16.
+The exact two frontend files and the updated scope helper are hash-pinned in the
+candidate-owned review scope; scope tests passed 11/11 including the eight nested
+cases. This changes frontend asset loading, so it is a new candidate requiring
+hosted verification and review; not a security waiver or independent review.
+Actual-base comparison and the current GitHub run were still running at this
+checkpoint. Security comparison for this run: both had 105 blocked Gitleaks,
+one blocked Trivy; all 15 changed secret IDs matched prior findings one-to-one
+by rule/file/value fingerprint in memory, Trivy unchanged, no new unmatched
+finding. No values or fingerprints were saved or printed.
+
+Actual-base gate after stylesheet changes returned `CONTRACT_BREAKING_REVIEWED`,
+correlation `025645d3-36e3-47e0-a7b6-11336f78cf03`; both historical consumers
+and contact consumer checks passed, both SDK surface breaks remain reported.
+Run 46047196348 completed: backend and Compose PASS; web failed leak scan;
+contracts-sdk progressed through compatibility and its clean export failed at
+that same `frontend-leak-scan` (correlation
+`b1804856-43df-4e7a-902d-3d8a1175602b`); security and aggregate FAIL. Focused
+scan, build, browser stylesheet smoke and related tests passed as recorded above.
+The frontend CSS loading change and exact pinned scope update are ready to push
+as a single candidate. Hosted results and any new security delta remain pending.
