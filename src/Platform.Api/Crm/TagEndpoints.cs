@@ -42,6 +42,10 @@ internal static class TagEndpoints
             Task Error(int status, string token) => OperationalErrors.WriteProblemAsync(ctx, status, token, ct);
             if (!Guid.TryParseExact(id, "D", out var contact) || !Guid.TryParseExact(tagId, "D", out var tag))
             { await Error(400, "REQUEST_INVALID"); return; }
+            // A tombstone already visible to this request has the same response as a missing contact.
+            // If a DELETE wins after this read, the locked version still reports the write conflict.
+            if (await ContactStore.GetAsync(connection, tx, tenant, contact, ct) is null)
+            { await Error(404, "NOT_FOUND"); return; }
             var row = await ContactStore.LockByIdAsync(connection, tx, tenant, contact, ct);
             if (row is null) { await Error(404, "NOT_FOUND"); return; }
             var precondition = MembershipPreconditions.Parse(ctx.Request.Headers.IfMatch, out var version);

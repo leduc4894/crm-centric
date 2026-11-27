@@ -11,6 +11,7 @@ public sealed class TagFieldConcurrencyTests : DefinitionEndpointFixture
     [InlineData("detach")]
     [InlineData("patch")]
     [InlineData("delete")]
+    [InlineData("delete-first")]
     public async Task Contact_writers_queued_at_the_same_version_have_one_winner(string competitor)
     {
         var id = await CreateId("/api/v1/contacts", """{"displayName":"Original"}""");
@@ -31,10 +32,12 @@ public sealed class TagFieldConcurrencyTests : DefinitionEndpointFixture
         command.Parameters.Add(new() { Value = tenant });
         command.Parameters.Add(new() { Value = id });
         Assert.Equal(id, await command.ExecuteScalarAsync());
-        var first = Send(HttpMethod.Put, $"{path}/tags/{tag}", subject: "owner", match: [version]);
+        var deleteFirst = competitor == "delete-first";
+        var first = deleteFirst ? Send(HttpMethod.Delete, path, match: [version]) : Send(HttpMethod.Put, $"{path}/tags/{tag}", subject: "owner", match: [version]);
         var pid = await WaitForBlockedWriter(gate.ProcessID);
         var rival = competitor switch
         {
+            "delete-first" => Send(HttpMethod.Put, $"{path}/tags/{tag}", subject: "agent", match: [version]),
             "attach" => Send(HttpMethod.Put, $"{path}/tags/{second}", subject: "agent", match: [version]),
             "detach" => Send(HttpMethod.Delete, $"{path}/tags/{second}", subject: "agent", match: [version]),
             "patch" => Send(HttpMethod.Patch, path, """{"displayName":"Changed"}""", "agent", match: [version]),
@@ -44,7 +47,7 @@ public sealed class TagFieldConcurrencyTests : DefinitionEndpointFixture
         await transaction.CommitAsync();
         using var win = await first;
         using var lose = await rival;
-        Assert.Equal(HttpStatusCode.OK, win.StatusCode);
+        Assert.Equal(deleteFirst ? HttpStatusCode.NoContent : HttpStatusCode.OK, win.StatusCode);
         await Problem(lose, HttpStatusCode.PreconditionFailed, "VERSION_CONFLICT");
         Assert.Equal(competitor == "detach" ? 3 : 2, await Count("outbox.events", tenant));
         Assert.Equal(competitor == "detach" ? 5 : 4, await Count("audit.entries", tenant));

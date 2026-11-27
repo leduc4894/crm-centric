@@ -116,6 +116,22 @@ public sealed class TagEndpointsTests : DefinitionEndpointFixture
     }
 
     [Fact]
+    public async Task Tag_mutations_after_deletion_return_the_same_problem_as_missing_contacts()
+    {
+        var id = await CreateId("/api/v1/contacts", """{"displayName":"Removed"}""");
+        var tag = await CreateId(Path, Body);
+        using var deleted = await Send(HttpMethod.Delete, $"/api/v1/contacts/{id}", match: ["\"v1\""]);
+        Assert.Equal(HttpStatusCode.NoContent, deleted.StatusCode);
+        foreach (var contact in new[] { id, Guid.NewGuid() })
+        foreach (var method in new[] { HttpMethod.Put, HttpMethod.Delete })
+        foreach (var match in new string[]?[] { ["\"v1\""], null, ["*"] })
+        {
+            using var response = await Send(method, $"/api/v1/contacts/{contact}/tags/{tag}", match: match);
+            await Problem(response, HttpStatusCode.NotFound, "NOT_FOUND");
+        }
+    }
+
+    [Fact]
     public async Task Failed_outbox_append_rolls_back_tag_version_and_audit()
     {
         var id = await CreateId("/api/v1/contacts", """{"displayName":"First"}""");
