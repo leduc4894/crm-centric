@@ -693,6 +693,7 @@ paths:
     get:
       operationId: listTags
       summary: listTags
+      description: Returns tags in ascending UUID order. Each cursor is bound to this tenant and collection. Pages do not form a snapshot.
       responses:
         '200':
           description: Success
@@ -729,6 +730,7 @@ paths:
     post:
       operationId: createTag
       summary: createTag
+      description: Preserves the display name. Within a tenant, names comparing equal under PostgreSQL lower(btrim(name)) and the database collation conflict (409).
       responses:
         '201':
           description: Created
@@ -770,6 +772,7 @@ paths:
     get:
       operationId: listContactTags
       summary: listContactTags
+      description: Returns attached tags in ascending UUID order. Each cursor is bound to this tenant, contact and collection. Pages do not form a snapshot.
       responses:
         '200':
           description: Success
@@ -813,6 +816,7 @@ paths:
     put:
       operationId: addContactTag
       summary: addContactTag
+      description: After verifying contact version and tag existence, adding an existing attachment is a no-op that preserves the contact version.
       responses:
         '200':
           description: Success
@@ -870,6 +874,7 @@ paths:
     delete:
       operationId: removeContactTag
       summary: removeContactTag
+      description: After verifying contact version and tag existence, removing an absent attachment is a no-op that preserves the contact version.
       responses:
         '200':
           description: Success
@@ -928,6 +933,7 @@ paths:
     get:
       operationId: listCustomFields
       summary: listCustomFields
+      description: Returns definitions in ascending UUID order. Each cursor is bound to this tenant and collection. Pages do not form a snapshot.
       responses:
         '200':
           description: Success
@@ -964,6 +970,7 @@ paths:
     post:
       operationId: createCustomField
       summary: createCustomField
+      description: Creates an immutable version 1 definition. Keys are unique per tenant and required defaults to false.
       responses:
         '201':
           description: Created
@@ -1005,6 +1012,7 @@ paths:
     get:
       operationId: getContactField
       summary: getContactField
+      description: Returns 404 when the contact has no value for the definition.
       responses:
         '200':
           description: Success
@@ -1088,8 +1096,12 @@ paths:
           $ref: '#/components/responses/Problem'
         '428':
           $ref: '#/components/responses/Problem'
-      description: Validate against tenant field definition and dataType; null clears optional value; reject null
-        for required fields.
+      description: >-
+        Validate the JSON type against the tenant definition. A date is a valid calendar date string
+        in YYYY-MM-DD form without a timezone. A number is a finite JSON number whose value is preserved.
+        An explicit null clears an optional value and is rejected for required fields.
+        After checking the contact version, writing a typed-equal value or clearing an absent optional
+        value is a no-op that preserves the version.
       x-required-scopes:
       - crm.contacts.write
       parameters:

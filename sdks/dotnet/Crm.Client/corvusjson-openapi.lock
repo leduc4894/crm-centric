@@ -894,6 +894,6 @@
   "generatorVersion": "5.8.8+ce4c7ce4cf80499e40e9690bd1261c337683194a",
   "includePaths": [],
   "rootNamespace": "Crm.Client",
-  "specFileHash": "29a2183e1225f83992aff203ed1b1e6f65d3b4614f350bdd0e55d78c41634237",
+  "specFileHash": "8b5a7d907811cebf8e7308fc6ded71456afc5fa64a8c7792b7ac8a65db922e96",
   "specVersion": "3.1"
 }

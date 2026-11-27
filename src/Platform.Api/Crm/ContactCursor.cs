@@ -19,20 +19,7 @@ public sealed class ContactCursor
     }
 
     public static bool TryCreate(IConfiguration configuration, out ContactCursor? cursor)
-    {
-        cursor = null;
-        var configured = configuration["ContactCursor:SigningKey"];
-        if (string.IsNullOrEmpty(configured)) return false;
-        try
-        {
-            var bytes = Convert.FromBase64String(configured);
-            if (bytes.Length < 32 || Convert.ToBase64String(bytes) != configured) return false;
-            cursor = new ContactCursor(bytes);
-            CryptographicOperations.ZeroMemory(bytes);
-            return true;
-        }
-        catch (FormatException) { return false; }
-    }
+        => CursorSigningKey.TryCreate(configuration, key => new ContactCursor(key), out cursor);
 
     public string Encode(Guid tenant, ContactListQuery query, DateTime updatedAt, Guid id)
     {

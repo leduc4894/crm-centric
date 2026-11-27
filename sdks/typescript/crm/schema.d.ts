@@ -180,10 +180,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** listTags */
+        /**
+         * listTags
+         * @description Returns tags in ascending UUID order. Each cursor is bound to this tenant and collection. Pages do not form a snapshot.
+         */
         get: operations["listTags"];
         put?: never;
-        /** createTag */
+        /**
+         * createTag
+         * @description Preserves the display name. Within a tenant, names comparing equal under PostgreSQL lower(btrim(name)) and the database collation conflict (409).
+         */
         post: operations["createTag"];
         delete?: never;
         options?: never;
@@ -198,7 +204,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** listContactTags */
+        /**
+         * listContactTags
+         * @description Returns attached tags in ascending UUID order. Each cursor is bound to this tenant, contact and collection. Pages do not form a snapshot.
+         */
         get: operations["listContactTags"];
         put?: never;
         post?: never;
@@ -216,10 +225,16 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** addContactTag */
+        /**
+         * addContactTag
+         * @description After verifying contact version and tag existence, adding an existing attachment is a no-op that preserves the contact version.
+         */
         put: operations["addContactTag"];
         post?: never;
-        /** removeContactTag */
+        /**
+         * removeContactTag
+         * @description After verifying contact version and tag existence, removing an absent attachment is a no-op that preserves the contact version.
+         */
         delete: operations["removeContactTag"];
         options?: never;
         head?: never;
@@ -233,10 +248,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** listCustomFields */
+        /**
+         * listCustomFields
+         * @description Returns definitions in ascending UUID order. Each cursor is bound to this tenant and collection. Pages do not form a snapshot.
+         */
         get: operations["listCustomFields"];
         put?: never;
-        /** createCustomField */
+        /**
+         * createCustomField
+         * @description Creates an immutable version 1 definition. Keys are unique per tenant and required defaults to false.
+         */
         post: operations["createCustomField"];
         delete?: never;
         options?: never;
@@ -251,11 +272,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** getContactField */
+        /**
+         * getContactField
+         * @description Returns 404 when the contact has no value for the definition.
+         */
         get: operations["getContactField"];
         /**
          * setContactField
-         * @description Validate against tenant field definition and dataType; null clears optional value; reject null for required fields.
+         * @description Validate the JSON type against the tenant definition. A date is a valid calendar date string in YYYY-MM-DD form without a timezone. A number is a finite JSON number whose value is preserved. An explicit null clears an optional value and is rejected for required fields. After checking the contact version, writing a typed-equal value or clearing an absent optional value is a no-op that preserves the version.
          */
         put: operations["setContactField"];
         post?: never;
