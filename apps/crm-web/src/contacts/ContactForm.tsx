@@ -94,9 +94,9 @@ export function ContactForm({ client, record, choices = [], readOnly, refreshLis
     } finally { submitting.current = false; setBusy(false); }
   }
   return <form className="contact-form" onSubmit={event => { event.preventDefault(); void form.handleSubmit(); }}>
-    <form.Field name="name">{field => <label>Tên liên hệ<input disabled={busy || readOnly} autoFocus required value={field.state.value} onBlur={field.handleBlur} onChange={e => field.handleChange(e.target.value)} /></label>}</form.Field>
-    <form.Field name="email">{field => <label>Email<input disabled={busy || readOnly} type="email" value={field.state.value} onBlur={field.handleBlur} onChange={e => field.handleChange(e.target.value)} /></label>}</form.Field>
-    <form.Field name="phone">{field => <label>Điện thoại<input disabled={busy || readOnly} type="tel" value={field.state.value} onBlur={field.handleBlur} onChange={e => field.handleChange(e.target.value)} /></label>}</form.Field>
+    <form.Field name="name">{field => <label>Tên liên hệ<input disabled={busy || readOnly || !!reconcileId} autoFocus required value={field.state.value} onBlur={field.handleBlur} onChange={e => field.handleChange(e.target.value)} /></label>}</form.Field>
+    <form.Field name="email">{field => <label>Email<input disabled={busy || readOnly || !!reconcileId} type="email" value={field.state.value} onBlur={field.handleBlur} onChange={e => field.handleChange(e.target.value)} /></label>}</form.Field>
+    <form.Field name="phone">{field => <label>Điện thoại<input disabled={busy || readOnly || !!reconcileId} type="tel" value={field.state.value} onBlur={field.handleBlur} onChange={e => field.handleChange(e.target.value)} /></label>}</form.Field>
     {validationError && <p role="alert">{validationError}</p>}
     {failure && <p role="alert">{mutationMessage(failure)}</p>}
     {choosing && <fieldset><legend>Chọn liên hệ để đối chiếu</legend>
@@ -104,7 +104,11 @@ export function ContactForm({ client, record, choices = [], readOnly, refreshLis
     </fieldset>}
     {review && base && <section><h4>Dữ liệu hiện tại</h4><dl><dt>Tên</dt><dd>{base.data.displayName}</dd><dt>Email</dt><dd>{base.data.email ?? '—'}</dd><dt>Điện thoại</dt><dd>{base.data.phone ?? '—'}</dd></dl></section>}
     {blocked && !(reconcileId && review) && failure?.status !== 403 && <button type="button" disabled={busy} onClick={() => void read(reconcileId ?? base?.data.id)}>Tải lại dữ liệu</button>}
-    {reconcileId && review && base && <button type="button" disabled={busy} onClick={() => onSaved(base)}>Xác nhận dữ liệu</button>}
+    {reconcileId && review && base && <div>
+      <p>Chọn giữ bản nháp để tiếp tục chỉnh sửa, hoặc bỏ bản nháp để dùng dữ liệu hiện tại.</p>
+      <button type="button" disabled={busy || readOnly} onClick={() => { setReconcileId(null); setBlocked(false); }}>Giữ và chỉnh sửa bản nháp</button>
+      <button type="button" disabled={busy} onClick={() => onSaved(base)}>Bỏ bản nháp và dùng dữ liệu hiện tại</button>
+    </div>}
     <div className="contact-actions"><button type="submit" disabled={busy || readOnly || unchanged || blocked || (choosing && !base)}>{record ? 'Lưu' : base ? 'Cập nhật ' + base.data.displayName : 'Tạo'}</button>
     <button type="button" disabled={busy} onClick={onCancel}>Hủy</button></div>
   </form>;

@@ -280,7 +280,7 @@ it('retains a created draft until a missing ETag is read and explicitly reviewed
   expect(client.getContact).toHaveBeenCalledWith(id);
   expect(onSaved).not.toHaveBeenCalled();
   expect(client.createContact).toHaveBeenCalledTimes(1);
-  await click('Xác nhận dữ liệu');
+  await click('Bỏ bản nháp và dùng dữ liệu hiện tại');
   expect(onSaved).toHaveBeenCalledWith(fresh);
   expect(client.createContact).toHaveBeenCalledTimes(1);
 });
@@ -296,7 +296,7 @@ it('rejects a successful write response for a different contact and reconciles t
   expect(client.getContact).toHaveBeenCalledWith(id);
   expect(refreshAttributes).toHaveBeenCalledOnce();
   expect(onSaved).not.toHaveBeenCalled();
-  await click('Xác nhận dữ liệu'); expect(onSaved).toHaveBeenCalledWith(expected);
+  await click('Bỏ bản nháp và dùng dữ liệu hiện tại'); expect(onSaved).toHaveBeenCalledWith(expected);
   expect(client.patchContact).toHaveBeenCalledOnce();
 });
 it('distinguishes same-name candidates and uses only the explicitly chosen ID and version', async () => {
@@ -326,7 +326,7 @@ it('keeps a missing-ETag PATCH locked when a sibling refresh fails', async () =>
   await change('Tên liên hệ', 'Draft'); await click('Lưu'); await screen.findByRole('alert');
   await click('Tải lại dữ liệu'); await waitFor(() => expect(refreshAttributes).toHaveBeenCalledOnce());
   expect(screen.getByRole('button', { name: 'Lưu' }).matches(':disabled')).toBe(true);
-  expect(screen.queryByRole('button', { name: 'Xác nhận dữ liệu' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Bỏ bản nháp và dùng dữ liệu hiện tại' })).toBeNull();
   expect((screen.getByLabelText('Tên liên hệ') as HTMLInputElement).value).toBe('Draft');
   expect(onSaved).not.toHaveBeenCalled(); expect(client.patchContact).toHaveBeenCalledOnce();
 });
@@ -340,8 +340,26 @@ it('reconciles the selected ID when a conditional POST returns a different ID', 
   await click('Chọn Original'); await screen.findByText('Dữ liệu hiện tại'); await click('Cập nhật Original');
   await screen.findByRole('alert');
   expect(onSaved).not.toHaveBeenCalled();
-  await click('Tải lại dữ liệu'); await screen.findByRole('button', { name: 'Xác nhận dữ liệu' });
+  await click('Tải lại dữ liệu'); await screen.findByRole('button', { name: 'Bỏ bản nháp và dùng dữ liệu hiện tại' });
   expect(client.getContact).toHaveBeenCalledTimes(2);
   expect(client.getContact).toHaveBeenLastCalledWith(id);
   expect(client.createContact).toHaveBeenCalledTimes(2);
+});
+it('lets the user keep and deliberately resend the draft after reviewing an uncertain result', async () => {
+  const original = { data: record, etag: '"v1"', status: 200 };
+  const fresh = { data: { ...record, displayName: 'Server value' }, etag: '"v2"', status: 200 };
+  const client = { patchContact: vi.fn().mockResolvedValueOnce({ ...original, etag: null }).mockResolvedValueOnce({ ...fresh, etag: '"v3"' }), getContact: vi.fn().mockResolvedValue(fresh) } as unknown as CrmClient;
+  const onSaved = vi.fn();
+  render(<ContactForm client={client} record={original} readOnly={false} onSaved={onSaved} onCancel={vi.fn()} onForbidden={vi.fn()} />);
+  await change('Tên liên hệ', 'Draft'); await click('Lưu'); await screen.findByRole('alert');
+  await click('Tải lại dữ liệu'); await screen.findByText('Server value', { selector: 'dd' });
+  expect(screen.getByLabelText('Tên liên hệ').matches(':disabled')).toBe(true);
+  expect(client.patchContact).toHaveBeenCalledTimes(1); expect(onSaved).not.toHaveBeenCalled();
+  await click('Giữ và chỉnh sửa bản nháp');
+  expect((screen.getByLabelText('Tên liên hệ') as HTMLInputElement).value).toBe('Draft');
+  await change('Tên liên hệ', 'Revised draft');
+  expect(client.patchContact).toHaveBeenCalledTimes(1);
+  await click('Lưu');
+  await waitFor(() => expect(client.patchContact).toHaveBeenCalledTimes(2));
+  expect(client.patchContact).toHaveBeenLastCalledWith(id, { displayName: 'Revised draft' }, '"v2"');
 });
