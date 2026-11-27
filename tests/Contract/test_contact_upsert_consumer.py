@@ -78,6 +78,11 @@ class ContactUpsertConsumerContractTests(unittest.TestCase):
         package = json.loads((ROOT / "sdks/typescript/crm/package.json").read_text())
         self.assertEqual("0.2.0", package["version"])
 
+    def test_contract_documents_if_match_when_no_active_email_matches(self):
+        description = self.operation["description"]
+        self.assertIn("If-Match is supplied but no active contact matches", description)
+        self.assertIn("412", description)
+
     def test_upsert_precondition_contract_keeps_create_possible_and_rejects_stale_versions(self):
         # POST creates without If-Match; on an existing email the server must
         # require a strong matching token and must not mutate on a failure.

@@ -136,7 +136,7 @@ export interface paths {
         put?: never;
         /**
          * Create or update a contact by email
-         * @description Within the authenticated tenant, a new or null email creates a contact. An existing active email matches after trimming leading and trailing whitespace and lowercasing; dots and plus tags are preserved. A matching email updates the existing contact only when If-Match is a strong ETag for its current version. The required displayName and other supplied fields replace their current values; omitted optional fields remain unchanged and explicit null clears a nullable field. Updates preserve the contact ID. A no-op keeps its version and ETag. Email is not an authenticated identity or an identity link. Failed preconditions make no changes.
+         * @description Within the authenticated tenant, a new or null email creates a contact. An existing active email matches after trimming leading and trailing ordinary spaces and applying PostgreSQL lower under the database collation; dots and plus tags are preserved. A matching email updates the existing contact only when If-Match is a strong ETag for its current version. The required displayName and other supplied fields replace their current values; omitted optional fields remain unchanged and explicit null clears a nullable field. Updates preserve the contact ID. A no-op keeps its version and ETag. Email is not an authenticated identity or an identity link. If-Match is supplied but no active contact matches: a valid strong tag returns 412. An invalid tag returns 400. Failed preconditions make no changes.
          */
         post: operations["createContact"];
         delete?: never;
