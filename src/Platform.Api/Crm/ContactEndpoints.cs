@@ -262,13 +262,13 @@ public static class ContactEndpoints
 
     // Authorization is checked before reading a potentially slow request body,
     // then repeated inside the mutation transaction to fence revocation races.
-    private static async Task<byte[]?> ReadAuthorizedBodyAsync(HttpContext context,IConfiguration configuration)
+    internal static async Task<byte[]?> ReadAuthorizedBodyAsync(HttpContext context,IConfiguration configuration, TenantPermission permission = TenantPermission.ContactsWrite)
     {
         var authorized=false;
         await TenantEndpointTransaction.RunAsync(context,configuration,false,async (_,_,_,commit) =>
         {
             await commit(); authorized=true;
-        },TenantPermission.ContactsWrite,"CRM_STORE_UNAVAILABLE");
+        },permission,"CRM_STORE_UNAVAILABLE");
         if (!authorized) return null;
         if (!context.Request.HasJsonContentType()) { await Error(context,415,"REQUEST_INVALID"); return null; }
         const int maxBytes=8192; using var buffer=new MemoryStream(); var chunk=new byte[1024]; int count;
@@ -280,7 +280,7 @@ public static class ContactEndpoints
         return buffer.ToArray();
     }
 
-    private static bool ValidText(string value)
+    internal static bool ValidText(string value)
     {
         var remaining=value.AsSpan();
         while (!remaining.IsEmpty)

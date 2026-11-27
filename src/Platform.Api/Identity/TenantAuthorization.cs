@@ -5,7 +5,7 @@ using Platform.Infrastructure.Identity;
 
 namespace Platform.Api.Identity;
 
-public enum TenantPermission { TeamManage, AuditRead, ContactsRead, ContactsWrite }
+public enum TenantPermission { TeamManage, AuditRead, ContactsRead, ContactsWrite, FieldsManage }
 
 public static class TenantAuthorization
 {
@@ -61,7 +61,7 @@ public static class TenantAuthorization
         {
             // CRM writes do not mutate membership. Shared tenant/membership/staff
             // locks still fence revocation, without serializing every tenant write.
-            transaction = mutation && permission != TenantPermission.ContactsWrite
+            transaction = mutation && permission is not (TenantPermission.ContactsWrite or TenantPermission.FieldsManage)
                 ? await MembershipMutationTransaction.BeginAsync(connection, issuer, subject, tenantId, ct)
                 : await VerifiedTenantTransaction.BeginAsync(connection, issuer, subject, tenantId, ct);
         }
@@ -83,7 +83,7 @@ public static class TenantAuthorization
             var permitted = permission switch
             {
                 TenantPermission.TeamManage => role is not null && HasTeamManage(role),
-                TenantPermission.AuditRead => role is "owner" or "admin",
+                TenantPermission.FieldsManage or TenantPermission.AuditRead => role is "owner" or "admin",
                 TenantPermission.ContactsRead => role is "owner" or "admin" or "agent" or "operator",
                 TenantPermission.ContactsWrite => role is "owner" or "admin" or "agent",
                 _ => false

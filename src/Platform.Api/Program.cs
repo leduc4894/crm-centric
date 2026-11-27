@@ -86,6 +86,8 @@ app.MapMembershipEndpoints();
 app.MapInviteEndpoints();
 app.MapAuditEndpoints();
 app.MapContactEndpoints();
+app.MapTagEndpoints();
+app.MapCustomFieldEndpoints();
 app.Run();
 return 0;
 

@@ -11,7 +11,8 @@ public static class DatabaseRoleGrants
         await using var command = new NpgsqlCommand($"""
             GRANT USAGE ON SCHEMA platform, crm, outbox TO {role};
             GRANT SELECT, INSERT, UPDATE ON crm.contacts TO {role};
-            GRANT SELECT ON crm.tags, crm.contact_tags TO {role};
+            GRANT EXECUTE ON FUNCTION platform.create_crm_definition(uuid,text,text,text,text,text,text,text,boolean) TO {role};
+            GRANT SELECT ON crm.tags, crm.contact_tags, crm.custom_field_defs, crm.contact_field_values TO {role};
             GRANT INSERT ON outbox.events TO {role};
             GRANT EXECUTE ON FUNCTION platform.append_contact_audit(uuid,uuid,text,text,text,text) TO {role};
             GRANT SELECT ON TABLE platform."__EFMigrationsHistory", platform.memberships TO {role};
@@ -38,6 +39,11 @@ public static class DatabaseRoleGrants
               FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
               WHERE n.nspname='crm' AND c.relname IN ('tags','contact_tags')
             ) AND (
+              SELECT (count(*)=2 OR (count(*)=0 AND NOT @require_contact_schema))
+                AND coalesce(bool_and(c.relrowsecurity AND c.relforcerowsecurity),true)
+              FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+              WHERE n.nspname='crm' AND c.relname IN ('custom_field_defs','contact_field_values')
+            ) AND (
               -- Evaluate the login and every role it can assume, including non-inherited grants.
               SELECT bool_and(
                   NOT has_database_privilege(rolname, current_database(), 'CREATE')
@@ -56,13 +62,13 @@ public static class DatabaseRoleGrants
                   )
                   AND NOT EXISTS (
                     SELECT FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
-                    WHERE n.nspname='platform' AND p.proname IN ('create_tenant_with_owner','update_membership','lock_verified_staff','audit_staff_binding_change','invite_tenant_for_hash','create_invite','list_invites','list_audit_entries','revoke_invite','require_invite_manager','accept_invite','append_contact_audit')
+                    WHERE n.nspname='platform' AND p.proname IN ('create_tenant_with_owner','update_membership','lock_verified_staff','audit_staff_binding_change','invite_tenant_for_hash','create_invite','list_invites','list_audit_entries','revoke_invite','require_invite_manager','accept_invite','append_contact_audit','create_crm_definition')
                     AND (has_function_privilege('public', p.oid, 'EXECUTE') OR NOT p.prosecdef OR ('search_path=pg_catalog' = ANY(p.proconfig)) IS DISTINCT FROM true)
                   )
                   AND NOT EXISTS (
                     SELECT FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
                     WHERE (n.nspname='crm' AND c.relname='contacts' AND has_table_privilege(rolname,c.oid,'DELETE,TRUNCATE,REFERENCES,TRIGGER'))
-                       OR (n.nspname='crm' AND c.relname IN ('tags','contact_tags') AND (has_table_privilege(rolname,c.oid,'INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER') OR has_any_column_privilege(rolname,c.oid,'INSERT,UPDATE,REFERENCES')))
+                       OR (n.nspname='crm' AND c.relname IN ('tags','contact_tags','custom_field_defs','contact_field_values') AND (has_table_privilege(rolname,c.oid,'INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER') OR has_any_column_privilege(rolname,c.oid,'INSERT,UPDATE,REFERENCES')))
                        OR (n.nspname='outbox' AND c.relname='events' AND (has_table_privilege(rolname,c.oid,'SELECT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER') OR has_any_column_privilege(rolname,c.oid,'SELECT,UPDATE,REFERENCES')))
                   )
                   AND NOT EXISTS (
