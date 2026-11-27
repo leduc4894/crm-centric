@@ -1,4 +1,5 @@
-import { useState, type FormEvent } from 'react';
+import { useRef, useState } from 'react';
+import { useForm, useStore } from '@tanstack/react-form';
 import type { components } from '@crm-centric/crm-client';
 import { CrmError, type CrmClient } from './crmClient';
 
@@ -24,15 +25,22 @@ interface Props {
   onForbidden: () => void;
 }
 export function ContactForm({ client, record, choices = [], readOnly, refreshList, refreshAttributes, onSaved, onCancel, onForbidden }: Props) {
+  const [original] = useState(record);
   const [base, setBase] = useState(record);
-  const [name, setName] = useState(record?.data.displayName ?? '');
-  const [email, setEmail] = useState(record?.data.email ?? '');
-  const [phone, setPhone] = useState(record?.data.phone ?? '');
   const [failure, setFailure] = useState<CrmError | null>(null);
   const [blocked, setBlocked] = useState(false);
   const [choosing, setChoosing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [review, setReview] = useState(false);
+  const submitting = useRef(false);
+  const form = useForm({
+    defaultValues: { name: record?.data.displayName ?? '', email: record?.data.email ?? '', phone: record?.data.phone ?? '' },
+    validators: { onSubmit: ({ value }) => Array.from(value.name).length > 200 || Array.from(value.email).length > 320 || Array.from(value.phone).length > 40
+      ? 'Giá trị vượt quá độ dài cho phép.' : undefined },
+    onSubmit: async ({ value }) => { await save(value); },
+  });
+  const { name, email, phone } = useStore(form.store, state => state.values);
+  const validationError = useStore(form.store, state => state.errorMap.onSubmit);
   async function read(id?: string) {
     setBusy(true);
     if (choosing) { setBase(undefined); setReview(false); }
@@ -47,23 +55,26 @@ export function ContactForm({ client, record, choices = [], readOnly, refreshLis
     } catch (error) { setFailure(safeError(error)); }
     finally { setBusy(false); }
   }
-  const changes = record ? {
-    ...(name !== record.data.displayName && { displayName: name }),
-    ...(email !== (record.data.email ?? '') && { email: email || null }),
-    ...(phone !== (record.data.phone ?? '') && { phone: phone || null })
+  function changesFor(value: { name: string; email: string; phone: string }) { return original ? {
+    ...(value.name !== original.data.displayName && { displayName: value.name }),
+    ...(value.email !== (original.data.email ?? '') && { email: value.email || null }),
+    ...(value.phone !== (original.data.phone ?? '') && { phone: value.phone || null })
   } : null;
+  }
+  const changes = changesFor({ name, email, phone });
   const unchanged = changes !== null && Object.keys(changes).length === 0;
-  async function save(event: FormEvent) {
-    event.preventDefault();
-    if (busy || readOnly || unchanged || blocked || (choosing && !base)) return;
+  async function save(value: { name: string; email: string; phone: string }) {
+    const submittedChanges = changesFor(value);
+    if (submitting.current || busy || readOnly || (submittedChanges !== null && Object.keys(submittedChanges).length === 0) || blocked || (choosing && !base)) return;
+    submitting.current = true;
     setBusy(true);
-    const body = { displayName: name, email: email || null, ...(record || phone ? { phone: phone || null } : {}) };
+    const body = { displayName: value.name, email: value.email || null, ...(record || value.phone ? { phone: value.phone || null } : {}) };
     try {
       // A conditional edit needs the version displayed to the user.
       if (base && !base.etag) {
         setBlocked(true); throw new CrmError('WEB_CRM_CONTRACT_INVALID');
       }
-      const saved = record && changes && base ? await client.patchContact(record.data.id, changes, base.etag!) :
+      const saved = original && submittedChanges && base ? await client.patchContact(original.data.id, submittedChanges, base.etag!) :
         await client.createContact(body, base ? { id: base.data.id, etag: base.etag! } : undefined);
       onSaved(saved);
     } catch (error) {
@@ -72,12 +83,13 @@ export function ContactForm({ client, record, choices = [], readOnly, refreshLis
       if (result.status === 403) onForbidden();
       if (!record && result.status === 428) { setChoosing(true); setBase(undefined); }
       setBlocked(result.status === 412 || result.status === 403 || !result.status || result.status >= 500);
-    } finally { setBusy(false); }
+    } finally { submitting.current = false; setBusy(false); }
   }
-  return <form className="contact-form" onSubmit={save}>
-    <label>Tên liên hệ<input disabled={busy || readOnly} autoFocus required value={name} onChange={e => setName(e.target.value)} /></label>
-    <label>Email<input disabled={busy || readOnly} type="email" value={email} onChange={e => setEmail(e.target.value)} /></label>
-    <label>Điện thoại<input disabled={busy || readOnly} type="tel" value={phone} onChange={e => setPhone(e.target.value)} /></label>
+  return <form className="contact-form" onSubmit={event => { event.preventDefault(); void form.handleSubmit(); }}>
+    <form.Field name="name">{field => <label>Tên liên hệ<input disabled={busy || readOnly} autoFocus required value={field.state.value} onBlur={field.handleBlur} onChange={e => field.handleChange(e.target.value)} /></label>}</form.Field>
+    <form.Field name="email">{field => <label>Email<input disabled={busy || readOnly} type="email" value={field.state.value} onBlur={field.handleBlur} onChange={e => field.handleChange(e.target.value)} /></label>}</form.Field>
+    <form.Field name="phone">{field => <label>Điện thoại<input disabled={busy || readOnly} type="tel" value={field.state.value} onBlur={field.handleBlur} onChange={e => field.handleChange(e.target.value)} /></label>}</form.Field>
+    {validationError && <p role="alert">{validationError}</p>}
     {failure && <p role="alert">{mutationMessage(failure)}</p>}
     {choosing && <fieldset><legend>Chọn liên hệ để đối chiếu</legend>
       {choices.map(item => <button key={item.id} type="button" disabled={busy || readOnly} onClick={() => void read(item.id)}>Chọn {item.displayName}</button>)}

@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
+import { ContactForm } from './ContactForm';
+import type { CrmClient } from './crmClient';
 import { renderContactRoute } from './testRouter';
 const id = '10000000-0000-4000-8000-000000000001';
 let tenant: string | null = id;
@@ -52,6 +54,7 @@ it.each([201, 428])('opens created record or requires explicit existing ID selec
     await screen.findByRole('alert');
     expect(calls.filter(req => new URL(req.url).pathname.endsWith(id))).toHaveLength(0);
     await click('Chọn Original'); await click('Cập nhật Original');
+    await waitFor(() => expect(calls.filter(req => req.method === 'POST')).toHaveLength(2));
     const selected = calls.filter(req => req.method === 'POST')[1]!;
     expect(selected.headers.get('If-Match')).toBe('"v1"'); expect(selected.headers.get('X-Contact-Id')).toBe(id);
   }
@@ -211,4 +214,53 @@ it('reconciles ambiguous create with a new read even while the initial list read
   await waitFor(() => expect(screen.getByRole('button', { name: 'Tạo' }).matches(':disabled')).toBe(false));
   await act(async () => reads[0]!(page()));
   expect(writes).toBe(1);
+});
+it('preserves partial patch and explicit null, and does not send a no-op', async () => {
+  const { calls } = setup(req => req.method === 'PATCH' ? response('Original', '"v2"') :
+    new URL(req.url).pathname.endsWith(id) ? response() : Response.json({ items: [], nextCursor: null }));
+  await click('Chỉnh sửa');
+  expect(screen.getByRole('button', { name: 'Lưu' }).matches(':disabled')).toBe(true);
+  await change('Email', ''); await click('Lưu');
+  await screen.findByRole('heading', { name: 'Original' });
+  const writes = calls.filter(req => req.method === 'PATCH');
+  expect(writes).toHaveLength(1);
+  expect(await writes[0]!.clone().json()).toEqual({ email: null });
+});
+it('validates display name length by Unicode scalars', async () => {
+  const { calls } = setup(req => req.method === 'POST' ? response('Saved', '"v1"', 201) :
+    new URL(req.url).pathname.endsWith(id) ? response('Saved') : Response.json({ items: [], nextCursor: null }), false);
+  await click('Thêm liên hệ');
+  await change('Tên liên hệ', '😀'.repeat(201));
+  await click('Tạo');
+  expect(calls.filter(req => req.method === 'POST')).toHaveLength(0);
+  expect(await screen.findByRole('alert')).toBeTruthy();
+  await change('Tên liên hệ', '😀'.repeat(200));
+  await click('Tạo');
+  await screen.findByRole('heading', { name: 'Saved' });
+  expect(calls.filter(req => req.method === 'POST')).toHaveLength(1);
+});
+it('keeps the reviewed version and original diff when the record prop refreshes', async () => {
+  const patch = vi.fn().mockResolvedValue({ data: record, etag: '"v3"' });
+  const client = { patchContact: patch } as unknown as CrmClient;
+  const props = { client, readOnly: false, onSaved: vi.fn(), onCancel: vi.fn(), onForbidden: vi.fn() };
+  const view = render(<ContactForm {...props} record={{ data: record, etag: '"v1"', status: 200 }} />);
+  await change('Tên liên hệ', 'Draft');
+  view.rerender(<ContactForm {...props} record={{ data: { ...record, displayName: 'Server refresh', email: 'new@example.test' }, etag: '"v2"', status: 200 }} />);
+  await click('Lưu');
+  await waitFor(() => expect(patch).toHaveBeenCalledTimes(1));
+  expect(patch).toHaveBeenCalledWith(id, { displayName: 'Draft' }, '"v1"');
+});
+it('submits only once for simultaneous submit events', async () => {
+  history.replaceState(null, '', '/app/contacts');
+  let writes = 0;
+  vi.stubGlobal('fetch', (req: Request) => {
+    if (req.method === 'POST') { writes++; return new Promise<Response>(() => {}); }
+    return Promise.resolve(Response.json({ items: [], nextCursor: null }));
+  });
+  renderContactRoute();
+  await click('Thêm liên hệ'); await change('Tên liên hệ', 'Draft');
+  const form = screen.getByRole('button', { name: 'Tạo' }).closest('form')!;
+  fireEvent.submit(form); fireEvent.submit(form);
+  await waitFor(() => expect(writes).toBe(1));
+  expect(screen.getByLabelText('Tên liên hệ').matches(':disabled')).toBe(true);
 });
