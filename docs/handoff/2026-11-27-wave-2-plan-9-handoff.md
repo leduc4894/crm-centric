@@ -214,3 +214,38 @@ archive test failed because it included the tool-created `.git` and `.local`
 entries; corrected the test to examine the raw archive before materialization,
 then it passed. No external reviewer was dispatched; user instructions permit
 only one coding agent. Hosted CI and browser checks still need the new candidate.
+
+## CI runtime artifact and security comparison
+
+Run 46036157557 on head `d7a6db11a24094f65b1ca93afc89423d249f03ad` produced
+web `CONTRACT_POLICY_REVIEW_REQUIRED` (correlation
+`c8681836-a6b1-4ed4-9be0-f9715ba796b3`). The exact GitHub merge product tree
+matches the reviewed tree, but workflow writes an untracked `revision.json` at
+the root. Reproduced locally: reviewed scope is true without that file and false
+with it. A focused test first failed on a valid checkout-bound revision. The
+prepared fix permits only an untracked regular bounded JSON file with unique keys
+and checkout/base/head/merge identity verified against Git; tracked, malformed,
+wrong-identity and symlink forms remain rejected. A clone of the exact failing
+GitHub merge with its actual revision identity passed the scope predicate. Existing
+old/new scope regression 18/18 passed before the final extra tracked/duplicate
+negative assertions; the updated focused revision test also passed. Actual-base
+gate with a valid revision file and final hosted results are pending.
+
+Security on that run remained FAIL with 105 blocked Gitleaks and one blocked Trivy
+finding. Comparing to run 46031836021, Trivy IDs/verdicts were identical; 14
+Gitleaks IDs changed. Both complete sets were reproduced with pinned Gitleaks;
+all 14 changed records match one-to-one on rule, file and value fingerprint,
+with zero ambiguous or unmatched records. Fingerprints were computed only in
+process memory, without printing or saving raw values. Thus no new security
+finding was detected between these two exact candidate merges; existing findings
+remain blocked and this does not establish production security clearance.
+
+Revision-artifact fix validation: focused old/new scope tests passed 18/18 with
+zero skips. The actual-base compatibility gate with a checkout-bound untracked
+revision file returned `CONTRACT_BREAKING_REVIEWED`, correlation
+`a0fb46e5-c44a-4704-9c3e-fc9bfc139501`; historical and packaged consumers
+passed and both SDK surface breaks remain reported. The identity predicate also
+passed with the exact prior hosted merge and revision values. This remains a
+candidate-owned MVP scope, not independent enforcement. Wait for run 46036157557
+to finish before pushing the grouped fix, then verify one new hosted run and its
+security delta; do not claim browser pass before that run.
