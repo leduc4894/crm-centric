@@ -7,8 +7,9 @@ let tenant: string | null = null;
 let identity: string | null = 'principal';
 const auth = { getAccessToken: () => 'synthetic', invalidate: vi.fn(), getSnapshot: () => ({ status: 'authenticated', issuer: 'issuer', subject: identity }) };
 vi.mock('../tenant/TenantProvider', () => ({ useTenant: () => ({ selectedTenantId: tenant, identity: identity && JSON.stringify(['issuer', identity]) }) }));
-vi.mock('../auth/AuthProvider', () => ({ useAuthClient: () => auth }));
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); tenant = null; identity = 'principal'; });
+let authState = { status: 'authenticated', issuer: 'issuer', subject: 'principal' };
+vi.mock('../auth/AuthProvider', () => ({ useAuthClient: () => auth, useAuth: () => ({ state: authState }) }));
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); tenant = null; identity = 'principal'; authState = { status: 'authenticated', issuer: 'issuer', subject: 'principal' }; });
 it('opens the dedicated record and follows browser history', async () => {
   const record = { id: a, displayName: 'Demo', version: 1, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' };
   vi.stubGlobal('fetch', async (req: Request) => Response.json(new URL(req.url).pathname.endsWith(a) ? record : { items: [record], nextCursor: null }));
@@ -79,4 +80,19 @@ it.each(['tenant','principal','contact'])('discards pending activity and visible
   await screen.findByText('Chưa có hoạt động.');
   await act(async()=>finish!(page([{id:b,contactId:a,occurredAt:'2026-01-01',source:'crm',type:'note',inboxId:null,summary:'Old activity'}])));
   expect(screen.queryByText('Old activity')).toBeNull();
+});
+
+it('hides the previous session immediately when the same principal authenticates again', async () => {
+  history.replaceState(null, '', '/app/contacts'); tenant = a;
+  const pending: Array<(response: Response) => void> = [];
+  vi.stubGlobal('fetch', () => new Promise<Response>(resolve => pending.push(resolve)));
+  const view = render(<ContactShell />);
+  const page = (displayName: string) => Response.json({ items: [{ id: a, displayName, version: 1, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' }], nextCursor: null });
+  await waitFor(() => expect(pending).toHaveLength(1));
+  await act(async () => pending[0]!(page('Previous session')));
+  await screen.findByText('Previous session');
+  authState = { status: 'authenticated', issuer: 'issuer', subject: 'principal' };
+  view.rerender(<ContactShell />);
+  expect(screen.queryByText('Previous session')).toBeNull();
+  await waitFor(() => expect(pending).toHaveLength(2));
 });

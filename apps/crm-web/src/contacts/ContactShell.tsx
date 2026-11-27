@@ -1,5 +1,6 @@
 import { useLayoutEffect, useState, useSyncExternalStore, type MouseEvent } from 'react';
-import { useAuthClient } from '../auth/AuthProvider';
+import { useAuth, useAuthClient } from '../auth/AuthProvider';
+import { ContactQueryScope } from './queryScope';
 import { useTenant } from '../tenant/TenantProvider';
 import { contactIdPattern, createCrmClient, type CrmClient } from './crmClient';
 import { ContactDetail } from './ContactDetail';
@@ -43,9 +44,12 @@ function ContactRoute({ identity, tenantId, recordId }: { identity: string; tena
 }
 export function ContactShell() {
   const { identity, selectedTenantId } = useTenant();
+  const { state } = useAuth();
+  const [session, setSession] = useState({ state, generation: 0 });
+  if (session.state !== state) setSession({ state, generation: session.generation + 1 });
   const path = useSyncExternalStore(subscribe, () => location.pathname);
   const recordId = path.startsWith(listPath + '/') ? path.slice(listPath.length + 1) : null;
   if (path !== listPath && !(recordId && contactIdPattern.test(recordId))) return null;
   if (!identity || !selectedTenantId) return <p>Chọn tenant để xem liên hệ.</p>;
-  return <ContactRoute key={JSON.stringify([identity, selectedTenantId, path])} identity={identity} tenantId={selectedTenantId} recordId={recordId} />;
+  return <ContactQueryScope identity={identity} tenantId={selectedTenantId} generation={session.generation}><ContactRoute key={JSON.stringify([identity, selectedTenantId, path, session.generation])} identity={identity} tenantId={selectedTenantId} recordId={recordId} /></ContactQueryScope>;
 }
