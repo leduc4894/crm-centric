@@ -2124,6 +2124,8 @@ export interface operations {
             /** @description Created */
             201: {
                 headers: {
+                    /** @description Strong optimistic concurrency token for the updated contact. */
+                    ETag?: string;
                     [name: string]: unknown;
                 };
                 content: {

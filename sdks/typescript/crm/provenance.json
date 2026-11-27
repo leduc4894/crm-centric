@@ -1,9 +1,9 @@
 {
   "configurationSha256": "661f98ee4ff9d85f282ec006efea52d3c3215cccab5a3c429a11555f2fd11dae",
-  "contractSha256": "c327f1efde4a9ba965d84f27bf492b2f18b2d8b918855ac4e454b88673278972",
+  "contractSha256": "a4a607eb3e6bd953a668e1ce1b7dacc8bafaa45b2ceac7b26f9592f49e7ac22b",
   "corvusPackageSha256": "b023226e7cffe4b58578ed51c460424cfadfbfe4b223abae020b6e5960a68051",
   "inputHashes": {
-    "crm-api.openapi.yaml": "c327f1efde4a9ba965d84f27bf492b2f18b2d8b918855ac4e454b88673278972"
+    "crm-api.openapi.yaml": "a4a607eb3e6bd953a668e1ce1b7dacc8bafaa45b2ceac7b26f9592f49e7ac22b"
   },
   "openapiTypescript": "7.13.0"
 }

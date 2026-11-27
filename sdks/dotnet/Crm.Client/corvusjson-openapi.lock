@@ -863,6 +863,9 @@
     "Models/PutApiV1ContactsByIdFieldsByFieldIdOkETag.cs",
     "Models/PutApiV1ContactsByIdFieldsByFieldIdOkETag.Mutable.cs",
     "Models/PutApiV1ContactsByIdFieldsByFieldIdOkETag.JsonSchema.cs",
+    "Models/PostApiV1ContactsByIdNotesCreatedETag.cs",
+    "Models/PostApiV1ContactsByIdNotesCreatedETag.Mutable.cs",
+    "Models/PostApiV1ContactsByIdNotesCreatedETag.JsonSchema.cs",
     "Models/GetApiV1ContactsByIdPanelsByPanelIdPanelId.cs",
     "Models/GetApiV1ContactsByIdPanelsByPanelIdPanelId.Mutable.cs",
     "Models/GetApiV1ContactsByIdPanelsByPanelIdPanelId.JsonSchema.cs",
@@ -894,6 +897,6 @@
   "generatorVersion": "5.8.8+ce4c7ce4cf80499e40e9690bd1261c337683194a",
   "includePaths": [],
   "rootNamespace": "Crm.Client",
-  "specFileHash": "8b5a7d907811cebf8e7308fc6ded71456afc5fa64a8c7792b7ac8a65db922e96",
+  "specFileHash": "b5f27d1033d3216cbcad173221b134c58795d6f34cd9d5909584c075cbd60a2a",
   "specVersion": "3.1"
 }

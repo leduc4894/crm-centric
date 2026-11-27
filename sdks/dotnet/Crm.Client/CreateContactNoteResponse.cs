@@ -21,6 +21,8 @@ public struct CreateContactNoteResponse : IApiResponse<CreateContactNoteResponse
 {
     private IAsyncDisposable? owner;
     private IDisposable? parsedDocument;
+    private IResponseHeaders? responseHeaders;
+    private JsonWorkspace workspace;
 
     /// <inheritdoc/>
     public int StatusCode { get; private set; }
@@ -93,6 +95,40 @@ public struct CreateContactNoteResponse : IApiResponse<CreateContactNoteResponse
     /// </summary>
     public Crm.Client.Models.Problem Status428Body { get; private set; }
 
+    /// <summary>
+    /// Gets the value of the <c>ETag</c> response header,
+    /// or <see langword="null"/> if the header was not present.
+    /// </summary>
+    private Crm.Client.Models.PostApiV1ContactsByIdNotesCreatedETag eTagHeaderValue;
+    private bool eTagHeaderParsed;
+
+    /// <summary>
+    /// Gets the parsed value of the <c>ETag</c> response header,
+    /// or <see langword="default"/> (undefined) if not present.
+    /// Use <c>IsUndefined()</c> to check for absence.
+    /// </summary>
+    public Crm.Client.Models.PostApiV1ContactsByIdNotesCreatedETag ETagHeader
+    {
+        get
+        {
+            if (this.eTagHeaderParsed)
+            {
+                return this.eTagHeaderValue;
+            }
+
+            this.eTagHeaderParsed = true;
+
+            if (this.responseHeaders is not null
+                && this.responseHeaders.TryGetValue("ETag", out string? rawValue)
+                && rawValue is not null)
+            {
+                this.eTagHeaderValue = Corvus.Text.Json.OpenApi.HeaderValueParser.ParseString<Crm.Client.Models.PostApiV1ContactsByIdNotesCreatedETag>(rawValue, this.workspace);
+            }
+
+            return this.eTagHeaderValue;
+        }
+    }
+
     /// <inheritdoc/>
     public static async ValueTask<CreateContactNoteResponse> CreateAsync(
         int statusCode,
@@ -106,6 +142,9 @@ public struct CreateContactNoteResponse : IApiResponse<CreateContactNoteResponse
         CreateContactNoteResponse response = default;
         response.StatusCode = statusCode;
         response.owner = owner;
+
+        response.responseHeaders = responseHeaders;
+        response.workspace = JsonWorkspace.CreateUnrented();
 
         if (statusCode == 201)
         {
@@ -841,6 +880,7 @@ public struct CreateContactNoteResponse : IApiResponse<CreateContactNoteResponse
     /// <inheritdoc/>
     public async ValueTask DisposeAsync()
     {
+        this.workspace.Dispose();
         this.parsedDocument?.Dispose();
         if (this.owner is not null)
         {

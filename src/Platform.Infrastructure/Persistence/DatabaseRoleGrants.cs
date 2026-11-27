@@ -13,7 +13,7 @@ public static class DatabaseRoleGrants
             GRANT SELECT, INSERT, UPDATE ON crm.contacts TO {role};
             GRANT EXECUTE ON FUNCTION platform.create_crm_definition(uuid,text,text,text,text,text[],text,text,boolean) TO {role};
             GRANT EXECUTE ON FUNCTION platform.mutate_contact_attribute(uuid,uuid,uuid,text,text,bigint,text,text,text) TO {role};
-            GRANT SELECT ON crm.tags, crm.contact_tags, crm.custom_field_defs, crm.contact_field_values TO {role};
+            GRANT SELECT ON crm.tags, crm.contact_tags, crm.custom_field_defs, crm.contact_field_values, crm.timeline_entries TO {role};
             GRANT INSERT ON outbox.events TO {role};
             GRANT EXECUTE ON FUNCTION platform.append_contact_audit(uuid,uuid,text,text,text,text) TO {role};
             GRANT SELECT ON TABLE platform."__EFMigrationsHistory", platform.memberships TO {role};
@@ -45,6 +45,10 @@ public static class DatabaseRoleGrants
               FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
               WHERE n.nspname='crm' AND c.relname IN ('custom_field_defs','contact_field_values')
             ) AND (
+              SELECT (count(*)=1 OR NOT @require_contact_schema)
+                AND coalesce(bool_and(c.relrowsecurity AND c.relforcerowsecurity),true)
+              FROM pg_class c WHERE c.oid=to_regclass('crm.timeline_entries')
+            ) AND (
               -- Evaluate the login and every role it can assume, including non-inherited grants.
               SELECT bool_and(
                   NOT has_database_privilege(rolname, current_database(), 'CREATE')
@@ -74,7 +78,7 @@ public static class DatabaseRoleGrants
                   AND NOT EXISTS (
                     SELECT FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
                     WHERE (n.nspname='crm' AND c.relname='contacts' AND has_table_privilege(rolname,c.oid,'DELETE,TRUNCATE,REFERENCES,TRIGGER'))
-                       OR (n.nspname='crm' AND c.relname IN ('tags','contact_tags','custom_field_defs','contact_field_values') AND (has_table_privilege(rolname,c.oid,'INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER') OR has_any_column_privilege(rolname,c.oid,'INSERT,UPDATE,REFERENCES')))
+                       OR (n.nspname='crm' AND c.relname IN ('tags','contact_tags','custom_field_defs','contact_field_values','timeline_entries') AND (has_table_privilege(rolname,c.oid,'INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER') OR has_any_column_privilege(rolname,c.oid,'INSERT,UPDATE,REFERENCES')))
                        OR (n.nspname='outbox' AND c.relname='events' AND (has_table_privilege(rolname,c.oid,'SELECT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER') OR has_any_column_privilege(rolname,c.oid,'SELECT,UPDATE,REFERENCES')))
                   )
                   AND NOT EXISTS (
