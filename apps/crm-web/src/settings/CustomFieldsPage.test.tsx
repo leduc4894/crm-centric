@@ -177,3 +177,22 @@ it('validates the definition key and sends the selected type and required flag w
   expect(await posts[0]!.clone().json()).toEqual({ key: 'valid_key', displayName: 'Amount', dataType: 'number', required: true });
   expect(posts[0]!.headers.has('If-Match')).toBe(false);
 });
+
+it('reviews an uncertain create using a list read started after the write', async () => {
+  let release!: (response: Response) => void; let reads = 0; let posts = 0;
+  mount(req => {
+    if (req.method === 'POST') { posts++; return Promise.reject(new Error('offline')); }
+    if (++reads === 1) return new Promise<Response>(resolve => { release = resolve; });
+    return page([definition('Created during uncertainty')]);
+  });
+  await select(); await waitFor(() => expect(release).toBeDefined()); await draft(); submit();
+  await screen.findByRole('button', { name: 'Tải lại dữ liệu' });
+  expect(screen.getByRole('button', { name: 'Tải lại dữ liệu' }).matches(':disabled')).toBe(true);
+  await act(async () => release(page([])));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Tải lại dữ liệu' }).matches(':disabled')).toBe(false));
+  fireEvent.click(screen.getByRole('button', { name: 'Tải lại dữ liệu' }));
+  await screen.findByText('Created during uncertainty', { selector: 'li' });
+  expect(reads).toBeGreaterThan(1);
+  expect(posts).toBe(1);
+  expect((screen.getByLabelText('Tên trường') as HTMLInputElement).value).toBe('Amount');
+});

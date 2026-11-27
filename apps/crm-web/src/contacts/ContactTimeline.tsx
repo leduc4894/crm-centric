@@ -31,12 +31,13 @@ export function ContactTimeline({ client, id, disabled, run, onVersion }: Props)
     const length = Array.from(value.draft).length;
     if (inFlight.current || disabled || loading || error || !length || length > 1000) return;
     inFlight.current = true;
+    let savedEtag: string | null = null;
     try {
       if (await run(async etag => {
         const saved = await client.createNote(id, { text: value.draft }, etag);
         if (saved.data.contactId.toLowerCase() !== id.toLowerCase()) throw new CrmError('WEB_CRM_CONTRACT_INVALID');
-        await onVersion(saved.etag);
-      }, refresh, undefined, true)) { restoreFocus.current = true; form.reset(); }
+        savedEtag = saved.etag;
+      }, refresh, undefined, true, () => onVersion(savedEtag))) { restoreFocus.current = true; form.reset(); }
     } finally { inFlight.current = false; }
   } });
   const draft = useStore(form.store, state => state.values.draft);

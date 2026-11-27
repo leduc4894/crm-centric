@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, screen } from '@testing-library/react';
+import { act, cleanup, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { setup, field, click, change, page } from './recordTestSupport';
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
@@ -27,5 +27,22 @@ it('retains a definition draft if refresh fails after creation', async () => {
   await click('Định nghĩa trường'); await change('Khóa trường', 'amount'); await change('Tên trường', 'Amount'); await click('Tạo trường');
   await screen.findByRole('button', { name: 'Đối chiếu dữ liệu' });
   expect((screen.getByLabelText('Tên trường') as HTMLInputElement).value).toBe('Amount');
+  expect(calls.filter(r => r.method === 'POST')).toHaveLength(1);
+});
+
+it('keeps a definition draft across closing and reopening the panel, including a failed pending create', async () => {
+  let reject!: (cause: Error) => void;
+  const calls = setup((req, path) => {
+    if (!path.endsWith('/custom-fields')) return;
+    return req.method === 'POST' ? new Promise<Response>((_resolve, fail) => { reject = fail; }) : page([]);
+  });
+  await click('Định nghĩa trường'); await change('Khóa trường', 'amount'); await change('Tên trường', 'Keep this');
+  await click('Định nghĩa trường'); await click('Định nghĩa trường');
+  expect((screen.getByLabelText('Tên trường') as HTMLInputElement).value).toBe('Keep this');
+  await click('Tạo trường'); await waitFor(() => expect(reject).toBeDefined());
+  await click('Định nghĩa trường');
+  await act(async () => reject(new Error('offline')));
+  await click('Định nghĩa trường');
+  expect((screen.getByLabelText('Tên trường') as HTMLInputElement).value).toBe('Keep this');
   expect(calls.filter(r => r.method === 'POST')).toHaveLength(1);
 });

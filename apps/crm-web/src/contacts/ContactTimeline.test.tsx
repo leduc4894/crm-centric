@@ -219,3 +219,16 @@ it('locks for review and retains a saved note if sibling refresh returns 403', a
   expect(screen.getByRole('button', { name: 'Thêm ghi chú' }).matches(':disabled')).toBe(true);
   expect(writes).toBe(1);
 });
+
+it.each([403, 409])('keeps the note locked for review when the post-write contact read returns %i', async status => {
+  let writes = 0;
+  setup((_req, path) => {
+    if (path.endsWith('/notes')) { writes++; return Response.json(entry, { status: 201, headers: { ETag: '"v2"' } }); }
+    if (path.endsWith(id) && writes) return new Response(null, { status });
+  });
+  await screen.findByText('Chưa có hoạt động.'); await change('Ghi chú', 'Keep this draft'); await click('Thêm ghi chú');
+  await screen.findByRole('button', { name: 'Đối chiếu dữ liệu' });
+  expect(screen.getByDisplayValue('Keep this draft')).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Thêm ghi chú' }).matches(':disabled')).toBe(true);
+  expect(writes).toBe(1);
+});

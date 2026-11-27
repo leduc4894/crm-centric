@@ -9,7 +9,7 @@ export function CustomFieldSettings({ client, fields, disabled, run, refresh }: 
   const [open, setOpen] = useState(false);
   const [forbidden, setForbidden] = useState(false);
   return <div><button aria-expanded={open} onClick={() => setOpen(!open)}>Định nghĩa trường</button>
-    {open && <><ul>{fields.map(field => <li key={field.id}>{field.displayName}</li>)}</ul>
-      <DefinitionForm disabled={disabled || forbidden} save={value => run(async () => { await client.createField(value); }, refresh, () => setForbidden(true))} /></>}
+    <div hidden={!open}><ul>{fields.map(field => <li key={field.id}>{field.displayName}</li>)}</ul>
+      <DefinitionForm disabled={disabled || forbidden} save={value => run(async () => { await client.createField(value); }, refresh, () => setForbidden(true))} /></div>
   </div>;
 }

@@ -4,7 +4,7 @@ import { CrmError } from './crmClient';
 
 type PanelRead = () => Promise<void>;
 export type RegisterPanelRead = (read: PanelRead) => () => void;
-export type RecordWrite = (write: (etag: string) => Promise<void>, refresh: () => Promise<void>, onForbidden?: () => void, refreshSiblings?: boolean) => Promise<boolean>;
+export type RecordWrite = (write: (etag: string) => Promise<void>, refresh: () => Promise<void>, onForbidden?: () => void, refreshSiblings?: boolean, afterWrite?: () => Promise<void>) => Promise<boolean>;
 
 // A replacement read supersedes both the initial read and any in-flight page.
 export function usePanelRead<T>(load: (signal: AbortSignal) => Promise<T>, register?: RegisterPanelRead) {

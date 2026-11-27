@@ -76,6 +76,8 @@ function Definitions({ client }: { client: CrmClient }) {
   }
   async function review() {
     try {
+      await scope.client.cancelQueries({ queryKey: [scope.scopeId, 'settings-fields'], exact: true });
+      if (!scope.isCurrent()) return;
       const result = await query.refetch({ throwOnError: true });
       if (scope.isCurrent() && result.isSuccess) { setBlocked(false); setFailure(null); }
     } catch (error) { if (scope.isCurrent()) setFailure(safeError(error)); }
