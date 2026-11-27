@@ -59,7 +59,9 @@ public static class TenantAuthorization
         NpgsqlTransaction transaction;
         try
         {
-            transaction = mutation
+            // CRM writes do not mutate membership. Shared tenant/membership/staff
+            // locks still fence revocation, without serializing every tenant write.
+            transaction = mutation && permission != TenantPermission.ContactsWrite
                 ? await MembershipMutationTransaction.BeginAsync(connection, issuer, subject, tenantId, ct)
                 : await VerifiedTenantTransaction.BeginAsync(connection, issuer, subject, tenantId, ct);
         }

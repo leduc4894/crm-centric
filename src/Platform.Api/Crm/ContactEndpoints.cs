@@ -37,25 +37,14 @@ public static class ContactEndpoints
 
     private static async Task CreateAsync(HttpContext context,IConfiguration configuration)
     {
-        byte[]? cached = null;
+        var cached = await ReadAuthorizedBodyAsync(context,configuration);
+        if (cached is null) return;
         await TenantEndpointTransaction.RunAsync(context,configuration,true,async (connection,transaction,tenant,commit) =>
         {
-            if (!context.Request.HasJsonContentType()) { await Error(context,415,"REQUEST_INVALID"); return; }
             string? name=null,email=null,phone=null;
             var phonePresent=false;
             try
             {
-                if (cached is null)
-                {
-                    const int maxBytes=8192;
-                    using var buffer=new MemoryStream(); var chunk=new byte[1024]; int count;
-                    while ((count=await context.Request.Body.ReadAsync(chunk,context.RequestAborted)) != 0)
-                    {
-                        if (buffer.Length+count>maxBytes) { await Error(context,413,"REQUEST_INVALID"); return; }
-                        buffer.Write(chunk,0,count);
-                    }
-                    cached=buffer.ToArray();
-                }
                 using var doc=JsonDocument.Parse(cached);
                 if (doc.RootElement.ValueKind != JsonValueKind.Object) throw new JsonException();
                 var seen=new HashSet<string>(StringComparer.Ordinal);
@@ -120,7 +109,8 @@ public static class ContactEndpoints
 
     private static async Task PatchAsync(HttpContext context,IConfiguration configuration,string id)
     {
-        byte[]? cached=null;
+        var cached=await ReadAuthorizedBodyAsync(context,configuration);
+        if (cached is null) return;
         await TenantEndpointTransaction.RunAsync(context,configuration,true,async (connection,transaction,tenant,commit) =>
         {
             if (!Guid.TryParseExact(id,"D",out var contactId)) { await Error(context,400,"REQUEST_INVALID"); return; }
@@ -131,20 +121,9 @@ public static class ContactEndpoints
             if (precondition == MembershipPreconditionResult.Invalid) { await Error(context,400,"PRECONDITION_INVALID"); return; }
             if (version != row.Contact.Version) { await Error(context,412,"VERSION_CONFLICT"); return; }
             if (row.Deleted) { await Error(context,404,"NOT_FOUND"); return; }
-            if (!context.Request.HasJsonContentType()) { await Error(context,415,"REQUEST_INVALID"); return; }
             string? name=null,email=null,phone=null; bool namePresent=false,emailPresent=false,phonePresent=false;
             try
             {
-                if (cached is null)
-                {
-                    const int maxBytes=8192; using var buffer=new MemoryStream(); var chunk=new byte[1024]; int count;
-                    while ((count=await context.Request.Body.ReadAsync(chunk,context.RequestAborted)) != 0)
-                    {
-                        if (buffer.Length+count>maxBytes) { await Error(context,413,"REQUEST_INVALID"); return; }
-                        buffer.Write(chunk,0,count);
-                    }
-                    cached=buffer.ToArray();
-                }
                 using var doc=JsonDocument.Parse(cached);
                 if (doc.RootElement.ValueKind != JsonValueKind.Object) throw new JsonException();
                 var seen=new HashSet<string>(StringComparer.Ordinal);
@@ -195,6 +174,26 @@ public static class ContactEndpoints
             await ContactMutationJournal.AppendAsync(connection,transaction,tenant,contactId,context.User.FindFirst("iss")!.Value,context.User.FindFirst("sub")!.Value,"contact.deleted",context.TraceIdentifier,updatedVersion.Value,context.RequestAborted);
             await commit(); context.Response.StatusCode=204;
         },TenantPermission.ContactsWrite,"CRM_STORE_UNAVAILABLE");
+    }
+
+    // Authorization is checked before reading a potentially slow request body,
+    // then repeated inside the mutation transaction to fence revocation races.
+    private static async Task<byte[]?> ReadAuthorizedBodyAsync(HttpContext context,IConfiguration configuration)
+    {
+        var authorized=false;
+        await TenantEndpointTransaction.RunAsync(context,configuration,false,async (_,_,_,commit) =>
+        {
+            await commit(); authorized=true;
+        },TenantPermission.ContactsWrite,"CRM_STORE_UNAVAILABLE");
+        if (!authorized) return null;
+        if (!context.Request.HasJsonContentType()) { await Error(context,415,"REQUEST_INVALID"); return null; }
+        const int maxBytes=8192; using var buffer=new MemoryStream(); var chunk=new byte[1024]; int count;
+        while ((count=await context.Request.Body.ReadAsync(chunk,context.RequestAborted)) != 0)
+        {
+            if (buffer.Length+count>maxBytes) { await Error(context,413,"REQUEST_INVALID"); return null; }
+            buffer.Write(chunk,0,count);
+        }
+        return buffer.ToArray();
     }
 
     private static bool ValidText(string value)
