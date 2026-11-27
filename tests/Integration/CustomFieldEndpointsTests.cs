@@ -19,7 +19,7 @@ public sealed class CustomFieldEndpointsTests : DefinitionEndpointFixture
             await Problem(await Send(HttpMethod.Post, Path, bad), HttpStatusCode.BadRequest, "REQUEST_INVALID");
         foreach (var role in new[] { "agent", "operator" })
             await Problem(await Send(HttpMethod.Post, Path, Body, role), HttpStatusCode.Forbidden, "INSUFFICIENT_SCOPE");
-        Assert.Equal(HttpStatusCode.Unauthorized, (await Send(HttpMethod.Get, Path, anonymous: true)).StatusCode);
+        await Problem(await Send(HttpMethod.Get, Path, anonymous: true), HttpStatusCode.Unauthorized, "AUTHENTICATION_REQUIRED");
         await Problem(await Send(HttpMethod.Post, Path, Body, "revoked"), HttpStatusCode.Forbidden, "TENANT_ACCESS_DENIED");
         await Problem(await Send(HttpMethod.Post, Path, Body, "owner", other.ToString()), HttpStatusCode.Forbidden, "TENANT_ACCESS_DENIED");
         foreach (var input in new[] { Body, Body.Replace("abc", "second") })

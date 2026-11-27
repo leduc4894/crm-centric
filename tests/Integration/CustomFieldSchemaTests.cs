@@ -2,6 +2,8 @@ using Integration.Fixtures;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Metadata;
+using System.Text.RegularExpressions;
 using Npgsql;
 using Platform.Infrastructure.Persistence;
 using Xunit;
@@ -46,6 +48,28 @@ public sealed class CustomFieldSchemaTests : IAsyncLifetime
 
     private static async Task SetTenant(NpgsqlConnection conn, Guid id) =>
         await Sql(conn, "SELECT set_config('crm.tenant_id',$1,true)", id.ToString());
+
+    [Fact]
+    public async Task Audit_actions_in_model_and_snapshot_match_the_migrated_database()
+    {
+        const string name = "entries_action_check";
+        var databaseSql = (string)(await Sql(owner, """
+            SELECT pg_get_constraintdef(oid) FROM pg_constraint
+            WHERE conrelid='audit.entries'::regclass AND conname=$1
+            """, name))!;
+        static string[] Actions(string sql) => Regex.Matches(sql, "'([^']+)'")
+            .Select(match => match.Groups[1].Value).Order(StringComparer.Ordinal).ToArray();
+
+        var expected = Actions(databaseSql);
+        Assert.Contains("tag.created", expected);
+        Assert.Contains("custom_field.created", expected);
+        var snapshot = context.GetService<IMigrationsAssembly>().ModelSnapshot!.Model;
+        foreach (var model in new[] { context.GetService<IDesignTimeModel>().Model, snapshot })
+        {
+            var check = model.GetEntityTypes().SelectMany(type => type.GetCheckConstraints()).Single(c => c.Name == name);
+            Assert.Equal(expected, Actions(check.Sql));
+        }
+    }
 
     [Fact]
     public async Task New_tables_are_tenant_scoped_and_definition_is_immutable()
