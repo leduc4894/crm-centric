@@ -1,4 +1,4 @@
-# ADR-021 draft — bind contact upsert precondition to resource identity
+# ADR-021 — bind contact upsert precondition to resource identity
 
 - Date: 2026-11-27.
 - Status: **Approved by the user for implementation on 2026-11-27; rollout and compatibility remain open.**

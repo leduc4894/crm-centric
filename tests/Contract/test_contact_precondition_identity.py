@@ -1,4 +1,4 @@
-"""RED proposal tests for ADR-021; no runtime or consumer rollout proof."""
+"""ADR-021 identity contract checks; no consumer rollout proof."""
 from pathlib import Path
 import re
 import unittest

@@ -64,6 +64,13 @@ public static class ContactEndpoints
             catch (Exception e) when (e is JsonException or InvalidOperationException or FormatException) { await Error(context,400,"REQUEST_INVALID"); return; }
             var precondition=MembershipPreconditions.Parse(context.Request.Headers.IfMatch,out var version);
             if (precondition == MembershipPreconditionResult.Invalid) { await Error(context,400,"PRECONDITION_INVALID"); return; }
+            var hasExpectedId=context.Request.Headers.TryGetValue("X-Contact-Id",out var expectedValues);
+            Guid expectedId=default;
+            if (hasExpectedId && (expectedValues.Count != 1 || !Guid.TryParseExact(expectedValues[0],"D",out expectedId)
+                || !string.Equals(expectedValues[0],expectedId.ToString("D"),StringComparison.Ordinal)))
+            { await Error(context,400,"PRECONDITION_INVALID"); return; }
+            if ((precondition == MembershipPreconditionResult.Valid) != hasExpectedId)
+            { await Error(context,428,"PRECONDITION_REQUIRED"); return; }
             ContactRecord contact;
             string action;
             if (email is not null)
@@ -72,7 +79,7 @@ public static class ContactEndpoints
                 if (current is not null)
                 {
                     if (precondition == MembershipPreconditionResult.Missing) { await Error(context,428,"PRECONDITION_REQUIRED"); return; }
-                    if (version != current.Version) { await Error(context,412,"VERSION_CONFLICT"); return; }
+                    if (expectedId != current.Id || version != current.Version) { await Error(context,412,"VERSION_CONFLICT"); return; }
                     if (name == current.DisplayName && email == current.Email && (!phonePresent || phone == current.Phone))
                     {
                         await commit(); context.Response.Headers.ETag=MembershipPreconditions.Format(current.Version);

@@ -36,13 +36,14 @@ public sealed partial class ContactEndpointsTests : IAsyncLifetime
         client = factory.CreateClient();
     }
     public async Task DisposeAsync() { client.Dispose(); await factory.DisposeAsync(); await issuer.DisposeAsync(); await db.DisposeAsync(); }
-    private async Task<HttpResponseMessage> Send(HttpMethod method, string path, string? body = null, string subject = "owner", string? selected = null, bool anonymous = false, string? match = null)
+    private async Task<HttpResponseMessage> Send(HttpMethod method, string path, string? body = null, string subject = "owner", string? selected = null, bool anonymous = false, string? match = null, string? contactId = null)
     {
         using var req = new HttpRequestMessage(method,path);
         if (!anonymous) req.Headers.Authorization = new AuthenticationHeaderValue("Bearer",issuer.IssueToken(new() { Subject=subject, Role="owner" }));
         req.Headers.Add("X-Tenant-Id", selected ?? tenant.ToString());
         if (body is not null) req.Content = new StringContent(body,Encoding.UTF8,"application/json");
         if (match is not null) req.Headers.TryAddWithoutValidation("If-Match",match);
+        if (contactId is not null) req.Headers.TryAddWithoutValidation("X-Contact-Id",contactId);
         return await client.SendAsync(req);
     }
     private static async Task Problem(HttpResponseMessage r,HttpStatusCode status,string reason)
@@ -83,17 +84,17 @@ public sealed partial class ContactEndpointsTests : IAsyncLifetime
         using(var missing=await Send(HttpMethod.Post,"/api/v1/contacts",update)) await Problem(missing,(HttpStatusCode)428,"PRECONDITION_REQUIRED");
         foreach(var value in new[]{"*","W/\"v1\"","\"v1\",\"v2\"","nonsense"})
         { using var bad=await Send(HttpMethod.Post,"/api/v1/contacts",update,match:value); await Problem(bad,HttpStatusCode.BadRequest,"PRECONDITION_INVALID"); }
-        using(var stale=await Send(HttpMethod.Post,"/api/v1/contacts",update,match:"\"v2\"")) await Problem(stale,HttpStatusCode.PreconditionFailed,"VERSION_CONFLICT");
+        using(var stale=await Send(HttpMethod.Post,"/api/v1/contacts",update,match:"\"v2\"",contactId:id.ToString())) await Problem(stale,HttpStatusCode.PreconditionFailed,"VERSION_CONFLICT");
         Assert.Equal(1,await Count("outbox.events",tenant));
-        using(var updated=await Send(HttpMethod.Post,"/api/v1/contacts",update,match:"\"v1\""))
+        using(var updated=await Send(HttpMethod.Post,"/api/v1/contacts",update,match:"\"v1\"",contactId:id.ToString()))
         {
             Assert.Equal(HttpStatusCode.OK,updated.StatusCode); Assert.Equal("\"v2\"",updated.Headers.ETag!.ToString());
             using var data=JsonDocument.Parse(await updated.Content.ReadAsStringAsync()); Assert.Equal(id,data.RootElement.GetProperty("id").GetGuid());
             Assert.Equal("Second",data.RootElement.GetProperty("displayName").GetString()); Assert.Equal("123",data.RootElement.GetProperty("phone").GetString());
         }
-        using(var cleared=await Send(HttpMethod.Post,"/api/v1/contacts","{\"displayName\":\"Second\",\"email\":\"person@example.test\",\"phone\":null}",match:"\"v2\""))
+        using(var cleared=await Send(HttpMethod.Post,"/api/v1/contacts","{\"displayName\":\"Second\",\"email\":\"person@example.test\",\"phone\":null}",match:"\"v2\"",contactId:id.ToString()))
         { Assert.Equal(HttpStatusCode.OK,cleared.StatusCode); Assert.Equal("\"v3\"",cleared.Headers.ETag!.ToString()); using var data=JsonDocument.Parse(await cleared.Content.ReadAsStringAsync()); Assert.Equal(JsonValueKind.Null,data.RootElement.GetProperty("phone").ValueKind); }
-        using(var noop=await Send(HttpMethod.Post,"/api/v1/contacts","{\"displayName\":\"Second\",\"email\":\"person@example.test\",\"phone\":null}",match:"\"v3\""))
+        using(var noop=await Send(HttpMethod.Post,"/api/v1/contacts","{\"displayName\":\"Second\",\"email\":\"person@example.test\",\"phone\":null}",match:"\"v3\"",contactId:id.ToString()))
         { Assert.Equal(HttpStatusCode.OK,noop.StatusCode); Assert.Equal("\"v3\"",noop.Headers.ETag!.ToString()); }
         Assert.Equal(1,await Count("crm.contacts",tenant)); Assert.Equal(3,await Count("outbox.events",tenant));
         await using var c=new NpgsqlConnection(db.MigrationConnectionString); await c.OpenAsync(); await using var cmd=new NpgsqlCommand("SELECT count(*) FROM audit.entries WHERE action IN ('contact.created','contact.updated') AND tenant_id=@t",c); cmd.Parameters.AddWithValue("t",tenant); Assert.Equal(3L,await cmd.ExecuteScalarAsync());
@@ -108,17 +109,58 @@ public sealed partial class ContactEndpointsTests : IAsyncLifetime
                 using var invalid = await Send(HttpMethod.Post,"/api/v1/contacts",body,match:malformed);
                 await Problem(invalid,HttpStatusCode.BadRequest,"PRECONDITION_INVALID");
             }
-            using var unmatched = await Send(HttpMethod.Post,"/api/v1/contacts",body,match:"\"v1\"");
+            using var unmatched = await Send(HttpMethod.Post,"/api/v1/contacts",body,match:"\"v1\"",contactId:Guid.NewGuid().ToString());
             await Problem(unmatched,HttpStatusCode.PreconditionFailed,"VERSION_CONFLICT");
         }
         Assert.Equal(0,await Count("crm.contacts",tenant)); Assert.Equal(0,await Count("outbox.events",tenant));
         await using var c=new NpgsqlConnection(db.MigrationConnectionString); await c.OpenAsync(); await using var cmd=new NpgsqlCommand("SELECT count(*) FROM audit.entries WHERE action IN ('contact.created','contact.updated') AND tenant_id=@t",c); cmd.Parameters.AddWithValue("t",tenant); Assert.Equal(0L,await cmd.ExecuteScalarAsync());
     }
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Reused_email_never_applies_old_contact_precondition_to_replacement(bool deleteOld)
+    {
+        var oldId=await CreateContact("same@example.test");
+        using(var release=deleteOld
+            ? await Send(HttpMethod.Delete,$"/api/v1/contacts/{oldId}",match:"\"v1\"")
+            : await Send(HttpMethod.Patch,$"/api/v1/contacts/{oldId}","{\"email\":\"other@example.test\"}",match:"\"v1\""))
+            Assert.Equal(deleteOld ? HttpStatusCode.NoContent : HttpStatusCode.OK,release.StatusCode);
+        using var replacement=await Send(HttpMethod.Post,"/api/v1/contacts","{\"displayName\":\"Replacement\",\"email\":\"same@example.test\"}");
+        Assert.Equal(HttpStatusCode.Created,replacement.StatusCode); Assert.Equal("\"v1\"",replacement.Headers.ETag!.ToString());
+        using var data=JsonDocument.Parse(await replacement.Content.ReadAsStringAsync()); var replacementId=data.RootElement.GetProperty("id").GetGuid(); Assert.NotEqual(oldId,replacementId);
+        using(var stale=await Send(HttpMethod.Post,"/api/v1/contacts","{\"displayName\":\"Old input\",\"email\":\"same@example.test\"}",match:"\"v1\"",contactId:oldId.ToString())) await Problem(stale,HttpStatusCode.PreconditionFailed,"VERSION_CONFLICT");
+        using(var get=await Send(HttpMethod.Get,$"/api/v1/contacts/{replacementId}")) { Assert.Equal("\"v1\"",get.Headers.ETag!.ToString()); using var current=JsonDocument.Parse(await get.Content.ReadAsStringAsync()); Assert.Equal("Replacement",current.RootElement.GetProperty("displayName").GetString()); }
+        Assert.Equal(3,await Count("outbox.events",tenant));
+        await using var c=new NpgsqlConnection(db.MigrationConnectionString); await c.OpenAsync(); await using var cmd=new NpgsqlCommand("SELECT count(*) FROM audit.entries WHERE tenant_id=@t AND action IN ('contact.created','contact.updated','contact.deleted')",c); cmd.Parameters.AddWithValue("t",tenant); Assert.Equal(3L,await cmd.ExecuteScalarAsync());
+    }
+
+    [Fact]
+    public async Task Conditional_post_requires_a_single_canonical_contact_id_and_matching_etag()
+    {
+        var id=await CreateContact("a@example.test"); const string body="{\"displayName\":\"Changed\",\"email\":\"a@example.test\"}";
+        using(var noId=await Send(HttpMethod.Post,"/api/v1/contacts",body,match:"\"v1\"")) await Problem(noId,(HttpStatusCode)428,"PRECONDITION_REQUIRED");
+        using(var noTag=await Send(HttpMethod.Post,"/api/v1/contacts",body,contactId:id.ToString())) await Problem(noTag,(HttpStatusCode)428,"PRECONDITION_REQUIRED");
+        using(var noTagNew=await Send(HttpMethod.Post,"/api/v1/contacts","{\"displayName\":\"New\",\"email\":null}",contactId:id.ToString())) await Problem(noTagNew,(HttpStatusCode)428,"PRECONDITION_REQUIRED");
+        using(var duplicate=new HttpRequestMessage(HttpMethod.Post,"/api/v1/contacts"))
+        {
+            duplicate.Headers.Authorization=new AuthenticationHeaderValue("Bearer",issuer.IssueToken(new() { Subject="owner" })); duplicate.Headers.Add("X-Tenant-Id",tenant.ToString()); duplicate.Headers.TryAddWithoutValidation("If-Match","\"v1\"");
+            duplicate.Headers.TryAddWithoutValidation("X-Contact-Id",new[]{id.ToString(),id.ToString()}); duplicate.Content=new StringContent(body,Encoding.UTF8,"application/json");
+            using var invalid=await client.SendAsync(duplicate); await Problem(invalid,HttpStatusCode.BadRequest,"PRECONDITION_INVALID");
+        }
+        foreach(var bad in new[]{"bad",id.ToString().ToUpperInvariant(),id.ToString()+","+id.ToString()," "})
+        { using var invalid=await Send(HttpMethod.Post,"/api/v1/contacts",body,match:"\"v1\"",contactId:bad); await Problem(invalid,HttpStatusCode.BadRequest,"PRECONDITION_INVALID"); }
+        using(var otherId=await Send(HttpMethod.Post,"/api/v1/contacts",body,match:"\"v1\"",contactId:Guid.NewGuid().ToString())) await Problem(otherId,HttpStatusCode.PreconditionFailed,"VERSION_CONFLICT");
+        using(var otherTenant=await Send(HttpMethod.Post,"/api/v1/contacts",body,"other",other.ToString(),match:"\"v1\"",contactId:id.ToString())) await Problem(otherTenant,HttpStatusCode.PreconditionFailed,"VERSION_CONFLICT");
+        using(var unmatched=await Send(HttpMethod.Post,"/api/v1/contacts","{\"displayName\":\"New\",\"email\":null}",match:"\"v1\"",contactId:id.ToString())) await Problem(unmatched,HttpStatusCode.PreconditionFailed,"VERSION_CONFLICT");
+        Assert.Equal(1,await Count("outbox.events",tenant)); Assert.Equal(0,await Count("outbox.events",other));
+    }
+
     [Fact]
     public async Task Concurrent_matching_etag_has_at_most_one_mutation()
     {
         using var first=await Send(HttpMethod.Post,"/api/v1/contacts","{\"displayName\":\"First\",\"email\":\"a@example.test\"}"); Assert.Equal(HttpStatusCode.Created,first.StatusCode);
-        var results=await Task.WhenAll(Send(HttpMethod.Post,"/api/v1/contacts","{\"displayName\":\"A\",\"email\":\"a@example.test\"}",match:"\"v1\""),Send(HttpMethod.Post,"/api/v1/contacts","{\"displayName\":\"B\",\"email\":\"a@example.test\"}",match:"\"v1\""));
+        using var data=JsonDocument.Parse(await first.Content.ReadAsStringAsync()); var id=data.RootElement.GetProperty("id").GetGuid();
+        var results=await Task.WhenAll(Send(HttpMethod.Post,"/api/v1/contacts","{\"displayName\":\"A\",\"email\":\"a@example.test\"}",match:"\"v1\"",contactId:id.ToString()),Send(HttpMethod.Post,"/api/v1/contacts","{\"displayName\":\"B\",\"email\":\"a@example.test\"}",match:"\"v1\"",contactId:id.ToString()));
         try { Assert.Single(results,x=>x.StatusCode==HttpStatusCode.OK); Assert.Single(results,x=>x.StatusCode==HttpStatusCode.PreconditionFailed); } finally { foreach(var x in results) x.Dispose(); }
         Assert.Equal(1,await Count("crm.contacts",tenant)); Assert.Equal(2,await Count("outbox.events",tenant));
     }
@@ -158,7 +200,7 @@ public sealed partial class ContactEndpointsTests : IAsyncLifetime
         {
             await c.OpenAsync(); await using var cmd=new NpgsqlCommand("CREATE FUNCTION audit.fail_contact_test() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'test'; END $$; CREATE TRIGGER fail_contact_test BEFORE INSERT ON audit.entries FOR EACH ROW EXECUTE FUNCTION audit.fail_contact_test()",c); await cmd.ExecuteNonQueryAsync();
         }
-        using(var failed=await Send(HttpMethod.Post,"/api/v1/contacts","{\"displayName\":\"Change\",\"email\":\"a@example.test\"}",match:"\"v1\"")) await Problem(failed,HttpStatusCode.ServiceUnavailable,"CRM_STORE_UNAVAILABLE");
+        using(var failed=await Send(HttpMethod.Post,"/api/v1/contacts","{\"displayName\":\"Change\",\"email\":\"a@example.test\"}",match:"\"v1\"",contactId:id.ToString())) await Problem(failed,HttpStatusCode.ServiceUnavailable,"CRM_STORE_UNAVAILABLE");
         using(var failed=await Send(HttpMethod.Post,"/api/v1/contacts","{\"displayName\":\"New\",\"email\":\"b@example.test\"}")) await Problem(failed,HttpStatusCode.ServiceUnavailable,"CRM_STORE_UNAVAILABLE");
         using(var get=await Send(HttpMethod.Get,$"/api/v1/contacts/{id}"))
         { Assert.Equal(HttpStatusCode.OK,get.StatusCode); Assert.Equal("\"v1\"",get.Headers.ETag!.ToString()); using var body=JsonDocument.Parse(await get.Content.ReadAsStringAsync()); Assert.Equal("Original",body.RootElement.GetProperty("displayName").GetString()); }

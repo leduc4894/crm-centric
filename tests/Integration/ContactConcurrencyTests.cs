@@ -75,7 +75,7 @@ public sealed partial class ContactEndpointsTests
         Task<HttpResponseMessage> Mutate(string kind,string name) => kind switch {
             "patch" => Send(HttpMethod.Patch,path,JsonSerializer.Serialize(new {displayName=name}),match:"\"v1\""),
             "delete" => Send(HttpMethod.Delete,path,match:"\"v1\""),
-            _ => Send(HttpMethod.Post,"/api/v1/contacts",JsonSerializer.Serialize(new {displayName=name,email="first@example.test"}),match:"\"v1\"") };
+            _ => Send(HttpMethod.Post,"/api/v1/contacts",JsonSerializer.Serialize(new {displayName=name,email="first@example.test"}),match:"\"v1\"",contactId:id.ToString()) };
         var results=await Task.WhenAll(Mutate(first,"A"),Mutate(second,"B"));
         try { Assert.Single(results,x=>x.StatusCode is HttpStatusCode.OK or HttpStatusCode.NoContent); Assert.Single(results,x=>x.StatusCode==HttpStatusCode.PreconditionFailed); }
         finally { foreach(var response in results) response.Dispose(); }
