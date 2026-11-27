@@ -207,3 +207,9 @@ The user approved [ADR-021](../architecture/11-ADR-021-CONTACT-UPSERT-IDENTITY-D
 ### Scoped contact contract review — local MVP gate
 
 The user authorized the exact scoped contact review in [Wave 2 contract review](13-WAVE-2-CONTACT-CONTRACT-REVIEW.md). Local gate on the actual base returned `CONTRACT_BREAKING_REVIEWED`, not compatible; default/out-of-scope comparisons remain fail-closed. This supersedes only the earlier local `SCHEMA_COMPATIBILITY_REVIEW_REQUIRED` result for the pinned MVP-reviewed scope, not security or P0. The review mechanism is candidate-owned and not independent enforcement; whole-branch independent review, real consumer readiness and hosted exit evidence remain OPEN.
+
+### Wave 2 Plan 2 contact list — focused local evidence
+
+Search, combined filters and tenant-bound keyset pagination have focused local verification, including real PostgreSQL tenant isolation and cursor tests. See the [query plan](14-WAVE-2-CONTACT-LIST-QUERY-PLAN.md) and [handoff](../handoff/2026-11-27-wave-2-branch-handoff.md) for the candidate, commands and exact results. The prior Plan 1 reviewed-breaking compatibility verdict applies only to its exact scoped evidence; it is not a compatibility verdict for this candidate.
+
+`US-03`, `RT-CRM-01`, `RT-PERF-01`, Wave 2 and P0 remain OPEN pending remaining scope, independent final review and exit evidence. The synthetic query plan is not the 50,000-contact, 50-concurrent-user p95 benchmark. The full suite is reserved for Wave 2 exit on GitHub CI. Security remains FAIL/deferred. Plan 3 must retain tenant-safe tag storage and implement authorized, audited, concurrency-controlled mutations.
