@@ -4,12 +4,14 @@ import sys
 sys.dont_write_bytecode = True
 import argparse
 import hashlib
+import io
 import json
 import re
 import shutil
 import stat
 from pathlib import Path
 import subprocess
+import tarfile
 import tempfile
 import uuid
 
@@ -140,9 +142,11 @@ PLAN3_REVIEW_TREE = '5d9f8b09962405e09851936367d29d4c28414cf1'
 PLAN3_GOVERNANCE_FILES = frozenset({
     'scripts/contracts/compatibility.py',
     'tests/Contract/test_wave2_plan3_review.py',
+    'tools/ci/coverage.json',
     'docs/engineering/15-WAVE-2-PLAN-3-CONTRACT-REVIEW.md',
     'docs/handoff/2026-11-27-wave-2-branch-handoff.md',
 })
+PLAN3_COVERAGE_SHA256 = 'aa7dff3457dc0c7728c68b0d7fd6948d43050c7b07593534f1b921ac812ffe60'
 
 def reviewed_plan3_candidate(base, repo, enabled, target, now=None):
     """Bind the local reviewed scope to the approved product tree, fail closed."""
@@ -152,6 +156,10 @@ def reviewed_plan3_candidate(base, repo, enabled, target, now=None):
         return False
     try:
         if git(repo, 'rev-parse', PLAN3_REVIEW_COMMIT + '^{tree}').decode().strip() != PLAN3_REVIEW_TREE:
+            return False
+        inventory = repo / 'tools/ci/coverage.json'
+        if (inventory.is_symlink() or any((repo / parent).is_symlink() for parent in Path('tools/ci/coverage.json').parents if str(parent) != '.')
+                or sha(inventory) != PLAN3_COVERAGE_SHA256):
             return False
         tree = {}
         for item in git(repo, 'ls-tree', '-rz', '--full-tree', PLAN3_REVIEW_COMMIT).split(b'\0'):
@@ -181,6 +189,35 @@ def reviewed_plan3_candidate(base, repo, enabled, target, now=None):
                 return False
         return True
     except (GateError, OSError, UnicodeError, ValueError):
+        return False
+
+def materialize_plan3_source(repo, destination):
+    """Use only the approved Git tree for evaluator code and consumers."""
+    try:
+        archive_data = git(repo, 'archive', '--format=tar', PLAN3_REVIEW_COMMIT)
+        destination.mkdir()
+        with tarfile.open(fileobj=io.BytesIO(archive_data)) as archive:
+            archive.extractall(destination, filter='data')
+        git_dir = git(repo, 'rev-parse', '--absolute-git-dir').decode('utf-8').strip()
+        (destination / '.git').write_text('gitdir: ' + git_dir + '\n')
+        for relative in ('.local/plan3-tools',):
+            source = repo / relative
+            if source.exists():
+                link = destination / relative
+                link.parent.mkdir(parents=True, exist_ok=True)
+                link.symlink_to(source.resolve(), target_is_directory=True)
+    except (GateError, OSError, UnicodeError, ValueError, tarfile.TarError):
+        raise GateError('CONTRACT_POLICY_REVIEW_REQUIRED') from None
+
+def plan3_contract_snapshot_matches(approved, snapshot):
+    try:
+        def files(root):
+            paths = list(root.rglob('*'))
+            if any(path.is_symlink() for path in paths):
+                raise ValueError()
+            return {path.relative_to(root): sha(path) for path in paths if path.is_file()}
+        return files(approved) == files(snapshot)
+    except (OSError, ValueError):
         return False
 CONTACT_REVIEW_INPUTS = {'docs/contracts/automation-rule.schema.json': 'd5ad1506f3de8503a0bb3b060eb9bbc01db8a22efc95fabcef099cfaea0dcd0a',
  'docs/contracts/cloud-event.schema.json': 'ca9119a73e6eb6b6537c2c1098148b7fa49c781d5ac1c51ff26189fc05b04bea',
@@ -496,7 +533,18 @@ def evaluate_contract_snapshots(base, paths, repo, context, policy, binary,
         newroot = Path(tmp) / 'current'
         snapshot = newroot / 'docs/contracts'
         snapshot.parent.mkdir(parents=True)
-        shutil.copytree(current_root, snapshot, symlinks=True)
+        plan3_review = (immutable_base is None and policy_sources is None and target == base
+                        and reviewed_plan3_candidate(base, repo, mvp_review, target))
+        plan3_source = Path(tmp) / 'reviewed-source'
+        if plan3_review:
+            materialize_plan3_source(repo, plan3_source)
+        candidate_contracts = plan3_source / 'docs/contracts' if plan3_review else current_root
+        shutil.copytree(candidate_contracts, snapshot, symlinks=True)
+        if plan3_review and not plan3_contract_snapshot_matches(candidate_contracts, snapshot):
+            raise GateError('CONTRACT_POLICY_REVIEW_REQUIRED')
+        if plan3_review:
+            current_inputs = {p.relative_to(newroot).as_posix() for p in snapshot.rglob('*')
+                              if p.is_file() and (p.name.endswith('.openapi.yaml') or p.name.endswith('.schema.json'))}
         if any(path.is_symlink() for path in snapshot.rglob('*')):
             raise GateError('CONTRACT_INPUT_INVALID')
         # Materialize only Git-tracked inputs, including local $ref dependencies.
@@ -512,7 +560,7 @@ def evaluate_contract_snapshots(base, paths, repo, context, policy, binary,
         result = {'baseSha': base, 'inputHashes': hashes}
         contact_review = (immutable_base is None and policy_sources is None and target == base
                           and (reviewed_contact_change(base, repo, hashes, mvp_review)
-                               or reviewed_plan3_candidate(base, repo, mvp_review, target)))
+                               or plan3_review))
         openapis = {p for p in base_inputs | current_inputs if p.endswith('.openapi.yaml')}
         schemas = {p for p in base_inputs | current_inputs if p.endswith('.schema.json')}
         if any(p not in base_inputs or p not in current_inputs for p in openapis):
@@ -611,12 +659,18 @@ def evaluate_contract_snapshots(base, paths, repo, context, policy, binary,
         workspace = Path(tmp) / 'surface'
         workspace.mkdir()
         has_base_toolchain = True if policy_sources else bool(git(repo, 'ls-tree', '-r', '--name-only', base, '--', 'tools/contracts/toolchain.json').strip())
-        source = policy_sources[1] if policy_sources else repo if (repo / 'tools/contracts/toolchain.json').is_file() else ROOT
+        source = (policy_sources[1] if policy_sources else plan3_source if plan3_review
+                  else repo if (repo / 'tools/contracts/toolchain.json').is_file() else ROOT)
         result['sdkBaseline'] = 'historical-toolchain' if has_base_toolchain else 'bootstrap-no-released-consumer'
         try:
+            if plan3_review:
+                install = subprocess.run(['npm', 'ci', '--offline', '--ignore-scripts', '--no-audit', '--no-fund'],
+                                         cwd=plan3_source, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=600)
+                if install.returncode != 0:
+                    raise RuntimeError('SDK_TOOLCHAIN_REVIEW_REQUIRED')
             old_sdk = sdk_surface.prepare(workspace / 'old', policy_sources[0] if policy_sources else repo if has_base_toolchain else source, oldroot / 'docs/contracts', git, None if policy_sources else base if has_base_toolchain else None)
             new_sdk = sdk_surface.prepare(workspace / 'new', source, snapshot, git)
-            sdk_compatible = sdk_surface.compare(old_sdk, new_sdk, source if policy_sources else ROOT, workspace, has_base_toolchain, result)
+            sdk_compatible = sdk_surface.compare(old_sdk, new_sdk, source if policy_sources or plan3_review else ROOT, workspace, has_base_toolchain, result)
             if contact_review and not contact_sdk_checks_completed(result):
                 raise RuntimeError('SDK_TOOLCHAIN_REVIEW_REQUIRED')
             if contact_review and not contact_sdk_checks_approved(result):
@@ -627,13 +681,13 @@ def evaluate_contract_snapshots(base, paths, repo, context, policy, binary,
                     result['reason'] = 'SDK_SURFACE_INCOMPATIBLE'
                     return result
                 result['contactSdkBreaking'] = True
-        except (RuntimeError, OSError, ValueError, KeyError, TypeError):
+        except (RuntimeError, OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError):
             # Keep the baseline kind and toolchain evidence on the closed error path.
             context.update(result)
             raise GateError('SDK_TOOLCHAIN_REVIEW_REQUIRED') from None
         if contact_review:
             try:
-                consumers = subprocess.run(['bash', 'tests/ClientConsumers/run.sh'], cwd=repo,
+                consumers = subprocess.run(['bash', 'tests/ClientConsumers/run.sh'], cwd=plan3_source if plan3_review else repo,
                                            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=600)
             except (OSError, subprocess.SubprocessError):
                 raise GateError('SDK_TOOLCHAIN_REVIEW_REQUIRED') from None

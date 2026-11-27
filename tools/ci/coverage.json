@@ -143,7 +143,18 @@
         "test_wave2_contact_review.ContactReviewScopeTests.test_review_requires_all_historical_and_surface_sdk_checks_to_complete",
         "test_wave2_contact_review.ContactReviewScopeTests.test_snapshot_hash_mismatch_cannot_be_approved",
         "test_wave2_contact_review.ContactReviewScopeTests.test_typescript_surface_break_does_not_skip_dotnet_surface_comparison",
-        "test_wave2_contact_review.ContactReviewScopeTests.test_unauthorized_new_schema_cannot_be_approved"
+        "test_wave2_contact_review.ContactReviewScopeTests.test_unauthorized_new_schema_cannot_be_approved",
+        "test_wave2_plan3_review.Plan3ReviewTests.test_actual_breaking_openapi_result_does_not_pass",
+        "test_wave2_plan3_review.Plan3ReviewTests.test_evaluation_runs_real_comparison_paths_and_labels_reviewed_break",
+        "test_wave2_plan3_review.Plan3ReviewTests.test_evidence_and_untracked_drift_are_rejected",
+        "test_wave2_plan3_review.Plan3ReviewTests.test_git_failure_rejected",
+        "test_wave2_plan3_review.Plan3ReviewTests.test_ignored_evaluator_inputs_are_not_consumed",
+        "test_wave2_plan3_review.Plan3ReviewTests.test_only_exact_candidate_base_mode_target_and_time_are_approved",
+        "test_wave2_plan3_review.Plan3ReviewTests.test_only_reviewed_ci_inventory_is_accepted",
+        "test_wave2_plan3_review.Plan3ReviewTests.test_policy_preflight_accepts_only_candidate_scope",
+        "test_wave2_plan3_review.Plan3ReviewTests.test_snapshot_drift_cannot_be_approved_even_if_worktree_is_restored",
+        "test_wave2_plan3_review.Plan3ReviewTests.test_symlinked_evidence_rejected",
+        "test_wave2_plan3_review.Plan3ReviewTests.test_unexpected_sdk_surface_or_consumer_failure_does_not_pass"
       ]
     },
     "local": {
@@ -413,6 +424,17 @@
     "test_wave2_contact_review.ContactReviewScopeTests.test_contact_consumer_evidence_requires_old_new_and_upsert_checks": "the immutable reviewed contact fixture is unavailable",
     "test_wave2_contact_review.ContactReviewScopeTests.test_typescript_surface_break_does_not_skip_dotnet_surface_comparison": "the immutable reviewed contact fixture is unavailable",
     "test_wave2_contact_review.ContactReviewScopeTests.test_unauthorized_new_schema_cannot_be_approved": "the immutable reviewed contact fixture is unavailable",
-    "test_wave2_contact_review.ContactReviewScopeTests.test_exact_target_runs_every_check_and_reports_reviewed_break": "the immutable reviewed contact fixture is unavailable"
+    "test_wave2_contact_review.ContactReviewScopeTests.test_exact_target_runs_every_check_and_reports_reviewed_break": "the immutable reviewed contact fixture is unavailable",
+    "test_wave2_plan3_review.Plan3ReviewTests.test_actual_breaking_openapi_result_does_not_pass": "the immutable reviewed plan3 fixture is unavailable",
+    "test_wave2_plan3_review.Plan3ReviewTests.test_evaluation_runs_real_comparison_paths_and_labels_reviewed_break": "the immutable reviewed plan3 fixture is unavailable",
+    "test_wave2_plan3_review.Plan3ReviewTests.test_evidence_and_untracked_drift_are_rejected": "the immutable reviewed plan3 fixture is unavailable",
+    "test_wave2_plan3_review.Plan3ReviewTests.test_git_failure_rejected": "the immutable reviewed plan3 fixture is unavailable",
+    "test_wave2_plan3_review.Plan3ReviewTests.test_ignored_evaluator_inputs_are_not_consumed": "the immutable reviewed plan3 fixture is unavailable",
+    "test_wave2_plan3_review.Plan3ReviewTests.test_only_exact_candidate_base_mode_target_and_time_are_approved": "the immutable reviewed plan3 fixture is unavailable",
+    "test_wave2_plan3_review.Plan3ReviewTests.test_only_reviewed_ci_inventory_is_accepted": "the immutable reviewed plan3 fixture is unavailable",
+    "test_wave2_plan3_review.Plan3ReviewTests.test_policy_preflight_accepts_only_candidate_scope": "the immutable reviewed plan3 fixture is unavailable",
+    "test_wave2_plan3_review.Plan3ReviewTests.test_snapshot_drift_cannot_be_approved_even_if_worktree_is_restored": "the immutable reviewed plan3 fixture is unavailable",
+    "test_wave2_plan3_review.Plan3ReviewTests.test_symlinked_evidence_rejected": "the immutable reviewed plan3 fixture is unavailable",
+    "test_wave2_plan3_review.Plan3ReviewTests.test_unexpected_sdk_surface_or_consumer_failure_does_not_pass": "the immutable reviewed plan3 fixture is unavailable"
   }
 }
