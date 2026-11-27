@@ -24,8 +24,12 @@ interface Props {
   onCancel: () => void;
   onForbidden: () => void;
 }
+type DraftField = 'name' | 'email' | 'phone';
+type Draft = Record<DraftField, string>;
 export function ContactForm({ client, record, choices = [], readOnly, refreshList, refreshAttributes, onSaved, onCancel, onForbidden }: Props) {
   const [original] = useState(record);
+  const [reviewed, setReviewed] = useState<Snapshot | null>(null);
+  const [intent, setIntent] = useState<Set<DraftField>>(() => new Set());
   const [base, setBase] = useState(record);
   const [failure, setFailure] = useState<CrmError | null>(null);
   const [blocked, setBlocked] = useState(false);
@@ -50,17 +54,33 @@ export function ContactForm({ client, record, choices = [], readOnly, refreshLis
         const latest = await client.getContact(id);
         if (latest.data.id.toLowerCase() !== id.toLowerCase() || !latest.etag) throw new CrmError('WEB_CRM_CONTRACT_INVALID');
         await refreshAttributes?.();
+        if (original) {
+          const value = form.state.values;
+          setIntent(previous => {
+            const next = new Set(previous);
+            if (!reviewed) {
+              if (value.name !== original.data.displayName) next.add('name');
+              if (value.email !== (original.data.email ?? '')) next.add('email');
+              if (value.phone !== (original.data.phone ?? '')) next.add('phone');
+            }
+            return next;
+          });
+          setReviewed(latest);
+        }
         setBase(latest); setReview(true);
       } else await refreshList?.();
       setFailure(null); if (!reconcileId) setBlocked(false);
     } catch (error) { setFailure(safeError(error)); }
     finally { setBusy(false); }
   }
-  function changesFor(value: { name: string; email: string; phone: string }) { return original ? {
-    ...(value.name !== original.data.displayName && { displayName: value.name }),
-    ...(value.email !== (original.data.email ?? '') && { email: value.email || null }),
-    ...(value.phone !== (original.data.phone ?? '') && { phone: value.phone || null })
+  function changesFor(value: Draft) { const baseline = reviewed ?? original; return baseline ? {
+    ...((!reviewed || intent.has('name')) && value.name !== baseline.data.displayName && { displayName: value.name }),
+    ...((!reviewed || intent.has('email')) && value.email !== (baseline.data.email ?? '') && { email: value.email || null }),
+    ...((!reviewed || intent.has('phone')) && value.phone !== (baseline.data.phone ?? '') && { phone: value.phone || null })
   } : null;
+  }
+  function track(field: DraftField) {
+    if (reviewed) setIntent(previous => new Set(previous).add(field));
   }
   const changes = changesFor({ name, email, phone });
   const unchanged = changes !== null && Object.keys(changes).length === 0;
@@ -94,9 +114,9 @@ export function ContactForm({ client, record, choices = [], readOnly, refreshLis
     } finally { submitting.current = false; setBusy(false); }
   }
   return <form className="contact-form" onSubmit={event => { event.preventDefault(); void form.handleSubmit(); }}>
-    <form.Field name="name">{field => <label>Tên liên hệ<input disabled={busy || readOnly || !!reconcileId} autoFocus required value={field.state.value} onBlur={field.handleBlur} onChange={e => field.handleChange(e.target.value)} /></label>}</form.Field>
-    <form.Field name="email">{field => <label>Email<input disabled={busy || readOnly || !!reconcileId} type="email" value={field.state.value} onBlur={field.handleBlur} onChange={e => field.handleChange(e.target.value)} /></label>}</form.Field>
-    <form.Field name="phone">{field => <label>Điện thoại<input disabled={busy || readOnly || !!reconcileId} type="tel" value={field.state.value} onBlur={field.handleBlur} onChange={e => field.handleChange(e.target.value)} /></label>}</form.Field>
+    <form.Field name="name">{field => <label>Tên liên hệ<input disabled={busy || readOnly || !!reconcileId} autoFocus required value={field.state.value} onBlur={field.handleBlur} onChange={e => { track('name'); field.handleChange(e.target.value); }} /></label>}</form.Field>
+    <form.Field name="email">{field => <label>Email<input disabled={busy || readOnly || !!reconcileId} type="email" value={field.state.value} onBlur={field.handleBlur} onChange={e => { track('email'); field.handleChange(e.target.value); }} /></label>}</form.Field>
+    <form.Field name="phone">{field => <label>Điện thoại<input disabled={busy || readOnly || !!reconcileId} type="tel" value={field.state.value} onBlur={field.handleBlur} onChange={e => { track('phone'); field.handleChange(e.target.value); }} /></label>}</form.Field>
     {validationError && <p role="alert">{validationError}</p>}
     {failure && <p role="alert">{mutationMessage(failure)}</p>}
     {choosing && <fieldset><legend>Chọn liên hệ để đối chiếu</legend>

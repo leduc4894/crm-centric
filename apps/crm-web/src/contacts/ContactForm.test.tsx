@@ -363,3 +363,15 @@ it('lets the user keep and deliberately resend the draft after reviewing an unce
   await waitFor(() => expect(client.patchContact).toHaveBeenCalledTimes(2));
   expect(client.patchContact).toHaveBeenLastCalledWith(id, { displayName: 'Revised draft' }, '"v2"');
 });
+it('allows restoring the original value after review without overwriting untouched server fields', async () => {
+  const original = { data: record, etag: '"v1"', status: 200 };
+  const fresh = { data: { ...record, displayName: 'Remote name', email: 'remote@example.test' }, etag: '"v2"', status: 200 };
+  const client = { patchContact: vi.fn().mockResolvedValueOnce({ ...original, etag: null }).mockResolvedValueOnce({ ...fresh, etag: '"v3"' }), getContact: vi.fn().mockResolvedValue(fresh) } as unknown as CrmClient;
+  render(<ContactForm client={client} record={original} readOnly={false} onSaved={vi.fn()} onCancel={vi.fn()} onForbidden={vi.fn()} />);
+  await change('Tên liên hệ', 'Draft'); await click('Lưu'); await screen.findByRole('alert');
+  await click('Tải lại dữ liệu'); await screen.findByText('Remote name', { selector: 'dd' });
+  await click('Giữ và chỉnh sửa bản nháp'); await change('Tên liên hệ', 'Original');
+  expect(screen.getByRole('button', { name: 'Lưu' }).matches(':disabled')).toBe(false);
+  await click('Lưu'); await waitFor(() => expect(client.patchContact).toHaveBeenCalledTimes(2));
+  expect(client.patchContact).toHaveBeenLastCalledWith(id, { displayName: 'Original' }, '"v2"');
+});
