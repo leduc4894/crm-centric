@@ -36,41 +36,14 @@ internal static class TagEndpoints
         }, TenantPermission.ContactsRead, "CRM_STORE_UNAVAILABLE");
 
     private static Task SetContactTagAsync(HttpContext ctx, IConfiguration config, string id, string tagId) =>
-        TenantEndpointTransaction.RunAsync(ctx, config, true, async (connection, tx, tenant, commit) =>
-        {
-            var ct = ctx.RequestAborted;
-            Task Error(int status, string token) => OperationalErrors.WriteProblemAsync(ctx, status, token, ct);
-            if (!Guid.TryParseExact(id, "D", out var contact) || !Guid.TryParseExact(tagId, "D", out var tag))
-            { await Error(400, "REQUEST_INVALID"); return; }
-            // A tombstone already visible to this request has the same response as a missing contact.
-            // If a DELETE wins after this read, the locked version still reports the write conflict.
-            if (await ContactStore.GetAsync(connection, tx, tenant, contact, ct) is null)
-            { await Error(404, "NOT_FOUND"); return; }
-            var row = await ContactStore.LockByIdAsync(connection, tx, tenant, contact, ct);
-            if (row is null) { await Error(404, "NOT_FOUND"); return; }
-            var precondition = MembershipPreconditions.Parse(ctx.Request.Headers.IfMatch, out var version);
-            if (precondition == MembershipPreconditionResult.Missing) { await Error(428, "PRECONDITION_REQUIRED"); return; }
-            if (precondition == MembershipPreconditionResult.Invalid) { await Error(400, "PRECONDITION_INVALID"); return; }
-            if (version != row.Contact.Version) { await Error(412, "VERSION_CONFLICT"); return; }
-            if (row.Deleted) { await Error(404, "NOT_FOUND"); return; }
-
-            var issuer = ctx.User.FindFirst("iss")!.Value;
-            var subject = ctx.User.FindFirst("sub")!.Value;
-            var changed = await TagStore.SetAssignmentAsync(connection, tx, tenant, contact, tag, issuer, subject,
-                HttpMethods.IsPut(ctx.Request.Method), ct);
-            if (changed is null) { await Error(404, "NOT_FOUND"); return; }
-            var result = row.Contact;
-            if (changed.Value)
+        ContactAttributeMutation.RunAsync(ctx, config, id, tagId, async (connection, tx, tenant, contact, tag, issuer, subject, ct) =>
+            (await TagStore.SetAssignmentAsync(connection, tx, tenant, contact, tag, issuer, subject,
+                HttpMethods.IsPut(ctx.Request.Method), ct)) switch
             {
-                result = await ContactStore.AdvanceVersionAsync(connection, tx, tenant, contact, version, ct);
-                if (result is null) { await Error(412, "VERSION_CONFLICT"); return; }
-                await ContactMutationJournal.AppendAsync(connection, tx, tenant, contact, issuer, subject, "contact.updated",
-                    ctx.TraceIdentifier, result.Version, ct);
-            }
-            await commit();
-            ctx.Response.Headers.ETag = MembershipPreconditions.Format(result.Version);
-            await ctx.Response.WriteAsJsonAsync(result, ct);
-        }, TenantPermission.ContactsWrite, "CRM_STORE_UNAVAILABLE");
+                null => AttributeChange.Missing,
+                true => AttributeChange.Changed,
+                false => AttributeChange.Unchanged
+            });
 
     private static DefinitionInput Parse(JsonElement body)
     {

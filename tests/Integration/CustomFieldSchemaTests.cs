@@ -138,6 +138,29 @@ public sealed class CustomFieldSchemaTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Downgrade_preserves_strings_that_need_json_escaping()
+    {
+        var contact = Guid.NewGuid();
+        var field = Guid.NewGuid();
+        await using (var tx = await owner.BeginTransactionAsync())
+        {
+            await SetTenant(owner, other);
+            await Sql(owner, "INSERT INTO crm.contacts(tenant_id,id,display_name) VALUES($1,$2,'Contact')", other, contact);
+            await Sql(owner, "INSERT INTO crm.custom_field_defs(tenant_id,id,key,display_name,data_type,required) VALUES($1,$2,'x','X','string',false)", other, field);
+            await Sql(owner, """
+                INSERT INTO crm.contact_field_values(tenant_id,contact_id,field_id,data_type,value,escaped_string)
+                VALUES($1,$2,$3,'string',to_jsonb($4::text),true)
+                """, other, contact, field, """ "a\u0000" """.Trim());
+            await tx.CommitAsync();
+        }
+        var failure = await Assert.ThrowsAsync<PostgresException>(() => context.GetService<IMigrator>().MigrateAsync("20261127031000_ContactTagAssignment"));
+        Assert.Contains("escaped field strings exist", failure.MessageText);
+        await using var verify = await owner.BeginTransactionAsync();
+        await SetTenant(owner, other);
+        Assert.Equal(true, await Sql(owner, "SELECT escaped_string FROM crm.contact_field_values WHERE tenant_id=$1 AND contact_id=$2 AND field_id=$3", other, contact, field));
+    }
+
+    [Fact]
     public async Task Validation_rejects_an_assumable_role_with_definition_update()
     {
         await using var admin = new NpgsqlConnection(db.AdminConnectionString);

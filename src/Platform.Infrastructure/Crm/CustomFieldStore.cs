@@ -5,8 +5,46 @@ namespace Platform.Infrastructure.Crm;
 
 public sealed record FieldDefinition(Guid Id, string Key, string DisplayName, string DataType, bool Required, int Version) : IDefinitionRecord;
 
+public enum AttributeChange { Missing, Invalid, Unrepresentable, Unchanged, Changed }
+
 public static class CustomFieldStore
 {
+    public static async Task<string?> GetValueAsync(NpgsqlConnection connection, NpgsqlTransaction tx, Guid tenant,
+        Guid contact, Guid field, CancellationToken ct)
+    {
+        await using var cmd = new NpgsqlCommand("""
+            SELECT CASE WHEN v.escaped_string THEN v.value #>> '{}' ELSE v.value::text END
+            FROM crm.contact_field_values v
+            JOIN crm.contacts c ON (c.tenant_id,c.id)=(v.tenant_id,v.contact_id)
+            WHERE v.tenant_id=@tenant AND v.contact_id=@contact AND v.field_id=@field AND c.deleted_at IS NULL
+            """, connection, tx);
+        cmd.Parameters.AddWithValue("tenant", tenant);
+        cmd.Parameters.AddWithValue("contact", contact);
+        cmd.Parameters.AddWithValue("field", field);
+        return await cmd.ExecuteScalarAsync(ct) as string;
+    }
+
+    public static async Task<AttributeChange> SetValueAsync(NpgsqlConnection connection, NpgsqlTransaction tx, Guid tenant,
+        Guid contact, Guid field, string issuer, string subject, string raw, CancellationToken ct)
+    {
+        await using var cmd = new NpgsqlCommand("SELECT platform.set_contact_field(@tenant,@contact,@field,@issuer,@subject,@raw)", connection, tx);
+        cmd.Parameters.AddWithValue("tenant", tenant);
+        cmd.Parameters.AddWithValue("contact", contact);
+        cmd.Parameters.AddWithValue("field", field);
+        cmd.Parameters.AddWithValue("issuer", issuer);
+        cmd.Parameters.AddWithValue("subject", subject);
+        cmd.Parameters.AddWithValue("raw", raw);
+        return await cmd.ExecuteScalarAsync(ct) switch
+        {
+            "missing" => AttributeChange.Missing,
+            "invalid" => AttributeChange.Invalid,
+            "unrepresentable" => AttributeChange.Unrepresentable,
+            "unchanged" => AttributeChange.Unchanged,
+            "changed" => AttributeChange.Changed,
+            _ => throw new InvalidDataException("Unexpected field mutation result.")
+        };
+    }
+
     public static async Task<List<FieldDefinition>> ListAsync(NpgsqlConnection connection, NpgsqlTransaction tx, Guid tenant,
         Guid? after, int limit, CancellationToken ct)
     {

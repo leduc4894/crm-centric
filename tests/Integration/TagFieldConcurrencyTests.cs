@@ -7,6 +7,11 @@ namespace Integration;
 public sealed class TagFieldConcurrencyTests : DefinitionEndpointFixture
 {
     [Theory]
+    [InlineData("field-tag")]
+    [InlineData("field-field")]
+    [InlineData("field-patch")]
+    [InlineData("field-delete")]
+    [InlineData("delete-field")]
     [InlineData("attach")]
     [InlineData("detach")]
     [InlineData("patch")]
@@ -18,6 +23,9 @@ public sealed class TagFieldConcurrencyTests : DefinitionEndpointFixture
         var path = $"/api/v1/contacts/{id}";
         var tag = await CreateId("/api/v1/tags", """{"name":"A"}""");
         var second = await CreateId("/api/v1/tags", """{"name":"B"}""");
+        var involvesField = competitor.Contains("field");
+        var field = involvesField ? await CreateId("/api/v1/custom-fields", """{"key":"x","displayName":"X","dataType":"number"}""") : Guid.Empty;
+        var fieldPath = $"{path}/fields/{field}";
         var version = "\"v1\"";
         if (competitor == "detach")
         {
@@ -32,15 +40,21 @@ public sealed class TagFieldConcurrencyTests : DefinitionEndpointFixture
         command.Parameters.Add(new() { Value = tenant });
         command.Parameters.Add(new() { Value = id });
         Assert.Equal(id, await command.ExecuteScalarAsync());
-        var deleteFirst = competitor == "delete-first";
-        var first = deleteFirst ? Send(HttpMethod.Delete, path, match: [version]) : Send(HttpMethod.Put, $"{path}/tags/{tag}", subject: "owner", match: [version]);
+        var deleteFirst = competitor is "delete-first" or "delete-field";
+        var first = competitor switch
+        {
+            "delete-first" or "delete-field" => Send(HttpMethod.Delete, path, match: [version]),
+            _ when involvesField => Send(HttpMethod.Put, fieldPath, """{"value":12}""", match: [version]),
+            _ => Send(HttpMethod.Put, $"{path}/tags/{tag}", match: [version])
+        };
         var pid = await WaitForBlockedWriter(gate.ProcessID);
         var rival = competitor switch
         {
-            "delete-first" => Send(HttpMethod.Put, $"{path}/tags/{tag}", subject: "agent", match: [version]),
+            "field-field" or "delete-field" => Send(HttpMethod.Put, fieldPath, """{"value":12}""", subject: "agent", match: [version]),
+            "delete-first" or "field-tag" => Send(HttpMethod.Put, $"{path}/tags/{tag}", subject: "agent", match: [version]),
             "attach" => Send(HttpMethod.Put, $"{path}/tags/{second}", subject: "agent", match: [version]),
             "detach" => Send(HttpMethod.Delete, $"{path}/tags/{second}", subject: "agent", match: [version]),
-            "patch" => Send(HttpMethod.Patch, path, """{"displayName":"Changed"}""", "agent", match: [version]),
+            "patch" or "field-patch" => Send(HttpMethod.Patch, path, """{"displayName":"Changed"}""", "agent", match: [version]),
             _ => Send(HttpMethod.Delete, path, subject: "agent", match: [version])
         };
         await WaitForBlockedWriter(pid);
@@ -50,7 +64,7 @@ public sealed class TagFieldConcurrencyTests : DefinitionEndpointFixture
         Assert.Equal(deleteFirst ? HttpStatusCode.NoContent : HttpStatusCode.OK, win.StatusCode);
         await Problem(lose, HttpStatusCode.PreconditionFailed, "VERSION_CONFLICT");
         Assert.Equal(competitor == "detach" ? 3 : 2, await Count("outbox.events", tenant));
-        Assert.Equal(competitor == "detach" ? 5 : 4, await Count("audit.entries", tenant));
+        Assert.Equal(competitor == "detach" || involvesField ? 5 : 4, await Count("audit.entries", tenant));
     }
 
     private async Task<int> WaitForBlockedWriter(int blocker)

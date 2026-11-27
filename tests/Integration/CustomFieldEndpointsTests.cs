@@ -49,4 +49,138 @@ public sealed class CustomFieldEndpointsTests : DefinitionEndpointFixture
     [Fact]
     public async Task Audit_failure_rolls_back_creation() =>
         await VerifyAuditRollback(Path, Body, "crm.custom_field_defs", "custom_field.created");
+
+    [Theory]
+    [InlineData("string", "\"private-value\"", "\"private-value\"", "42")]
+    [InlineData("number", "987654321098765432109876543210.123456789", "987654321098765432109876543210.1234567890", "\"42\"")]
+    [InlineData("boolean", "false", "false", "0")]
+    [InlineData("date", "\"2024-02-29\"", "\"2024-02-29\"", "\"2023-02-29\"")]
+    public async Task Values_are_typed_versioned_and_journaled(string type, string value, string equivalent, string invalid)
+    {
+        var id = await CreateId("/api/v1/contacts", """{"displayName":"Test"}""");
+        var field = await CreateId(Path, Body.Replace("string", type));
+        var path = $"/api/v1/contacts/{id}/fields/{field}";
+        string Input(string raw) => "{\"value\":" + raw + "}";
+        async Task Put(string raw, int before, int after, string role)
+        {
+            using var response = await Send(HttpMethod.Put, path, Input(raw), role, match: [$"\"v{before}\""]);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal($"\"v{after}\"", response.Headers.ETag!.ToString());
+            using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            Assert.Equal(id, json.RootElement.GetProperty("id").GetGuid());
+            Assert.Equal(after, json.RootElement.GetProperty("version").GetInt32());
+        }
+        await Problem(await Send(HttpMethod.Get, path), HttpStatusCode.NotFound, "NOT_FOUND");
+        foreach (var bad in new[] { Input(invalid), "{}", Input("{}"), Input("[]"), "{", "{\"value\":null,\"value\":null}", "{\"value\":null,\"extra\":0}" })
+            await Problem(await Send(HttpMethod.Put, path, bad, match: ["\"v1\""]), HttpStatusCode.BadRequest, "REQUEST_INVALID");
+        await Put("null", 1, 1, "agent");
+        await Put(value, 1, 2, "admin");
+        using var read = await Send(HttpMethod.Get, path, subject: "operator");
+        Assert.Equal(HttpStatusCode.OK, read.StatusCode);
+        using var stored = JsonDocument.Parse(await read.Content.ReadAsStringAsync());
+        Assert.Equal(value, stored.RootElement.GetProperty("value").GetRawText());
+        await Put(equivalent, 2, 2, "owner");
+        await Problem(await Send(HttpMethod.Put, path, Input(value), match: ["\"v1\""]), HttpStatusCode.PreconditionFailed, "VERSION_CONFLICT");
+        await Put("null", 2, 3, "agent");
+        await Problem(await Send(HttpMethod.Get, path), HttpStatusCode.NotFound, "NOT_FOUND");
+        Assert.Equal(3, await Count("outbox.events", tenant));
+        Assert.Equal(4, await Count("audit.entries", tenant));
+        if (type == "string")
+        {
+            await using var c = new Npgsql.NpgsqlConnection(db.AdminConnectionString);
+            await c.OpenAsync();
+            await using var cmd = new Npgsql.NpgsqlCommand("""
+                SELECT EXISTS(SELECT FROM audit.entries a WHERE to_jsonb(a)::text LIKE '%private-value%')
+                    OR EXISTS(SELECT FROM outbox.events e WHERE to_jsonb(e)::text LIKE '%private-value%')
+                """, c);
+            Assert.Equal(false, await cmd.ExecuteScalarAsync());
+        }
+    }
+
+    [Fact]
+    public async Task Jsonb_numeric_limits_fail_closed_and_long_strings_round_trip()
+    {
+        var id = await CreateId("/api/v1/contacts", """{"displayName":"Test"}""");
+        var number = await CreateId(Path, Body.Replace("string", "number"));
+        var numberPath = $"/api/v1/contacts/{id}/fields/{number}";
+        foreach (var raw in new[] { "1e131072", "1e-16384" })
+            await Problem(await Send(HttpMethod.Put, numberPath, "{\"value\":" + raw + "}", match: ["\"v1\""]),
+                HttpStatusCode.BadRequest, "FIELD_VALUE_UNREPRESENTABLE");
+        Assert.Equal(0, await Count("crm.contact_field_values", tenant));
+        var field = await CreateId(Path, Body.Replace("abc", "text"));
+        var path = $"/api/v1/contacts/{id}/fields/{field}";
+        var text = new string('a', 9000);
+        using var response = await Send(HttpMethod.Put, path, JsonSerializer.Serialize(new { value = text }), match: ["\"v1\""]);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var read = await Send(HttpMethod.Get, path);
+        using var json = JsonDocument.Parse(await read.Content.ReadAsStringAsync());
+        Assert.Equal(text, json.RootElement.GetProperty("value").GetString());
+    }
+
+    [Fact]
+    public async Task Strings_with_nul_round_trip_and_compare_by_decoded_value()
+    {
+        var contact = await CreateId("/api/v1/contacts", """{"displayName":"Here"}""");
+        var field = await CreateId(Path, Body);
+        var path = $"/api/v1/contacts/{contact}/fields/{field}";
+        foreach (var (input, before) in new[] { ("""{"value":"a\u0000"}""", 1), ("""{"value":"\u0061\u0000"}""", 2) })
+        {
+            using var put = await Send(HttpMethod.Put, path, input, match: [$"\"v{before}\""]);
+            Assert.Equal(HttpStatusCode.OK, put.StatusCode);
+            Assert.Equal("\"v2\"", put.Headers.ETag!.ToString());
+        }
+        using var read = await Send(HttpMethod.Get, path);
+        using var json = JsonDocument.Parse(await read.Content.ReadAsStringAsync());
+        Assert.Equal("a\0", json.RootElement.GetProperty("value").GetString());
+        using var literal = await Send(HttpMethod.Put, path, """{"value":"a\\u0000"}""", match: ["\"v2\""]);
+        Assert.Equal("\"v3\"", literal.Headers.ETag!.ToString());
+    }
+
+    [Fact]
+    public async Task Value_access_enforces_tenant_permissions_preconditions_and_required_null()
+    {
+        var contact = await CreateId("/api/v1/contacts", """{"displayName":"Here"}""");
+        var foreign = await CreateId("/api/v1/contacts", """{"displayName":"There"}""", true);
+        var field = await CreateId(Path, Body.Replace("}", ",\"required\":true}"));
+        var foreignField = await CreateId(Path, Body, true);
+        string Url(Guid id, Guid def) => $"/api/v1/contacts/{id}/fields/{def}";
+        var path = Url(contact, field);
+        const string body = """{"value":null}""";
+        await Problem(await Send(HttpMethod.Put, path, body), (HttpStatusCode)428, "PRECONDITION_REQUIRED");
+        foreach (var bad in new string[][] { ["*"], ["W/\"v1\""], ["\"v1\"", "\"v1\""] })
+            await Problem(await Send(HttpMethod.Put, path, body, match: bad), HttpStatusCode.BadRequest, "PRECONDITION_INVALID");
+        await Problem(await Send(HttpMethod.Put, path, body, match: ["\"v1\""]), HttpStatusCode.BadRequest, "REQUEST_INVALID");
+        await Problem(await Send(HttpMethod.Put, path, body, "operator"), HttpStatusCode.Forbidden, "INSUFFICIENT_SCOPE");
+        foreach (var method in new[] { HttpMethod.Get, HttpMethod.Put })
+        {
+            await Problem(await Send(method, path, body, anonymous: true), HttpStatusCode.Unauthorized, "AUTHENTICATION_REQUIRED");
+            await Problem(await Send(method, path, body, "revoked"), HttpStatusCode.Forbidden, "TENANT_ACCESS_DENIED");
+            foreach (var missing in new[] { Url(foreign, field), Url(contact, foreignField), Url(Guid.NewGuid(), field), Url(contact, Guid.NewGuid()) })
+                await Problem(await Send(method, missing, body, match: ["\"v1\""]), HttpStatusCode.NotFound, "NOT_FOUND");
+        }
+        using var deleted = await Send(HttpMethod.Delete, $"/api/v1/contacts/{contact}", match: ["\"v1\""]);
+        Assert.Equal(HttpStatusCode.NoContent, deleted.StatusCode);
+        await Problem(await Send(HttpMethod.Put, path, body, match: ["\"v1\""]), HttpStatusCode.NotFound, "NOT_FOUND");
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Journal_failure_rolls_back_value_and_contact(bool audit)
+    {
+        var id = await CreateId("/api/v1/contacts", """{"displayName":"Test"}""");
+        var field = await CreateId(Path, Body);
+        await using var c = new Npgsql.NpgsqlConnection(db.MigrationConnectionString);
+        await c.OpenAsync();
+        await using var cmd = new Npgsql.NpgsqlCommand(audit
+            ? "ALTER TABLE audit.entries ADD CHECK(action <> 'contact.updated')"
+            : "ALTER TABLE outbox.events ADD CHECK(type <> 'crm.contact.updated.v1')", c);
+        await cmd.ExecuteNonQueryAsync();
+        await Problem(await Send(HttpMethod.Put, $"/api/v1/contacts/{id}/fields/{field}", """{"value":"private"}""", match: ["\"v1\""]), HttpStatusCode.ServiceUnavailable, "CRM_STORE_UNAVAILABLE");
+        using var contact = await Send(HttpMethod.Get, $"/api/v1/contacts/{id}");
+        Assert.Equal("\"v1\"", contact.Headers.ETag!.ToString());
+        Assert.Equal(0, await Count("crm.contact_field_values", tenant));
+        Assert.Equal(2, await Count("audit.entries", tenant));
+        Assert.Equal(1, await Count("outbox.events", tenant));
+    }
 }

@@ -262,15 +262,23 @@ public static class ContactEndpoints
 
     // Authorization is checked before reading a potentially slow request body,
     // then repeated inside the mutation transaction to fence revocation races.
+    internal static async Task<bool> AuthorizeJsonBodyAsync(HttpContext context, IConfiguration configuration, TenantPermission permission)
+    {
+        var authorized = false;
+        await TenantEndpointTransaction.RunAsync(context, configuration, false, async (_, _, _, commit) =>
+        {
+            await commit();
+            authorized = true;
+        }, permission, "CRM_STORE_UNAVAILABLE");
+        if (!authorized) return false;
+        if (context.Request.HasJsonContentType()) return true;
+        await Error(context, 415, "REQUEST_INVALID");
+        return false;
+    }
+
     internal static async Task<byte[]?> ReadAuthorizedBodyAsync(HttpContext context,IConfiguration configuration, TenantPermission permission = TenantPermission.ContactsWrite)
     {
-        var authorized=false;
-        await TenantEndpointTransaction.RunAsync(context,configuration,false,async (_,_,_,commit) =>
-        {
-            await commit(); authorized=true;
-        },permission,"CRM_STORE_UNAVAILABLE");
-        if (!authorized) return null;
-        if (!context.Request.HasJsonContentType()) { await Error(context,415,"REQUEST_INVALID"); return null; }
+        if (!await AuthorizeJsonBodyAsync(context, configuration, permission)) return null;
         const int maxBytes=8192; using var buffer=new MemoryStream(); var chunk=new byte[1024]; int count;
         while ((count=await context.Request.Body.ReadAsync(chunk,context.RequestAborted)) != 0)
         {
