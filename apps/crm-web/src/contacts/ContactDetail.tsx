@@ -59,11 +59,29 @@ export function ContactDetail({ client, id }: { client: CrmClient; id: string })
       accept(snapshot);
     }
   }
+  function requestReview(refresh?: () => Promise<void>) {
+    setReconcile(() => async () => {
+      let snapshot: Snapshot;
+      try { snapshot = await client.getContact(id); }
+      catch (cause) {
+        const readError = safeError(cause);
+        if (readError.status === 403 || readError.status === 404) {
+          setRecord(null); setFailure(readError); setReconcile(null);
+          return;
+        }
+        throw cause;
+      }
+      if (!snapshot.etag) throw new CrmError('WEB_CRM_CONTRACT_INVALID');
+      await refreshAttributes(refresh);
+      accept(snapshot);
+    });
+  }
   const run: RecordWrite = async (write, refresh, onForbidden) => {
     if (!record || busy || readOnly || reconcile || editing || deleteFailed) return;
     setBusy(true); setPanelFailure(null);
     try {
-      await write(await client.requireETag(id, record.etag));
+      if (!record.etag) throw new CrmError('WEB_CRM_CONTRACT_INVALID');
+      await write(record.etag);
       await refresh();
     } catch (cause) {
       const error = safeError(cause);
@@ -71,20 +89,7 @@ export function ContactDetail({ client, id }: { client: CrmClient; id: string })
       if (error.status === 403) {
         if (onForbidden) onForbidden(); else setReadOnly(true);
       } else if (error.status === 412 || error.status === 404 || !error.status || error.status >= 500) {
-        setReconcile(() => async () => {
-          let snapshot: Snapshot;
-          try { snapshot = await client.getContact(id); }
-          catch (cause) {
-            const readError = safeError(cause);
-            if (readError.status === 403 || readError.status === 404) {
-              setRecord(null); setFailure(readError); setReconcile(null);
-              return;
-            }
-            throw cause;
-          }
-          await refreshAttributes(refresh);
-          accept(snapshot);
-        });
+        requestReview(refresh);
       }
     } finally { setBusy(false); }
   };
@@ -101,7 +106,12 @@ export function ContactDetail({ client, id }: { client: CrmClient; id: string })
     if (!record || busy || readOnly) return;
     setConfirm(false); setBusy(true);
     try {
-      await client.deleteContact(id, await client.requireETag(id, record.etag));
+      if (!record.etag) {
+        setPanelFailure(new CrmError('WEB_CRM_CONTRACT_INVALID'));
+        requestReview();
+        return;
+      }
+      await client.deleteContact(id, record.etag);
       openContacts();
     } catch (error) {
       const result = safeError(error);

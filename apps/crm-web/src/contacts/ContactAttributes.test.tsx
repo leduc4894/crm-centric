@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
-import { setup, field, itemId, page, record, click, change } from './recordTestSupport';
+import { setup, data, id, field, itemId, page, record, click, change } from './recordTestSupport';
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 it('creates a tag, attaches and removes it with the latest contact version', async () => {
   let created = false, attached = false;
@@ -73,4 +73,31 @@ it('preserves the server ETag on an idempotent tag attachment', async () => {
   await change('Thẻ có sẵn', itemId); await click('Gắn thẻ'); await click('Gỡ VIP');
   await waitFor(() => expect(calls.filter(r => r.method === 'DELETE')).toHaveLength(1));
   expect(calls.filter(r => ['PUT','DELETE'].includes(r.method)).map(r => r.headers.get('If-Match'))).toEqual(['"v1"','"v1"']);
+});
+it.each(['field', 'delete'])('reviews a changed record and sibling values before an unversioned %s action', async action => {
+  let reads = 0;
+  const calls = setup((req, path) => {
+    if (path.endsWith('/contacts/' + id)) {
+      if (req.method === 'DELETE') return new Response(null, { status: 204 });
+      if (++reads === 1) return Response.json(data);
+      return Response.json({ ...data, displayName: 'Updated', version: 2 }, { headers: { ETag: '"v2"' } });
+    }
+    if (path.endsWith('/custom-fields')) return page([field]);
+    if (path.endsWith('/fields/' + itemId)) return req.method === 'GET' ? Response.json({ value: reads === 1 ? 1 : 2 }) : record(3);
+  });
+  await screen.findByDisplayValue('1');
+  await change('Amount', '500');
+  async function submit() {
+    if (action === 'field') await click('Lưu Amount');
+    else { await click('Xóa liên hệ'); await click('Xác nhận xóa'); }
+  }
+  const mutations = () => calls.filter(req => ['PUT', 'DELETE'].includes(req.method));
+  await submit();
+  await click('Đối chiếu dữ liệu');
+  await screen.findByRole('heading', { name: 'Updated' });
+  await screen.findByText('Giá trị hiện tại: 2');
+  expect(screen.getByDisplayValue('500')).toBeTruthy();
+  expect(mutations()).toHaveLength(0);
+  await submit();
+  await waitFor(() => expect(mutations().map(req => req.headers.get('If-Match'))).toEqual(['"v2"']));
 });

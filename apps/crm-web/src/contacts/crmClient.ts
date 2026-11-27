@@ -147,13 +147,6 @@ export function createCrmClient(scope: Scope) {
       return run([201], o => sdk.POST('/api/v1/contacts/{id}/notes', { ...o, params: { header: match(etag), path: path({ id }) }, body }), json(entry), signal);
     },
   };
-  return {
-    ...api, async requireETag(id: string, previous: string | null, signal?: AbortSignal) {
-      if (previous && strongTag.test(previous)) return previous;
-      const { etag } = await api.getContact(id, signal);
-      if (!etag) throw invalid();
-      return etag;
-    }
-  };
+  return api;
 }
 export type CrmClient = ReturnType<typeof createCrmClient>;

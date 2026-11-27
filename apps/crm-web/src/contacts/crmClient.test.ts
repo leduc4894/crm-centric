@@ -68,7 +68,10 @@ it('refreshes a missing note ETag before the next conditional write', async () =
   });
   const crm = client();
   const created = await crm.createNote(id, { text: 'Demo' }, '"v1"');
-  await crm.patchContact(id, { displayName: 'Demo' }, await crm.requireETag(id, created.etag));
+  expect(created.etag).toBeNull();
+  const latest = await crm.getContact(id);
+  expect(latest.data.version).toBe(2);
+  await crm.patchContact(id, { displayName: 'Demo' }, latest.etag!);
   expect(seen).toEqual(['POST', 'GET', 'PATCH']);
 });
 it('aborts an in-flight operation on caller cancellation', async () => {
