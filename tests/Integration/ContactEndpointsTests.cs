@@ -99,6 +99,22 @@ public sealed class ContactEndpointsTests : IAsyncLifetime
         await using var c=new NpgsqlConnection(db.MigrationConnectionString); await c.OpenAsync(); await using var cmd=new NpgsqlCommand("SELECT count(*) FROM audit.entries WHERE action IN ('contact.created','contact.updated') AND tenant_id=@t",c); cmd.Parameters.AddWithValue("t",tenant); Assert.Equal(3L,await cmd.ExecuteScalarAsync());
     }
     [Fact]
+    public async Task New_or_null_email_with_if_match_never_creates_a_contact()
+    {
+        foreach (var body in new[] { "{\"displayName\":\"New\",\"email\":\"new@example.test\"}", "{\"displayName\":\"New\",\"email\":null}", "{\"displayName\":\"New\"}" })
+        {
+            foreach (var malformed in new[] { "*", "W/\"v1\"", "\"v1\",\"v2\"", "invalid" })
+            {
+                using var invalid = await Send(HttpMethod.Post,"/api/v1/contacts",body,match:malformed);
+                await Problem(invalid,HttpStatusCode.BadRequest,"PRECONDITION_INVALID");
+            }
+            using var unmatched = await Send(HttpMethod.Post,"/api/v1/contacts",body,match:"\"v1\"");
+            await Problem(unmatched,HttpStatusCode.PreconditionFailed,"VERSION_CONFLICT");
+        }
+        Assert.Equal(0,await Count("crm.contacts",tenant)); Assert.Equal(0,await Count("outbox.events",tenant));
+        await using var c=new NpgsqlConnection(db.MigrationConnectionString); await c.OpenAsync(); await using var cmd=new NpgsqlCommand("SELECT count(*) FROM audit.entries WHERE action IN ('contact.created','contact.updated') AND tenant_id=@t",c); cmd.Parameters.AddWithValue("t",tenant); Assert.Equal(0L,await cmd.ExecuteScalarAsync());
+    }
+    [Fact]
     public async Task Concurrent_matching_etag_has_at_most_one_mutation()
     {
         using var first=await Send(HttpMethod.Post,"/api/v1/contacts","{\"displayName\":\"First\",\"email\":\"a@example.test\"}"); Assert.Equal(HttpStatusCode.Created,first.StatusCode);

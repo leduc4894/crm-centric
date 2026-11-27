@@ -71,6 +71,8 @@ public static class ContactEndpoints
                 if (name is null) throw new JsonException();
             }
             catch (Exception e) when (e is JsonException or InvalidOperationException or FormatException) { await Error(context,400,"REQUEST_INVALID"); return; }
+            var precondition=MembershipPreconditions.Parse(context.Request.Headers.IfMatch,out var version);
+            if (precondition == MembershipPreconditionResult.Invalid) { await Error(context,400,"PRECONDITION_INVALID"); return; }
             ContactRecord contact;
             string action;
             if (email is not null)
@@ -78,9 +80,7 @@ public static class ContactEndpoints
                 var current=await ContactStore.LockByEmailAsync(connection,transaction,tenant,email,context.RequestAborted);
                 if (current is not null)
                 {
-                    var precondition=MembershipPreconditions.Parse(context.Request.Headers.IfMatch,out var version);
                     if (precondition == MembershipPreconditionResult.Missing) { await Error(context,428,"PRECONDITION_REQUIRED"); return; }
-                    if (precondition == MembershipPreconditionResult.Invalid) { await Error(context,400,"PRECONDITION_INVALID"); return; }
                     if (version != current.Version) { await Error(context,412,"VERSION_CONFLICT"); return; }
                     if (name == current.DisplayName && email == current.Email && (!phonePresent || phone == current.Phone))
                     {
@@ -93,6 +93,7 @@ public static class ContactEndpoints
                 }
                 else
                 {
+                    if (precondition == MembershipPreconditionResult.Valid) { await Error(context,412,"VERSION_CONFLICT"); return; }
                     try { contact=await ContactStore.CreateAsync(connection,transaction,tenant,name,email,phone,context.RequestAborted); }
                     catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.UniqueViolation)
                     { await Error(context,409,"CONTACT_EMAIL_CONFLICT"); return; }
@@ -101,6 +102,7 @@ public static class ContactEndpoints
             }
             else
             {
+                if (precondition == MembershipPreconditionResult.Valid) { await Error(context,412,"VERSION_CONFLICT"); return; }
                 contact=await ContactStore.CreateAsync(connection,transaction,tenant,name,null,phone,context.RequestAborted);
                 action="contact.created";
             }
