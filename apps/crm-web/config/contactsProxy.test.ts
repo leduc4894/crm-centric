@@ -14,6 +14,9 @@ import { createWebConfig } from './devServer';
 it('relays a conditional note body and ETag without forwarding ambient credentials', async () => {
   const calls: { headers: Record<string, unknown>; body: string }[] = [];
   const api = httpServer(async (req, res) => {
+    if (req.method === 'GET' && req.url === '/api/v1/contacts/ABCDEF01-0000-4000-8000-000000000001') {
+      res.writeHead(200, { etag: '"v3"' }); res.end('{}'); return;
+    }
     let body = '';
     for await (const chunk of req) body += chunk;
     calls.push({ headers: req.headers, body });
@@ -32,5 +35,8 @@ it('relays a conditional note body and ETag without forwarding ambient credentia
     expect(calls[0]?.headers.cookie).toBeUndefined();
     expect(calls[0]).toMatchObject({ body: '{"text":"Demo"}', headers: { authorization: 'Bearer synthetic', 'x-tenant-id': id, 'if-match': '"v1"' } });
     expect((await fetch(path)).status).toBe(405); expect(calls).toHaveLength(1);
+    const uppercaseRecord = await fetch('http://127.0.0.1:' + addr.port + '/api/v1/contacts/ABCDEF01-0000-4000-8000-000000000001');
+    expect(uppercaseRecord.status).toBe(200);
+    expect(uppercaseRecord.headers.get('etag')).toBe('"v3"');
   } finally { await server.close(); await new Promise<void>(resolve => api.close(() => resolve())); }
 });

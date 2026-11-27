@@ -96,3 +96,22 @@ it('refuses an untyped caller supplying a JavaScript number before any field wri
   await expect(client().setField(id, id, 1.1, '"v1"')).rejects.toMatchObject({ reasonToken: 'WEB_CRM_CONTRACT_INVALID' });
   expect(fetcher).not.toHaveBeenCalled();
 });
+it('requires 204 before reporting contact deletion', async () => {
+  vi.stubGlobal('fetch', vi.fn()
+    .mockResolvedValueOnce(new Response(null, { status: 202 }))
+    .mockResolvedValueOnce(new Response(null, { status: 204 })));
+  const crm = client();
+  await expect(crm.deleteContact(id, '"v1"')).rejects.toMatchObject({ reasonToken: 'WEB_CRM_CONTRACT_INVALID' });
+  expect((await crm.deleteContact(id, '"v1"')).status).toBe(204);
+});
+it('accepts both contract upsert outcomes and rejects unrelated successful statuses', async () => {
+  const record = { id, displayName: 'Demo', version: 1, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' };
+  const sequence = [200, 201, 202, 201, 200];
+  const note = { id, contactId: id, inboxId: null, source: 'crm', type: 'note', occurredAt: record.createdAt, summary: 'Demo' };
+  vi.stubGlobal('fetch', async (req: Request) => Response.json(req.url.endsWith('/notes') ? note : record, { status: sequence.shift()! }));
+  const crm = client();
+  for (const status of [200, 201]) expect((await crm.createContact({ displayName: 'Demo' })).status).toBe(status);
+  await expect(crm.createContact({ displayName: 'Demo' })).rejects.toMatchObject({ reasonToken: 'WEB_CRM_CONTRACT_INVALID' });
+  await expect(crm.getContact(id)).rejects.toMatchObject({ reasonToken: 'WEB_CRM_CONTRACT_INVALID' });
+  await expect(crm.createNote(id, { text: 'Demo' }, '"v1"')).rejects.toMatchObject({ reasonToken: 'WEB_CRM_CONTRACT_INVALID' });
+});

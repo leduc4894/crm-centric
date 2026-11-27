@@ -1,4 +1,4 @@
-const uuid = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
+const uuid = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}';
 const contact = '/api/v1/contacts/' + uuid;
 const routes: [RegExp, string[]][] = [
   [/^\/api\/v1\/(?:contacts|tags|custom-fields)$/, ['GET', 'POST']],

@@ -2,7 +2,7 @@
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { ContactShell } from './ContactShell';
-const a = '10000000-0000-4000-8000-000000000001', b = '10000000-0000-4000-8000-000000000002';
+const a = 'ABCDEF01-0000-4000-8000-000000000001', b = '10000000-0000-4000-8000-000000000002';
 let tenant: string | null = null;
 let identity: string | null = 'principal';
 const auth = { getAccessToken: () => 'synthetic', invalidate: vi.fn(), getSnapshot: () => ({ status: 'authenticated', issuer: 'issuer', subject: identity }) };

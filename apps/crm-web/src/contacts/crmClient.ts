@@ -51,7 +51,7 @@ export function createCrmClient(scope: Scope) {
   const checkScope = () => {
     if (scope.signal.aborted || scope.current?.() === false) throw new DOMException('Aborted', 'AbortError');
   };
-  async function run<T>(operation: (options: Options) => Promise<WireResponse>, decode: (raw: string) => T, signal?: AbortSignal) {
+  async function run<T>(successStatuses: readonly number[], operation: (options: Options) => Promise<WireResponse>, decode: (raw: string) => T, signal?: AbortSignal) {
     checkScope();
     if (!scope.token || !id(scope.tenantId)) throw invalid();
     const deadline = new AbortController();
@@ -72,6 +72,7 @@ export function createCrmClient(scope: Scope) {
         const correlation = problem.correlationId ?? response.headers.get('x-correlation-id');
         throw new CrmError(reason, response.status, typeof correlation === 'string' && (id(correlation) || /^[0-9a-f]{32}$/i.test(correlation)) ? correlation : undefined);
       }
+      if (!successStatuses.includes(response.status)) throw invalid();
       const etag = response.headers.get('etag');
       try { return { data: decode(typeof data === 'string' ? data : ''), etag: etag && strongTag.test(etag) ? etag : null, status: response.status }; }
       catch { throw invalid(); }
@@ -92,58 +93,58 @@ export function createCrmClient(scope: Scope) {
   }
   const api = {
     listContacts(query: ContactQuery = {}, signal?: AbortSignal) {
-      return run(o => sdk.GET('/api/v1/contacts', { ...o, params: { header, query } }), json(page(contact)), signal);
+      return run([200], o => sdk.GET('/api/v1/contacts', { ...o, params: { header, query } }), json(page(contact)), signal);
     },
     getContact(id: string, signal?: AbortSignal) {
-      return run(o => sdk.GET('/api/v1/contacts/{id}', { ...o, params: { header, path: path({ id }) } }), json(contact), signal);
+      return run([200], o => sdk.GET('/api/v1/contacts/{id}', { ...o, params: { header, path: path({ id }) } }), json(contact), signal);
     },
     createContact(body: Schema['CreateContact'], expected?: { id: string; etag: string }, signal?: AbortSignal) {
-      return run(o => sdk.POST('/api/v1/contacts', { ...o, params: { header: expected ? { ...match(expected.etag), 'X-Contact-Id': expected.id } : header }, body }), json(contact), signal);
+      return run([200, 201], o => sdk.POST('/api/v1/contacts', { ...o, params: { header: expected ? { ...match(expected.etag), 'X-Contact-Id': expected.id } : header }, body }), json(contact), signal);
     },
     patchContact(id: string, body: Schema['UpdateContact'], etag: string, signal?: AbortSignal) {
-      return run(o => sdk.PATCH('/api/v1/contacts/{id}', { ...o, params: { header: match(etag), path: path({ id }) }, body }), json(contact), signal);
+      return run([200], o => sdk.PATCH('/api/v1/contacts/{id}', { ...o, params: { header: match(etag), path: path({ id }) }, body }), json(contact), signal);
     },
     deleteContact(id: string, etag: string, signal?: AbortSignal) {
-      return run(o => sdk.DELETE('/api/v1/contacts/{id}', { ...o, params: { header: match(etag), path: path({ id }) } }), raw => { if (raw) throw invalid(); }, signal);
+      return run([204], o => sdk.DELETE('/api/v1/contacts/{id}', { ...o, params: { header: match(etag), path: path({ id }) } }), raw => { if (raw) throw invalid(); }, signal);
     },
     listTags(query: PageQuery = {}, signal?: AbortSignal) {
-      return run(o => sdk.GET('/api/v1/tags', { ...o, params: { header, query } }), json(page(tag)), signal);
+      return run([200], o => sdk.GET('/api/v1/tags', { ...o, params: { header, query } }), json(page(tag)), signal);
     },
     createTag(body: Schema['CreateTag'], signal?: AbortSignal) {
-      return run(o => sdk.POST('/api/v1/tags', { ...o, params: { header }, body }), json(tag), signal);
+      return run([201], o => sdk.POST('/api/v1/tags', { ...o, params: { header }, body }), json(tag), signal);
     },
     listFields(query: PageQuery = {}, signal?: AbortSignal) {
-      return run(o => sdk.GET('/api/v1/custom-fields', { ...o, params: { header, query } }), json(page(field)), signal);
+      return run([200], o => sdk.GET('/api/v1/custom-fields', { ...o, params: { header, query } }), json(page(field)), signal);
     },
     createField(body: Schema['CreateField'], signal?: AbortSignal) {
-      return run(o => sdk.POST('/api/v1/custom-fields', { ...o, params: { header }, body }), json(field), signal);
+      return run([201], o => sdk.POST('/api/v1/custom-fields', { ...o, params: { header }, body }), json(field), signal);
     },
     listContactTags(id: string, query: PageQuery = {}, signal?: AbortSignal) {
-      return run(o => sdk.GET('/api/v1/contacts/{id}/tags', { ...o, params: { header, path: path({ id }), query } }), json(page(tag)), signal);
+      return run([200], o => sdk.GET('/api/v1/contacts/{id}/tags', { ...o, params: { header, path: path({ id }), query } }), json(page(tag)), signal);
     },
     addTag(id: string, tagId: string, etag: string, signal?: AbortSignal) {
-      return run(o => sdk.PUT('/api/v1/contacts/{id}/tags/{tagId}', { ...o, params: { header: match(etag), path: path({ id, tagId }) } }), json(contact), signal);
+      return run([200], o => sdk.PUT('/api/v1/contacts/{id}/tags/{tagId}', { ...o, params: { header: match(etag), path: path({ id, tagId }) } }), json(contact), signal);
     },
     removeTag(id: string, tagId: string, etag: string, signal?: AbortSignal) {
-      return run(o => sdk.DELETE('/api/v1/contacts/{id}/tags/{tagId}', { ...o, params: { header: match(etag), path: path({ id, tagId }) } }), json(contact), signal);
+      return run([200], o => sdk.DELETE('/api/v1/contacts/{id}/tags/{tagId}', { ...o, params: { header: match(etag), path: path({ id, tagId }) } }), json(contact), signal);
     },
     getField(id: string, fieldId: string, signal?: AbortSignal) {
-      return run(o => sdk.GET('/api/v1/contacts/{id}/fields/{fieldId}', { ...o, params: { header, path: path({ id, fieldId }) } }), readField, signal);
+      return run([200], o => sdk.GET('/api/v1/contacts/{id}/fields/{fieldId}', { ...o, params: { header, path: path({ id, fieldId }) } }), readField, signal);
     },
     setField(id: string, fieldId: string, value: FieldValue, etag: string, signal?: AbortSignal) {
       // The generated body type uses number. Serialize the original numeric token
       // directly instead of passing it through the SDK's JSON.stringify.
-      return run(o => {
+      return run([200], o => {
         let body: string;
         try { body = writeField(value); } catch { throw invalid(); }
         return sdk.PUT('/api/v1/contacts/{id}/fields/{fieldId}', { ...o, params: { header: match(etag), path: path({ id, fieldId }) }, body: { value: null }, bodySerializer: () => body });
       }, json(contact), signal);
     },
     listTimeline(id: string, query: PageQuery = {}, signal?: AbortSignal) {
-      return run(o => sdk.GET('/api/v1/contacts/{id}/timeline', { ...o, params: { header, path: path({ id }), query } }), json(page(entry)), signal);
+      return run([200], o => sdk.GET('/api/v1/contacts/{id}/timeline', { ...o, params: { header, path: path({ id }), query } }), json(page(entry)), signal);
     },
     createNote(id: string, body: Schema['CreateNote'], etag: string, signal?: AbortSignal) {
-      return run(o => sdk.POST('/api/v1/contacts/{id}/notes', { ...o, params: { header: match(etag), path: path({ id }) }, body }), json(entry), signal);
+      return run([201], o => sdk.POST('/api/v1/contacts/{id}/notes', { ...o, params: { header: match(etag), path: path({ id }) }, body }), json(entry), signal);
     },
   };
   return {
