@@ -44,7 +44,7 @@ it('removes visible records synchronously on tenant and principal changes', asyn
   const page = (displayName: string) => Response.json({ items: [{ ...record, displayName }], nextCursor: null });
   await waitFor(() => expect(pending).toHaveLength(1));
   await act(async () => pending[0]!(page(record.displayName)));
-  expect(screen.getByRole('link', { name: record.displayName })).toBeTruthy();
+  expect(await screen.findByRole('link', { name: record.displayName })).toBeTruthy();
   tenant = b; view.rerender(<ContactShell />);
   expect(screen.queryByText(record.displayName)).toBeNull();
   await waitFor(() => expect(pending).toHaveLength(2));
@@ -53,7 +53,7 @@ it('removes visible records synchronously on tenant and principal changes', asyn
   await act(async () => pending[2]!(page('Current')));
   await act(async () => pending[1]!(page('Previous principal')));
   expect(screen.queryByText('Previous principal')).toBeNull();
-  expect(screen.getByRole('link', { name: 'Current' })).toBeTruthy();
+  expect(await screen.findByRole('link', { name: 'Current' })).toBeTruthy();
   identity = null; view.rerender(<ContactShell />);
   expect(screen.queryByText('Current')).toBeNull();
 });

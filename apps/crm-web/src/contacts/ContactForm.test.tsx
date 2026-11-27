@@ -4,9 +4,10 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { ContactShell } from './ContactShell';
 const id = '10000000-0000-4000-8000-000000000001';
 let tenant: string | null = id;
+const authState = { status: 'authenticated', issuer: 'i', subject: 's' };
 const auth = { getAccessToken: () => 'test', getSnapshot: () => ({ status: 'authenticated', issuer: 'i', subject: 's' }) };
 vi.mock('../tenant/TenantProvider', () => ({ useTenant: () => ({ identity: '["i","s"]', selectedTenantId: tenant }) }));
-vi.mock('../auth/AuthProvider', () => ({ useAuthClient: () => auth }));
+vi.mock('../auth/AuthProvider', () => ({ useAuthClient: () => auth, useAuth: () => ({ state: authState }) }));
 const record = { id, displayName: 'Original', email: 'demo@example.test', version: 1, createdAt: '2026-01-01', updatedAt: '2026-01-01' };
 function setup(handler: (req: Request) => Response, detail = true) {
   history.replaceState(null, '', '/app/contacts' + (detail ? '/' + id : ''));
