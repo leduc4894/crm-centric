@@ -19,3 +19,11 @@ Reviewed the backlog, acceptance matrix, contact state and data model to answer 
 User requested a spec and clarified that plan-specific related tests run locally; the full suite runs only at Wave 2 exit on GitHub CI, not locally. Drafted [Wave 2 design](../superpowers/specs/2026-11-27-wave-2-crm-contacts-design.md), including the prototype as UI source, five proposed plans, contract/security boundaries, testing and exit evidence. Spec awaits user approval; no implementation or plan execution started. Reviewed backlog, architecture, acceptance matrix, CRM OpenAPI, prototype and frontend package. No tests run in this documentation-only session. Next: user review/approval of spec, then write detailed plans; first assess applicable non-security Wave 1 entry conditions. Security remains FAIL/deferred and P0 OPEN.
 
 Documentation verification: initial `git diff --cached --check` reported trailing whitespace in the spec; corrected before rerunning. Test suite not run.
+
+## Plan 1 authoring
+
+User requested Plan 1 after reviewing the design direction. Created [Contact CRUD plan](../superpowers/plans/2026-11-27-wave-2-plan-1-contact-crud.md), covering entry-evidence assessment, contract/event intent, migration and transactional journal, tenant-scoped CRUD, concurrency and focused verification. The plan preserves the user's instruction: related tests local; full suite at Wave 2 exit on GitHub CI. Plan is proposed, not executed; no source code or contract changed. The prior spec commit is `d02f869`; this handoff update and plan are uncommitted. No tests run for this documentation-only session. Next: review the plan; when implementation is authorized, evaluate Wave 1 entry conditions before code. Security remains FAIL/deferred, P0 OPEN.
+
+## Commit request
+
+User requested committing all current changes on `wave-2`: this handoff update and the Plan 1 document. No implementation or tests were run. Verification: `git diff --check` passed before staging; staged whitespace and final status checked as part of commit. The plan remains unexecuted and the Wave 1 entry assessment remains the next prerequisite.
