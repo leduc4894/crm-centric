@@ -109,3 +109,53 @@ it('shows uncertain outcome after a real client deadline and waits for an explic
   await click('Tải lại dữ liệu'); await screen.findByText('Dữ liệu hiện tại');
   expect(gets).toBe(2); expect(writes).toBe(1);
 });
+it.each(['POST', 'PATCH'])('freezes the submitted draft while %s is pending', async method => {
+  const editing = method === 'PATCH';
+  history.replaceState(null, '', '/app/contacts' + (editing ? '/' + id : ''));
+  let finish: ((response: Response) => void) | undefined;
+  vi.stubGlobal('fetch', (req: Request) => {
+    if (req.method === method) return new Promise<Response>(resolve => { finish = resolve; });
+    return Promise.resolve(new URL(req.url).pathname.endsWith(id) ? response(finish ? 'Submitted' : 'Original') : Response.json({ items: [], nextCursor: null }));
+  });
+  render(<ContactShell />);
+  await click(editing ? 'Chỉnh sửa' : 'Thêm liên hệ');
+  await change('Tên liên hệ', 'Submitted');
+  await click(editing ? 'Lưu' : 'Tạo');
+  await waitFor(() => expect(finish).toBeDefined());
+  for (const label of ['Tên liên hệ', 'Email', 'Điện thoại']) {
+    expect(screen.getByLabelText(label).matches(':disabled')).toBe(true);
+  }
+  await act(async () => finish!(response('Submitted', '"v2"', editing ? 200 : 201)));
+  await screen.findByRole('heading', { name: 'Submitted' });
+});
+it('keeps ambiguous create blocked when a filter supersedes its reconciliation read', async () => {
+  history.replaceState(null, '', '/app/contacts');
+  let reads = 0, writes = 0;
+  let finishRead: ((response: Response) => void) | undefined;
+  const page = () => Response.json({ items: [], nextCursor: null });
+  vi.stubGlobal('fetch', (req: Request) => {
+    if (req.method === 'POST') {
+      writes++;
+      return new Promise<Response>((_, reject) => req.signal.addEventListener('abort', () => reject(req.signal.reason)));
+    }
+    if (++reads === 2) return new Promise<Response>(resolve => { finishRead = resolve; });
+    return Promise.resolve(page());
+  });
+  render(<ContactShell />);
+  await click('Thêm liên hệ'); await change('Tên liên hệ', 'No email');
+  vi.useFakeTimers();
+  try {
+    fireEvent.click(screen.getByRole('button', { name: 'Tạo' }));
+    await act(async () => { await vi.advanceTimersByTimeAsync(10001); });
+  } finally { vi.useRealTimers(); }
+  await click('Tải lại dữ liệu');
+  await waitFor(() => expect(finishRead).toBeDefined());
+  await change('Tìm kiếm', 'filter'); await click('Lọc');
+  await act(async () => finishRead!(page()));
+  const submit = screen.getByRole('button', { name: 'Tạo' });
+  expect(submit.matches(':disabled')).toBe(true);
+  expect(screen.getByRole('alert').textContent).toContain('WEB_CRM_READ_CANCELLED');
+  await click('Tải lại dữ liệu');
+  await waitFor(() => expect(submit.matches(':disabled')).toBe(false));
+  expect(reads).toBe(4); expect(writes).toBe(1);
+});

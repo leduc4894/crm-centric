@@ -21,7 +21,7 @@ export function ContactList({ client }: { client: CrmClient }) {
     if (!cursor) { setItems([]); setNext(null); cursors.current.clear(); }
     try {
       const { data } = await client.listContacts(cursor ? { ...filters, cursor } : filters, request.signal);
-      if (request.signal.aborted) return;
+      request.signal.throwIfAborted();
       if (cursor) cursors.current.add(cursor);
       if (data.nextCursor && cursors.current.has(data.nextCursor)) {
         setNext(null); throw new CrmError('WEB_CRM_CONTRACT_INVALID');
@@ -29,11 +29,10 @@ export function ContactList({ client }: { client: CrmClient }) {
       setItems(old => cursor ? [...new Map([...old, ...data.items].map(item => [item.id, item])).values()] : data.items);
       setNext(data.nextCursor);
     } catch (error) {
-      if (!request.signal.aborted) {
-        const failure = safeError(error);
-        setFailure(failure);
-        return failure;
-      }
+      if (request.signal.aborted) return new CrmError('WEB_CRM_READ_CANCELLED');
+      const failure = safeError(error);
+      setFailure(failure);
+      return failure;
     } finally { if (!request.signal.aborted) setLoading(false); }
   }, [client]);
   useEffect(() => {

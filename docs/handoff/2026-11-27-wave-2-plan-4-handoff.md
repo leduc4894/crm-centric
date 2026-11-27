@@ -87,3 +87,9 @@ The list supports literal search, tag ID, updated-since and cursor pagination. T
 On the pinned Node toolchain the two requested Vitest files failed RED 6/6 before implementation and passed GREEN 8/8 with no skips. Supplementary REDs exposed stale candidate selection and PATCH including unchanged fields. The expanded run with ContactShell and crmClient tests passed 35/35. Web typecheck, targeted ESLint and staged whitespace checks passed. No full suite, browser E2E, deploy, hosted CI or P0 drill ran. The local SDD report and logs are ignored. No Task 4 edits remain pending. The separate branch handoff edit belongs to the coordinating session.
 
 Next is independent Task 4 review, then Task 5 attribute and activity panels and Task 6 real-stack E2E. Actual-base review, hosted wave-exit gates and P0 acceptance remain pending.
+
+### Task 4 independent review corrections
+
+The Task 4 review requested two fixes under [Plan 4](../superpowers/plans/2026-11-27-wave-2-plan-4-timeline-contact-ui.md). On wave-2, based on 67b2d85, ContactForm now disables its profile inputs while awaiting a write. ContactList returns a correlated WEB_CRM_READ_CANCELLED when a filter supersedes a pending reconciliation read. The form stays blocked until its own refresh succeeds. ContactForm.test.tsx holds POST and PATCH responses and exercises a create timeout without an email followed by an interrupted refresh and a successful explicit refresh.
+
+The targeted Vitest filter `freezes the submitted|keeps ambiguous create` failed RED 3/3. The combined ContactForm, ContactList, ContactShell and crmClient tests passed GREEN 38/38, no skips. Targeted ESLint, web typecheck and staged whitespace checks passed. No full suite, E2E or hosted CI ran. The unrelated branch handoff is outside this change. Next is independent re-review before Task 5.

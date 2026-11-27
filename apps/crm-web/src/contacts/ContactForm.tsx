@@ -73,9 +73,9 @@ export function ContactForm({ client, record, choices = [], readOnly, refreshLis
     } finally { setBusy(false); }
   }
   return <form className="contact-form" onSubmit={save}>
-    <label>Tên liên hệ<input autoFocus required value={name} onChange={e => setName(e.target.value)} /></label>
-    <label>Email<input type="email" value={email} onChange={e => setEmail(e.target.value)} /></label>
-    <label>Điện thoại<input type="tel" value={phone} onChange={e => setPhone(e.target.value)} /></label>
+    <label>Tên liên hệ<input disabled={busy || readOnly} autoFocus required value={name} onChange={e => setName(e.target.value)} /></label>
+    <label>Email<input disabled={busy || readOnly} type="email" value={email} onChange={e => setEmail(e.target.value)} /></label>
+    <label>Điện thoại<input disabled={busy || readOnly} type="tel" value={phone} onChange={e => setPhone(e.target.value)} /></label>
     {failure && <p role="alert">{mutationMessage(failure)}</p>}
     {choosing && <fieldset><legend>Chọn liên hệ để đối chiếu</legend>
       {choices.map(item => <button key={item.id} type="button" disabled={busy || readOnly} onClick={() => void read(item.id)}>Chọn {item.displayName}</button>)}
