@@ -1,5 +1,6 @@
 using Platform.Api.Operations;
 using Platform.Api.Identity;
+using Platform.Api.Crm;
 using Microsoft.EntityFrameworkCore;
 using Platform.Infrastructure.Configuration;
 using Platform.Infrastructure.Persistence;
@@ -84,6 +85,7 @@ app.MapTenantEndpoints();
 app.MapMembershipEndpoints();
 app.MapInviteEndpoints();
 app.MapAuditEndpoints();
+app.MapContactEndpoints();
 app.Run();
 return 0;
 

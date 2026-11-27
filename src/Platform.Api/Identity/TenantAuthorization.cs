@@ -5,7 +5,7 @@ using Platform.Infrastructure.Identity;
 
 namespace Platform.Api.Identity;
 
-public enum TenantPermission { TeamManage, AuditRead }
+public enum TenantPermission { TeamManage, AuditRead, ContactsRead, ContactsWrite }
 
 public static class TenantAuthorization
 {
@@ -82,6 +82,8 @@ public static class TenantAuthorization
             {
                 TenantPermission.TeamManage => role is not null && HasTeamManage(role),
                 TenantPermission.AuditRead => role is "owner" or "admin",
+                TenantPermission.ContactsRead => role is "owner" or "admin" or "agent" or "operator",
+                TenantPermission.ContactsWrite => role is "owner" or "admin" or "agent",
                 _ => false
             };
             if (permitted) return new(tenantId, transaction, null);
