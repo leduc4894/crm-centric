@@ -35,11 +35,11 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] }
     }
   ],
-  webServer: {
+  ...(process.env['CRM_REAL_OIDC_TEST'] === '1' ? {} : { webServer: {
     command: 'npm run dev',
     cwd: repositoryRoot,
     url: 'http://localhost:5173/',
     reuseExistingServer: false,
     timeout: 120_000
-  }
+  } })
 });

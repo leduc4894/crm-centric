@@ -1,0 +1,11 @@
+# Wave 1 Plan 2 planning handoff — 2026-11-18
+
+Objective: write the next implementation plan after Plan 1. User requested planning only. Plan: [tenant and membership lifecycle](../superpowers/plans/2026-11-18-wave-1-plan-2-tenant-membership.md); scope and invariants come from [delivery map](../superpowers/plans/2026-11-15-wave-1-delivery.md), [design](../superpowers/specs/2026-11-15-wave-1-identity-tenancy-design.md), [P0 access](../architecture/07-P0-ACCESS-AND-STATE.md) and [OpenAPI](../contracts/crm-api.openapi.yaml).
+
+Verified `main` HEAD `9f4214b`, 13 commits ahead of origin/main, matching [local merge handoff](2026-11-18-wave-1-merge-handoff.md). Existing Plan 1 code implements token auth, membership lookup/transaction and tenant list; `inactive` is the DB status while contract specifies `revoked`. Plan 2 maps these explicitly without changing existing storage or wire contract. Plan requires transactional audit now for each mutation, rather than deferring audit until invite work; includes serializing membership mutations, last-owner protection, provisioner scope, version/ETag, RLS and test cases. Plan documents app DB credential trust limitations and unresolved historical intermittent Compose startup failure. No new deployment or push is authorized by this planning request.
+
+Changed files this session: new Plan 2 and this handoff only. Existing untracked Nov 15/16/18 handoffs and Wave 1 plan/spec files preserved. No application, contract, migration, dependency or test changes. No commit; no runtime tests run (documentation-only). Validation: relative Markdown links PASS; `git diff --check` PASS (documentation-only). Next: review plan and, when instructed to execute, check current branch and prerequisites, then follow RED/GREEN sequentially. Hosted CI, browser login, Wave 1 exit and P0 remain open.
+
+## Documentation commit
+
+User explicitly requested committing the documentation. The commit includes the eight previously untracked Wave 1 handoffs, delivery map, plans and design; it does not include application changes. Starting branch `main`, HEAD `9f4214b`, ahead of `origin/main` by 13. No push, hosted CI or runtime tests in this documentation-only action. The commit itself records the resulting SHA; check `git log -1` and `git status` for current state. Next: review and execute Plan 2 when requested; Wave 1/P0 remain open.

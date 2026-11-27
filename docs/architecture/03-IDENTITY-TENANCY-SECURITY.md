@@ -8,6 +8,12 @@
 - For backend to backend use client credentials + scoped tokens; never reuse end-user access token as service credential.
 - MFA for admins; session termination, recovery, refresh token policies delegated to IdP.
 
+### Invitation email evidence
+
+The API supports the Keycloak access-token payload profile for implemented Wave 1 tenant, membership, invitation and tenant audit routes. Configure the trusted issuer to supply one signed payload member `typ` with the exact string `Bearer` exclusively on access tokens. Reserve that value at the issuer. Clients and user attributes must have no mapping that can set it on ID tokens. The JOSE header type and the HTTP authorization scheme do not identify token purpose. A managed issuer must provide the same signed access-token-only discriminator to support these routes. This is a behavioral breaking change; see [ADR-019](09-ADR-019-ACCESS-TOKEN-PROFILE.md) for migration and rollback.
+
+Include one scalar `email` string and one JSON boolean `email_verified` set to true, sourced from the issuer's verified address. Preserve local-part case and lowercase the ASCII domain when comparing addresses. An ID token, absent type or ambiguous claim supplies no invitation email evidence even when the signer and audience match. Stable staff identity remains the validated issuer and subject.
+
 ## Multi-tenancy
 - All domain rows carry `tenant_id` (except global platform registry), all query paths require verified tenant context.
 - Unique constraints include tenant_id where appropriate; enforce IDOR prevention in service and SQL queries.

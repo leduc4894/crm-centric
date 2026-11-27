@@ -16,7 +16,7 @@ public sealed class MigrationTests : IAsyncLifetime
     public Task DisposeAsync() => database.DisposeAsync();
 
     [Fact]
-    public async Task Up_creates_only_technical_schema_and_history()
+    public async Task Up_creates_platform_schema_and_history()
     {
         Assert.Equal(0, (await MigratorProcess.RunAsync(database.MigrationConnectionString, database.ApplicationRole)).ExitCode);
         await AssertHistoryAsync();
@@ -47,7 +47,7 @@ public sealed class MigrationTests : IAsyncLifetime
         await AssertHistoryCountAsync(connection, 0);
         await AssertSentinelAsync(connection);
         Assert.Equal(0, (await MigratorProcess.RunAsync(database.MigrationConnectionString, database.ApplicationRole)).ExitCode);
-        await AssertHistoryCountAsync(connection, 1);
+        await AssertHistoryCountAsync(connection, 5);
         await AssertSentinelAsync(connection);
     }
 
@@ -125,22 +125,24 @@ public sealed class MigrationTests : IAsyncLifetime
         await using (var reader = await schemas.ExecuteReaderAsync())
         {
             Assert.True(await reader.ReadAsync());
+            Assert.Equal("audit", reader.GetString(0));
+            Assert.True(await reader.ReadAsync());
             Assert.Equal("platform", reader.GetString(0));
             Assert.True(await reader.ReadAsync());
             Assert.Equal("public", reader.GetString(0));
             Assert.False(await reader.ReadAsync());
         }
-        await using var tables = new NpgsqlCommand("SELECT schemaname || '.' || tablename FROM pg_tables WHERE schemaname NOT IN ('pg_catalog', 'information_schema')", connection);
+        await using var tables = new NpgsqlCommand("SELECT tablename FROM pg_tables WHERE schemaname='platform' ORDER BY tablename", connection);
         await using (var reader = await tables.ExecuteReaderAsync())
         {
-            Assert.True(await reader.ReadAsync());
-            Assert.Equal("platform.__EFMigrationsHistory", reader.GetString(0));
-            Assert.False(await reader.ReadAsync());
+            var names = new List<string>();
+            while (await reader.ReadAsync()) names.Add(reader.GetString(0));
+            Assert.Equal(new[] { "__EFMigrationsHistory", "invites", "memberships", "staff_bindings", "tenants" }, names);
         }
-        await using var history = new NpgsqlCommand("SELECT \"MigrationId\" FROM platform.\"__EFMigrationsHistory\"", connection);
+        await using var history = new NpgsqlCommand("SELECT \"MigrationId\" FROM platform.\"__EFMigrationsHistory\" ORDER BY \"MigrationId\"", connection);
         await using var rows = await history.ExecuteReaderAsync();
-        Assert.True(await rows.ReadAsync());
-        Assert.Equal("20261108144703_InitialPlatformInfrastructure", rows.GetString(0));
-        Assert.False(await rows.ReadAsync());
+        var migrations = new List<string>();
+        while (await rows.ReadAsync()) migrations.Add(rows.GetString(0));
+        Assert.Equal(new[] { "20261108144703_InitialPlatformInfrastructure", "20261116000000_TenantFoundation", "20261118000000_TenantLifecycle", "20261118010000_VerifiedStaffBindings", "20261126000000_Invitations" }, migrations);
     }
 }

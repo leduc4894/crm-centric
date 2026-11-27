@@ -1,7 +1,11 @@
 using System.Net;
+using System.Text;
+using System.Text.Json;
 using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.DependencyInjection;
@@ -14,8 +18,20 @@ namespace Integration.Fixtures;
 public sealed record FakeTokenOptions
 {
     public string? IssuerOverride { get; init; }
+    public bool OmitIssuer { get; init; }
     public string Audience { get; init; } = "crm-api";
     public string Subject { get; init; } = "fixture-user";
+    public string? Scope { get; init; }
+    public object? PayloadType { get; init; } = "Bearer";
+    public bool DuplicatePayloadType { get; init; }
+    public bool IncludeVerifiedEmail { get; init; }
+    public bool DuplicateEmail { get; init; }
+    public bool DuplicateVerification { get; init; }
+    public object Email { get; init; } = "Alice@Example.COM";
+    public object Verification { get; init; } = true;
+    public string? Role { get; init; }
+    public bool OmitSubject { get; init; }
+    public bool OmitExpiration { get; init; }
     public DateTimeOffset? IssuedAt { get; init; }
     public DateTimeOffset? NotBefore { get; init; }
     public DateTimeOffset? Expires { get; init; }
@@ -28,6 +44,10 @@ public sealed class FakeOidcIssuer : IAsyncDisposable
     private readonly List<SigningKey> signingKeys = [];
     private readonly JsonWebTokenHandler tokenHandler = new() { SetDefaultTimesOnTokenCreation = false };
     private bool disposed;
+    private int redirectTargetHits;
+    private int discoveryHits;
+    public int DiscoveryHits => Volatile.Read(ref discoveryHits);
+    public int RedirectTargetHits => Volatile.Read(ref redirectTargetHits);
 
     private FakeOidcIssuer(WebApplication application)
     {
@@ -38,26 +58,37 @@ public sealed class FakeOidcIssuer : IAsyncDisposable
     public Uri Issuer { get; private set; } = null!;
     public Uri JwksUri => new(Issuer, ".well-known/jwks.json");
 
-    public static async Task<FakeOidcIssuer> StartAsync(CancellationToken cancellationToken = default)
+    public static async Task<FakeOidcIssuer> StartAsync(CancellationToken cancellationToken = default, bool redirectDiscovery = false, X509Certificate2? tlsCertificate = null, Uri? redirectUri = null, bool bindAny = false, string? publicHost = null)
     {
         var builder = WebApplication.CreateSlimBuilder();
         builder.Logging.ClearProviders();
-        builder.WebHost.ConfigureKestrel(server => server.Listen(IPAddress.Loopback, 0));
+        builder.WebHost.ConfigureKestrel(server => server.Listen(bindAny ? IPAddress.Any : IPAddress.Loopback, 0, options =>
+        {
+            if (tlsCertificate is not null) options.UseHttps(tlsCertificate);
+        }));
         var application = builder.Build();
         FakeOidcIssuer? fixture = null;
         try
         {
             fixture = new FakeOidcIssuer(application);
-            application.MapGet("/.well-known/openid-configuration", () => new
+            application.MapGet("/.well-known/openid-configuration", () =>
             {
-                issuer = fixture.Issuer.AbsoluteUri,
-                jwks_uri = fixture.JwksUri.AbsoluteUri
+                Interlocked.Increment(ref fixture.discoveryHits);
+                return redirectDiscovery
+                    ? Results.Redirect(redirectUri?.AbsoluteUri ?? "/redirect-target")
+                    : Results.Json(new { issuer = fixture.Issuer.AbsoluteUri, jwks_uri = fixture.JwksUri.AbsoluteUri });
+            });
+            application.MapGet("/redirect-target", () =>
+            {
+                Interlocked.Increment(ref fixture.redirectTargetHits);
+                return Results.Json(new { issuer = fixture.Issuer.AbsoluteUri, jwks_uri = fixture.JwksUri.AbsoluteUri });
             });
             application.MapGet("/.well-known/jwks.json", () => new { keys = fixture.PublicKeys() });
             await application.StartAsync(cancellationToken);
             var addresses = application.Services.GetRequiredService<IServer>()
                 .Features.Get<IServerAddressesFeature>()!;
-            fixture.Issuer = new Uri(addresses.Addresses.Single());
+            var address = new Uri(addresses.Addresses.Single());
+            fixture.Issuer = publicHost is null ? address : new UriBuilder(address) { Host = publicHost }.Uri;
             return fixture;
         }
         catch
@@ -76,16 +107,55 @@ public sealed class FakeOidcIssuer : IAsyncDisposable
         {
             ObjectDisposedException.ThrowIf(disposed, this);
             var now = DateTimeOffset.UtcNow;
-            return tokenHandler.CreateToken(new SecurityTokenDescriptor
+            var claims = new Dictionary<string, object>();
+            if (!options.OmitSubject) claims["sub"] = options.Subject;
+            if (options.PayloadType is not null) claims["typ"] = options.PayloadType;
+            if (options.IncludeVerifiedEmail)
             {
-                Issuer = options.IssuerOverride ?? Issuer.AbsoluteUri,
+                claims["email"] = options.Email;
+                claims["email_verified"] = options.Verification;
+            }
+            if (options.Scope is not null) claims["scope"] = options.Scope;
+            if (options.Role is not null) claims["role"] = options.Role;
+            var encoded = tokenHandler.CreateToken(new SecurityTokenDescriptor
+            {
+                Issuer = options.OmitIssuer ? null : options.IssuerOverride ?? Issuer.AbsoluteUri,
                 Audience = options.Audience,
-                Claims = new Dictionary<string, object> { ["sub"] = options.Subject },
+                Claims = claims,
                 IssuedAt = (options.IssuedAt ?? now.AddMinutes(-1)).UtcDateTime,
                 NotBefore = (options.NotBefore ?? now.AddMinutes(-1)).UtcDateTime,
-                Expires = (options.Expires ?? now.AddMinutes(5)).UtcDateTime,
+                Expires = options.OmitExpiration ? null : (options.Expires ?? now.AddMinutes(5)).UtcDateTime,
                 SigningCredentials = new SigningCredentials(signingKeys[^1].SecurityKey, SecurityAlgorithms.RsaSha256)
             });
+            if (!options.DuplicateEmail && !options.DuplicateVerification && !options.DuplicatePayloadType) return encoded;
+
+            var token = new JsonWebToken(encoded);
+            using var payload = JsonDocument.Parse(Base64UrlEncoder.DecodeBytes(token.EncodedPayload));
+            using var bytes = new MemoryStream();
+            using (var writer = new Utf8JsonWriter(bytes))
+            {
+                writer.WriteStartObject();
+                foreach (var claim in payload.RootElement.EnumerateObject())
+                {
+                    claim.WriteTo(writer);
+                    if ((options.DuplicatePayloadType && claim.NameEquals("typ")) ||
+                        (options.DuplicateEmail && claim.NameEquals("email")) ||
+                        (options.DuplicateVerification && claim.NameEquals("email_verified")))
+                        claim.WriteTo(writer);
+                }
+                writer.WriteEndObject();
+            }
+            return tokenHandler.CreateToken(Encoding.UTF8.GetString(bytes.ToArray()),
+                new SigningCredentials(signingKeys[^1].SecurityKey, SecurityAlgorithms.RsaSha256));
+        }
+    }
+
+    public byte[] PublicKeyBytes()
+    {
+        lock (keyLock)
+        {
+            ObjectDisposedException.ThrowIf(disposed, this);
+            return signingKeys[^1].Rsa.ExportSubjectPublicKeyInfo();
         }
     }
 

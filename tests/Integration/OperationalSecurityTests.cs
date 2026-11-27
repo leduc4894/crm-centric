@@ -154,7 +154,7 @@ public sealed class OperationalSecurityTests
         public override Task<DatabaseReadinessResult> CheckAsync(CancellationToken cancellationToken) => throw new InvalidOperationException(secret);
     }
 
-    private sealed class Capture : ILoggerProvider
+    internal sealed class Capture : ILoggerProvider
     {
         private readonly ConcurrentQueue<string> entries = new();
         public string Text => string.Join("\n", entries);

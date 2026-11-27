@@ -26,7 +26,32 @@ public sealed class ComposeFixture : IAsyncDisposable
         public string SafeDiagnostic => string.Join(", ", Output.Split('\n', StringSplitOptions.RemoveEmptyEntries).Select(line =>
         { try { using var json = JsonDocument.Parse(line); return json.RootElement.ValueKind == JsonValueKind.Object && json.RootElement.TryGetProperty("reasonToken", out var token) && token.ValueKind == JsonValueKind.String ? token.GetString() : "status"; } catch (JsonException) { return "non-json diagnostic"; } }));
     }
-    public static void Success(Result result, string stage = "operation") => Assert.True(result.ExitCode == 0, stage + ": " + result.SafeDiagnostic);
+    public static void Success(Result result, string stage = "operation")
+    {
+        if (stage is "COMPOSE_TLS_STARTUP_FAILED" or "COMPOSE_TLS_DISCOVERY_FAILED" or "COMPOSE_TLS_MANAGEMENT_FAILED")
+        {
+            if (result.ExitCode != 0)
+            {
+                var timeout = false;
+                foreach (var line in result.Output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                {
+                    try
+                    {
+                        using var json = JsonDocument.Parse(line);
+                        if (json.RootElement.ValueKind == JsonValueKind.Object
+                            && json.RootElement.TryGetProperty("reasonToken", out var reason)
+                            && reason.ValueKind == JsonValueKind.String
+                            && reason.ValueEquals("LOCAL_START_TIMEOUT")) timeout = true;
+                    }
+                    catch (JsonException) { /* Non-JSON lines are ignored; the stage failure remains reported. */ }
+                }
+                var cause = timeout ? " cause=LOCAL_START_TIMEOUT" : "";
+                Assert.Fail($"reasonToken={stage} correlationId={Guid.NewGuid():N}{cause}");
+            }
+            return;
+        }
+        Assert.True(result.ExitCode == 0, stage + ": " + result.SafeDiagnostic);
+    }
     private static string FindRoot() { var d = new DirectoryInfo(AppContext.BaseDirectory); while (d is not null && !File.Exists(Path.Combine(d.FullName, "CrmPlatform.sln"))) d = d.Parent; return d?.FullName ?? throw new InvalidOperationException(); }
     public ProcessStartInfo CommandInfo(string action, string? state = null, string? root = null, int? startTimeout = null)
     {
@@ -119,18 +144,20 @@ public sealed class ComposeFixture : IAsyncDisposable
         if (arguments[0] == "run" && Environment.GetEnvironmentVariable("CI_IMAGE_EVIDENCE") is not null)
         {
             var capture = await ContainerImages.Docker(false, arguments);
-            return new(capture.ExitCode, capture.Output + capture.Error);
+            return new(capture.ExitCode, capture.Output + (capture.ExitCode == 0 ? "" : capture.Error));
         }
         var p = new ProcessStartInfo("docker") { RedirectStandardOutput = true, RedirectStandardError = true };
         foreach (var arg in arguments) p.ArgumentList.Add(arg);
-        return await Run(p, 120);
+        return await Run(p, 120, stdoutOnSuccess: arguments[0] == "run");
     }
-    private static async Task<Result> Run(ProcessStartInfo info, int timeout)
+    private static async Task<Result> Run(ProcessStartInfo info, int timeout, bool stdoutOnSuccess = false)
     {
         using var p = Process.Start(info)!; var stdout = p.StandardOutput.ReadToEndAsync(); var stderr = p.StandardError.ReadToEndAsync();
         try { await p.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(timeout)); }
         catch { p.Kill(true); throw; }
-        return new(p.ExitCode, await stdout + await stderr);
+        var output = await stdout;
+        var error = await stderr;
+        return new(p.ExitCode, output + (stdoutOnSuccess && p.ExitCode == 0 ? "" : error));
     }
     public async Task<string> Container(string service)
     {
@@ -167,7 +194,8 @@ public sealed class ComposeFixture : IAsyncDisposable
         Success(await Command("smoke"));
         foreach (var s in new[] { "crm-db", "idp-db", "crm-api", "keycloak" }) Assert.Equal("healthy", (await Inspect(s)).GetProperty("State").GetProperty("Health").GetProperty("Status").GetString());
         foreach (var s in new[] { "crm-bootstrap", "crm-migrate" }) Assert.Equal(0, (await Inspect(s)).GetProperty("State").GetProperty("ExitCode").GetInt32());
-        Assert.Equal("1", await Sql("SELECT count(*) FROM platform.\"__EFMigrationsHistory\""));
+        Assert.Equal("5", await Sql("SELECT count(*) FROM platform.\"__EFMigrationsHistory\""));
+        Assert.Equal("5", await Sql("SELECT count(*) FROM platform.\"__EFMigrationsHistory\" WHERE \"MigrationId\" IN ('20261108144703_InitialPlatformInfrastructure', '20261116000000_TenantFoundation', '20261118000000_TenantLifecycle', '20261118010000_VerifiedStaffBindings', '20261126000000_Invitations')"));
     }
     public async ValueTask DisposeAsync()
     {
@@ -187,6 +215,7 @@ public sealed class ComposeFixture : IAsyncDisposable
             Assert.Equal(0, (await Docker("image", "rm", image)).ExitCode);
         }
         if (Directory.Exists(State)) Directory.Delete(State, true);
+        if (Directory.Exists(State + ".tls")) Directory.Delete(State + ".tls", true);
         File.Delete(State + ".stack.json");
     }
 }

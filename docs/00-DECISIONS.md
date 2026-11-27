@@ -20,6 +20,7 @@
 | ADR-016 | Mỗi domain có source of truth | Tránh ghi đè/xung đột | Có rule mapping + reconciliation |
 | ADR-017 | Docker Compose cho dev, IaC cho prod | Phù hợp solo dev | HA và Kubernetes để sau |
 | [ADR-018](architecture/08-ADR-018-P0-CONTRACT-BASELINE.md) | P0 contract baseline: manifest v2, inbox identity, webhook framing, bounded DSL, error/concurrency và durability envelope | Khép gaps trước runtime | Pre-release migration/consumer fixtures; runtime gates vẫn mở |
+| [ADR-019](architecture/09-ADR-019-ACCESS-TOKEN-PROFILE.md) | Wave 1 identity APIs require issuer-reserved signed access-token purpose | Prevent same-audience ID-token authorization | Behavioral break; issuer and consumer migration before rollout |
 
 ## Ràng buộc không được phá vỡ
 1. Module chạy khác host phải hoạt động; không được dùng local disk, shared database hay reference assembly nội bộ CRM.

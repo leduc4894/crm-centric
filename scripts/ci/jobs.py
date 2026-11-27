@@ -24,6 +24,20 @@ def verify_versions(actual):
 class JobError(Exception):
     def __init__(self, token): self.token = token
 
+def merge_browser_evidence(regular, provider):
+    from scripts.ci.summary import parse_cases
+    regular_cases = parse_cases('playwright', regular)
+    provider_cases = parse_cases('playwright', provider)
+    expected = 'browser-oidc.spec.ts::real provider signs in isolated tenants and terminates provider session::chromium'
+    if len(provider_cases) != 1 or provider_cases[0] != {'id': expected, 'outcome': 'passed'}:
+        raise ReportError('CI_DISCOVERY_INCOMPLETE')
+    cases = regular_cases + provider_cases
+    if len({case['id'] for case in cases}) != len(cases):
+        raise ReportError('CI_DISCOVERY_INCOMPLETE')
+    counters = ('expected', 'unexpected', 'skipped', 'flaky')
+    return {'errors': [], 'stats': {key: regular['stats'][key] + provider['stats'][key] for key in counters},
+            'suites': regular['suites'] + provider['suites']}
+
 def stop_process_group(process, grace=1):
     """Signal only the session created for this exact command, including descendants."""
     try:
@@ -89,6 +103,37 @@ def plan3_failure_diagnostic(stdout, stderr):
         if len(observed)==1: reason=observed[0]
     return {'plan3Step':step,'plan3Reason':reason}
 
+# These public identifiers are reviewed source names, not arbitrary test output.
+_COMPOSE_FAILURE_METHODS = {
+    'LocalStackTests': frozenset((
+        'Existing_v1_stack_migrates_tls_without_losing_data_and_rejects_missing_tls_afterwards',
+        'Api_uses_trusted_tls_backchannel_with_unchanged_public_issuer',
+        'Cold_up_needs_no_host_sdk', 'Warm_up_revalidates_oneshots_and_preserves_data',
+        'Down_up_keeps_secrets_volumes_and_realm', 'Sql_and_secret_mount_boundaries_hold',
+    )),
+    'LocalStackFailureTests': frozenset((
+        'Crm_db_outage_recovers_same_api_instance', 'Idp_outage_does_not_change_crm_readiness',
+        'Bootstrap_and_migration_failure_block_new_api', 'Partial_init_retry_and_mismatched_secrets_are_safe',
+        'Realm_drift_is_not_overwritten', 'Foreign_listener_cannot_supply_smoke_success',
+        'Concurrent_lifecycle_is_rejected_including_distinct_state_paths',
+        'Parallel_projects_do_not_share_resources', 'Shutdown_is_bounded',
+    )),
+    'LocalStackSecretTests': frozenset(('Secrets_and_request_sentinels_are_absent_across_success_and_failure',)),
+}
+
+
+def _compose_failure_records(text):
+    # Bind the class and method to one complete xUnit failure record. Free-form
+    # diagnostic text must never be interpreted as another failing test.
+    name = r'Integration\.Compose\.(LocalStackTests|LocalStackFailureTests|LocalStackSecretTests)\.([A-Za-z0-9_]+)'
+    xunit = re.compile(r'^\s*(?:\[xUnit\.net [^\]\r\n]{1,40}\]\s+)?' + name + r'\s+\[FAIL\]\s*$')
+    summary = re.compile(r'^\s*Failed\s+' + name + r'(?:\s+\[[^\]\r\n]{1,32}\])?\s*$')
+    for line in text.splitlines():
+        found = xunit.fullmatch(line) or summary.fullmatch(line)
+        if found:
+            yield found.group(1), found.group(2)
+
+
 def dotnet_failure_diagnostic(stdout, stderr):
     """Project only known integration-test families from private test output."""
     text = (stdout + b'\n' + stderr).decode('utf-8', errors='replace')
@@ -104,6 +149,37 @@ def dotnet_failure_diagnostic(stdout, stderr):
         if (re.search(rf'Integration\.{escaped}\.[^\r\n]*\[FAIL\]',text)
                 or re.search(rf'Failed Integration\.{escaped}\.',text)):
             matches.append(re.sub(r'(?<!^)(?=[A-Z])','_',name).upper()+'_FAILED')
+    compose_families = {family for family, _ in _compose_failure_records(text)}
+    for name, token in (
+        ('LocalStackTests', 'COMPOSE_LOCAL_STACK_TESTS_FAILED'),
+        ('LocalStackFailureTests', 'COMPOSE_LOCAL_STACK_FAILURE_TESTS_FAILED'),
+        ('LocalStackSecretTests', 'COMPOSE_LOCAL_STACK_SECRET_TESTS_FAILED'),
+    ):
+        if name in compose_families:
+            matches.append(token)
+    # Only a Compose failure's own xUnit error-message line may establish its
+    # startup timeout; unrelated log lines must not be attributed to the test.
+    lines = text.splitlines()
+    for index, line in enumerate(lines[:-2]):
+        if not re.match(r'^\s*Failed\s+Integration\.Compose\.', line):
+            continue
+        if not next(_compose_failure_records(line), None) or lines[index + 1].strip() != 'Error Message:':
+            continue
+        detail_line = lines[index + 2].strip()
+        stage, separator, detail = detail_line.partition(': ')
+        if separator and stage in ('operation', 'initial startup') and 'LOCAL_START_TIMEOUT' in detail.split(', '):
+            if 'LOCAL_START_TIMEOUT' not in matches:
+                matches.append('LOCAL_START_TIMEOUT')
+        record = next(_compose_failure_records(line), None)
+        if record == ('LocalStackTests', 'Api_uses_trusted_tls_backchannel_with_unchanged_public_issuer'):
+            safe_stage = re.fullmatch(
+                r'reasonToken=(COMPOSE_TLS_STARTUP_FAILED|COMPOSE_TLS_DISCOVERY_FAILED|COMPOSE_TLS_MANAGEMENT_FAILED) '
+                r'correlationId=[0-9a-f]{32}( cause=LOCAL_START_TIMEOUT)?', detail_line)
+            if safe_stage:
+                if safe_stage.group(1) not in matches:
+                    matches.append(safe_stage.group(1))
+                if safe_stage.group(2) and safe_stage.group(1) == 'COMPOSE_TLS_STARTUP_FAILED' and 'LOCAL_START_TIMEOUT' not in matches:
+                    matches.append('LOCAL_START_TIMEOUT')
     if 'Container operation failed: build exit 1' in text:
         matches.append('CONTAINER_IMAGE_BUILD_FAILED')
     process_failures = {
@@ -144,6 +220,8 @@ def dotnet_failure_methods(stdout, stderr):
         if '[FAIL]' not in line: continue
         found=re.search(r'Integration\.(?:ContainerRuntimeTests|KeycloakContainerTests)\.([A-Za-z0-9_]+)',line)
         if found and found.group(1) in allowed and found.group(1) not in observed: observed.append(found.group(1))
+    for family, name in _compose_failure_records(text):
+        if name in _COMPOSE_FAILURE_METHODS[family] and name not in observed: observed.append(name)
     return observed or ['OTHER']
 
 
@@ -163,11 +241,41 @@ def execute(command, timeout=3300, env=None):
         stop_process_group(process)
         process.communicate()
         raise
+    review_output = b''
+    if tuple(command[:2]) == (sys.executable, 'scripts/contracts/compatibility.py') and process.returncode == 0:
+        review_output = stdout
+    elif tuple(command[:2]) == ('bash', 'scripts/check-plan3.sh'):
+        sections = re.findall(rb'^===== compatibility: [^\r\n]* \(exit 0, [0-9]+s\) =====\r?\n(.*?)(?=^===== |\Z)',
+                              stdout, re.MULTILINE | re.DOTALL)
+        if len(sections) == 1:
+            review_output = sections[0]
+    if len(review_output) <= 1024 * 1024:
+        for line in review_output.splitlines():
+            try:
+                result = json.loads(line)
+                review = result.get('securityReview', {})
+                if (result.get('reason') == 'CONTRACT_BREAKING_REVIEWED'
+                        and review.get('basis') == 'maintainer-reviewed-adr-019'
+                        and review.get('independentVerification') is False):
+                    print(json.dumps({'reasonToken': 'CONTRACT_BREAKING_REVIEWED',
+                                      'basis': 'maintainer-reviewed-adr-019',
+                                      'independentVerification': False}))
+                    break
+            except (ValueError, TypeError, AttributeError, RecursionError):
+                continue
     if process.returncode:
         # Fixed command families only: never echo argv, paths or child output.
         stages={('dotnet','restore'):'dotnet-restore',('dotnet','build'):'dotnet-build',
                 ('dotnet','test'):'dotnet-test',('npm','ci'):'npm-install',
                 ('docker','pull'):'image-pull',('bash','scripts/check-plan3.sh'):'plan3',
+                (sys.executable,'scripts/contracts/check.py'):'contract-generated-check',
+                ('bash','tests/ClientConsumers/run.sh'):'contract-consumers',
+                (sys.executable,'scripts/contracts/compatibility.py'):'contract-compatibility',
+                ('bash','tests/Plan3/aggregate-reporting.sh'):'plan3-aggregate-reporting',
+                ('bash','tests/Plan3/ci-environment.sh'):'plan3-ci-environment',
+                ('bash','tests/Plan3/clean-export.sh'):'plan3-clean-export',
+                ('bash','tests/Plan3/negative-cases.sh'):'plan3-negative-cases',
+                ('bash','tests/Plan3/scratch-cleanup.sh'):'plan3-scratch-cleanup',
                 (sys.executable,'-m'):'python-suite',('node','-e'):'browser-launch'}
         stage=stages.get(tuple(command[:2]),'other')
         diagnostic={'reasonToken':'CI_COMMAND_FAILED','commandStage':stage}
@@ -369,17 +477,23 @@ def main():
                     for command in plan3_commands(identity,args.mode):
                         execute(command)
                 else:
-                    vitest = scratch/'vitest.json'; browser = scratch/'browser.json'
+                    vitest = scratch/'vitest.json'; browser = scratch/'browser.json'; provider = scratch/'provider.json'
                     env = {**os.environ,'PLAYWRIGHT_JSON_OUTPUT_NAME':str(browser),
-                           'PLAYWRIGHT_HTML_OPEN':'never'}
+                           'PLAYWRIGHT_HTML_OPEN':'never', 'CI_PLAYWRIGHT_SPLIT':'1'}
                     # Plan 3 owns real API stack startup, readiness and teardown.
                     # Reporter args are supplied through the workspace-local npm config below.
                     execute(['bash','scripts/check-plan3.sh','--base-ref',identity.base_sha,'--with-browser']+(['--mvp-reviewed-policy'] if args.mode=='mvp' else []),env=env)
+                    provider_env = {**os.environ, 'PLAYWRIGHT_JSON_OUTPUT_NAME':str(provider),
+                                    'PLAYWRIGHT_HTML_OPEN':'never', 'CRM_REAL_OIDC_TEST':'1'}
+                    execute(['npm','exec','--workspace','apps/crm-web','--','playwright','test',
+                             'tests/e2e/browser-oidc.spec.ts','--project=chromium',
+                             '--grep','real provider signs in isolated tenants and terminates provider session'],env=provider_env)
                     execute(['npm','exec','--workspace','apps/crm-web','--','vitest','run',
                              '--reporter=json','--outputFile='+str(vitest)])
                     report['suites'].extend([
                         {'name':'vitest','format':'vitest','report':json.loads(vitest.read_text())},
-                        {'name':'browser','format':'playwright','report':json.loads(browser.read_text())}])
+                        {'name':'browser','format':'playwright','report':merge_browser_evidence(
+                            json.loads(browser.read_text()), json.loads(provider.read_text()))}])
             if args.mode=='hardening' and args.job in ('backend','compose','web-browser'):
                 from scripts.ci.image_identity import verify_job_evidence
                 from scripts.ci.scan import ScanError

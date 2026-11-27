@@ -10,7 +10,14 @@ public sealed class ApiFactory(IReadOnlyDictionary<string, string?> configuratio
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(configuration));
+        builder.UseEnvironment("Testing");
+        builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Oidc:Issuer"] = "http://127.0.0.1:1/",
+            ["Oidc:Audience"] = "crm-api",
+            ["Oidc:MetadataAddress"] = "http://127.0.0.1:1/.well-known/openid-configuration",
+            ["Oidc:AllowHttpLoopback"] = "true"
+        }).AddInMemoryCollection(configuration));
         // Keep test configuration and any future dependency diagnostics out of test output.
         builder.ConfigureLogging(logging => logging.ClearProviders());
     }

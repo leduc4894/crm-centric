@@ -2,7 +2,7 @@
 
 > **Phạm vi CI MVP 2026-11-12:** áp dụng [quyết định Plan 4](09-WAVE-0-CI-MVP-SCOPE.md). W0P4 cũ có mục chuyển sang hardening; không suy diễn Wave 0 hoặc P0 đã pass. Các invariant và RT-* trong bảng vẫn giữ nguyên.
 
-**Contract tested** chỉ nghĩa shape/fixture đã kiểm tra. Mọi `RT-*` là test ID dự kiến, chưa có executable implementation, chưa pass. Gate chung: tenant isolation ở API+SQL/RLS+worker+replay.
+**Contract tested** chỉ nghĩa shape/fixture đã kiểm tra. Các `RT-*` là acceptance test ID; một số phần đã có executable tests như evidence bên dưới, nhưng các ID vẫn OPEN cho tới khi đủ phạm vi. Gate chung: tenant isolation ở API+SQL/RLS+worker+replay.
 
 | Story | Contract / invariant | Contract evidence hiện có | Runtime test ID cần xây | Wave / trạng thái |
 |---|---|---|---|---|
@@ -45,3 +45,151 @@
 Ghi commit SHA, command, pinned image/tool versions, environment/resources, fixture seed, pass/fail, redacted trace IDs, SQL assertions và artifact path. Load test có p95/error rate/sample count/warmup/duration; DR có last recoverable commit timestamp/downtime để tính RPO/RTO. Không chỉ ảnh UI.
 
 Không đóng wave/P0 bằng tài liệu này; cập nhật evidence sau mỗi wave exit và chạy suite theo AGENTS.md.
+
+## Wave 1 identity and tenant foundation — local evidence
+
+Implementation commits through `5ec82de` add bearer validation, restricted
+membership lookup, verified tenant transactions and the contract-compatible tenant
+list. Public OpenAPI and JSON Schema files have no diff from `40bc290`. PostgreSQL
+integration tests exercise RLS, connection-pool reset, membership revocation and
+role privilege checks; OIDC tests use a local fake issuer, including key rotation
+and transport rejection. Focused Task 4 regression: 39 passed, 0 failed, 0 skipped;
+contract shape tests: 27 passed, 0 failed, 0 skipped. Full Release integration suite on `d93b738`: 118 passed, 0 failed, 0 skipped (36.3245 minutes), using native SDK 10.0.403 and PostgreSQL Testcontainers. These are partial evidence,
+not complete RT-OIDC-01 or RT-TENANT-01: browser PKCE/logout, real-client audience,
+worker/replay isolation and full Wave 1/P0 acceptance remain open. The SQL bootstrap
+trust boundary and migration/rollback are documented in
+[IdP configuration](../operations/05-IDP-CONFIGURATION.md#wave-1-api-identity-and-tenant-foundation).
+
+Local Wave 0 workflow rehearsals with a simulated push identity (base `40bc290`,
+candidate `b7a8b21`) reported backend 127/127, contracts-sdk 88/88, web-browser
+58/58 and security 1/1 pass with no skips. The Compose job **failed** with
+`CI_COMMAND_FAILED`; a diagnostic run and a focused rerun reproduced
+`LOCAL_START_TIMEOUT` in the parallel-project isolation test. A later simulated
+push rehearsal on candidate `78038b5` passed Compose 16/16, 0 skipped, in
+1794.5 seconds. Both runs used real local Compose; no timeout or runtime change was
+made between failure and success. The timeout cause remains undetermined and the
+test remains a reliability concern. These local rehearsals do not replace a hosted
+CI run on the final candidate.
+
+## Wave 1 tenant lifecycle — local evidence
+
+On code commit `0b79061`, tenant provisioning and membership read/update use
+transactional audit and tenant-scoped authorization; a separately verified
+staff binding is required for `team.manage`. The application database credential
+is a trusted API credential and does not itself authenticate a caller-supplied
+issuer/subject. Real PostgreSQL focused regressions reported 37/37 for lifecycle,
+migrations, privilege and authorization; 22/22 for staff authorization and
+tenant isolation; 13/13 for provisioning and existing tenant endpoints; and
+38/38 for membership endpoints, authorization and isolation, with an additional
+signed service-owner denial test 1/1. Review fixes passed 7/7, including a real
+reader/writer deadlock and backend termination during commit; loss of a successful
+commit acknowledgement was not simulated. Nine real HTTP response examples were
+validated against the existing OpenAPI membership schemas. Some individual tests
+were added after implementation; complete per-behavior RED evidence is not claimed.
+
+The local security rehearsal on `81ecf23` failed `CI_SCAN_FINDINGS`: the required
+vulnerability scanner identified `CVE-2026-112366` in `picomatch` 4.0.7 as HIGH,
+with no fixed version in its result; gitleaks passed. [NVD](https://nvd.nist.gov/vuln/detail/CVE-2026-112366)
+reports affected versions through 4.0.7 and the [maintainer issue](https://github.com/micromatch/picomatch/issues/247)
+remains open. Advisory sources disagree; a separate Snyk advisory has been revoked.
+No exception or policy relaxation is implied. The earlier run without the prepared
+scanner path failed `CI_SCAN_INCOMPLETE`. These local tests do not close RT-IAM-01,
+RT-TENANT-01, Wave 1, P0 or hosted CI; invites, browser sessions and wider tenant
+and recovery acceptance remain open.
+
+Prepared full Contract unittest discovery passed 88/88 with no skips in 1439.065s;
+it began on `0b79061` and continued during a later source fix, so it does not prove
+a complete final-candidate gate. The earlier unprepared run failed 15 and skipped 7;
+its failed result is retained in the handoff. The final-code security rehearsal
+remains blocked as above.
+
+Full Release integration run started on `0b79061` finished FAIL: 180 passed,
+1 failed, 0 skipped (50.474 minutes). `Parallel_projects_do_not_share_resources`
+failed `LOCAL_START_TIMEOUT` while starting parallel Compose projects. Source
+changed during the run; it is not a final-tree result. The failure reproduces
+an earlier intermittent timeout; root cause has not been established.
+
+A separate local simulated `contracts-sdk` workflow rehearsal on `81ecf23` passed
+88/88, 0 skipped in 2507.26s (`CI_JOB_COMPLETE`); it is not hosted CI. A final-tree
+non-Compose integration regression is in progress and has reported a Keycloak
+management-health startup failure; no final count is claimed yet.
+
+Final-code Release non-Compose regression on `81ecf23` failed: 165 passed, 1 failed,
+0 skipped in 16.7393 minutes. `Keycloak_private_files_and_data_work_as_nonroot_with_management_health`
+failed because management health did not become ready. Startup log capture contained
+no ERROR, Exception, OOM or startup-complete markers; resource contention while the
+contract/browser rehearsal ran is possible but not established as the cause.
+
+Sequential focused diagnostics on `81ecf23`: Keycloak management-health test
+passed 1/1 (55.36 seconds) after the non-Compose failure; parallel Compose project
+test failed again 0/1 with `LOCAL_START_TIMEOUT` (3.2358 minutes). An independent
+two-stack diagnostic reproduced one timeout: both databases became healthy,
+both bootstrap/migration containers exited 0 and both APIs became healthy;
+one Keycloak exited 137 with Docker `OOMKilled=true`, while the other eventually
+became healthy. This establishes the cause for that diagnostic instance only,
+not every previous timeout. No timeout, runtime or security policy was changed.
+
+A subsequent sequential local `backend` workflow rehearsal on `1ca5f3a`
+(code unchanged from `81ecf23`; intervening commit is documentation) passed
+191/191 with 0 skipped in 848.16 seconds. The earlier 165/166 non-Compose failure
+remains recorded; the successful rerun does not establish its cause. This local
+simulation does not replace hosted CI.
+
+A sequential local `web-browser` rehearsal on `1ca5f3a` failed with
+`CI_COMMAND_FAILED` / `PLAN3_SOURCE_MUTATED` after 310.21 seconds, with no case
+counts. Documentation was edited during that rehearsal; a separate rerun on a
+clean committed candidate is required. The failure is retained as evidence.
+
+A clean-worktree local `web-browser` rehearsal on `0d932ab` (code unchanged
+from `81ecf23`) subsequently passed 58/58 with 0 skipped in 334.25 seconds.
+The preceding source-mutated rehearsal remains a failure; both runs are local
+simulations and do not establish hosted CI or browser OIDC acceptance.
+
+### Deferred security follow-up — 2026-11-18
+
+The user requested deferring further review of the locally maintained `picomatch`
+backport and security scanner findings. This is not a security exception and does
+not change the gate verdict: on candidate `054b6e0`, local security remained
+FAIL `CI_SCAN_FINDINGS` (one Trivy finding and 68 Gitleaks metadata records
+requiring revalidation after provenance changed). The backport has deliberately
+conservative compatibility effects and lacks a completed independent security
+review. No owner or return date was specified. Plan 2 exit and Wave 1/P0
+acceptance remain open until the required review and gate evidence are complete.
+Details and earlier passing and failing runs are in the
+[gate debugging handoff](../handoff/2026-11-18-gate-debug-handoff.md).
+
+### Security follow-up — 2026-11-26
+
+GitHub withdrew GHSA-fc5q-39xc-vjpf. The local security workflow on `48c3ff5` still failed with `CI_SCAN_FINDINGS`. Gitleaks verified 68 metadata records under the existing policy. A dependency-input diagnostic identified Trivy's HIGH finding as CVE-2026-115563 in `mcp` 1.29.0. Semgrep 1.185.0 pins that version and the attempted locked upgrade to 1.30.0 failed dependency resolution. The user elected to wait for an upstream fix. The security gate remains FAIL and the deferral grants no exception.
+
+### Wave 1 Plan 3 invitation and audit evidence
+
+The [Plan 3 handoff](../handoff/2026-11-26-wave-1-invites-audit-handoff.md) records signed-bearer and real PostgreSQL coverage for tenant isolation, invitation expiry, revoke/accept races, verified staff and email, atomic membership and audit, and a lost acknowledgement after durable commit. Local audit tests cover permission, tenant isolation and cursor pagination. RT-IAM-01 remains open for the browser OIDC flow, independent A/B sessions and the full token-security suite. Plan 2 exit and Wave 1/P0 acceptance remain open.
+
+The user directed that slice verification cover changed behavior and reserved the full suite and required workflows for Wave 1 exit. Signed-bearer, invitation and audit regressions on the final feature code passed 59/59. The full integration attempts on documentation candidate `bdf14a9` were cancelled, including the standalone clone run stopped at the user's request. This candidate has no complete integration result or workflow verdict. The [slice handoff](../handoff/2026-11-26-wave-1-invites-audit-handoff.md#final-slice-verification-scope) records earlier failures, targeted results and the checks that never started.
+
+
+### Wave 1 Plan 4 browser OIDC — focused local evidence
+
+The [browser E2E handoff](../handoff/2026-11-26-wave-1-browser-e2e-task-4-handoff.md)
+records a disposable real Keycloak/PostgreSQL/API Chromium run: code + S256 login for
+independent A/B accounts, tenant lists and selection, same-tenant API 200 and cross-tenant
+403, provider logout, state/replay, and selected outage, expiration and token-leak checks.
+Expiration was simulated using the browser clock. Browser history and callback ordering
+evidence is Chromium-only; the fixture's listener ownership check requires Linux. The
+[OIDC](../handoff/2026-11-26-wave-1-oidc-task-1-handoff.md),
+[tenant](../handoff/2026-11-26-wave-1-tenant-task-2-handoff.md) and
+[Keycloak](../handoff/2026-11-26-wave-1-keycloak-task-3-handoff.md) handoffs record
+focused unit, security and cold/warm realm verification.
+
+This evidence does not close RT-OIDC-01 or RT-TENANT-01: the full token-security suite,
+worker/replay isolation and Wave 1 exit checks remain open. P0 acceptance also still requires
+remote DemoModule E2E, concurrent duplicate, tenant isolation, outage/recovery and restore
+drills. The existing Semgrep security gate remains FAIL without a waiver; no full suite or
+required workflows were run in Plan 4.
+
+### Wave 1 final-candidate local exit — 2026-11-26
+
+Wave 1 remains **OPEN**, Wave 2 remains blocked by the work order, and P0 remains **OPEN**. On local candidate `ce177cf37e443a239dee90f94f224ad6b90c7af1`, the full integration run failed and aborted after a test-host crash, reporting 197 passed, 1 failed and 0 skipped before termination; the observed failure was a stack startup timeout; a later local Compose gate passed 16/16 without proving the timeout cause. Backend aborted, contracts and web-browser gates failed compatibility/security review, security failed `CI_SCAN_FINDINGS`, and the local aggregate failed `CI_DISCOVERY_INCOMPLETE`. The real Keycloak Chromium A/B test passed 1/1, frontend unit tests passed 116/116, and the browser suite passed 7 with one opt-in skip after its missing local-stack prerequisite was supplied; the real-provider skip passed separately. Initial failures remain recorded. These are local rehearsals, not hosted CI or production evidence. See the [exit gate table](11-WAVE-1-EXIT-VERIFICATION.md#final-candidate-exit-decision--2026-11-26) and [handoff](../handoff/2026-11-26-wave-1-exit-handoff.md).
+
+The current sanitized security scan blocks 70 Gitleaks observations and one Trivy finding; prior reviewed metadata must not be assumed valid for this candidate. The historical MCP deferral above remains in effect without a waiver. A separate full npm audit reported nine moderate development-chain findings involving minimatch; `npm audit --omit=dev` returned zero. Resolve or explicitly decide the actual findings under the applicable process; do not infer security acceptance. Remote DemoModule E2E, concurrent duplicate event handling, tenant isolation including future worker/replay, outage/recovery and restore drills remain required for P0.

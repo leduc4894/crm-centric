@@ -1,3 +1,5 @@
+import { TenantProvider } from './tenant/TenantProvider.tsx';
+import { TenantPicker } from './tenant/TenantPicker.tsx';
 import { HealthStatus } from './health/HealthStatus.tsx';
 
 /**
@@ -20,6 +22,7 @@ export function App() {
         </ul>
       </nav>
       <main>
+        <TenantProvider><TenantPicker /></TenantProvider>
         <HealthStatus />
       </main>
     </>

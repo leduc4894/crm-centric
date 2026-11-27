@@ -20,8 +20,22 @@
         "http://localhost:5173"
       ],
       "attributes": {
-        "pkce.code.challenge.method": "S256"
-      }
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:5173/"
+      },
+      "protocolMappers": [
+        {
+          "name": "crm-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "crm-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
     },
     {
       "clientId": "demo-module-local",

@@ -1,0 +1,28 @@
+# Wave 1 Plan 4 — focused verification handoff
+
+Objective: complete documentation, SDK provenance and focused verification for the [browser OIDC plan](../superpowers/plans/2026-11-26-wave-1-plan-4-browser-oidc.md) on `wave-1` per the user's instruction to run necessary focused tests only. The existing [Wave 1 spec](../superpowers/specs/2026-11-15-wave-1-identity-tenancy-design.md) remains authoritative. No public contract changed; selected tenant remains a UI choice and the API enforces authorization.
+
+Completed: updated [web setup](../../apps/crm-web/README.md), [IdP operations](../operations/05-IDP-CONFIGURATION.md) and [acceptance matrix](../engineering/03-ACCEPTANCE-MATRIX.md) for browser config, memory/session behavior, tenant proxy, production HTTPS/reverse-proxy/CSP limitations and actual focused real-provider evidence. Generated SDK provenance changed only four `provenance.json` configuration hashes after the root lockfile changed. No generated client source or contract changed. The user approved evaluating `oauth4webapi`; pinned 3.8.9 implements protocol validation with an application adapter and browser state held in memory. Login and logout were verified using a disposable real Keycloak/PostgreSQL/API stack; history and callback-order evidence is Chromium-specific and the fixture requires Linux `/proc`. The previous task handoffs record implementation and review details: [OIDC](2026-11-26-wave-1-oidc-task-1-handoff.md), [tenant](2026-11-26-wave-1-tenant-task-2-handoff.md), [Keycloak](2026-11-26-wave-1-keycloak-task-3-handoff.md) and [browser E2E](2026-11-26-wave-1-browser-e2e-task-4-handoff.md).
+
+Verification on Task 5 candidate, Node 24.22.2/npm 11.19.1 with local `.local/plan4-system-libs` library path:
+
+- `python3 scripts/contracts/generate.py`: PASS, `SDK_GENERATED`; `python3 scripts/contracts/check.py`: PASS, `SDK_GENERATED_CURRENT`.
+- `npm run typecheck`, `npm run lint`, `npm run build`: each PASS.
+- `npm exec --workspace @crm-centric/crm-web -- vitest run src/auth/oidcConfig.test.ts src/auth/authClient.test.ts src/auth/AuthProvider.test.tsx src/tenant/tenantClient.test.ts src/tenant/TenantProvider.test.tsx src/tenant/TenantPicker.test.tsx config/tenantProxy.test.ts config/devServer.test.ts config/healthProxy.test.ts src/health/healthClient.test.ts`: PASS 93/93 across 10 files.
+- `python3 -m unittest tests.Local.test_realm`: PASS 6/6.
+- Task 4 final code `e4f6a85`: `CRM_REAL_OIDC_TEST=1 npm exec --workspace @crm-centric/crm-web -- playwright test tests/e2e/browser-oidc.spec.ts --project=chromium --grep 'real provider signs'` PASS 1/1, as recorded in its handoff. Task 3 final warm regression at `93c13ab`: filtered real Keycloak test PASS 1/1; prior cold/warm tests PASS 2/2. These tests were not rerun during Task 5 because their code did not change.
+- `git diff --check`: PASS before commit preparation. Full suite, full workflows and security gate: NOT RUN per user direction.
+
+Limitations and next steps: independent final branch review remains required. Existing security gate remains FAIL due to the previously recorded Semgrep dependency finding; npm install reported nine moderate findings that have not been investigated. Production CSP must authorize the actual emitted callback script with a hash or nonce and account for Trusted Types; no production deployment was verified. Wave 1 and P0 acceptance remain OPEN, including the required exit suite/workflows and remote DemoModule, concurrency, tenant isolation, outage/recovery and restore drills.
+
+Branch `wave-1`; Task 5 began at `e4f6a85`. The commit containing this handoff identifies the final documentation and provenance changes. The pre-existing uncommitted branch-split and Plan 4 handoff modifications were preserved, not staged. No push or deployment. After the final review, record any findings and exact resulting commit, then perform remaining wave-exit work only when requested.
+
+
+## Documentation review repair
+
+The Task 5 review identified ambiguous proxy documentation: the health credential-stripping and
+header-forwarding behavior had been described as applying to every proxied path. The web README
+now distinguishes the health proxy from the separate tenant-list proxy and describes the headers
+each actually forwards. This is documentation-only; no runtime code changed. `git diff --check`
+and `git diff --cached --check`: PASS before commit. Runtime tests were not rerun because this
+repair changed documentation only. Independent scoped review remains next.

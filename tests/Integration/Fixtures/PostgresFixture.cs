@@ -6,15 +6,17 @@ using Xunit;
 
 namespace Integration.Fixtures;
 
-public sealed class PostgresFixture(bool stableHostPort = false) : IAsyncLifetime
+public sealed class PostgresFixture(bool stableHostPort = false, bool durableCommits = false) : IAsyncLifetime
 {
-    public PostgreSqlContainer Container { get; } = CreateContainer(stableHostPort);
+    public PostgreSqlContainer Container { get; } = CreateContainer(stableHostPort, durableCommits);
 
-    private static PostgreSqlContainer CreateContainer(bool stableHostPort)
+    private static PostgreSqlContainer CreateContainer(bool stableHostPort, bool durableCommits)
     {
         var builder = new PostgreSqlBuilder(
             ContainerImages.Pins["POSTGRES_IMAGE"])
             .WithPassword(Guid.NewGuid().ToString("N"));
+        if (durableCommits)
+            builder = builder.WithCommand("-c", "fsync=on", "-c", "synchronous_commit=on", "-c", "full_page_writes=on");
         if (Environment.GetEnvironmentVariable("CI_RESOURCE_OWNER") is { } owner)
             builder = builder.WithLabel("io.crm-centric.ci-owner", owner);
         if (stableHostPort)

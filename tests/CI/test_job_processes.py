@@ -109,6 +109,71 @@ class ProcessTests(unittest.TestCase):
             self.assertEqual(expected,json.loads(stream.getvalue()))
             self.assertNotIn('private',stream.getvalue())
 
+    def test_contract_commands_identify_failed_stage_without_exposing_output(self):
+        import contextlib, io, json
+        commands = [
+            ([sys.executable, 'scripts/contracts/check.py'], 'contract-generated-check'),
+            (['bash', 'tests/ClientConsumers/run.sh'], 'contract-consumers'),
+            ([sys.executable, 'scripts/contracts/compatibility.py', '--base-ref', 'private'], 'contract-compatibility'),
+            (['bash', 'tests/Plan3/aggregate-reporting.sh'], 'plan3-aggregate-reporting'),
+            (['bash', 'tests/Plan3/ci-environment.sh'], 'plan3-ci-environment'),
+            (['bash', 'tests/Plan3/clean-export.sh'], 'plan3-clean-export'),
+            (['bash', 'tests/Plan3/negative-cases.sh'], 'plan3-negative-cases'),
+            (['bash', 'tests/Plan3/scratch-cleanup.sh'], 'plan3-scratch-cleanup'),
+        ]
+        process = unittest.mock.Mock(returncode=1)
+        process.communicate.return_value = (b'private-output', b'private-error')
+        for command, stage in commands:
+            with self.subTest(stage=stage):
+                stream = io.StringIO()
+                with contextlib.redirect_stdout(stream), patch('scripts.ci.jobs.subprocess.Popen', return_value=process):
+                    with self.assertRaises(JobError): execute(command)
+                self.assertEqual({'reasonToken': 'CI_COMMAND_FAILED', 'commandStage': stage}, json.loads(stream.getvalue()))
+                self.assertNotIn('private', stream.getvalue())
+
+    def test_reviewed_contract_break_emits_safe_run_bound_diagnostic(self):
+        import contextlib, io, json
+        process = unittest.mock.Mock(returncode=0)
+        process.communicate.return_value = (json.dumps({
+            'reason': 'CONTRACT_BREAKING_REVIEWED',
+            'securityReview': {'basis': 'maintainer-reviewed-adr-019', 'independentVerification': False},
+            'private': 'do-not-emit'}).encode(), b'private-error')
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output), patch('scripts.ci.jobs.subprocess.Popen', return_value=process):
+            execute([sys.executable, 'scripts/contracts/compatibility.py'])
+        self.assertTrue(output.getvalue(), 'reviewed break diagnostic was not emitted')
+        self.assertEqual({'reasonToken': 'CONTRACT_BREAKING_REVIEWED',
+                          'basis': 'maintainer-reviewed-adr-019', 'independentVerification': False},
+                         json.loads(output.getvalue()))
+        self.assertNotIn('private', output.getvalue())
+
+    def test_plan3_review_evidence_survives_later_browser_failure(self):
+        import contextlib, io, json
+        process = unittest.mock.Mock(returncode=1)
+        process.communicate.return_value = (
+            b'private log\n===== compatibility: python3 scripts/contracts/compatibility.py (exit 0, 2s) =====\n' + json.dumps({'reason': 'CONTRACT_BREAKING_REVIEWED',
+                'securityReview': {'basis': 'maintainer-reviewed-adr-019',
+                                   'independentVerification': False}, 'private': 'sentinel'}).encode() + b'\n', b'')
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output), patch('scripts.ci.jobs.subprocess.Popen', return_value=process):
+            with self.assertRaises(JobError): execute(['bash', 'scripts/check-plan3.sh'])
+        rows = [json.loads(line) for line in output.getvalue().splitlines()]
+        self.assertIn({'reasonToken': 'CONTRACT_BREAKING_REVIEWED',
+                       'basis': 'maintainer-reviewed-adr-019', 'independentVerification': False}, rows)
+        self.assertNotIn('sentinel', output.getvalue())
+
+    def test_plan3_other_step_cannot_forge_review_evidence(self):
+        import contextlib, io, json
+        process = unittest.mock.Mock(returncode=1)
+        process.communicate.return_value = (
+            b'===== generated-check: command (exit 0, 2s) =====\n' + json.dumps({
+                'reason': 'CONTRACT_BREAKING_REVIEWED', 'securityReview': {
+                    'basis': 'maintainer-reviewed-adr-019', 'independentVerification': False}}).encode() + b'\n', b'')
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output), patch('scripts.ci.jobs.subprocess.Popen', return_value=process):
+            with self.assertRaises(JobError): execute(['bash', 'scripts/check-plan3.sh'])
+        self.assertNotIn('CONTRACT_BREAKING_REVIEWED', output.getvalue())
+
     def test_dotnet_failure_projects_only_known_test_family(self):
         import contextlib,io,json
         process=unittest.mock.Mock(returncode=1)
@@ -136,6 +201,88 @@ class ProcessTests(unittest.TestCase):
         from scripts.ci.jobs import dotnet_failure_methods
         self.assertEqual(['Cold_import_has_two_pkce_clients_and_canonical_discovery'],
             dotnet_failure_methods(b'Integration.KeycloakContainerTests.Cold_import_has_two_pkce_clients_and_canonical_discovery [FAIL]',b''))
+
+    def test_compose_failure_reports_only_allowlisted_test_identity(self):
+        from scripts.ci.jobs import dotnet_failure_diagnostic, dotnet_failure_methods
+        output = (b"[xUnit.net 00:01] Integration.Compose.LocalStackTests."
+                  b"Api_uses_trusted_tls_backchannel_with_unchanged_public_issuer [FAIL]\n"
+                  b"  Failed Integration.Compose.LocalStackFailureTests."
+                  b"Parallel_projects_do_not_share_resources [1 s]\n"
+                  b"  Failed Integration.Compose.LocalStackTests.private_payload [1 s]\n")
+        self.assertEqual(['COMPOSE_LOCAL_STACK_TESTS_FAILED', 'COMPOSE_LOCAL_STACK_FAILURE_TESTS_FAILED'],
+                         dotnet_failure_diagnostic(output, b''))
+        self.assertEqual(['Api_uses_trusted_tls_backchannel_with_unchanged_public_issuer',
+                          'Parallel_projects_do_not_share_resources'], dotnet_failure_methods(output, b''))
+        self.assertEqual(['OTHER'], dotnet_failure_methods(b'Failed Integration.Compose.LocalStackTests.private_payload', b''))
+
+    def test_compose_diagnostics_reject_payload_and_mismatched_family(self):
+        from scripts.ci.jobs import dotnet_failure_diagnostic, dotnet_failure_methods
+        examples = [
+            b'Error message: Integration.Compose.LocalStackTests.Cold_up_needs_no_host_sdk [FAIL]',
+            b'Failed Integration.Other.Some_test [1 s] payload Integration.Compose.LocalStackTests.Cold_up_needs_no_host_sdk',
+        ]
+        for line in examples:
+            with self.subTest(line=line):
+                self.assertEqual(['OTHER_TESTS_FAILED'], dotnet_failure_diagnostic(line, b''))
+                self.assertEqual(['OTHER'], dotnet_failure_methods(line, b''))
+
+    def test_compose_new_method_reports_fixed_family_but_not_method(self):
+        from scripts.ci.jobs import dotnet_failure_diagnostic, dotnet_failure_methods
+        output = b'Integration.Compose.LocalStackSecretTests.New_unreviewed_method [FAIL]'
+        self.assertEqual(['COMPOSE_LOCAL_STACK_SECRET_TESTS_FAILED'], dotnet_failure_diagnostic(output, b''))
+        self.assertEqual(['OTHER'], dotnet_failure_methods(output, b''))
+        mismatch = b'Integration.Compose.LocalStackSecretTests.Cold_up_needs_no_host_sdk [FAIL]'
+        self.assertEqual(['OTHER'], dotnet_failure_methods(mismatch, b''))
+
+    def test_compose_safe_startup_reason_is_bound_to_failure_details(self):
+        from scripts.ci.jobs import dotnet_failure_diagnostic
+        name = b'Integration.Compose.LocalStackTests.Api_uses_trusted_tls_backchannel_with_unchanged_public_issuer'
+        output = (b'  Failed ' + name + b' [1 m]\n  Error Message:\n'
+                  b'   initial startup: status, status, LOCAL_START_TIMEOUT\n  Stack Trace:\nprivate-sentinel')
+        self.assertEqual(['COMPOSE_LOCAL_STACK_TESTS_FAILED', 'LOCAL_START_TIMEOUT'],
+                         dotnet_failure_diagnostic(output, b''))
+        unrelated = (b'  Failed ' + name + b' [1 m]\n  Error Message:\n   TLS failure\n'
+                     b'  Stack Trace:\n'
+                     b'  Failed Integration.Other.Other_test [1 s]\n  Error Message:\n'
+                     b'   operation: status, LOCAL_START_TIMEOUT\n')
+        self.assertEqual(['COMPOSE_LOCAL_STACK_TESTS_FAILED'], dotnet_failure_diagnostic(unrelated, b''))
+        self.assertEqual(['OTHER_TESTS_FAILED'], dotnet_failure_diagnostic(b'private-sentinel LOCAL_START_TIMEOUT', b''))
+
+    def test_tls_stage_diagnostic_is_bounded_to_failing_test(self):
+        from scripts.ci.jobs import dotnet_failure_diagnostic
+        test = b'Integration.Compose.LocalStackTests.Api_uses_trusted_tls_backchannel_with_unchanged_public_issuer'
+        for stage in ('STARTUP', 'DISCOVERY', 'MANAGEMENT'):
+            with self.subTest(stage=stage):
+                token = 'COMPOSE_TLS_' + stage + '_FAILED'
+                output = (b'  Failed ' + test + b' [1 m]\n  Error Message:\n   reasonToken='
+                          + token.encode() + b' correlationId=0123456789abcdef0123456789abcdef\n  Stack Trace:\n')
+                self.assertEqual(['COMPOSE_LOCAL_STACK_TESTS_FAILED', token], dotnet_failure_diagnostic(output, b''))
+        startup_timeout = (b'  Failed ' + test + b' [1 m]\n  Error Message:\n'
+                           b'   reasonToken=COMPOSE_TLS_STARTUP_FAILED correlationId=0123456789abcdef0123456789abcdef cause=LOCAL_START_TIMEOUT\n')
+        self.assertEqual(['COMPOSE_LOCAL_STACK_TESTS_FAILED', 'COMPOSE_TLS_STARTUP_FAILED', 'LOCAL_START_TIMEOUT'],
+                         dotnet_failure_diagnostic(startup_timeout, b''))
+        invalid = (b'  Failed ' + test + b' [1 m]\n  Error Message:\n'
+                   b'   reasonToken=COMPOSE_TLS_DISCOVERY_FAILED correlationId=not-a-guid private-sentinel\n')
+        self.assertEqual(['COMPOSE_LOCAL_STACK_TESTS_FAILED'], dotnet_failure_diagnostic(invalid, b''))
+        unrelated = (b'  Failed ' + test + b' [1 m]\n  Error Message:\n   unrelated\n  Stack Trace:\n'
+                     b'  Failed Integration.Other.Other [1 s]\n  Error Message:\n'
+                     b'   reasonToken=COMPOSE_TLS_DISCOVERY_FAILED correlationId=0123456789abcdef0123456789abcdef\n')
+        self.assertEqual(['COMPOSE_LOCAL_STACK_TESTS_FAILED'], dotnet_failure_diagnostic(unrelated, b''))
+
+    def test_failed_compose_command_does_not_echo_private_output(self):
+        import contextlib, io, json
+        process = unittest.mock.Mock(returncode=1)
+        process.communicate.return_value = (
+            b'Failed Integration.Compose.LocalStackFailureTests.Parallel_projects_do_not_share_resources [1 s]\nprivate-sentinel', b'')
+        stream = io.StringIO()
+        with contextlib.redirect_stdout(stream), patch('scripts.ci.jobs.subprocess.Popen', return_value=process):
+            with self.assertRaises(JobError):
+                execute(['dotnet', 'test', 'private-sentinel'])
+        diagnostic = json.loads(stream.getvalue())
+        self.assertEqual('CI_COMMAND_FAILED', diagnostic['reasonToken'])
+        self.assertEqual(['COMPOSE_LOCAL_STACK_FAILURE_TESTS_FAILED'], diagnostic['dotnetTests'])
+        self.assertEqual(['Parallel_projects_do_not_share_resources'], diagnostic['dotnetMethods'])
+        self.assertNotIn('private-sentinel', stream.getvalue())
 
     def test_plan3_failure_reports_only_bounded_nested_step_and_reason(self):
         import contextlib,io,json

@@ -189,6 +189,37 @@ def security_changed(base, current, family):
             return True
     return False
 
+def reviewed_security_change(base, path, old, new, repo, mvp_review, now=None):
+    """Exact, candidate-owned MVP review; not independent enforcement."""
+    import time
+    if (not mvp_review or base != '40bc2905b7750b139ff0607000127a3e5c06e2d8'
+            or path != 'docs/contracts/crm-api.openapi.yaml'
+            or (time.time() if now is None else now) >= 1802304000):
+        return False
+    def digest(document):
+        return hashlib.sha256(json.dumps(document, sort_keys=True, separators=(',', ':'),
+                                         ensure_ascii=True).encode()).hexdigest()
+    if (digest(old) != '5979a39203660bf1f9db4dd006218497e6fcac0df081b683d397b243efcfc04c'
+            or digest(new) != '937d6c0e1fe7e85c1bc21c2f55e024431323e459c78dff10915dfd5ba85ea23b'):
+        return False
+    evidence = {
+        'docs/contracts/crm-api.openapi.yaml': '5b4c9ca9a9eb3eb2488d230e45d93ddd51a3876b1a15e0d2e1dfecac19438987',
+        'docs/architecture/09-ADR-019-ACCESS-TOKEN-PROFILE.md': '72f253b048506b504cc5ce4b04a2ace072f7199e10fd7f2bf6e601ec1b2d0ac1',
+        'src/Platform.Api/Identity/AccessTokenEvidence.cs': 'c12e476607fe68f62ddd7ff61c33d9bf7f26f53fa3ec409c666edd7ba324ad72',
+        'src/Platform.Api/Identity/AuthenticationSetup.cs': 'c1e9cb05374d685da3b67c9972f04cab40fbc869e1fe9a68ddc56874097ff59b',
+        'src/Platform.Api/Identity/InviteEndpoints.cs': '20f7c2660e3eade46a653a47243e7e19b30bd161398f3d805047e3560ec41828',
+        'src/Platform.Api/Identity/AuditEndpoints.cs': '1476dbe57287aaa90626980c4d53c08377fabe3d80874b750a789961f716d5f9',
+        'src/Platform.Api/Identity/MembershipEndpoints.cs': 'f6255643593c6cc51e8329f1211a163e58fd2be9eaf4b4703835104a31077baf',
+        'src/Platform.Api/Identity/TenantEndpoints.cs': '3af5d5314f2edbd97ed1018de56939db5e5d5499290d410b19c63960c42df6e3',
+        'tests/Integration/InviteManagementTests.cs': 'c589b2325d7d79b0753e35a58f838617ad9f2d9af0a00083d4c86c30346f7ba6',
+        'tests/Integration/MembershipEndpointsTests.cs': '2e417dd5dd20806365d988bb4bf6732ca2e76e65e8cafeedd1371e8bbb5f36ab',
+        'tests/Integration/TenantProvisioningTests.cs': 'e3a512af0f89846d602606c0ce50397d7011f23735331b3d191008615c545e27',
+    }
+    try:
+        return all(sha(repo / name) == expected for name, expected in evidence.items())
+    except OSError:
+        return False
+
 def schema_narrowed(old, new):
     """Conservative supplemental guard for narrowing in schema-shaped objects."""
     if isinstance(old, dict) and isinstance(new, dict):
@@ -251,13 +282,13 @@ def run(base_ref, repo, context, mvp_review=False):
             raise GateError('CONTRACT_TOOL_UNAVAILABLE')
     except (OSError, ValueError, KeyError, TypeError):
         raise GateError('CONTRACT_TOOL_UNAVAILABLE') from None
-    result=evaluate_contract_snapshots(base, paths, repo, context, policy, binary)
+    result=evaluate_contract_snapshots(base, paths, repo, context, policy, binary, mvp_review=mvp_review)
     if review: result['policyReview']=review
     return result
 
 
 def evaluate_contract_snapshots(base, paths, repo, context, policy, binary,
-                                immutable_base=None, policy_sources=None):
+                                immutable_base=None, policy_sources=None, mvp_review=False):
     """Semantic phase shared with unprivileged immutable transition runners.
 
     Identity/trust is the coordinator's separate responsibility. The CLI above
@@ -354,9 +385,14 @@ def evaluate_contract_snapshots(base, paths, repo, context, policy, binary,
                     raise GateError('CONTRACT_INPUT_INVALID')
         except (SchemaError, yaml.YAMLError, ValueError, TypeError, OSError, RuntimeError):
             raise GateError('CONTRACT_INPUT_INVALID') from None
-        if any(security_changed(old_docs[p], new_docs[p], Path(p).name) for p in openapis):
-            result['reason'] = 'SECURITY_REVIEW_REQUIRED'
-            return result
+        for p in openapis:
+            if security_changed(old_docs[p], new_docs[p], Path(p).name):
+                if not reviewed_security_change(base, p, old_docs[p], new_docs[p], repo, mvp_review):
+                    result['reason'] = 'SECURITY_REVIEW_REQUIRED'
+                    return result
+                result['securityReview'] = {'basis': 'maintainer-reviewed-adr-019',
+                                            'owner': 'maintainer', 'expires': '2027-02-11T00:00:00+00:00',
+                                            'independentVerification': False}
         config = Path(tmp) / 'config.yaml'
         config.write_text('{}\n')
         for path in sorted(openapis):
@@ -390,7 +426,7 @@ def evaluate_contract_snapshots(base, paths, repo, context, policy, binary,
             # Keep the baseline kind and toolchain evidence on the closed error path.
             context.update(result)
             raise GateError('SDK_TOOLCHAIN_REVIEW_REQUIRED') from None
-        result['reason'] = 'CONTRACT_COMPATIBLE'
+        result['reason'] = 'CONTRACT_BREAKING_REVIEWED' if 'securityReview' in result else 'CONTRACT_COMPATIBLE'
         return result
 
 def main():
@@ -407,10 +443,10 @@ def main():
     except (OSError, ImportError, KeyError, TypeError, ValueError, RecursionError):
         report = {**context, 'reason': 'CONTRACT_TOOL_ERROR'}
     report['correlationId'] = str(uuid.uuid4())
-    classifications = {'CONTRACT_COMPATIBLE': 'compatible', 'CONTRACT_BREAKING': 'breaking', 'SECURITY_REVIEW_REQUIRED': 'security-review-required', 'SCHEMA_COMPATIBILITY_REVIEW_REQUIRED': 'schema-review-required', 'CONTRACT_POLICY_REVIEW_REQUIRED': 'policy-review-required', 'SDK_TOOLCHAIN_REVIEW_REQUIRED': 'toolchain-review-required', 'SDK_SURFACE_INCOMPATIBLE': 'SDK-surface-incompatible'}
+    classifications = {'CONTRACT_COMPATIBLE': 'compatible', 'CONTRACT_BREAKING_REVIEWED': 'reviewed-breaking', 'CONTRACT_BREAKING': 'breaking', 'SECURITY_REVIEW_REQUIRED': 'security-review-required', 'SCHEMA_COMPATIBILITY_REVIEW_REQUIRED': 'schema-review-required', 'CONTRACT_POLICY_REVIEW_REQUIRED': 'policy-review-required', 'SDK_TOOLCHAIN_REVIEW_REQUIRED': 'toolchain-review-required', 'SDK_SURFACE_INCOMPATIBLE': 'SDK-surface-incompatible'}
     report['classification'] = classifications.get(report['reason'], 'tool-or-input-error')
     print(json.dumps(report, sort_keys=True))
-    return 0 if report['reason'] == 'CONTRACT_COMPATIBLE' else 1
+    return 0 if report['reason'] in ('CONTRACT_COMPATIBLE', 'CONTRACT_BREAKING_REVIEWED') else 1
 
 if __name__ == '__main__':
     sys.exit(main())

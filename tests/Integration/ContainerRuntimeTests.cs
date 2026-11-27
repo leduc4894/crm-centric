@@ -2,6 +2,8 @@ using System.Diagnostics;
 using System.Formats.Tar;
 using System.IO.Compression;
 using System.Net;
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
 using Integration.Fixtures;
@@ -26,6 +28,16 @@ public sealed class ContainerRuntimeTests(ContainerImages images)
         var api = network + "-api";
         var migrate = network + "-migrate";
         using var secrets = new SecretDirectory();
+        using var issuerKey = RSA.Create(2048);
+        var certificateRequest = new CertificateRequest("CN=host.docker.internal", issuerKey, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+        var names = new SubjectAlternativeNameBuilder();
+        names.AddDnsName("host.docker.internal");
+        certificateRequest.CertificateExtensions.Add(names.Build());
+        certificateRequest.CertificateExtensions.Add(new X509BasicConstraintsExtension(true, false, 0, true));
+        certificateRequest.CertificateExtensions.Add(new X509KeyUsageExtension(X509KeyUsageFlags.DigitalSignature | X509KeyUsageFlags.KeyCertSign, true));
+        using var certificate = certificateRequest.CreateSelfSigned(DateTimeOffset.UtcNow.AddMinutes(-1), DateTimeOffset.UtcNow.AddHours(1));
+        await using var issuer = await FakeOidcIssuer.StartAsync(tlsCertificate: certificate, bindAny: true, publicHost: "host.docker.internal");
+        var trust = secrets.Write("issuer-ca", certificate.ExportCertificatePem());
         var application = secrets.Write("application", Connection(db.ApplicationConnectionString, db.Container.Name));
         var migration = secrets.Write("migration", Connection(db.MigrationConnectionString, db.Container.Name));
         var admin = secrets.Write("admin", Guid.NewGuid().ToString("N"));
@@ -42,14 +54,24 @@ public sealed class ContainerRuntimeTests(ContainerImages images)
                 Assert.Fail("Built migrator failed; private diagnostic retained.");
             }
             await ContainerImages.Docker("run", "--detach", "--name", api, "--network", network,
-                "--publish", "127.0.0.1::8080", "--mount", Mount(application, "/run/secrets/platform"),
-                "--env", "PLATFORM_CONNECTION_FILE=/run/secrets/platform", images.Api);
+                "--add-host", "host.docker.internal:host-gateway", "--publish", "127.0.0.1::8080",
+                "--mount", Mount(application, "/run/secrets/platform"), "--mount", Mount(trust, "/run/secrets/issuer-ca"),
+                "--env", "PLATFORM_CONNECTION_FILE=/run/secrets/platform", "--env", "SSL_CERT_FILE=/run/secrets/issuer-ca",
+                "--env", "Oidc__Issuer=" + issuer.Issuer.AbsoluteUri, "--env", "Oidc__Audience=crm-api",
+                "--env", "Oidc__MetadataAddress=" + new Uri(issuer.Issuer, ".well-known/openid-configuration").AbsoluteUri,
+                images.Api);
             var inspect = await ContainerImages.Inspect(api);
             var apiMountedSecretFiles = inspect.GetProperty("Mounts").EnumerateArray().Select(x => x.GetProperty("Source").GetString()).ToArray();
-            Assert.Equal(new[] { application }, apiMountedSecretFiles);
+            Assert.Equal(new[] { application, trust }.Order(), apiMountedSecretFiles.Order());
             Assert.DoesNotContain(admin, apiMountedSecretFiles);
             Assert.DoesNotContain(migration, apiMountedSecretFiles);
-            Assert.False(inspect.GetProperty("Mounts")[0].GetProperty("RW").GetBoolean());
+            Assert.All(inspect.GetProperty("Mounts").EnumerateArray(), mount => Assert.False(mount.GetProperty("RW").GetBoolean()));
+            var discovery = await ContainerImages.Docker("run", "--rm", "--network", network,
+                "--add-host", "host.docker.internal:host-gateway", "--mount", Mount(trust, "/tmp/issuer-ca"),
+                ContainerImages.Pins["DOTNET_SDK_IMAGE"], "curl", "--silent", "--show-error", "--fail", "--noproxy", "*",
+                "--cacert", "/tmp/issuer-ca", new Uri(issuer.Issuer, ".well-known/openid-configuration").AbsoluteUri);
+            using (var document = JsonDocument.Parse(discovery.Output))
+                Assert.Equal(issuer.Issuer.AbsoluteUri, document.RootElement.GetProperty("issuer").GetString());
             var port = inspect.GetProperty("NetworkSettings").GetProperty("Ports").GetProperty("8080/tcp")[0].GetProperty("HostPort").GetString();
             using var client = new HttpClient { BaseAddress = new Uri("http://127.0.0.1:" + port), Timeout = TimeSpan.FromSeconds(5) };
             await WaitReady(client);
@@ -275,7 +297,8 @@ public sealed class ContainerRuntimeTests(ContainerImages images)
                 "--mount", Mount(password, "/run/secrets/db-password"), "--mount", Mount(admin, "/run/secrets/admin-password"),
                 "--env", "KC_DB_URL=jdbc:postgresql://" + db.Container.Name.TrimStart('/') + ":5432/" + db.DatabaseName, "--env", "KC_DB_USERNAME=keycloak",
                 "--env", "KC_DB_PASSWORD_FILE=/run/secrets/db-password", "--env", "KC_BOOTSTRAP_ADMIN_USERNAME=local-admin",
-                "--env", "KC_BOOTSTRAP_ADMIN_PASSWORD_FILE=/run/secrets/admin-password", "--env", "KC_HOSTNAME=http://localhost:8080", images.Keycloak, "start-dev");
+                "--env", "KC_BOOTSTRAP_ADMIN_PASSWORD_FILE=/run/secrets/admin-password", "--env", "KC_HOSTNAME=http://localhost:8080",
+                "--env", "JAVA_OPTS_KC_HEAP=-Xms64m -Xmx512m", images.Keycloak, "start-dev");
             var healthy = false;
             for (var attempt = 0; attempt < 100; attempt++)
             {
