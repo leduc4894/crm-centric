@@ -1,8 +1,9 @@
 import { useLayoutEffect, useState, useSyncExternalStore, type MouseEvent } from 'react';
 import { useAuthClient } from '../auth/AuthProvider';
 import { useTenant } from '../tenant/TenantProvider';
-import { contactIdPattern, createCrmClient, CrmError } from './crmClient';
-import type { components } from '@crm-centric/crm-client';
+import { contactIdPattern, createCrmClient, type CrmClient } from './crmClient';
+import { ContactDetail } from './ContactDetail';
+import { ContactList } from './ContactList';
 
 const listPath = '/app/contacts';
 function subscribe(change: () => void) {
@@ -15,11 +16,13 @@ export function navigate(event: MouseEvent<HTMLAnchorElement>) {
   history.pushState(null, '', event.currentTarget.pathname);
   window.dispatchEvent(new PopStateEvent('popstate'));
 }
-type Contact = components['schemas']['Contact'];
-type View = { kind: 'loading' } | { kind: 'error'; message: string } | { kind: 'list'; items: Contact[] } | { kind: 'record'; contact: Contact };
+export function openContacts(id?: string) {
+  history.pushState(null, '', id ? listPath + '/' + id : listPath);
+  window.dispatchEvent(new PopStateEvent('popstate'));
+}
 function ContactRoute({ identity, tenantId, recordId }: { identity: string; tenantId: string; recordId: string | null }) {
   const auth = useAuthClient();
-  const [view, setView] = useState<View>({ kind: 'loading' });
+  const [client, setClient] = useState<CrmClient | null>(null);
   useLayoutEffect(() => {
     const token = auth?.getAccessToken();
     if (!auth || !token) return;
@@ -29,30 +32,14 @@ function ContactRoute({ identity, tenantId, recordId }: { identity: string; tena
       return !controller.signal.aborted && state.status === 'authenticated' &&
         JSON.stringify([state.issuer, state.subject]) === identity && auth.getAccessToken() === token;
     };
-    const client = createCrmClient({ origin: location.origin, tenantId, token, signal: controller.signal, current, invalidate: () => auth.invalidate() });
-    async function load() {
-      try {
-        const result: View = recordId
-          ? { kind: 'record', contact: (await client.getContact(recordId)).data }
-          : { kind: 'list', items: (await client.listContacts()).data.items };
-        if (current()) setView(result);
-      } catch (error) {
-        if (current()) setView({ kind: 'error', message: error instanceof CrmError ? error.message : new CrmError('WEB_CRM_NETWORK_ERROR').message });
-      }
-    }
-    void load();
+    queueMicrotask(() => {
+      if (current()) setClient(createCrmClient({ origin: location.origin, tenantId, token, signal: controller.signal, current, invalidate: () => auth.invalidate() }));
+    });
     return () => controller.abort();
-  }, [auth, identity, tenantId, recordId]);
-  return <section className="contact-content">
-    {recordId && <a href={listPath} onClick={navigate}>Liên hệ</a>}
-    <h2>{view.kind === 'record' ? view.contact.displayName : recordId ? 'Hồ sơ liên hệ' : 'Liên hệ'}</h2>
-    {view.kind === 'loading' && <p role="status">Đang tải…</p>}
-    {view.kind === 'error' && <p role="alert">{view.message}</p>}
-    {view.kind === 'list' && <div className="contact-card">{view.items.length === 0 ? <p>Chưa có liên hệ.</p> :
-      <ul>{view.items.map(item => <li key={item.id}><a href={listPath + '/' + item.id} onClick={navigate}>{item.displayName}</a></li>)}</ul>}</div>}
-    {view.kind === 'record' && <section className="contact-card"><h3>Thông tin liên hệ</h3>
-      <dl><dt>Email</dt><dd>{view.contact.email ?? '—'}</dd><dt>Điện thoại</dt><dd>{view.contact.phone ?? '—'}</dd></dl></section>}
-  </section>;
+  }, [auth, identity, tenantId]);
+  return <section className="contact-content">{!client ? <p role="status">Đang tải…</p> : (recordId
+    ? <ContactDetail client={client} id={recordId} />
+    : <ContactList client={client} />)}</section>;
 }
 export function ContactShell() {
   const { identity, selectedTenantId } = useTenant();

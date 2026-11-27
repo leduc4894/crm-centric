@@ -16,3 +16,22 @@ body { margin: 0; background: #f6f8fc; color: #202b42; font: 14px/1.5 Inter, sys
   .crm-shell aside { border-bottom: 1px solid #e6eaf1; }
   .crm-shell nav { display: flex; margin: 10px 0; }
 }
+.contact-title, .contact-actions, .contact-filters { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.contact-title { justify-content: space-between; }
+.contact-content button { background: white; border: 1px solid #bbc7da; border-radius: 7px; padding: 7px 13px; color: #253854; font: inherit; cursor: pointer; }
+.contact-title button, .contact-form button[type=submit] { color: white; background: #315dde; border-color: #315dde; }
+.contact-content button:disabled { opacity: .55; cursor: default; }
+.contact-content label { display: grid; gap: 4px; font-weight: 600; }
+.contact-content input { min-width: 0; padding: 8px; border: 1px solid #bbc7da; border-radius: 6px; font: inherit; }
+.contact-form, .contact-profile { display: grid; gap: 14px; }
+.contact-filters { align-items: end; margin-bottom: 20px; }
+.contact-card + .contact-card { margin-top: 16px; }
+.contact-content table { width: 100%; border-collapse: collapse; table-layout: fixed; text-align: left; }
+.contact-content th, .contact-content td { padding: 10px 6px; border-bottom: 1px solid #e5eaf2; }
+.contact-content th { background: #f6f8fc; }
+.contact-content dt { color: #485771; }
+.contact-content dd { margin: 0 0 12px; }
+.contact-record { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: 16px; align-items: start; }
+.contact-content dialog { border: 1px solid #d2dbe9; border-radius: 12px; padding: 24px; }
+.contact-content dialog::backdrop { background: #17263d66; }
+@media (max-width: 900px) { .contact-record { grid-template-columns: 1fr; } }
