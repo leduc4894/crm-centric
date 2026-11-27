@@ -4,7 +4,9 @@ The tests intentionally fail against the old POST-only-201 OpenAPI contract. The
 objects below represent two responses for the same active tenant/contact; they
 are consumer examples, not proof that a server performs the mutation.
 """
+import json
 import re
+import xml.etree.ElementTree as ET
 import unittest
 from pathlib import Path
 
@@ -58,6 +60,7 @@ class ContactUpsertConsumerContractTests(unittest.TestCase):
                 self.assertIn(status, responses)
                 response = responses[status]
                 self.assertEqual("#/components/schemas/Contact", response["content"]["application/json"]["schema"]["$ref"])
+                self.assertTrue(response["headers"]["ETag"].get("required", False), "success ETag is required")
                 pattern = response["headers"]["ETag"]["schema"]["pattern"]
                 self.assertRegex(etag, pattern)
                 self.assertFalse(list(Draft202012Validator(self.contact, format_checker=FormatChecker()).iter_errors(body)))
@@ -68,6 +71,12 @@ class ContactUpsertConsumerContractTests(unittest.TestCase):
         for etag in (None, 'W/"v2"', '"v1"', '*'):
             with self.subTest(etag=etag), self.assertRaises(ValueError):
                 proposed_consumer(200, etag, self.upserted)
+
+    def test_breaking_crm_sdks_use_new_package_versions(self):
+        csproj = ET.parse(ROOT / "sdks/dotnet/Crm.Client/Crm.Client.csproj")
+        self.assertEqual("2.0.0", csproj.findtext("./PropertyGroup/Version"))
+        package = json.loads((ROOT / "sdks/typescript/crm/package.json").read_text())
+        self.assertEqual("0.2.0", package["version"])
 
     def test_upsert_precondition_contract_keeps_create_possible_and_rejects_stale_versions(self):
         # POST creates without If-Match; on an existing email the server must

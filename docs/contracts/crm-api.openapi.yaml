@@ -455,6 +455,7 @@ paths:
                 $ref: '#/components/schemas/Contact'
           headers:
             ETag:
+              required: true
               description: Strong optimistic concurrency token for the returned version.
               schema:
                 type: string
@@ -467,6 +468,7 @@ paths:
                 $ref: '#/components/schemas/Contact'
           headers:
             ETag:
+              required: true
               description: Strong optimistic concurrency token.
               schema:
                 type: string

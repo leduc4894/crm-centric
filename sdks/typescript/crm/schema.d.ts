@@ -1533,7 +1533,7 @@ export interface operations {
             200: {
                 headers: {
                     /** @description Strong optimistic concurrency token for the returned version. */
-                    ETag?: string;
+                    ETag: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -1544,7 +1544,7 @@ export interface operations {
             201: {
                 headers: {
                     /** @description Strong optimistic concurrency token. */
-                    ETag?: string;
+                    ETag: string;
                     [name: string]: unknown;
                 };
                 content: {

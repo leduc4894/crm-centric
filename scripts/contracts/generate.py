@@ -77,7 +77,7 @@ def generate(output_root):
             ts.mkdir(parents=True)
             run([str(executable), str(CONTRACTS / f'{name}.openapi.yaml'), '--empty-objects-unknown', '-o', str(ts / 'schema.d.ts')])
             (ts / 'index.ts').write_text("import createClient from 'openapi-fetch';\nimport type { paths } from './schema.js';\nexport type { components, operations, paths } from './schema.js';\nexport function createApiClient(baseUrl: string) {\n  return createClient<paths>({ baseUrl, credentials: 'omit' });\n}\n")
-            (ts / 'package.json').write_text(json.dumps({'name': f'@crm-centric/{short}-client', 'version': '0.1.0', 'type': 'module', 'main': 'dist/index.js', 'types': 'dist/index.d.ts', 'files': ['dist'], 'scripts': {'build': "tsc -p tsconfig.json && node -e \"require('node:fs').copyFileSync('schema.d.ts','dist/schema.d.ts')\""}, 'dependencies': {'openapi-fetch': config['openapiFetch']}}, indent=2) + '\n')
+            (ts / 'package.json').write_text(json.dumps({'name': f'@crm-centric/{short}-client', 'version': '0.2.0' if short == 'crm' else '0.1.0', 'type': 'module', 'main': 'dist/index.js', 'types': 'dist/index.d.ts', 'files': ['dist'], 'scripts': {'build': "tsc -p tsconfig.json && node -e \"require('node:fs').copyFileSync('schema.d.ts','dist/schema.d.ts')\""}, 'dependencies': {'openapi-fetch': config['openapiFetch']}}, indent=2) + '\n')
             (ts / 'tsconfig.json').write_text(json.dumps({'compilerOptions': {'target': 'ES2022', 'module': 'NodeNext', 'moduleResolution': 'NodeNext', 'strict': True, 'declaration': True, 'outDir': 'dist', 'skipLibCheck': False}, 'include': ['index.ts', 'schema.d.ts']}, indent=2) + '\n')
             cs = stage / 'sdks/dotnet' / namespace
             cs.parent.mkdir(parents=True, exist_ok=True)
@@ -89,7 +89,8 @@ def generate(output_root):
             lock_data = json.loads(lock.read_text())
             lock_data.pop('generatedAt', None)
             lock.write_text(json.dumps(lock_data, indent=2, sort_keys=True) + '\n')
-            (cs / f'{namespace}.csproj').write_text('<Project Sdk="Microsoft.NET.Sdk">\n  <PropertyGroup><TargetFramework>net10.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings><AllowUnsafeBlocks>true</AllowUnsafeBlocks><RestorePackagesWithLockFile>true</RestorePackagesWithLockFile></PropertyGroup>\n  <ItemGroup><PackageReference Include="Corvus.Text.Json" Version="[5.8.8]" /><PackageReference Include="Corvus.Text.Json.OpenApi.HttpTransport" Version="[5.8.8]" /></ItemGroup>\n</Project>\n')
+            package_version = '<Version>2.0.0</Version>' if short == 'crm' else ''
+            (cs / f'{namespace}.csproj').write_text('<Project Sdk="Microsoft.NET.Sdk">\n  <PropertyGroup><TargetFramework>net10.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings><AllowUnsafeBlocks>true</AllowUnsafeBlocks><RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>' + package_version + '</PropertyGroup>\n  <ItemGroup><PackageReference Include="Corvus.Text.Json" Version="[5.8.8]" /><PackageReference Include="Corvus.Text.Json.OpenApi.HttpTransport" Version="[5.8.8]" /></ItemGroup>\n</Project>\n')
             shutil.copyfile(ROOT / 'tools/contracts/locks' / f'{namespace}.json', cs / 'packages.lock.json')
             facade = (ROOT / 'tools/contracts/facades/ResponseMetadataHandler.cs').read_text()
             (cs / 'ResponseMetadataHandler.cs').write_text(facade.replace('__NAMESPACE__', namespace))
