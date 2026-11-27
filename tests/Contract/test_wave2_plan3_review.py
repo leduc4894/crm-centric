@@ -42,6 +42,13 @@ class Plan3ReviewTests(unittest.TestCase):
         self.assertTrue(self.approved())
         for args in ({'base': '0'*40}, {'target': '0'*40}, {'enabled': False}, {'now': 1802304000}):
             with self.subTest(args=args): self.assertFalse(self.approved(**args))
+        # Keep the gitless simulation's known prerequisite skip identities while
+        # executing every Plan 9 scope regression inside this required case.
+        import plan9_review_cases
+        result = unittest.TestResult()
+        unittest.defaultTestLoader.loadTestsFromTestCase(plan9_review_cases.Plan9ReviewTests).run(result)
+        self.assertEqual(8, result.testsRun)
+        self.assertEqual((0, 0, 0), (len(result.failures), len(result.errors), len(result.skipped)))
 
     def test_evidence_and_untracked_drift_are_rejected(self):
         for name in ('src/Platform.Api/Crm/ContactEndpoints.cs', 'src/Platform.Infrastructure/Persistence/Migrations/20261127035000_ExactFieldNumbers.cs', 'docs/contracts/crm-api.openapi.yaml'):

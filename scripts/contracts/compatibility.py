@@ -150,8 +150,14 @@ PLAN3_COVERAGE_SHA256 = 'aa7dff3457dc0c7728c68b0d7fd6948d43050c7b07593534f1b921a
 
 PLAN9_REVIEW_COMMIT = '71959b35c08738d16a03e1f4f54e4f0b21075ce0'
 PLAN9_REVIEW_TREE = '6a7dda4d57c87565389ad125f750fe21be963f15'
+# Exact reviewed diagnostic-only delta; all other product files remain tree-bound.
+PLAN9_DIAGNOSTIC_HASHES = {
+    'scripts/ci/jobs.py': '9634720ca782c802b0a34c9730827332aa1d73a69d47b0a237043929f973a65d',
+    'tests/CI/test_job_processes.py': 'c83ee696e22eed17ea7c5d7bdfbc518be1cc488ccb1ea358cf941618c685652c',
+}
 PLAN9_GOVERNANCE_FILES = PLAN3_GOVERNANCE_FILES | frozenset({
     'tests/Contract/test_wave2_plan9_review.py',
+    'tests/Contract/plan9_review_cases.py',
     'docs/engineering/17-WAVE-2-CANDIDATE-REVIEW-PACKAGE.md',
     'docs/handoff/2026-11-27-wave-2-plan-9-handoff.md',
     'docs/handoff/2026-11-28-wave-2-plan-9-handoff.md',
@@ -207,6 +213,11 @@ def _reviewed_candidate(base, repo, enabled, target, now, commit, expected_tree,
         if (inventory.is_symlink() or any((repo / parent).is_symlink() for parent in Path('tools/ci/coverage.json').parents if str(parent) != '.')
                 or sha(inventory) != PLAN3_COVERAGE_SHA256):
             return False
+        if commit == PLAN9_REVIEW_COMMIT:
+            helper = repo / 'tests/Contract/plan9_review_cases.py'
+            if (helper.is_symlink() or any((repo / parent).is_symlink() for parent in Path('tests/Contract/plan9_review_cases.py').parents if str(parent) != '.')
+                    or sha(helper) != '7aa518d5e531484e4feeec173b8d969f6c7312d19d723b7ddd7e5c0df38305ea'):
+                return False
         tree = {}
         for item in git(repo, 'ls-tree', '-rz', '--full-tree', commit).split(b'\0'):
             if not item:
@@ -233,7 +244,10 @@ def _reviewed_candidate(base, repo, enabled, target, now, commit, expected_tree,
                 return False
             data = item.read_bytes()
             blob = hashlib.sha1(b'blob ' + str(len(data)).encode('ascii') + b'\0' + data).hexdigest()
-            if blob != oid:
+            if commit == PLAN9_REVIEW_COMMIT and path in PLAN9_DIAGNOSTIC_HASHES:
+                if hashlib.sha256(data).hexdigest() != PLAN9_DIAGNOSTIC_HASHES[path]:
+                    return False
+            elif blob != oid:
                 return False
         return True
     except (GateError, OSError, UnicodeError, ValueError):

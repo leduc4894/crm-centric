@@ -327,6 +327,18 @@ class ProcessTests(unittest.TestCase):
                               'plan3Step':step,'plan3Reason':reason},json.loads(stream.getvalue()))
             self.assertNotIn('private',stream.getvalue())
 
+    def test_frontend_failure_reports_only_known_test_file(self):
+        from scripts.ci.jobs import plan3_failure_diagnostic
+        data = ("===== frontend-test: npm run test (exit 1, 9s) =====\n"
+                " ❯ src/contacts/ContactAttributes.test.tsx (36 tests | 1 failed)\n"
+                " FAIL src/contacts/ContactAttributes.test.tsx > private-sentinel\n"
+                " FAIL src/contacts/Untrusted.test.tsx > private-sentinel\n"
+                "plan3 aggregate: FAIL at frontend-test (PLAN3_FRONTEND_STEP_FAILED)\n").encode()
+        result = plan3_failure_diagnostic(data,b'')
+        self.assertEqual(['src/contacts/ContactAttributes.test.tsx'],result['plan3FailedFiles'])
+        self.assertNotIn('private-sentinel',str(result))
+        self.assertNotIn('Untrusted',str(result))
+
     def test_plan3_duplicate_keys_and_oversized_streams_are_unknown(self):
         from scripts.ci.jobs import plan3_failure_diagnostic
         unknown={'plan3Step':'other','plan3Reason':'other'}

@@ -105,7 +105,36 @@ def plan3_failure_diagnostic(stdout, stderr):
             value=row.get('reason') if isinstance(row,dict) else None
             if isinstance(value,str) and value in reasons: observed.append(value)
         if len(observed)==1: reason=observed[0]
-    return {'plan3Step':step,'plan3Reason':reason}
+    result = {'plan3Step':step, 'plan3Reason':reason}
+    if step == 'frontend-test':
+        # Only source-reviewed filenames are eligible; never expose arbitrary
+        # test titles, assertion details, paths or payloads from child output.
+        allowed = frozenset((
+            'config/contactsProxy.test.ts','config/devServer.test.ts','config/tenantProxy.test.ts',
+            'config/healthProxy.test.ts','src/settings/CustomFieldsPage.test.tsx',
+            'src/callbackRouter.test.tsx','src/contacts/queryScope.test.tsx',
+            'src/contacts/ContactList.test.tsx','src/contacts/ContactTable.test.tsx',
+            'src/contacts/ContactShell.test.tsx','src/contacts/ContactForm.test.tsx',
+            'src/contacts/ContactTimeline.test.tsx','src/contacts/ContactAttributes.test.tsx',
+            'src/contacts/contactSession.test.tsx','src/contacts/crmClient.test.ts',
+            'src/contacts/contactQueries.test.tsx','src/contacts/CustomFieldSettings.test.tsx',
+            'src/auth/oidcConfig.test.ts','src/auth/authClient.test.ts','src/auth/AuthProvider.test.tsx',
+            'src/health/HealthStatus.test.tsx','src/health/healthClient.test.ts',
+            'src/tenant/tenantClient.test.ts','src/tenant/TenantPicker.test.tsx',
+            'src/router.test.tsx','src/tenant/TenantProvider.test.tsx',
+            'tests/picomatch-compatibility.test.ts','tests/e2e/realOidcFixture.test.ts',
+            'tests/e2e/stackProvenance.test.ts',
+        ))
+        clean = re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', output)
+        sections = re.findall(r'^===== frontend-test: [^\r\n]* \(exit [1-9][0-9]*, [0-9]+s\) =====\r?\n(.*?)(?=^===== |\Z)', clean, re.MULTILINE | re.DOTALL)
+        found = set()
+        if len(sections) == 1:
+            for line in sections[0].splitlines():
+                match = re.match(r'^\s*FAIL\s+([^\s]+\.test\.tsx?)(?:\s|$)', line)
+                if match and match.group(1) in allowed:
+                    found.add(match.group(1))
+        result['plan3FailedFiles'] = sorted(found) if found else ['OTHER']
+    return result
 
 # These public identifiers are reviewed source names, not arbitrary test output.
 _COMPOSE_FAILURE_METHODS = {

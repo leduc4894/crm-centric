@@ -20,6 +20,10 @@ class Plan9ReviewTests(unittest.TestCase):
         cls.repo = Path(cls.tmp.name) / 'repo'
         subprocess.run(['git','clone','--shared','--no-checkout',str(ROOT),str(cls.repo)],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
         subprocess.run(['git','-C',str(cls.repo),'checkout','--detach',CANDIDATE],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+        for name in ('scripts/ci/jobs.py','tests/CI/test_job_processes.py'):
+            (cls.repo/name).write_bytes((ROOT/name).read_bytes())
+        helper=cls.repo/'tests/Contract/plan9_review_cases.py'
+        helper.write_bytes((ROOT/'tests/Contract/plan9_review_cases.py').read_bytes())
     @classmethod
     def tearDownClass(cls): cls.tmp.cleanup()
     def approved(self, **kwargs):
@@ -89,6 +93,17 @@ class Plan9ReviewTests(unittest.TestCase):
             path.unlink();path.symlink_to('docs/contracts/crm-api.openapi.yaml')
             self.assertFalse(self.approved())
         finally: path.unlink(missing_ok=True)
+
+    def test_ci_diagnostic_override_requires_exact_pinned_bytes(self):
+        paths=('scripts/ci/jobs.py','tests/CI/test_job_processes.py')
+        originals={name:(self.repo/name).read_bytes() for name in paths}
+        try:
+            for name in paths: (self.repo/name).write_bytes((ROOT/name).read_bytes())
+            self.assertTrue(self.approved())
+            path=self.repo/paths[0];path.write_bytes(path.read_bytes()+b'\n')
+            self.assertFalse(self.approved())
+        finally:
+            for name,value in originals.items(): (self.repo/name).write_bytes(value)
 
     def test_old_scope_not_replaced(self):
         self.assertFalse(gate.reviewed_plan3_candidate(BASE,self.repo,True,BASE,now=1795737600))
