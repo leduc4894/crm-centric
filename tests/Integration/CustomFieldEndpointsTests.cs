@@ -98,23 +98,118 @@ public sealed class CustomFieldEndpointsTests : DefinitionEndpointFixture
     }
 
     [Fact]
-    public async Task Jsonb_numeric_limits_fail_closed_and_long_strings_round_trip()
+    public async Task Numbers_outside_jsonb_limits_round_trip_and_compare_exactly()
     {
         var id = await CreateId("/api/v1/contacts", """{"displayName":"Test"}""");
         var number = await CreateId(Path, Body.Replace("string", "number"));
         var numberPath = $"/api/v1/contacts/{id}/fields/{number}";
-        foreach (var raw in new[] { "1e131072", "1e-16384" })
-            await Problem(await Send(HttpMethod.Put, numberPath, "{\"value\":" + raw + "}", match: ["\"v1\""]),
-                HttpStatusCode.BadRequest, "FIELD_VALUE_UNREPRESENTABLE");
-        Assert.Equal(0, await Count("crm.contact_field_values", tenant));
+        foreach (var (raw, equivalent, version) in new[] {
+            ("1e131072", "10e131071", 1), ("1e-16384", "0.1e-16383", 2),
+            ("-12e99999999999999999999999999999999999999", "-120e99999999999999999999999999999999999998", 3),
+            ("-12e-99999999999999999999999999999999999999", "-120e-100000000000000000000000000000000000000", 4),
+            ("-0e99999999999999999999999999999999999999", "0", 5) })
+        {
+            using var put = await Send(HttpMethod.Put, numberPath, "{\"value\":" + raw + "}", match: [$"\"v{version}\""]);
+            Assert.Equal(HttpStatusCode.OK, put.StatusCode);
+            Assert.Equal($"\"v{version + 1}\"", put.Headers.ETag!.ToString());
+            using var numberRead = await Send(HttpMethod.Get, numberPath);
+            Assert.Equal(HttpStatusCode.OK, numberRead.StatusCode);
+            using var numberJson = JsonDocument.Parse(await numberRead.Content.ReadAsStringAsync());
+            Assert.Equal(raw, numberJson.RootElement.GetProperty("value").GetRawText());
+            using var same = await Send(HttpMethod.Put, numberPath, "{\"value\":" + equivalent + "}", match: [$"\"v{version + 1}\""]);
+            Assert.Equal(HttpStatusCode.OK, same.StatusCode);
+            Assert.Equal($"\"v{version + 1}\"", same.Headers.ETag!.ToString());
+        }
+        Assert.Equal(1, await Count("crm.contact_field_values", tenant));
+        Assert.Equal(6, await Count("outbox.events", tenant));
+        Assert.Equal(7, await Count("audit.entries", tenant));
         var field = await CreateId(Path, Body.Replace("abc", "text"));
         var path = $"/api/v1/contacts/{id}/fields/{field}";
         var text = new string('a', 9000);
-        using var response = await Send(HttpMethod.Put, path, JsonSerializer.Serialize(new { value = text }), match: ["\"v1\""]);
+        using var response = await Send(HttpMethod.Put, path, JsonSerializer.Serialize(new { value = text }), match: ["\"v6\""]);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var read = await Send(HttpMethod.Get, path);
         using var json = JsonDocument.Parse(await read.Content.ReadAsStringAsync());
         Assert.Equal(text, json.RootElement.GetProperty("value").GetString());
+    }
+
+    [Fact]
+    public async Task Direct_database_number_write_enforces_version_and_journals()
+    {
+        var contact = await CreateId("/api/v1/contacts", """{"displayName":"Direct"}""");
+        var field = await CreateId(Path, Body.Replace("string", "number"));
+        await using var app = new Npgsql.NpgsqlConnection(db.ApplicationConnectionString);
+        await app.OpenAsync();
+        await using var tx = await app.BeginTransactionAsync();
+        await using (var set = new Npgsql.NpgsqlCommand("SELECT set_config('crm.tenant_id',$1,true)", app, tx))
+        { set.Parameters.AddWithValue(tenant.ToString()); await set.ExecuteNonQueryAsync(); }
+        async Task<string> Change(long expected, string raw)
+        {
+            await using var cmd = new Npgsql.NpgsqlCommand("SELECT platform.mutate_contact_attribute($1,$2,$3,$4,'agent',$5,'numeric-test','field',$6)", app, tx);
+            foreach (var value in new object[] { tenant, contact, field, Issuer, expected, raw }) cmd.Parameters.AddWithValue(value);
+            return (string)(await cmd.ExecuteScalarAsync())!;
+        }
+        Assert.Equal("conflict", await Change(2, "1e131072"));
+        Assert.Equal("changed", await Change(1, "1e131072"));
+        Assert.Equal("conflict", await Change(1, "10e131071"));
+        Assert.Equal("unchanged", await Change(2, "10e131071"));
+        await tx.CommitAsync();
+        Assert.Equal(2, await Count("outbox.events", tenant));
+        Assert.Equal(3, await Count("audit.entries", tenant));
+        using var read = await Send(HttpMethod.Get, $"/api/v1/contacts/{contact}/fields/{field}");
+        using var json = JsonDocument.Parse(await read.Content.ReadAsStringAsync());
+        Assert.Equal("1e131072", json.RootElement.GetProperty("value").GetRawText());
+    }
+
+    [Fact]
+    public async Task Legacy_jsonb_number_remains_readable_and_equal_after_upgrade()
+    {
+        var contact = await CreateId("/api/v1/contacts", """{"displayName":"Legacy"}""");
+        var field = await CreateId(Path, Body.Replace("string", "number"));
+        await using (var connection = new Npgsql.NpgsqlConnection(db.MigrationConnectionString))
+        {
+            await connection.OpenAsync();
+            await using var tx = await connection.BeginTransactionAsync();
+            await using var set = new Npgsql.NpgsqlCommand("SELECT set_config('crm.tenant_id',$1,true)", connection, tx);
+            set.Parameters.AddWithValue(tenant.ToString());
+            await set.ExecuteNonQueryAsync();
+            await using var seed = new Npgsql.NpgsqlCommand("INSERT INTO crm.contact_field_values(tenant_id,contact_id,field_id,data_type,value) VALUES($1,$2,$3,'number','123.4500'::jsonb)", connection, tx);
+            seed.Parameters.AddWithValue(tenant); seed.Parameters.AddWithValue(contact); seed.Parameters.AddWithValue(field);
+            await seed.ExecuteNonQueryAsync();
+            await tx.CommitAsync();
+        }
+        var path = $"/api/v1/contacts/{contact}/fields/{field}";
+        using var read = await Send(HttpMethod.Get, path);
+        Assert.Equal(HttpStatusCode.OK, read.StatusCode);
+        using var value = JsonDocument.Parse(await read.Content.ReadAsStringAsync());
+        Assert.Equal(123.45m, value.RootElement.GetProperty("value").GetDecimal());
+        using var same = await Send(HttpMethod.Put, path, """{"value":12345e-2}""", match: ["\"v1\""]);
+        Assert.Equal(HttpStatusCode.OK, same.StatusCode);
+        Assert.Equal("\"v1\"", same.Headers.ETag!.ToString());
+        Assert.Equal(1, await Count("outbox.events", tenant));
+    }
+
+    [Fact]
+    public async Task Very_long_exponents_compare_without_numeric_conversion()
+    {
+        var id = await CreateId("/api/v1/contacts", """{"displayName":"Test"}""");
+        var field = await CreateId(Path, Body.Replace("string", "number"));
+        var path = $"/api/v1/contacts/{id}/fields/{field}";
+        var exponent = new string('9', 20000);
+        using var first = await Send(HttpMethod.Put, path, "{\"value\":1e" + exponent + "}", match: ["\"v1\""]);
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+        using var read = await Send(HttpMethod.Get, path);
+        using var returned = JsonDocument.Parse(await read.Content.ReadAsStringAsync());
+        Assert.Equal("1e" + exponent, returned.RootElement.GetProperty("value").GetRawText());
+        using var same = await Send(HttpMethod.Put, path, "{\"value\":10e" + exponent[..^1] + "8}", match: ["\"v2\""]);
+        Assert.Equal(HttpStatusCode.OK, same.StatusCode);
+        Assert.Equal("\"v2\"", same.Headers.ETag!.ToString());
+        var coefficient = new string('9', 150000);
+        using var large = await Send(HttpMethod.Put, path, "{\"value\":" + coefficient + "}", match: ["\"v2\""]);
+        Assert.Equal(HttpStatusCode.OK, large.StatusCode);
+        using var reread = await Send(HttpMethod.Get, path);
+        using var returnedLarge = JsonDocument.Parse(await reread.Content.ReadAsStringAsync());
+        Assert.Equal(coefficient, returnedLarge.RootElement.GetProperty("value").GetRawText());
     }
 
     [Fact]
@@ -145,6 +240,16 @@ public sealed class CustomFieldEndpointsTests : DefinitionEndpointFixture
         var foreignField = await CreateId(Path, Body, true);
         string Url(Guid id, Guid def) => $"/api/v1/contacts/{id}/fields/{def}";
         var path = Url(contact, field);
+        var foreignPath = Url(foreign, foreignField);
+        using (var foreignWrite = await Send(HttpMethod.Put, foreignPath, "{\"value\":\"foreign\"}", "other", other.ToString(), match: ["\"v1\""]))
+            Assert.Equal(HttpStatusCode.OK, foreignWrite.StatusCode);
+        using (var foreignRead = await Send(HttpMethod.Get, foreignPath, subject: "other", selected: other.ToString()))
+        {
+            Assert.Equal(HttpStatusCode.OK, foreignRead.StatusCode);
+            using var content = JsonDocument.Parse(await foreignRead.Content.ReadAsStringAsync());
+            Assert.Equal("foreign", content.RootElement.GetProperty("value").GetString());
+        }
+        await Problem(await Send(HttpMethod.Get, foreignPath), HttpStatusCode.NotFound, "NOT_FOUND");
         const string body = """{"value":null}""";
         await Problem(await Send(HttpMethod.Put, path, body), (HttpStatusCode)428, "PRECONDITION_REQUIRED");
         foreach (var bad in new string[][] { ["*"], ["W/\"v1\""], ["\"v1\"", "\"v1\""] })

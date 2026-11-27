@@ -45,6 +45,8 @@ public class CrmCollectionCursorTests
     {
         var cursor = new CrmCollectionCursor(key);
         var token = cursor.Encode(tenant, "tags", null, anchor);
+        Assert.False(cursor.TryDecode("!" + token[1..], tenant, "tags", null, out _));
+        Assert.False(cursor.TryDecode(token[..^1] + "=", tenant, "tags", null, out _));
         const string alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
         var alias = token[..^1] + alphabet[alphabet.IndexOf(token[^1]) + 1];
         Assert.False(cursor.TryDecode(alias, tenant, "tags", null, out _));

@@ -13,7 +13,7 @@ public static class CustomFieldStore
         Guid contact, Guid field, CancellationToken ct)
     {
         await using var cmd = new NpgsqlCommand("""
-            SELECT CASE WHEN v.escaped_string THEN v.value #>> '{}' ELSE v.value::text END
+            SELECT CASE WHEN v.number_raw IS NOT NULL THEN v.number_raw WHEN v.escaped_string THEN v.value #>> '{}' ELSE v.value::text END
             FROM crm.contact_field_values v
             JOIN crm.contacts c ON (c.tenant_id,c.id)=(v.tenant_id,v.contact_id)
             WHERE v.tenant_id=@tenant AND v.contact_id=@contact AND v.field_id=@field AND c.deleted_at IS NULL
