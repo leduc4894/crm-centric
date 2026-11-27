@@ -455,11 +455,12 @@ public sealed class ApiDefaultClient : IApiDefaultClient
     /// </summary>
     /// <param name="xTenantId">The X-Tenant-Id parameter.</param>
     /// <param name="ifMatch">The If-Match parameter.</param>
+    /// <param name="xContactId">The X-Contact-Id parameter.</param>
     /// <param name="body">The request body..</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <param name="validationMode">The validation mode applied to the request before it is sent.</param>
     /// <param name="responseValidationMode">The validation mode applied to the response body.</param>
-    public ValueTask<CreateContactResponse> CreateContactAsync(Crm.Client.Models.JsonUuid.Source xTenantId, Crm.Client.Models.CreateContact.Source body, Crm.Client.Models.PostApiV1ContactsIfMatch.Source ifMatch = default, CancellationToken cancellationToken = default, ValidationMode validationMode = ValidationMode.Basic, ValidationMode responseValidationMode = ValidationMode.None)
+    public ValueTask<CreateContactResponse> CreateContactAsync(Crm.Client.Models.JsonUuid.Source xTenantId, Crm.Client.Models.CreateContact.Source body, Crm.Client.Models.PostApiV1ContactsIfMatch.Source ifMatch = default, Crm.Client.Models.PostApiV1ContactsXContactId.Source xContactId = default, CancellationToken cancellationToken = default, ValidationMode validationMode = ValidationMode.Basic, ValidationMode responseValidationMode = ValidationMode.None)
     {
         JsonWorkspace workspace = JsonWorkspace.CreateUnrented();
         Crm.Client.Models.CreateContact bodyValue = Crm.Client.Models.CreateContact.CreateBuilder(workspace, body, 30).RootElement;
@@ -467,6 +468,7 @@ public sealed class ApiDefaultClient : IApiDefaultClient
         CreateContactRequest request = new(XTenantIdValue)
         {
             IfMatch = ifMatch.IsUndefined ? default : (Crm.Client.Models.PostApiV1ContactsIfMatch)Crm.Client.Models.PostApiV1ContactsIfMatch.CreateBuilder(workspace, ifMatch, 30).RootElement,
+            XContactId = xContactId.IsUndefined ? default : (Crm.Client.Models.PostApiV1ContactsXContactId)Crm.Client.Models.PostApiV1ContactsXContactId.CreateBuilder(workspace, xContactId, 30).RootElement,
         }
         ;
 
@@ -493,11 +495,12 @@ public sealed class ApiDefaultClient : IApiDefaultClient
     /// </summary>
     /// <param name="xTenantId">The X-Tenant-Id parameter.</param>
     /// <param name="ifMatch">The If-Match parameter.</param>
+    /// <param name="xContactId">The X-Contact-Id parameter.</param>
     /// <param name="body">The request body..</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <param name="validationMode">The validation mode applied to the request before it is sent.</param>
     /// <param name="responseValidationMode">The validation mode applied to the response body.</param>
-    public ValueTask<CreateContactResponse> CreateContactAsync<TContext>(Crm.Client.Models.JsonUuid.Source xTenantId, Crm.Client.Models.CreateContact.Source<TContext> body, Crm.Client.Models.PostApiV1ContactsIfMatch.Source ifMatch = default, CancellationToken cancellationToken = default, ValidationMode validationMode = ValidationMode.Basic, ValidationMode responseValidationMode = ValidationMode.None)
+    public ValueTask<CreateContactResponse> CreateContactAsync<TContext>(Crm.Client.Models.JsonUuid.Source xTenantId, Crm.Client.Models.CreateContact.Source<TContext> body, Crm.Client.Models.PostApiV1ContactsIfMatch.Source ifMatch = default, Crm.Client.Models.PostApiV1ContactsXContactId.Source xContactId = default, CancellationToken cancellationToken = default, ValidationMode validationMode = ValidationMode.Basic, ValidationMode responseValidationMode = ValidationMode.None)
     #if NET9_0_OR_GREATER
         where TContext : allows ref struct
     #endif
@@ -508,6 +511,7 @@ public sealed class ApiDefaultClient : IApiDefaultClient
         CreateContactRequest request = new(XTenantIdValue)
         {
             IfMatch = ifMatch.IsUndefined ? default : (Crm.Client.Models.PostApiV1ContactsIfMatch)Crm.Client.Models.PostApiV1ContactsIfMatch.CreateBuilder(workspace, ifMatch, 30).RootElement,
+            XContactId = xContactId.IsUndefined ? default : (Crm.Client.Models.PostApiV1ContactsXContactId)Crm.Client.Models.PostApiV1ContactsXContactId.CreateBuilder(workspace, xContactId, 30).RootElement,
         }
         ;
 

@@ -1,4 +1,4 @@
-import type { components } from '@crm-centric/crm-client';
+import type { components, operations } from '@crm-centric/crm-client';
 type Create = components['schemas']['CreateContact'];
 type Update = components['schemas']['UpdateContact'];
 type Rule = components['schemas']['AutomationRule'];
@@ -12,3 +12,7 @@ const extra: Create = { displayName: 'sample', tenant_id: 'sample' };
 const invalid: Update = { displayName: null };
 const rule: Rule = {ruleId: 'sample', version: 1, triggerEventType: 'crm.contact.created.v1', condition: {field: '/data/score', op: 'eq', value: null}, actions: [{type: 'module.send.v1', installationId: '00000000-0000-4000-8000-000000000001', input: {extra: 42}}]};
 void [create, update, missing, extra, invalid, rule];
+
+type ConditionalHeaders = operations['createContact']['parameters']['header'];
+const upsertHeaders: ConditionalHeaders = { 'X-Tenant-Id': '00000000-0000-4000-8000-000000000001', 'If-Match': '"v1"', 'X-Contact-Id': '00000000-0000-4000-8000-000000000001' };
+void upsertHeaders;

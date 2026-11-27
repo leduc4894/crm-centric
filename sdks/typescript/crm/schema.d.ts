@@ -136,7 +136,7 @@ export interface paths {
         put?: never;
         /**
          * Create or update a contact by email
-         * @description Within the authenticated tenant, a new or null email creates a contact. An existing active email matches after trimming leading and trailing ordinary spaces and applying PostgreSQL lower under the database collation; dots and plus tags are preserved. A matching email updates the existing contact only when If-Match is a strong ETag for its current version. The required displayName and other supplied fields replace their current values; omitted optional fields remain unchanged and explicit null clears a nullable field. Updates preserve the contact ID. A no-op keeps its version and ETag. Email is not an authenticated identity or an identity link. If-Match is supplied but no active contact matches: a valid strong tag returns 412. An invalid tag returns 400. Failed preconditions make no changes.
+         * @description Within the authenticated tenant, a new or null email creates a contact. An existing active email matches after trimming leading and trailing ordinary spaces and applying PostgreSQL lower under the database collation; dots and plus tags are preserved. A matching email updates the existing contact only when If-Match is a strong ETag for its current version and X-Contact-Id equals that same active contact's UUID. The required displayName and other supplied fields replace their current values; omitted optional fields remain unchanged and explicit null clears a nullable field. Updates preserve the contact ID. A no-op keeps its version and ETag. Email is not an authenticated identity or an identity link. If-Match is supplied but no active contact matches, a complete valid If-Match and X-Contact-Id pair returns 412. Missing either member of a conditional pair returns 428; malformed or multiple values return 400. A different ID or stale version returns 412. Failed preconditions make no changes.
          */
         post: operations["createContact"];
         delete?: never;
@@ -1517,8 +1517,10 @@ export interface operations {
             header: {
                 /** @description Selected tenant only; server verifies active membership or credential binding. Never an authorization assertion. */
                 "X-Tenant-Id": components["parameters"]["TenantContext"];
-                /** @description Required when the supplied email matches an active contact. Missing returns 428, stale returns 412, and malformed, weak, wildcard or multiple values return 400. A new contact does not require this header. */
+                /** @description Required with X-Contact-Id when the supplied email matches an active contact. Missing either member of the conditional pair returns 428; stale returns 412; malformed, weak, wildcard or multiple values return 400. A new contact is created without either header. */
                 "If-Match"?: string;
+                /** @description Expected active contact ID paired with If-Match on an update. Missing either member of the conditional pair returns 428, an ID mismatch returns 412, and malformed, noncanonical or multiple values return 400. It is not a tenant identifier or an authorization assertion. */
+                "X-Contact-Id"?: string;
             };
             path?: never;
             cookie?: never;

@@ -13,7 +13,7 @@ using var input = ParsedJsonDocument<Crm.Client.Models.CreateContact>.Parse("{\"
 foreach (int status in new[] { 201, 200, 400, 412, 428 })
 {
     handler.Status = status;
-    await using var response = status == 201 ? await api.CreateContactAsync(id, input.RootElement) : await api.CreateContactAsync(id, input.RootElement, "\"v1\"");
+    await using var response = status == 201 ? await api.CreateContactAsync(id, input.RootElement) : await api.CreateContactAsync(id, input.RootElement, "\"v1\"", id);
     if (response.StatusCode != status) throw new Exception("status mismatch");
     var classification = response.MatchResult<string>(
         _ => "updated", _ => "created", _ => "error", _ => "error", _ => "error", _ => "error", _ => "error",
@@ -38,6 +38,7 @@ sealed class FixtureHandler : HttpMessageHandler
     {
         if (request.Headers.GetValues("X-Tenant-Id").Single() != "00000000-0000-4000-8000-000000000001") throw new Exception("tenant absent");
         if (Status == 201 ? request.Headers.Contains("If-Match") : request.Headers.GetValues("If-Match").Single() != "\"v1\"") throw new Exception("invalid precondition");
+        if (Status == 201 ? request.Headers.Contains("X-Contact-Id") : request.Headers.GetValues("X-Contact-Id").Single() != "00000000-0000-4000-8000-000000000001") throw new Exception("invalid expected contact ID");
         var body = Status < 300 ? "{\"id\":\"00000000-0000-4000-8000-000000000001\",\"displayName\":\"Example\",\"version\":1,\"createdAt\":\"2026-01-01T00:00:00Z\",\"updatedAt\":\"2026-01-01T00:00:00Z\"}" : "{\"type\":\"urn:example\",\"title\":\"Error\",\"status\":" + Status + ",\"reasonToken\":\"TEST\",\"correlationId\":\"test\"}";
         var response = new HttpResponseMessage((HttpStatusCode)Status) { Content = new StringContent(body, Encoding.UTF8, Status < 300 ? "application/json" : "application/problem+json") };
         if (Status < 300) response.Headers.ETag = new EntityTagHeaderValue("\"v1\"");

@@ -32,6 +32,11 @@ public readonly struct CreateContactRequest : IApiRequest<CreateContactRequest>
     public Crm.Client.Models.PostApiV1ContactsIfMatch IfMatch { get; init; }
 
     /// <summary>
+    /// Gets the X-Contact-Id parameter.
+    /// </summary>
+    public Crm.Client.Models.PostApiV1ContactsXContactId XContactId { get; init; }
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="CreateContactRequest"/> struct.
     /// </summary>
     /// <param name="xTenantId">The X-Tenant-Id parameter.</param>
@@ -87,6 +92,13 @@ public readonly struct CreateContactRequest : IApiRequest<CreateContactRequest>
             callback(nameUtf8IfMatch, utf8IfMatch.Span, state);
         }
 
+        ReadOnlySpan<byte> nameUtf8XContactId = "X-Contact-Id"u8;
+        if (this.XContactId.IsNotUndefined())
+        {
+            using UnescapedUtf8JsonString utf8XContactId = ((JsonElement)this.XContactId).GetUtf8String();
+            callback(nameUtf8XContactId, utf8XContactId.Span, state);
+        }
+
     }
 
     /// <inheritdoc/>
@@ -120,6 +132,15 @@ public readonly struct CreateContactRequest : IApiRequest<CreateContactRequest>
                 }
             }
 
+            if (this.XContactId.IsNotUndefined())
+            {
+                using JsonSchemaResultsCollector collectorXContactId = JsonSchemaResultsCollector.Create(JsonSchemaResultsLevel.Detailed);
+                if (!this.XContactId.EvaluateSchema(collectorXContactId))
+                {
+                    ThrowHelper.ThrowRequestParameterValidationFailed("X-Contact-Id", SchemaValidationDetail.FormatResults(collectorXContactId));
+                }
+            }
+
         }
         else
         {
@@ -131,6 +152,11 @@ public readonly struct CreateContactRequest : IApiRequest<CreateContactRequest>
             if (this.IfMatch.IsNotUndefined() && !this.IfMatch.EvaluateSchema())
             {
                 ThrowHelper.ThrowRequestParameterValidationFailed("If-Match");
+            }
+
+            if (this.XContactId.IsNotUndefined() && !this.XContactId.EvaluateSchema())
+            {
+                ThrowHelper.ThrowRequestParameterValidationFailed("X-Contact-Id");
             }
 
         }
