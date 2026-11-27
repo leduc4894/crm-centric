@@ -105,3 +105,32 @@ it('table_scope_switch_drops_old_rows', async () => {
   act(() => links[0]!.click());
   await waitFor(() => expect(location.pathname).toBe('/app/contacts/' + currentId));
 });
+
+it('ignores abort-resistant detail reads across tenant switches and logout/login on the same deep link', async () => {
+  const auth = client(); signIn(auth, 'one');
+  const pending: Array<(response: Response) => void> = [];
+  vi.stubGlobal('fetch', (request: Request | string) => {
+    if (typeof request === 'string') return Promise.resolve(Response.json(tenants));
+    if (new URL(request.url).pathname.endsWith('/contacts/' + contactId)) return new Promise<Response>(done => pending.push(done));
+    return Promise.resolve(Response.json({ items: [], nextCursor: null }));
+  });
+  history.replaceState(null, '', '/app/contacts/' + contactId);
+  renderContactRoute(children => <AuthProvider client={auth}><TenantProvider><Harness>{children}</Harness></TenantProvider></AuthProvider>);
+  const select = async (name: string) => act(() => screen.getByRole('button', { name: 'Tenant ' + name }).click());
+  const contact = (name: string) => Response.json({ id: contactId, displayName: name, version: 1, createdAt: '2026-01-01', updatedAt: '2026-01-01' }, { headers: { ETag: '"v1"' } });
+  await screen.findByText('Tenant A'); await select('A'); await waitFor(() => expect(pending).toHaveLength(1));
+  await select('B'); await waitFor(() => expect(pending).toHaveLength(2));
+  await select('A'); await waitFor(() => expect(pending).toHaveLength(3));
+  Reflect.set(auth, 'idToken', 'synthetic-id');
+  Reflect.set(auth, 'metadata', async () => ({ end_session_endpoint: 'https://id.example/logout' }));
+  Reflect.set(Reflect.get(auth, 'env'), 'logout', async () => undefined);
+  await act(async () => auth.logout());
+  act(() => signIn(auth, 'two')); await screen.findByText('Tenant A'); await select('A');
+  await waitFor(() => expect(pending).toHaveLength(4));
+  await act(async () => pending[3]!(contact('Current session')));
+  await screen.findByRole('heading', { name: 'Current session' });
+  await act(async () => { pending[0]!(contact('Old A')); pending[1]!(contact('Old B')); pending[2]!(new Response(null, { status: 401 })); });
+  expect(auth.getSnapshot().status).toBe('authenticated');
+  expect(screen.queryByText('Old A')).toBeNull(); expect(screen.queryByText('Old B')).toBeNull();
+  expect(screen.getByRole('heading', { name: 'Current session' })).toBeTruthy();
+});

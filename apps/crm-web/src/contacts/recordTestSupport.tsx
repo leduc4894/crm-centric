@@ -1,5 +1,6 @@
 import { render, fireEvent, screen } from '@testing-library/react';
 import { vi } from 'vitest';
+import { createMemoryHistory, createRootRoute, createRoute, createRouter, RouterProvider } from '@tanstack/react-router';
 import { createCrmClient } from './crmClient';
 import { ContactDetail } from './ContactDetail';
 import { ContactQueryScope, useContactQueryScope } from './queryScope';
@@ -19,7 +20,12 @@ export function setup(handler: (req: Request, path: string) => Response | Promis
   });
   const client = createCrmClient({ origin: location.origin, tenantId: id, token: 'fixture', signal: new AbortController().signal, invalidate() { } });
   function Fixture() { const scope = useContactQueryScope(); inspect?.(scope); return <ContactDetail client={client} id={id} />; }
-  render(<ContactQueryScope identity="fixture" tenantId={id} generation={1}><Fixture /></ContactQueryScope>);
+  const root = createRootRoute({ component: () => <ContactQueryScope identity="fixture" tenantId={id} generation={1}><Fixture /></ContactQueryScope> });
+  const home = createRoute({ getParentRoute: () => root, path: '/' });
+  const list = createRoute({ getParentRoute: () => root, path: '/app/contacts' });
+  const router = createRouter({ routeTree: root.addChildren([home, list]), history: createMemoryHistory({ initialEntries: ['/'] }) });
+  window.scrollTo = () => {};
+  render(<RouterProvider router={router} />);
   return calls;
 }
 export const click = async (name: string) => fireEvent.click(await screen.findByRole('button', { name }));

@@ -120,3 +120,164 @@ it('hides the previous session immediately when the same principal authenticates
   expect(screen.queryByText('Previous session')).toBeNull();
   await waitFor(() => expect(pending).toHaveLength(2));
 });
+
+it('disposes field and note drafts and delete confirmation when navigating to another contact', async () => {
+  tenant = a;
+  history.replaceState(null, '', '/app/contacts/' + a);
+  let writes = 0;
+  vi.stubGlobal('fetch', async (req: Request) => {
+    const path = new URL(req.url).pathname;
+    if (req.method !== 'GET') writes++;
+    if (path.endsWith('/custom-fields')) return Response.json({ items: [{ id: '20000000-0000-4000-8000-000000000003', key: 'amount', displayName: 'Amount', dataType: 'number', required: false, version: 1 }], nextCursor: null });
+    if (path.includes('/fields/')) return Response.json({ value: 1 });
+    if (path.endsWith(a) || path.endsWith(b)) return Response.json({ id: path.split('/').at(-1), displayName: path.endsWith(a) ? 'First' : 'Second', version: 1, createdAt: '2026-01-01', updatedAt: '2026-01-01' }, { headers: { ETag: '"v1"' } });
+    return Response.json({ items: [], nextCursor: null });
+  });
+  const view = renderShell();
+  await screen.findByRole('heading', { name: 'First' });
+  fireEvent.change(await screen.findByLabelText('Amount'), { target: { value: '42' } });
+  fireEvent.change(screen.getByLabelText('Ghi chú'), { target: { value: 'Private note' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Xóa liên hệ' }));
+  expect(screen.getByRole('dialog')).toBeTruthy();
+  await act(async () => { await view.router.navigate({ to: '/app/contacts/$contactId', params: { contactId: b } }); });
+  await screen.findByRole('heading', { name: 'Second' });
+  expect(screen.queryByRole('dialog')).toBeNull();
+  expect((screen.getByLabelText('Ghi chú') as HTMLTextAreaElement).value).toBe('');
+  await waitFor(() => expect((screen.getByLabelText('Amount') as HTMLInputElement).value).toBe('1'));
+  expect(writes).toBe(0);
+});
+
+it('does not navigate away from the new contact when an old delete returns after the route changes', async () => {
+  tenant = a;
+  history.replaceState(null, '', '/app/contacts/' + a);
+  let finishDelete: ((response: Response) => void) | undefined;
+  let writes = 0;
+  vi.stubGlobal('fetch', async (req: Request) => {
+    const path = new URL(req.url).pathname;
+    if (req.method === 'DELETE') { writes++; return new Promise<Response>(resolve => { finishDelete = resolve; }); }
+    if (path.endsWith(a) || path.endsWith(b)) return Response.json({ id: path.split('/').at(-1), displayName: path.endsWith(a) ? 'First' : 'Second', version: 1, createdAt: '2026-01-01', updatedAt: '2026-01-01' }, { headers: { ETag: '"v1"' } });
+    return Response.json({ items: [], nextCursor: null });
+  });
+  const view = renderShell();
+  await screen.findByRole('heading', { name: 'First' });
+  fireEvent.click(screen.getByRole('button', { name: 'Xóa liên hệ' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Xác nhận xóa' }));
+  await waitFor(() => expect(finishDelete).toBeDefined());
+  await act(async () => { await view.router.navigate({ to: '/app/contacts/$contactId', params: { contactId: b } }); });
+  await screen.findByRole('heading', { name: 'Second' });
+  await act(async () => finishDelete!(new Response(null, { status: 204 })));
+  expect(location.pathname).toBe('/app/contacts/' + b);
+  expect(screen.getByRole('heading', { name: 'Second' })).toBeTruthy();
+  expect(writes).toBe(1);
+});
+
+it('reads a conflicted record again after leaving and returning without resending its write', async () => {
+  tenant = a;
+  history.replaceState(null, '', '/app/contacts/' + a);
+  let reads = 0, writes = 0;
+  vi.stubGlobal('fetch', async (req: Request) => {
+    const path = new URL(req.url).pathname;
+    if (req.method === 'PATCH') { writes++; return new Response(null, { status: 412 }); }
+    if (path.endsWith(a)) { reads++; return Response.json({ id: a, displayName: 'First', version: reads, createdAt: '2026-01-01', updatedAt: '2026-01-01' }, { headers: { ETag: '"v' + reads + '"' } }); }
+    return Response.json({ items: [], nextCursor: null });
+  });
+  const view = renderShell();
+  await screen.findByRole('heading', { name: 'First' });
+  fireEvent.click(screen.getByRole('button', { name: 'Chỉnh sửa' }));
+  fireEvent.change(screen.getByLabelText('Tên liên hệ'), { target: { value: 'Draft' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Lưu' }));
+  await screen.findByRole('alert');
+  expect((screen.getByLabelText('Tên liên hệ') as HTMLInputElement).value).toBe('Draft');
+  await act(async () => { await view.router.navigate({ to: '/app/contacts' }); });
+  await screen.findByText('Chưa có liên hệ.');
+  await act(async () => { await view.router.navigate({ to: '/app/contacts/$contactId', params: { contactId: a } }); });
+  await screen.findByRole('heading', { name: 'First' });
+  expect(reads).toBe(2);
+  expect(writes).toBe(1);
+  expect(screen.queryByDisplayValue('Draft')).toBeNull();
+});
+
+it('does not open a late created contact after the user navigates to a different record', async () => {
+  tenant = a; history.replaceState(null, '', '/app/contacts');
+  let finishCreate: ((response: Response) => void) | undefined;
+  let writes = 0;
+  vi.stubGlobal('fetch', async (req: Request) => {
+    const path = new URL(req.url).pathname;
+    if (req.method === 'POST') { writes++; return new Promise<Response>(resolve => { finishCreate = resolve; }); }
+    if (path.endsWith(b)) return Response.json({ id: b, displayName: 'Selected', version: 1, createdAt: '2026-01-01', updatedAt: '2026-01-01' }, { headers: { ETag: '"v1"' } });
+    return Response.json({ items: [], nextCursor: null });
+  });
+  const view = renderShell();
+  fireEvent.click(await screen.findByRole('button', { name: 'Thêm liên hệ' }));
+  fireEvent.change(screen.getByLabelText('Tên liên hệ'), { target: { value: 'Pending creation' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Tạo' }));
+  await waitFor(() => expect(finishCreate).toBeDefined());
+  await act(async () => { await view.router.navigate({ to: '/app/contacts/$contactId', params: { contactId: b } }); });
+  await screen.findByRole('heading', { name: 'Selected' });
+  await act(async () => finishCreate!(Response.json({ id: a, displayName: 'Pending creation', version: 1, createdAt: '2026-01-01', updatedAt: '2026-01-01' }, { status: 201, headers: { ETag: '"v1"' } })));
+  expect(location.pathname).toBe('/app/contacts/' + b);
+  expect(screen.getByRole('heading', { name: 'Selected' })).toBeTruthy();
+  expect(writes).toBe(1);
+});
+
+it.each([403, 404])('shows a safe error after navigating to a forbidden or deleted record (%i)', async status => {
+  tenant = a; history.replaceState(null, '', '/app/contacts/' + a);
+  vi.stubGlobal('fetch', async (req: Request) => {
+    const path = new URL(req.url).pathname;
+    if (path.endsWith(b)) return Response.json({ reasonToken: status === 403 ? 'TENANT_FORBIDDEN' : 'NOT_FOUND' }, { status });
+    if (path.endsWith(a)) return Response.json({ id: a, displayName: 'Visible', version: 1, createdAt: '2026-01-01', updatedAt: '2026-01-01' }, { headers: { ETag: '"v1"' } });
+    return Response.json({ items: [], nextCursor: null });
+  });
+  const view = renderShell(); await screen.findByRole('heading', { name: 'Visible' });
+  await act(async () => { await view.router.navigate({ to: '/app/contacts/$contactId', params: { contactId: b } }); });
+  await screen.findByRole('alert');
+  expect(screen.queryByText('Visible')).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Chỉnh sửa' })).toBeNull();
+});
+
+it('does not let a previous tenant mutation redirect after A to B to A', async () => {
+  tenant = a; history.replaceState(null, '', '/app/contacts/' + a);
+  let finishDelete: ((response: Response) => void) | undefined;
+  let reads = 0, writes = 0;
+  vi.stubGlobal('fetch', async (req: Request) => {
+    const path = new URL(req.url).pathname;
+    if (req.method === 'DELETE') { writes++; return new Promise<Response>(resolve => { finishDelete = resolve; }); }
+    if (path.endsWith(a)) return Response.json({ id: a, displayName: 'View ' + ++reads, version: 1, createdAt: '2026-01-01', updatedAt: '2026-01-01' }, { headers: { ETag: '"v1"' } });
+    return Response.json({ items: [], nextCursor: null });
+  });
+  const view = renderShell(); await screen.findByRole('heading', { name: 'View 1' });
+  fireEvent.click(screen.getByRole('button', { name: 'Xóa liên hệ' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Xác nhận xóa' }));
+  await waitFor(() => expect(finishDelete).toBeDefined());
+  tenant = b; view.rerender(); await screen.findByRole('heading', { name: 'View 2' });
+  tenant = a; view.rerender(); await screen.findByRole('heading', { name: 'View 3' });
+  await act(async () => finishDelete!(new Response(null, { status: 204 })));
+  expect(location.pathname).toBe('/app/contacts/' + a);
+  expect(screen.getByRole('heading', { name: 'View 3' })).toBeTruthy();
+  expect(writes).toBe(1);
+});
+
+it('does not reuse the list after an uncertain write and back navigation', async () => {
+  tenant = a; history.replaceState(null, '', '/app/contacts');
+  const record = { id: a, displayName: 'Old list', version: 1, createdAt: '2026-01-01', updatedAt: '2026-01-01' };
+  let lists = 0, writes = 0, finishList: ((response: Response) => void) | undefined;
+  vi.stubGlobal('fetch', async (req: Request) => {
+    const path = new URL(req.url).pathname;
+    if (path.endsWith('/contacts')) {
+      if (++lists === 1) return Response.json({ items: [record], nextCursor: null });
+      return new Promise<Response>(resolve => { finishList = resolve; });
+    }
+    if (req.method === 'PATCH') { writes++; throw new TypeError('connection lost'); }
+    if (path.endsWith(a)) return Response.json(record, { headers: { ETag: '"v1"' } });
+    return Response.json({ items: [], nextCursor: null });
+  });
+  renderShell(); fireEvent.click(await screen.findByRole('link', { name: 'Old list' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Chỉnh sửa' }));
+  fireEvent.change(screen.getByLabelText('Tên liên hệ'), { target: { value: 'Draft' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Lưu' })); await screen.findByRole('alert');
+  act(() => history.back()); await waitFor(() => expect(finishList).toBeDefined());
+  expect(screen.queryByText('Old list')).toBeNull();
+  await act(async () => finishList!(Response.json({ items: [], nextCursor: null })));
+  await screen.findByText('Chưa có liên hệ.');
+  expect(writes).toBe(1);
+});
