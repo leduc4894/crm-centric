@@ -6,7 +6,7 @@
         "type": "Direct",
         "requested": "[2.0.0, 2.0.0]",
         "resolved": "2.0.0",
-        "contentHash": "HM8FnmLTZL9vpgTQjO9lmPuExeVw6theg2DP0mzrCT2MbDHbFh2nAHh2F6jBVip/4FfPWsK2G//Ag6vXmKpplA==",
+        "contentHash": "kYib4YsvbMRwSvcYIQPQzGvo1TsEWhOYJ8/iJxY+DAuCkV35fnPXyTsc2HWJNOkPFoSeCECFBEUoxhNS4ZamrA==",
         "dependencies": {
           "Corvus.Text.Json": "[5.8.8]",
           "Corvus.Text.Json.OpenApi.HttpTransport": "[5.8.8]"
