@@ -24,19 +24,23 @@ def verify_versions(actual):
 class JobError(Exception):
     def __init__(self, token): self.token = token
 
-def merge_browser_evidence(regular, provider):
+def merge_browser_evidence(regular, provider, contacts):
     from scripts.ci.summary import parse_cases
     regular_cases = parse_cases('playwright', regular)
     provider_cases = parse_cases('playwright', provider)
     expected = 'browser-oidc.spec.ts::real provider signs in isolated tenants and terminates provider session::chromium'
     if len(provider_cases) != 1 or provider_cases[0] != {'id': expected, 'outcome': 'passed'}:
         raise ReportError('CI_DISCOVERY_INCOMPLETE')
-    cases = regular_cases + provider_cases
+    contacts_cases = parse_cases('playwright', contacts)
+    expected_contacts = 'contacts.spec.ts::contact persists across sessions, rejects stale notes and isolates delayed tenant reads::chromium'
+    if len(contacts_cases) != 1 or contacts_cases[0] != {'id': expected_contacts, 'outcome': 'passed'}:
+        raise ReportError('CI_DISCOVERY_INCOMPLETE')
+    cases = regular_cases + provider_cases + contacts_cases
     if len({case['id'] for case in cases}) != len(cases):
         raise ReportError('CI_DISCOVERY_INCOMPLETE')
     counters = ('expected', 'unexpected', 'skipped', 'flaky')
-    return {'errors': [], 'stats': {key: regular['stats'][key] + provider['stats'][key] for key in counters},
-            'suites': regular['suites'] + provider['suites']}
+    return {'errors': [], 'stats': {key: regular['stats'][key] + provider['stats'][key] + contacts['stats'][key] for key in counters},
+            'suites': regular['suites'] + provider['suites'] + contacts['suites']}
 
 def stop_process_group(process, grace=1):
     """Signal only the session created for this exact command, including descendants."""
@@ -479,7 +483,7 @@ def main():
                     for command in plan3_commands(identity,args.mode):
                         execute(command)
                 else:
-                    vitest = scratch/'vitest.json'; browser = scratch/'browser.json'; provider = scratch/'provider.json'
+                    vitest = scratch/'vitest.json'; browser = scratch/'browser.json'; provider = scratch/'provider.json'; contacts = scratch/'contacts.json'
                     env = {**os.environ,'PLAYWRIGHT_JSON_OUTPUT_NAME':str(browser),
                            'PLAYWRIGHT_HTML_OPEN':'never', 'CI_PLAYWRIGHT_SPLIT':'1'}
                     # Plan 3 owns real API stack startup, readiness and teardown.
@@ -490,12 +494,15 @@ def main():
                     execute(['npm','exec','--workspace','apps/crm-web','--','playwright','test',
                              'tests/e2e/browser-oidc.spec.ts','--project=chromium',
                              '--grep','real provider signs in isolated tenants and terminates provider session'],env=provider_env)
+                    contacts_env = {**provider_env, 'PLAYWRIGHT_JSON_OUTPUT_NAME':str(contacts)}
+                    execute(['npm','exec','--workspace','apps/crm-web','--','playwright','test',
+                             'tests/e2e/contacts.spec.ts','--project=chromium'],env=contacts_env)
                     execute(['npm','exec','--workspace','apps/crm-web','--','vitest','run',
                              '--reporter=json','--outputFile='+str(vitest)])
                     report['suites'].extend([
                         {'name':'vitest','format':'vitest','report':json.loads(vitest.read_text())},
                         {'name':'browser','format':'playwright','report':merge_browser_evidence(
-                            json.loads(browser.read_text()), json.loads(provider.read_text()))}])
+                            json.loads(browser.read_text()), json.loads(provider.read_text()), json.loads(contacts.read_text()))}])
             if args.mode=='hardening' and args.job in ('backend','compose','web-browser'):
                 from scripts.ci.image_identity import verify_job_evidence
                 from scripts.ci.scan import ScanError

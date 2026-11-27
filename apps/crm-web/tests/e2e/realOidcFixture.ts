@@ -187,6 +187,12 @@ export class RealOidcFixture {
     } finally { await this.stop(); }
   }
 
+  async signInAgain(page: Page) {
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    await privateOperation(async () => { await page.locator('#username').fill(this.users[0]!); await page.locator('#password').fill(this.password); await page.locator('#kc-login').click(); });
+    await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible({ timeout: 30_000 });
+  }
+
   private async start(sharedMembership = false) {
     if (process.env['CRM_REAL_OIDC_TEST'] !== '1') throw new Error('E2E_FIXTURE_OPT_IN_REQUIRED');
     this.stateDir = await mkdtemp(join(tmpdir(), 'crm-browser-oidc-'));

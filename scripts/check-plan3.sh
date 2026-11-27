@@ -372,7 +372,7 @@ browser_step() {
   fi
   bash scripts/dev-smoke.sh || status=$?
   if [ "${CI_PLAYWRIGHT_SPLIT:-0}" = 1 ]; then
-    npm run test:e2e -w apps/crm-web -- --grep-invert 'real provider signs in isolated tenants and terminates provider session' || status=$?
+    npm run test:e2e -w apps/crm-web -- --grep-invert 'real provider signs in isolated tenants and terminates provider session|contact persists across sessions, rejects stale notes and isolates delayed tenant reads' || status=$?
   else
     npm run test:e2e -w apps/crm-web || status=$?
   fi

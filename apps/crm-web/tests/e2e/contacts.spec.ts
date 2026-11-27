@@ -24,7 +24,8 @@ async function openContact(page: Page) {
 test('contact persists across sessions, rejects stale notes and isolates delayed tenant reads', async ({ browser }) => {
   test.skip(process.env['CRM_REAL_OIDC_TEST'] !== '1', 'Requires isolated real-provider stack');
   test.setTimeout(900_000);
-  await new RealOidcFixture().withContactSessions(browser, async (first: Page, second: Page) => {
+  const fixture = new RealOidcFixture();
+  await fixture.withContactSessions(browser, async (first: Page, second: Page) => {
     first.setDefaultTimeout(15_000);
     second.setDefaultTimeout(15_000);
     await button(first, 'Tenant A').click();
@@ -58,6 +59,15 @@ test('contact persists across sessions, rejects stale notes and isolates delayed
     await button(second, 'Thêm ghi chú').click();
     expect((await stale).status()).toBe(412);
     await expect(second.getByLabel('Ghi chú')).toHaveValue('Unsubmitted stale draft');
+    let additionalNotes = 0;
+    const countNotes = (request: import('@playwright/test').Request) => { if (request.url().endsWith('/notes') && request.method() === 'POST') additionalNotes++; };
+    second.on('request', countNotes);
+    await button(second, 'Đối chiếu dữ liệu').click();
+    await expect(second.getByLabel('Ghi chú')).toHaveValue('Unsubmitted stale draft');
+    await expect(button(second, 'Thêm ghi chú')).toBeEnabled();
+    expect(additionalNotes).toBe(0);
+    second.off('request', countNotes);
+
 
     await first.reload();
     await button(first, 'Sign in').click();
@@ -89,9 +99,22 @@ test('contact persists across sessions, rejects stale notes and isolates delayed
     await first.getByLabel('Tìm kiếm').fill(contact);
     await button(first, 'Lọc').click();
     await received.promise;
-    try { await button(first, 'Tenant B').click(); } finally { release.resolve(); }
+    try {
+      await button(first, 'Tenant B').click();
+      await expect(first.getByText('Chưa có liên hệ.')).toBeVisible();
+      await expect(first.getByRole('link', { name: contact })).toHaveCount(0);
+      await button(first, 'Tenant A').click();
+      await first.getByLabel('Tìm kiếm').fill('no matching synthetic contact');
+      await button(first, 'Lọc').click();
+      await expect(first.getByText('Chưa có liên hệ.')).toBeVisible();
+    } finally { release.resolve(); }
     await delivered.promise;
-    await expect(first.getByText('Chưa có liên hệ.')).toBeVisible();
     await expect(first.getByRole('link', { name: contact })).toHaveCount(0);
+    await button(first, 'Sign out').click();
+    await expect(button(first, 'Sign in')).toBeVisible();
+    await fixture.signInAgain(first);
+    await button(first, 'Tenant A').click();
+    await openContact(first);
+    await expect(first.getByLabel('Browser number')).toHaveValue(precise);
   });
 });
