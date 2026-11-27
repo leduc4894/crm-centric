@@ -42,3 +42,54 @@ benchmark environment, execute scenarios or document the actual environment bloc
 rerun hosted suite against the final candidate, obtain candidate-specific compatibility
 review, and finish the acceptance/roadmap evidence and exit decision. Do not treat the
 preliminary PR as final evidence or close Wave 2/P0.
+
+## CI failure investigation and fixes
+
+User requested CI fixes. Original PR run 46022837693 failed all six jobs; it
+checked out merge `71bcb4b04341a6627ac174af41013f05a9ca7e10`, base
+`db04aeaecd7f4b6d083335a71418788d3c4561ca`, head `e3876b5`. Safe summaries
+are under `.local/plan9-run-46022837693/` (artifacts expire); backend and
+Compose failed dotnet tests, web failed generated check, contract ran 137 tests
+with 135 pass and two fail, security reported `CI_SCAN_FINDINGS` (105 blocked
+secret records and one blocked vulnerability record), aggregate failed. No
+security finding was waived or independently adjudicated.
+
+`check.py` reproduced `SDK_GENERATED_MISMATCH`: only the configuration hash
+in four SDK provenance files was stale following the Form lockfile change.
+Generated the files and reran the check: `SDK_GENERATED_CURRENT` (PASS).
+Commit `e61209a` updates those four files. The two failing contract tests
+reproduced locally as `SDK_TOOLCHAIN_REVIEW_REQUIRED`; their historical
+fixture omitted the consumer files required by the gate. Commit `4ffe1b1`
+adds the real consumer fixture to both tests; focused unittest run passed 2/2
+without skips after failing 2/2. Both commits were pushed with the earlier
+inventory commit and triggered run
+https://github.com/leduc4894/crm-centric/actions/runs/46026514267 on head
+`4ffe1b17d9d0136d65a80b472405e806ab37982e`. At last inspection security
+failed and web reached compatibility but failed `CONTRACT_POLICY_REVIEW_REQUIRED`
+(correlation `e649e0c2-b7cd-41eb-80c2-a91c21cfdea7`); other jobs were still
+running. Do not reuse prior approval or alter policy to force a pass.
+
+Migration/bootstrap test assertions expected 5 or 7 migrations although Wave 2
+adds 17 total. An initial focused run failed 6/18 using a stale `--no-build`
+migrator, so that run is not candidate verification. After full solution build,
+focused `dotnet test` filtering MigrationTests and LocalBootstrapTests passed
+18/18, zero skips; commit `892d225` updates exact migration IDs and counts. No
+full suite was run locally. Compose cold-stack targeted test ran against the
+old built fixture and failed because it expected 5 and observed 17, confirming
+the same defect in `ComposeFixture.Ready`; the focused green rerun is pending.
+At this checkpoint only the Compose fixture change and this handoff are
+uncommitted, `892d225` is ahead of origin; see subsequent checkpoint for final
+status. Further work: finish the Compose focused rerun and commit/push if green;
+review the new hosted run's safe artifacts and diagnose any remaining failures;
+prepare actual-base independent contract review and triage scanner findings
+without weakening gates. Plan 9 benchmark, complete hosted candidate suite and
+exit decision remain open.
+
+Compose focused verification completed: `dotnet build CrmPlatform.sln -c Release
+--no-restore` succeeded, then `dotnet test tests/Integration/Integration.csproj
+-c Release --no-build --no-restore --filter
+'FullyQualifiedName~LocalStackTests.Cold_up_needs_no_host_sdk'` passed 1/1,
+zero skips (73 seconds). The previous old-fixture run failed 1/1, expected 5,
+actual 17. Commit `1cdf1c8` fixes the fixture; it and `892d225` were pushed to
+`origin/wave-2`. This focused case does not establish that all Compose failures
+are fixed. Hosted runs and security/governance results must still be inspected.
