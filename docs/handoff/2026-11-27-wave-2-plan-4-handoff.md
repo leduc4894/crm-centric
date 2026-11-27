@@ -53,3 +53,21 @@ No pending Task 2 implementation edits. Next steps are independent Task 2 review
 Commit `8befd9a` on `wave-2` addresses independent review of request memory use in [Plan 4](../superpowers/plans/2026-11-27-wave-2-plan-4-timeline-contact-ui.md). TimelineEndpoints now authorizes and reads at most 16 KiB of note JSON into the buffer before parsing. The existing shared ContactEndpoints reader counts bytes per chunk and stops when the next chunk exceeds the cap, including when no Content-Length is available. Other callers retain the existing 8 KiB default. The note cap accommodates 1,000 escaped supplementary scalars (12,000 value bytes), JSON framing, and ordinary formatting. Additional whitespace can put the request over the total transport limit.
 
 Extended DefinitionEndpointFixture and TimelineEndpointsTests with a 64 KiB chunked JSON request, asserting correlated HTTP 413 with REQUEST_INVALID, the original strong ETag, and unchanged timeline, audit and outbox counts. On real PostgreSQL Testcontainers the filtered Oversized_chunked test failed RED with actual HTTP 400. After the fix, `dotnet test tests/Integration/Integration.csproj --no-restore --filter 'FullyQualifiedName~TimelineEndpointsTests|FullyQualifiedName~Slow_body_holds_no_mutation_or_membership_lock_and_rechecks_revocation'` passed 14/14, zero skipped, including the escaped-scalar boundary and note revocation during a slow upload. The staged whitespace check passed. Logs are under ignored .local/timeline-body-review-*.log. All correction changes are committed. Independent re-review is next. Full CI and acceptance remain pending as recorded above.
+
+## Task 3 scoped contact transport and shell
+
+Implementation commit `e511140` on `wave-2` follows `516eec3` in [Plan 4](../superpowers/plans/2026-11-27-wave-2-plan-4-timeline-contact-ui.md). The user requested dedicated contact records from the list, with profile, tags and fields beside the timeline and note form. The shell implements list/record navigation and basic contact information using the prototype palette, spacing and responsive sidebar. Tasks 4 and 5 supply the remaining interactions.
+
+Changed the CRM web App, contacts client/number codec, shell, styles and tests, dev proxy/alias configuration and tests, TypeScript paths, web package dependencies and npm lockfile. The generated CRM SDK drives every method. Custom numeric values stay as JSON number tokens in both directions. Conditional writes take an explicit strong ETag. The UI should call `requireETag` with the latest operation result before its next conditional write. A missing note ETag triggers a contact GET at that point. Do not silently retry conflict responses. Scoped request lifetime ends on principal, tenant or record navigation. The client independently checks live auth before a response can invalidate login or update the record.
+
+Verification on Node 24.22.2/npm 11.19.1:
+
+| Command or check | Result |
+| --- | --- |
+| `npm exec --workspace @crm-centric/crm-web -- vitest run src/contacts/crmClient.test.ts src/contacts/ContactShell.test.tsx config/contactsProxy.test.ts` | Initial RED 3 missing modules. Final PASS 27/27, no skips. |
+| Additional focused REDs | 3/19 failed on invalid or escaped field JSON, 2/21 failed on real platform correlation format and invalid route IDs, 1/22 failed on an untyped number write. Final run covers all corrections. |
+| Same Vitest command with `config/devServer.test.ts config/tenantProxy.test.ts src/auth/AuthProvider.test.tsx src/tenant/TenantProvider.test.tsx src/tenant/TenantPicker.test.tsx src/health/HealthStatus.test.tsx` | PASS 38/38, no skips |
+| `npm run typecheck --workspace @crm-centric/crm-web`, targeted ESLint on changed source/proxy, `npm run build --workspace @crm-centric/crm-web`, staged whitespace check | PASS |
+| Browser E2E, deployment, full suite, hosted CI and P0 drills | Not run in Task 3 |
+
+Task 3 transport/shell edits are committed. Suite logs and SDD task report are ignored local artifacts. Next are independent Task 3 review, Tasks 4–5 UI implementation and Task 6 real-stack E2E. Actual-base policy review and wave-exit gates remain open.
