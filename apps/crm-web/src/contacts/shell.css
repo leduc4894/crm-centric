@@ -12,7 +12,7 @@ body { margin: 0; background: #f6f8fc; color: #202b42; font: 14px/1.5 Inter, sys
 .contact-card { background: white; padding: 20px; border: 1px solid #e5eaf2; border-radius: 12px; overflow-wrap: anywhere; }
 .crm-shell :focus-visible { outline: 3px solid #9cb9ff; outline-offset: 2px; }
 @media (max-width: 700px) {
-  .crm-shell { grid-template-columns: 1fr; align-content: start; }
+  .crm-shell { grid-template-columns: minmax(0,1fr); align-content: start; }
   .crm-shell aside { border-bottom: 1px solid #e6eaf1; }
   .crm-shell nav { display: flex; margin: 10px 0; }
 }
@@ -26,6 +26,8 @@ body { margin: 0; background: #f6f8fc; color: #202b42; font: 14px/1.5 Inter, sys
 .contact-form, .contact-profile { display: grid; gap: 14px; }
 .contact-filters { align-items: end; margin-bottom: 20px; }
 .contact-card + .contact-card { margin-top: 16px; }
+.contact-table-scroll { overflow-x: auto; }
+.contact-table-scroll table { min-width: 30rem; }
 .contact-content table { width: 100%; border-collapse: collapse; table-layout: fixed; text-align: left; }
 .contact-content th, .contact-content td { padding: 10px 6px; border-bottom: 1px solid #e5eaf2; }
 .contact-content th { background: #f6f8fc; }

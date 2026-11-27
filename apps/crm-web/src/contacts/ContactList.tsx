@@ -1,7 +1,8 @@
 import { useMemo, useRef, useState, type FormEvent } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { ContactForm, safeError } from './ContactForm';
-import { navigate, openContacts } from './ContactShell';
+import { openContacts } from './ContactShell';
+import { ContactTable } from './ContactTable';
 import { contactsOptions, scopedRecordClient } from './contactQueries';
 import { useContactQueryScope } from './queryScope';
 import { contactIdPattern, CrmError, type ContactQuery, type CrmClient } from './crmClient';
@@ -55,9 +56,7 @@ export function ContactList({ client }: { client: CrmClient }) {
         <label>Cập nhật từ<input name="date" type="datetime-local" /></label><button>Lọc</button>
       </form>
       {failure && <p role="alert">{failure.message} <button onClick={() => void (pages.isFetchNextPageError ? pages.fetchNextPage() : pages.refetch())}>Thử lại</button></p>}
-      {items.length > 0 && <table><thead><tr><th>Tên liên hệ</th><th>Email</th><th>Điện thoại</th></tr></thead><tbody>
-        {items.map(item => <tr key={item.id}><td><a href={'/app/contacts/' + item.id} onClick={navigate}>{item.displayName}</a></td><td>{item.email ?? '—'}</td><td>{item.phone ?? '—'}</td></tr>)}
-      </tbody></table>}
+      {items.length > 0 && <ContactTable items={items} />}
       {loading ? <p role="status">Đang tải…</p> : !failure && items.length === 0 && <p>Chưa có liên hệ.</p>}
       {next && !failure && <button disabled={loading} onClick={() => void pages.fetchNextPage()}>Tải thêm</button>}
     </div></>;
