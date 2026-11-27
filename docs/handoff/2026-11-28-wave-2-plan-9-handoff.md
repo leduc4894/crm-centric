@@ -44,3 +44,56 @@ passed. Scope fix allows the one dated handoff path as governance documentation;
 product, contract and CI inventory remain pinned. Actual-base gate with matching
 revision returned reviewed-breaking as recorded above. Preparing a single push;
 new candidate CI and security delta remain pending.
+
+## Run 46038766142: frontend failure and bounded diagnosis
+
+Run https://github.com/leduc4894/crm-centric/actions/runs/46038766142 head
+`d9d6ea78bcb3fbb56b89dab4c22ae4824cdd4382` progressed past compatibility;
+web failed in frontend-test (`PLAN3_FRONTEND_STEP_FAILED`, correlation
+`0b812370-9b17-4155-a5c6-1f3d4d43f1fd`). Safe output does not identify the test.
+Targeted nine-file contact/form Vitest suite passed 153/153; do not infer the
+GitHub failure was the earlier boolean issue. Added a bounded diagnostic that
+projects only fixed source-reviewed test file names from failing Vitest lines,
+never test titles or assertion payloads; its focused test failed first, then
+`test_job_processes.py` passed 23/23. No product behavior was changed.
+
+To retain exact candidate-bound governance, this diagnostic-only delta to
+`scripts/ci/jobs.py` and its focused CI test is separately pinned by exact
+SHA-256 in the candidate scope; other files still match the approved product
+tree and existing old scope remains unchanged. Tampering with the delta fails a
+new test; new/old scope tests passed 19/19. Real actual-base evaluation with
+checkout-bound revision and the pinned diagnostic delta returned
+`CONTRACT_BREAKING_REVIEWED`, correlation `14638245-4deb-4d61-b3c9-a92f43e9c7e1`;
+both historical consumer checks and packaged contact checks passed, while both
+SDK surfaces remain incompatible. Candidate-owned, not independent enforcement.
+Run 46038766142 was still active when written; wait for completion before one
+new push. Next hosted run should identify the failing file if it recurs, and
+must be followed by focused reproduction and a grouped fix; do not claim green.
+
+Security on run 46038766142: same 105 blocked Gitleaks findings and one blocked
+Trivy finding as previous run. All 15 changed Gitleaks IDs matched previous
+findings one-to-one by rule, file and value fingerprint in memory; Trivy IDs and
+verdicts did not change. No raw value/fingerprint was saved or printed. No new
+finding was detected in this exact comparison; security remains FAIL.
+
+The failed `plan3-aggregate-reporting` can be reproduced without running the full
+local suite: an archive without `.git` running only `test_wave2_plan9_review`
+returned `setUpClass` error and zero tests because the candidate Git object was
+unavailable. That aggregate deliberately tests a gitless checkout. Rather than
+change coverage policy or hide a prerequisite, moved the eight Plan 9 scope
+regressions into a hash-pinned helper invoked by the existing required Plan 3
+scope test. In a real checkout the nested suite must run eight tests with no
+failures/errors/skips; in a gitless copy the existing named Plan 3 prerequisite
+skip remains unchanged. Targeted gitless test passed with that named skip;
+real `test_wave2_plan3_review` passed 11/11 (including eight nested checks),
+`test_job_processes.py` passed 23/23 and `test_summary.py` passed 12/12. The full
+local suite was not run. Actual-base compatibility after these changes remains
+in progress at this checkpoint; CI push waits for its result.
+
+After integration, actual-base compatibility with a checkout-bound revision
+file returned `CONTRACT_BREAKING_REVIEWED`, correlation
+`0ccc42e9-f697-4cf8-bf3e-70dd63458af5`; historical and packaged consumers
+passed and both SDK surfaces remain reported incompatible. This is still
+candidate-owned and not independent enforcement. Ready to commit and push one
+candidate with the bounded diagnostics and gitless-simulation fixture repair;
+hosted browser, aggregate harness, full suite and security remain to verify.

@@ -77,3 +77,12 @@ Hosted CI must still evaluate the committed candidate. The user asked to proceed
 with this bounded implementation after the candidate review package; scope is
 limited to this exact product tree, base, MVP mode, expiry and unchanged
 inventory. Full branch review and P0 acceptance remain open.
+
+The later diagnostic-only CI changes to `scripts/ci/jobs.py` and
+`tests/CI/test_job_processes.py` are permitted only at their exact pinned hashes;
+all other product files stay bound to the reviewed tree. The Plan 9 scope
+regressions are executed inside an existing required Plan 3 review test, with
+its helper pinned by hash. This preserves the existing named prerequisite skip
+in the intentionally Git-less CI simulation; the real suite must execute those
+regressions and rejects unexpected skips. These are candidate-owned checks, not
+an independent review or a security waiver.
