@@ -1,6 +1,7 @@
 """Candidate scope must remain bounded to the reviewed product tree."""
 import subprocess
 import io
+import json
 import tarfile
 import tempfile
 import unittest
@@ -68,6 +69,26 @@ class Plan9ReviewTests(unittest.TestCase):
             with self.assertRaises(gate.GateError) as error:
                 gate.check_baseline_configuration(self.repo, BASE, True, target='0'*40)
             self.assertEqual('CONTRACT_POLICY_REVIEW_REQUIRED',str(error.exception))
+
+    def test_untracked_ci_revision_is_accepted_only_when_bound_to_checkout(self):
+        path=self.repo/'revision.json'
+        head=gate.git(self.repo,'rev-parse','HEAD').decode().strip()
+        revision={'candidate_sha':head,'base_sha':BASE,'head_sha':head,
+                  'merge_sha':None,'merge_base_sha':BASE}
+        try:
+            path.write_text(json.dumps(revision))
+            self.assertTrue(self.approved())
+            subprocess.run(['git','-C',str(self.repo),'add','revision.json'],check=True)
+            self.assertFalse(self.approved())
+            subprocess.run(['git','-C',str(self.repo),'reset','-q','--','revision.json'],check=True)
+            path.write_text('{"base_sha":"duplicate",'+json.dumps(revision)[1:])
+            self.assertFalse(self.approved())
+            revision['candidate_sha']='0'*40
+            path.write_text(json.dumps(revision))
+            self.assertFalse(self.approved())
+            path.unlink();path.symlink_to('docs/contracts/crm-api.openapi.yaml')
+            self.assertFalse(self.approved())
+        finally: path.unlink(missing_ok=True)
 
     def test_old_scope_not_replaced(self):
         self.assertFalse(gate.reviewed_plan3_candidate(BASE,self.repo,True,BASE,now=1795737600))
