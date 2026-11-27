@@ -277,7 +277,7 @@ it('keeps a tag draft after a literal timeout without retrying', async () => {
   expect(calls.filter(req => req.method === 'POST')).toHaveLength(1);
 });
 it.each(['null', '""'])('leaves existing optional string %s unchanged until edited', async raw => {
-  const calls = setup((req, path) => {
+  const calls = setup((_req, path) => {
     if (path.endsWith('/custom-fields')) return page([{ ...field, dataType: 'string' }]);
     if (path.endsWith('/fields/' + itemId)) return new Response('{"value":' + raw + '}');
   });

@@ -56,8 +56,8 @@ it.each([true, false])('validates Unicode note length and uses returned or refre
   await screen.findByText('Chưa có hoạt động.');
   await change('Ghi chú', '🙂'.repeat(1001)); expect((screen.getByRole('button', { name: 'Thêm ghi chú' }) as HTMLButtonElement).disabled).toBe(true);
   await change('Ghi chú', '🙂'.repeat(1000)); await click('Thêm ghi chú');
-  await waitFor(() => expect((screen.getByLabelText('Ghi chú') as HTMLTextAreaElement).value).toBe(''));
-  if (!hasHeader) await click('Đối chiếu dữ liệu');
+  if (hasHeader) await waitFor(() => expect((screen.getByLabelText('Ghi chú') as HTMLTextAreaElement).value).toBe(''));
+  else { await screen.findByRole('button', { name: 'Đối chiếu dữ liệu' }); expect(screen.getByDisplayValue('🙂'.repeat(1000))).toBeTruthy(); await click('Đối chiếu dữ liệu'); }
   await waitFor(() => expect(screen.getByRole('button', { name: 'Chỉnh sửa' }).matches(':disabled')).toBe(false));
   await change('Ghi chú', 'B');
   await click('Thêm ghi chú');
@@ -178,4 +178,44 @@ it('keeps writes locked when a sibling field read fails during reconciliation', 
   expect(screen.getByDisplayValue('9')).toBeTruthy();
   expect(screen.getByRole('button', { name: 'Lưu Amount' }).matches(':disabled')).toBe(false);
   expect(calls.filter(r => r.method !== 'GET')).toHaveLength(1);
+});
+
+it('retains a successful note draft when its post-write timeline refresh fails', async () => {
+  let writes = 0;
+  setup((_req, path) => {
+    if (path.endsWith('/notes')) { writes++; return Response.json(entry, { status: 201, headers: { ETag: '"v2"' } }); }
+    if (path.endsWith('/timeline') && writes) return new Response(null, { status: 503 });
+    if (path.endsWith(id)) return record(writes ? 2 : 1);
+  });
+  await screen.findByText('Chưa có hoạt động.'); await change('Ghi chú', 'Draft after write'); await click('Thêm ghi chú');
+  await screen.findByRole('button', { name: 'Đối chiếu dữ liệu' });
+  expect(screen.getByDisplayValue('Draft after write')).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Thêm ghi chú' }).matches(':disabled')).toBe(true);
+  expect(writes).toBe(1);
+});
+
+it('prevents simultaneous note submits while the first request is pending', async () => {
+  let resolve!: (response: Response) => void;
+  const calls = setup((_req, path) => path.endsWith('/notes') ? new Promise<Response>(r => { resolve = r; }) : undefined);
+  await screen.findByText('Chưa có hoạt động.'); await change('Ghi chú', 'Once');
+  const form = screen.getByLabelText('Ghi chú').closest('form')!;
+  fireEvent.submit(form); fireEvent.submit(form);
+  await waitFor(() => expect(resolve).toBeDefined());
+  expect(calls.filter(r => r.method === 'POST')).toHaveLength(1);
+  await act(async () => resolve(Response.json(entry, { status: 201, headers: { ETag: '"v1"' } })));
+});
+
+it('locks for review and retains a saved note if sibling refresh returns 403', async () => {
+  let writes = 0;
+  setup((_req, path) => {
+    if (path.endsWith('/custom-fields')) return page([field]);
+    if (path.endsWith('/fields/' + itemId)) return writes ? new Response(null, { status: 403 }) : new Response('{"value":1}');
+    if (path.endsWith('/notes')) { writes++; return Response.json(entry, { status: 201, headers: { ETag: '"v2"' } }); }
+    if (path.endsWith(id)) return record(writes ? 2 : 1);
+  });
+  await screen.findByDisplayValue('1'); await change('Ghi chú', 'Keep'); await click('Thêm ghi chú');
+  await screen.findByRole('button', { name: 'Đối chiếu dữ liệu' });
+  expect(screen.getByDisplayValue('Keep')).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Thêm ghi chú' }).matches(':disabled')).toBe(true);
+  expect(writes).toBe(1);
 });

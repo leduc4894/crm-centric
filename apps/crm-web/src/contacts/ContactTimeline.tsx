@@ -1,18 +1,13 @@
-import { useCallback, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useLayoutEffect, useRef } from 'react';
+import { useForm, useStore } from '@tanstack/react-form';
 import { CrmError, type CrmClient } from './crmClient';
 import { usePanelRead, type RecordWrite } from './recordPanels';
 
 interface Props { client: CrmClient; id: string; disabled: boolean; run: RecordWrite; onVersion(etag: string | null): Promise<void> }
 export function ContactTimeline({ client, id, disabled, run, onVersion }: Props) {
-  const [draft, setDraft] = useState('');
+
   const input = useRef<HTMLTextAreaElement>(null);
   const restoreFocus = useRef(false);
-  useLayoutEffect(() => {
-    if (!disabled && restoreFocus.current) {
-      input.current?.focus();
-      restoreFocus.current = false;
-    }
-  }, [disabled]);
   const load = useCallback(async (signal: AbortSignal, cursor?: string) => {
     const { data } = await client.listTimeline(id, cursor ? { cursor } : {}, signal);
     if (data.items.some(entry => entry.contactId.toLowerCase() !== id.toLowerCase())) throw new CrmError('WEB_CRM_CONTRACT_INVALID');
@@ -31,21 +26,32 @@ export function ContactTimeline({ client, id, disabled, run, onVersion }: Props)
       return { ...page, items: [...data.items, ...page.items] };
     });
   };
-  const length = Array.from(draft).length;
-  return <section className="contact-card activity-panel"><h3>Hoạt động</h3>
-    <form className="contact-form" onSubmit={event => {
-      event.preventDefault();
-      if (disabled || loading || error || !length || length > 1000) return;
-      void run(async etag => {
-        const saved = await client.createNote(id, { text: draft }, etag);
+  const inFlight = useRef(false);
+  const form = useForm({ defaultValues: { draft: '' }, onSubmit: async ({ value }) => {
+    const length = Array.from(value.draft).length;
+    if (inFlight.current || disabled || loading || error || !length || length > 1000) return;
+    inFlight.current = true;
+    try {
+      if (await run(async etag => {
+        const saved = await client.createNote(id, { text: value.draft }, etag);
         if (saved.data.contactId.toLowerCase() !== id.toLowerCase()) throw new CrmError('WEB_CRM_CONTRACT_INVALID');
-        restoreFocus.current = true;
-        setDraft('');
         await onVersion(saved.etag);
-      }, refresh);
-    }}>
-      <label>Ghi chú<textarea ref={input} rows={3} value={draft} disabled={disabled} onChange={e => setDraft(e.target.value)} /></label>
-      <div className="contact-actions"><button type="submit" disabled={disabled || loading || !!error || !length || length > 1000}>Thêm ghi chú</button><span>{length}/1000</span></div>
+      }, refresh, undefined, true)) { restoreFocus.current = true; form.reset(); }
+    } finally { inFlight.current = false; }
+  } });
+  const draft = useStore(form.store, state => state.values.draft);
+  const submitting = useStore(form.store, state => state.isSubmitting);
+  const length = Array.from(draft).length;
+  useLayoutEffect(() => {
+    if (!disabled && !submitting && restoreFocus.current) {
+      input.current?.focus();
+      restoreFocus.current = false;
+    }
+  }, [disabled, submitting]);
+  return <section className="contact-card activity-panel"><h3>Hoạt động</h3>
+    <form className="contact-form" onSubmit={event => { event.preventDefault(); void form.handleSubmit(); }}>
+      <form.Field name="draft">{field => <label>Ghi chú<textarea ref={input} rows={3} value={field.state.value} disabled={disabled || submitting} onBlur={field.handleBlur} onChange={e => field.handleChange(e.target.value)} /></label>}</form.Field>
+      <div className="contact-actions"><button type="submit" disabled={disabled || submitting || loading || !!error || !length || length > 1000}>Thêm ghi chú</button><span>{length}/1000</span></div>
     </form>
     {error && <p role="alert">{error.message} <button onClick={() => void refresh().catch(() => { })}>Tải lại hoạt động</button></p>}
     {loading && <p role="status">Đang tải hoạt động…</p>}

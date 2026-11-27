@@ -23,7 +23,7 @@ function mount(handler: (req: Request) => Promise<Response> | Response) {
   render(<AuthProvider client={auth}><RouterProvider router={router} /></AuthProvider>);
 }
 const select = async (name = 'Tenant A') => { fireEvent.click(await screen.findByRole('button', { name })); };
-const draft = () => { fireEvent.change(screen.getByLabelText('Khóa trường'), { target: { value: 'amount' } }); fireEvent.change(screen.getByLabelText('Tên trường'), { target: { value: 'Amount' } }); fireEvent.change(screen.getByLabelText('Kiểu dữ liệu'), { target: { value: 'number' } }); };
+const draft = async () => { fireEvent.change(screen.getByLabelText('Khóa trường'), { target: { value: 'amount' } }); fireEvent.change(screen.getByLabelText('Tên trường'), { target: { value: 'Amount' } }); fireEvent.change(screen.getByLabelText('Kiểu dữ liệu'), { target: { value: 'number' } }); await waitFor(() => { expect((screen.getByLabelText('Khóa trường') as HTMLInputElement).value).toBe('amount'); expect((screen.getByLabelText('Tên trường') as HTMLInputElement).value).toBe('Amount'); }); };
 const submit = () => fireEvent.click(screen.getByRole('button', { name: 'Tạo trường' }));
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
@@ -39,7 +39,7 @@ it('opens the direct settings route without fetching until a tenant is selected 
 it.each(['owner', 'admin', 'unknown'])('lets the server authorize creation for %s and refreshes the list', async () => {
   let created = false; const posts: Request[] = [];
   mount(req => { if (req.method === 'POST') { posts.push(req); created = true; return Response.json(definition('Amount'), { status: 201 }); } return page(created ? [definition('Amount')] : []); });
-  await select(); await screen.findByRole('button', { name: 'Tạo trường' }); draft(); submit();
+  await select(); await screen.findByRole('button', { name: 'Tạo trường' }); await draft(); submit();
   await screen.findByText('Amount', { selector: 'li' });
   expect(posts).toHaveLength(1); expect(await posts[0]!.clone().json()).toEqual({ key: 'amount', displayName: 'Amount', dataType: 'number', required: false });
   expect(posts[0]!.headers.get('X-Tenant-Id')).toBe(a); expect(posts[0]!.headers.has('If-Match')).toBe(false);
@@ -47,14 +47,14 @@ it.each(['owner', 'admin', 'unknown'])('lets the server authorize creation for %
 
 it.each(['agent', 'operator'])('shows server 403 for %s while preserving the draft', async () => {
   let posts = 0; mount(req => req.method === 'POST' ? (posts++, problem('TENANT_FORBIDDEN', 403)) : page([]));
-  await select(); await screen.findByRole('button', { name: 'Tạo trường' }); draft(); submit();
+  await select(); await screen.findByRole('button', { name: 'Tạo trường' }); await draft(); submit();
   expect((await screen.findByRole('alert')).textContent).toContain('TENANT_FORBIDDEN');
   expect((screen.getByLabelText('Khóa trường') as HTMLInputElement).value).toBe('amount'); expect(posts).toBe(1);
 });
 
 it('preserves duplicate and uncertain drafts and does not retry failed writes', async () => {
   let posts = 0; mount(req => req.method === 'POST' ? (++posts === 1 ? problem('FIELD_KEY_CONFLICT', 409) : Promise.reject(new Error('offline'))) : page([]));
-  await select(); await screen.findByRole('button', { name: 'Tạo trường' }); draft(); submit();
+  await select(); await screen.findByRole('button', { name: 'Tạo trường' }); await draft(); submit();
   expect((await screen.findByRole('alert')).textContent).toContain('FIELD_KEY_CONFLICT');
   expect((screen.getByLabelText('Tên trường') as HTMLInputElement).value).toBe('Amount'); submit();
   await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('WEB_CRM_NETWORK_ERROR'));
@@ -72,7 +72,7 @@ it('drops old list and create completions when switching tenant', async () => {
   });
   await select(); await waitFor(() => expect(oldList).toBeDefined()); await select('Tenant B'); await screen.findByText('Current B');
   await act(async () => oldList(page([definition('Stale A')]))); expect(screen.queryByText('Stale A')).toBeNull();
-  await select(); await screen.findByRole('button', { name: 'Tạo trường' }); draft(); submit(); await waitFor(() => expect(oldCreate).toBeDefined());
+  await select(); await screen.findByRole('button', { name: 'Tạo trường' }); await draft(); submit(); await waitFor(() => expect(oldCreate).toBeDefined());
   await select('Tenant B'); await screen.findByText('Current B'); const count = bReads;
   await act(async () => oldCreate(Response.json(definition('Stale created'), { status: 201 })));
   expect(screen.queryByText('Stale created')).toBeNull(); expect(bReads).toBe(count);
@@ -91,7 +91,7 @@ it('does not retry a timed-out create and requires a fresh review while retainin
     posts++;
     return new Promise<Response>((_resolve, reject) => req.signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError'))));
   });
-  await select(); await screen.findByRole('button', { name: 'Tạo trường' }); draft();
+  await select(); await screen.findByRole('button', { name: 'Tạo trường' }); await draft();
   vi.useFakeTimers();
   try {
     submit();
@@ -113,7 +113,7 @@ it('refreshes three already-loaded pages after a successful create without treat
   await select(); await screen.findByText('First');
   fireEvent.click(screen.getByRole('button', { name: 'Tải thêm' })); await screen.findByText('one');
   fireEvent.click(screen.getByRole('button', { name: 'Tải thêm' })); await screen.findByText('two');
-  draft(); submit(); await screen.findByText('New');
+  await draft(); submit(); await screen.findByText('New');
   expect(screen.queryByRole('alert')).toBeNull();
   expect(urls).toEqual(['first', 'one', 'two', 'first', 'one', 'two']);
 });
@@ -126,4 +126,54 @@ it('shows the list failure reason and correlation and lets the user retry the li
   expect(alert.textContent).toContain('CRM_STORE_UNAVAILABLE'); expect(alert.textContent).toContain(id);
   fireEvent.click(screen.getByRole('button', { name: 'Thử lại' }));
   await screen.findByText('Recovered'); expect(reads).toBe(2);
+});
+
+it('accepts 200 Unicode scalars and rejects 201 without narrowing the contract', async () => {
+  let posts = 0;
+  mount(req => req.method === 'POST' ? (posts++, Response.json(definition('Created'), { status: 201 })) : page([]));
+  await select(); await screen.findByRole('button', { name: 'Tạo trường' });
+  fireEvent.change(screen.getByLabelText('Khóa trường'), { target: { value: 'amount' } });
+  fireEvent.change(screen.getByLabelText('Tên trường'), { target: { value: '🙂'.repeat(201) } });
+  await waitFor(() => expect((screen.getByLabelText('Khóa trường') as HTMLInputElement).value).toBe('amount'));
+  submit(); expect(posts).toBe(0);
+  fireEvent.change(screen.getByLabelText('Tên trường'), { target: { value: '🙂'.repeat(200) } });
+  submit(); await waitFor(() => expect(posts).toBe(1));
+});
+
+it('retains the definition draft and locks creation when a post-write list refresh fails', async () => {
+  let posts = 0; let reads = 0;
+  mount(req => req.method === 'POST' ? (posts++, Response.json(definition('Created'), { status: 201 })) : (++reads === 1 ? page([]) : problem('CRM_STORE_UNAVAILABLE', 503)));
+  await select(); await screen.findByRole('button', { name: 'Tạo trường' }); await draft(); submit();
+  await screen.findByRole('button', { name: 'Tải lại dữ liệu' });
+  expect((screen.getByLabelText('Tên trường') as HTMLInputElement).value).toBe('Amount');
+  expect(screen.getByRole('button', { name: 'Tạo trường' }).matches(':disabled')).toBe(true);
+  expect(posts).toBe(1);
+});
+
+it('refreshes a list that was still loading when creation succeeded', async () => {
+  let release!: (response: Response) => void; let reads = 0; let posts = 0;
+  mount(req => {
+    if (req.method === 'POST') { posts++; return Response.json(definition('Created'), { status: 201 }); }
+    if (++reads === 1) return new Promise<Response>(resolve => { release = resolve; });
+    return page([definition('Created')]);
+  });
+  await select(); await waitFor(() => expect(release).toBeDefined()); await draft(); submit();
+  await waitFor(() => expect(posts).toBe(1));
+  await act(async () => release(page([])));
+  await screen.findByText('Created', { selector: 'li' });
+  expect(reads).toBeGreaterThan(1);
+});
+
+it('validates the definition key and sends the selected type and required flag without an ETag', async () => {
+  const posts: Request[] = [];
+  mount(req => { if (req.method === 'POST') { posts.push(req); return Response.json(definition('Created'), { status: 201 }); } return page([]); });
+  await select(); await screen.findByRole('button', { name: 'Tạo trường' }); await draft();
+  fireEvent.change(screen.getByLabelText('Khóa trường'), { target: { value: 'Bad-key' } });
+  fireEvent.submit(screen.getByLabelText('Khóa trường').closest('form')!);
+  expect(posts).toHaveLength(0);
+  fireEvent.change(screen.getByLabelText('Khóa trường'), { target: { value: 'valid_key' } });
+  fireEvent.click(screen.getByLabelText('Bắt buộc'));
+  submit(); await waitFor(() => expect(posts).toHaveLength(1));
+  expect(await posts[0]!.clone().json()).toEqual({ key: 'valid_key', displayName: 'Amount', dataType: 'number', required: true });
+  expect(posts[0]!.headers.has('If-Match')).toBe(false);
 });

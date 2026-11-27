@@ -66,8 +66,7 @@ export function ContactDetail({ client: transport, id }: { client: CrmClient; id
     if (!etag) throw new CrmError('WEB_CRM_CONTRACT_INVALID');
     const snapshot = await client.getContact(id);
     if (snapshot.etag !== etag) throw new CrmError('WEB_CRM_CONTRACT_INVALID');
-    await refreshAttributes();
-    accept(snapshot);
+    pendingRecord.current = snapshot;
   }
   function requestReview(refresh?: () => Promise<void>) {
     setReconcile(() => async () => {
@@ -86,7 +85,7 @@ export function ContactDetail({ client: transport, id }: { client: CrmClient; id
       accept(snapshot);
     });
   }
-  const run: RecordWrite = async (write, refresh, onForbidden) => {
+  const run: RecordWrite = async (write, refresh, onForbidden, refreshSiblings) => {
     if (!record || busy || writing.current || readOnly || reconcile || editing || deleteFailed) return false;
     writing.current = true;
     pendingRecord.current = null;
@@ -96,7 +95,7 @@ export function ContactDetail({ client: transport, id }: { client: CrmClient; id
       if (!record.etag) throw new CrmError('WEB_CRM_CONTRACT_INVALID');
       await write(record.etag);
       refreshing = true;
-      await refresh();
+      if (refreshSiblings) await refreshAttributes(refresh); else await refresh();
       if (pendingRecord.current) accept(pendingRecord.current);
       return true;
     } catch (cause) {

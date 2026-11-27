@@ -1,11 +1,11 @@
-import { useLayoutEffect, useState, type FormEvent } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { useInfiniteQuery, type InfiniteData } from '@tanstack/react-query';
 import { useAuth, useAuthClient } from '../auth/AuthProvider';
 import { useTenant } from '../tenant/TenantProvider';
 import { ContactQueryScope, useContactQueryScope } from '../contacts/queryScope';
 import { CrmError, createCrmClient, type CrmClient } from '../contacts/crmClient';
 import { mutationMessage, safeError } from '../contacts/ContactForm';
-import type { Definition } from '../contacts/CustomFieldSettings';
+import { DefinitionForm } from '../contacts/DefinitionForm';
 
 function SettingsSession({ identity, tenantId }: { identity: string; tenantId: string }) {
   const auth = useAuthClient();
@@ -32,9 +32,8 @@ const cursorsByFetch = new WeakMap<AbortSignal, Set<string>>();
 
 function Definitions({ client }: { client: CrmClient }) {
   const scope = useContactQueryScope();
-  const [key, setKey] = useState(''), [name, setName] = useState('');
-  const [type, setType] = useState<Definition['dataType']>('string');
-  const [required, setRequired] = useState(false), [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const writing = useRef(false);
   const [failure, setFailure] = useState<CrmError | null>(null);
   const [blocked, setBlocked] = useState(false), [forbidden, setForbidden] = useState(false);
   const query = useInfiniteQuery({
@@ -54,21 +53,26 @@ function Definitions({ client }: { client: CrmClient }) {
     },
     getNextPageParam: last => last.data.nextCursor ?? undefined,
   });
-  async function save(event: FormEvent) {
-    event.preventDefault();
-    if (busy || blocked || forbidden) return;
+  async function save(value: Parameters<CrmClient['createField']>[0]): Promise<boolean> {
+    if (busy || writing.current || blocked || forbidden) return false;
+    writing.current = true;
     setBusy(true); setFailure(null);
+    let written = false;
     try {
-      await client.createField({ key, displayName: name, dataType: type, required });
-      if (!scope.isCurrent()) return;
-      setKey(''); setName(''); setType('string'); setRequired(false);
-      await query.refetch();
+      await client.createField(value);
+      if (!scope.isCurrent()) return false;
+      written = true;
+      await scope.client.cancelQueries({ queryKey: [scope.scopeId, 'settings-fields'], exact: true });
+      if (!scope.isCurrent()) return false;
+      await query.refetch({ throwOnError: true });
+      return scope.isCurrent();
     } catch (error) {
-      if (!scope.isCurrent()) return;
+      if (!scope.isCurrent()) return false;
       const result = safeError(error); setFailure(result);
-      if (result.status === 403) setForbidden(true);
-      if (!result.status || result.status >= 500) setBlocked(true);
-    } finally { if (scope.isCurrent()) setBusy(false); }
+      if (written || !result.status || result.status >= 500) setBlocked(true);
+      else if (result.status === 403) setForbidden(true);
+      return false;
+    } finally { writing.current = false; if (scope.isCurrent()) setBusy(false); }
   }
   async function review() {
     try {
@@ -81,13 +85,7 @@ function Definitions({ client }: { client: CrmClient }) {
     {query.isError && <><p role="alert">{safeError(query.error).message}</p><button disabled={query.isFetching} onClick={() => void query.refetch()}>Thử lại</button></>}
     {query.data && <><ul>{query.data.pages.flatMap((page, index) => page.data.items.map(field => <li key={`${index}:${field.id}`}>{field.displayName}</li>))}</ul>
       {query.hasNextPage && <button disabled={query.isFetching} onClick={() => void query.fetchNextPage()}>Tải thêm</button>}</>}
-    <form className="contact-form" onSubmit={event => void save(event)}><fieldset disabled={busy || blocked || forbidden}><legend>Tạo định nghĩa</legend>
-      <label>Khóa trường<input required pattern="[a-z][a-z0-9_]{0,63}" value={key} onChange={e => setKey(e.target.value)} /></label>
-      <label>Tên trường<input required maxLength={200} value={name} onChange={e => setName(e.target.value)} /></label>
-      <label>Kiểu dữ liệu<select value={type} onChange={e => setType(e.target.value as Definition['dataType'])}>
-        <option value="string">Văn bản</option><option value="number">Số</option><option value="boolean">Đúng/sai</option><option value="date">Ngày</option></select></label>
-      <label>Bắt buộc<input type="checkbox" checked={required} onChange={e => setRequired(e.target.checked)} /></label>
-      <button type="submit">Tạo trường</button></fieldset></form>
+    <DefinitionForm disabled={busy || blocked || forbidden} save={save} />
     {failure && <p role="alert">{mutationMessage(failure)}</p>}
     {blocked && <button disabled={busy || query.isFetching} onClick={() => void review()}>Tải lại dữ liệu</button>}
   </section>;
