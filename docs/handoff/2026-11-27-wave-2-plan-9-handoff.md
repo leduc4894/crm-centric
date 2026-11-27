@@ -1,0 +1,9 @@
+# Wave 2 Plan 9 handoff — 2026-11-27
+
+Objective: user reported Plan 8 complete and asked for Plan 9 Wave 2 exit plan. Reviewed branch `wave-2` at `5a62017`, [Plan 8 handoff](2026-11-27-wave-2-plan-8-handoff.md), [Wave 2 design](../superpowers/specs/2026-11-27-wave-2-crm-contacts-design.md), acceptance matrix, actual workflow and job/coverage definitions. Plan 8 scoped review completed with an unexplained boolean test failure on an earlier concurrent run; rerun passed, root cause remains unproven. Full hosted suite and benchmark not run; actual-base compatibility review-required on last recorded candidate, security FAIL/deferred, Wave 2/P0 OPEN.
+
+Status: [Plan 9](../superpowers/plans/2026-11-27-wave-2-plan-9-exit.md) drafted, not executed. It requires auditable GitHub CI full-suite discovery, real-provider browser, candidate-specific governance, 50k contacts/50 authenticated users benchmark with documented environment, and an evidence-based exit decision. The plan proposes a benchmark workload and requires environment availability; neither benchmark nor CI result is claimed. Full suite must run on GitHub CI; local tests only focused when fixing issues. No app code, workflow, contract or security policy changed; no CI, tests, benchmark, push or PR performed during authoring. Plan and this handoff are uncommitted on `wave-2`; whitespace/status checks performed before handoff.
+
+Next: review plan; execute only when requested, preserving actual gate results, exact candidate/base identities, security deferral and P0 acceptance boundaries. No credentials or sensitive payloads are recorded here.
+
+User requested committing the Plan 9 document and this handoff on `wave-2`. Staged whitespace verification and final status are checked with the commit. No implementation, test suite, CI, benchmark or PR ran in this documentation-only session; Plan 9 remains unexecuted.
