@@ -170,7 +170,9 @@ class ContactReviewScopeTests(unittest.TestCase):
             def compare(old,new,source,workspace,base_toolchain,report):
                 report['sdkChecks']={'typescriptSurface':False,'typescriptHistoricalConsumer':True,'dotnetSurface':False,'dotnetHistoricalConsumer':True}
                 return False
-            with patch.object(compatibility.subprocess,'run',side_effect=run), patch.object(sdk_surface,'prepare',return_value=clone), patch.object(sdk_surface,'compare',side_effect=compare):
+            # This is a historical positive fixture, not an assertion that the
+            # authorization remains valid at the runner's wall-clock time.
+            with patch('time.time',return_value=1795737600), patch.object(compatibility.subprocess,'run',side_effect=run), patch.object(sdk_surface,'prepare',return_value=clone), patch.object(sdk_surface,'compare',side_effect=compare):
                 result=compatibility.evaluate_contract_snapshots(BASE,paths,clone,{}, {'dockerImage':'fixture','breakOn':'WARN'},Path('/fixture/oasdiff'),mvp_review=True,target=BASE)
             self.assertEqual('CONTRACT_BREAKING_REVIEWED',result['reason'])
             self.assertEqual(2,sum(command[0]=='docker' for command in calls))

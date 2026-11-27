@@ -1,8 +1,10 @@
 """Maintainer review authorizes identity delta only, never semantic success."""
 import copy
 import unittest
+from unittest.mock import patch
 from scripts.ci import contract_review
 class ContractReviewTests(unittest.TestCase):
+    @patch('time.time', new=lambda: 1795737600)
     def test_exact_delta_and_base_only(self):
         old={p:v[0] for p,v in contract_review.DELTA.items() if v[0] is not None}
         new={p:v[1] for p,v in contract_review.DELTA.items()}
@@ -21,6 +23,7 @@ class ContractReviewTests(unittest.TestCase):
         changed=dict(new);changed.pop(helper)
         self.assertFalse(contract_review.approved(old,changed,contract_review.BASE))
 
+    @patch('time.time', new=lambda: 1795737600)
     def test_remote_base_accepts_only_exact_reviewed_delta(self):
         remote_base='df993ae4ff44510a2ecfc861bb277a3f9418577f'
         old={p:v[0] for p,v in contract_review.DELTA.items() if v[0] is not None}
@@ -31,6 +34,7 @@ class ContractReviewTests(unittest.TestCase):
         self.assertFalse(contract_review.approved(changed,new,remote_base))
         self.assertFalse(contract_review.approved(old,new,remote_base,now=2000000000))
 
+    @patch('time.time', new=lambda: 1795737600)
     def test_default_gate_keeps_review_blocked_and_mvp_runs_identity_review(self):
         from scripts.contracts import compatibility as gate
         from pathlib import Path
@@ -42,6 +46,7 @@ class ContractReviewTests(unittest.TestCase):
             snapshot=Path(temporary)/'repo'
             subprocess.run(['git','clone','--shared','--no-checkout',str(root),str(snapshot)],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
             subprocess.run(['git','-C',str(snapshot),'checkout','--detach','40bc2905b7750b139ff0607000127a3e5c06e2d8'],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+            # The fixture documents a historical authorization, not today's status.
             for base in (contract_review.BASE,contract_review.REMOTE_BASE):
                 with self.subTest(base=base):
                     with self.assertRaises(gate.GateError):

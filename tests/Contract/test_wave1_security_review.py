@@ -79,7 +79,8 @@ class Wave1SecurityReviewTests(unittest.TestCase):
         self.assertEqual('reviewed-breaking', json.loads(output.getvalue())['classification'])
 
     def test_real_gate_keeps_hardening_closed_and_runs_sdk_after_mvp_review(self):
-        with patch('scripts.contracts.sdk_surface.compare', return_value=True) as compare:
+        # Exercise the historical review at a time within its approval window.
+        with patch('time.time', return_value=1795737600), patch('scripts.contracts.sdk_surface.compare', return_value=True) as compare:
             self.assertEqual('SECURITY_REVIEW_REQUIRED', compatibility.run(BASE, self.repo, {}, False)['reason'])
             compare.assert_not_called()
             result = compatibility.run(BASE, self.repo, {}, True)
