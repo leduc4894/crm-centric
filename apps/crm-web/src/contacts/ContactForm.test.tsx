@@ -387,3 +387,17 @@ it.each(['', 'new@example.test'])('patches a reviewed newly created record after
   await waitFor(() => expect(client.patchContact).toHaveBeenCalledWith(id, { email: email || null }, '"v2"'));
   expect(client.createContact).toHaveBeenCalledTimes(1);
 });
+
+it('keeps submitted create intent when the reviewed record changed without overwriting untouched fields', async () => {
+  const created = { data: { ...record, displayName: 'Draft', email: 'draft@example.test', phone: null }, etag: null, status: 201 };
+  const fresh = { data: { ...record, displayName: 'Remote', email: 'remote@example.test', phone: '555' }, etag: '"v2"', status: 200 };
+  const client = { createContact: vi.fn().mockResolvedValue(created), getContact: vi.fn().mockResolvedValue(fresh), patchContact: vi.fn().mockResolvedValue({ ...fresh, etag: '"v3"' }) } as unknown as CrmClient;
+  render(<ContactForm client={client} readOnly={false} onSaved={vi.fn()} onCancel={vi.fn()} onForbidden={vi.fn()} />);
+  await change('Tên liên hệ', 'Draft'); await change('Email', 'draft@example.test'); await click('Tạo');
+  await screen.findByRole('alert'); await click('Tải lại dữ liệu'); await screen.findByText('Remote', { selector: 'dd' });
+  await click('Giữ và chỉnh sửa bản nháp');
+  expect(screen.getByRole('button', { name: 'Cập nhật Remote' }).matches(':disabled')).toBe(false);
+  await click('Cập nhật Remote');
+  await waitFor(() => expect(client.patchContact).toHaveBeenCalledWith(id, { displayName: 'Draft', email: 'draft@example.test' }, '"v2"'));
+  expect(client.createContact).toHaveBeenCalledOnce();
+});

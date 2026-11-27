@@ -39,6 +39,7 @@ export function ContactForm({ client, record, choices = [], readOnly, refreshLis
   const [reconcileId, setReconcileId] = useState<string | null>(null);
   const [createdReview, setCreatedReview] = useState(false);
   const submitting = useRef(false);
+  const createIntent = useRef<Set<DraftField>>(new Set(['name']));
   const form = useForm({
     defaultValues: { name: record?.data.displayName ?? '', email: record?.data.email ?? '', phone: record?.data.phone ?? '' },
     validators: { onSubmit: ({ value }) => Array.from(value.name).length > 200 || Array.from(value.email).length > 320 || Array.from(value.phone).length > 40
@@ -64,6 +65,7 @@ export function ContactForm({ client, record, choices = [], readOnly, refreshLis
               if (value.email !== (original.data.email ?? '')) next.add('email');
               if (value.phone !== (original.data.phone ?? '')) next.add('phone');
             }
+            if (!reviewed && createdReview) for (const field of createIntent.current) next.add(field);
             return next;
           });
           setReviewed(latest);
@@ -81,6 +83,7 @@ export function ContactForm({ client, record, choices = [], readOnly, refreshLis
   } : null;
   }
   function track(field: DraftField) {
+    if (!original && !createdReview) createIntent.current.add(field);
     if (reviewed) setIntent(previous => new Set(previous).add(field));
   }
   const changes = changesFor({ name, email, phone });
