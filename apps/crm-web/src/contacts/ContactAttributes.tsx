@@ -1,4 +1,5 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef } from 'react';
+import { useForm, useStore } from '@tanstack/react-form';
 import type { Snapshot } from './ContactForm';
 import { CustomFieldSettings, type Definition } from './CustomFieldSettings';
 import { CrmError, type CrmClient } from './crmClient';
@@ -7,7 +8,6 @@ import { collectPages, usePanelRead, type RecordWrite, type RegisterPanelRead } 
 
 interface Props { client: CrmClient; id: string; disabled: boolean; run: RecordWrite; register: RegisterPanelRead; onRecord(record: Snapshot): void }
 function FieldEditor({ definition, client, id, disabled, run, register, onRecord }: Props & { definition: Definition }) {
-  const [draft, setDraft] = useState<string>();
   const load = useCallback(async (signal: AbortSignal) => {
     try { return (await client.getField(id, definition.id, signal)).data; }
     catch (cause) {
@@ -17,24 +17,36 @@ function FieldEditor({ definition, client, id, disabled, run, register, onRecord
   }, [client, definition.id, id]);
   const { data, read, error, loading } = usePanelRead(load, register);
   const current = typeof data === 'object' && data !== null ? data.numberToken : String(data ?? '');
+  const inFlight = useRef(false);
+  const form = useForm({
+    defaultValues: { draft: undefined as string | undefined },
+    onSubmit: async ({ value: values }) => {
+      const value = values.draft;
+      if (inFlight.current || value === undefined || value === current || disabled || loading || !!error) return;
+      let scalar: FieldValue = value || null;
+      if (!value && definition.required) return;
+      if (value && definition.dataType === 'number') {
+        try { scalar = exactNumber(value); } catch { return; }
+      } else if (value && definition.dataType === 'boolean') scalar = value === 'true';
+      inFlight.current = true;
+      try {
+        if (await run(async etag => { onRecord(await client.setField(id, definition.id, scalar, etag)); }, read)) form.reset();
+      } finally { inFlight.current = false; }
+    },
+  });
+  const draft = useStore(form.store, state => state.values.draft);
+  const submitting = useStore(form.store, state => state.isSubmitting);
   const value = draft ?? current;
-  const inactive = disabled || loading || !!error;
-  let scalar: FieldValue = value || null;
+  const inactive = disabled || loading || !!error || submitting;
   let valid = !!value || !definition.required;
   if (value && definition.dataType === 'number') {
-    try { scalar = exactNumber(value); } catch { valid = false; }
-  } else if (value && definition.dataType === 'boolean') scalar = value === 'true';
-  return <form className="contact-form" onSubmit={event => {
-    event.preventDefault();
-    if (!valid || inactive || draft === undefined) return;
-    void run(async etag => {
-      onRecord(await client.setField(id, definition.id, scalar, etag));
-      setDraft(undefined);
-    }, read);
-  }}><label>{definition.displayName}{definition.dataType === 'boolean' ?
-    <select value={value} required={definition.required} disabled={inactive} onChange={e => setDraft(e.target.value)}>
-      <option value="">—</option><option value="true">Đúng</option><option value="false">Sai</option></select> :
-    <input type={definition.dataType === 'date' ? 'date' : 'text'} required={definition.required} disabled={inactive} value={value} onChange={e => setDraft(e.target.value)} />}</label>
+    try { exactNumber(value); } catch { valid = false; }
+  }
+  return <form className="contact-form" onSubmit={event => { event.preventDefault(); void form.handleSubmit(); }}>
+    <form.Field name="draft">{field => <label>{definition.displayName}{definition.dataType === 'boolean' ?
+      <select value={value} required={definition.required} disabled={inactive} onBlur={field.handleBlur} onChange={e => field.handleChange(e.target.value)}>
+        <option value="">—</option><option value="true">Đúng</option><option value="false">Sai</option></select> :
+      <input type={definition.dataType === 'date' ? 'date' : 'text'} required={definition.required} disabled={inactive} value={value} onBlur={field.handleBlur} onChange={e => field.handleChange(e.target.value)} />}</label>}</form.Field>
     {draft !== undefined && draft !== current && <small>Giá trị hiện tại: {current || '—'}</small>}
     <button type="submit" disabled={inactive || !valid || draft === undefined || draft === current}>Lưu {definition.displayName}</button>
     {error && <p role="alert">{error.message} <button type="button" onClick={() => void read().catch(() => { })}>Tải lại giá trị</button></p>}
@@ -42,7 +54,6 @@ function FieldEditor({ definition, client, id, disabled, run, register, onRecord
 }
 export function ContactAttributes(props: Props) {
   const { client, id, run, disabled, onRecord } = props;
-  const [name, setName] = useState(''), [selected, setSelected] = useState('');
   const loadTags = useCallback(async (signal: AbortSignal) => {
     const [all, assigned] = await Promise.all([
       collectPages(cursor => client.listTags(cursor ? { cursor } : {}, signal)),
@@ -55,20 +66,41 @@ export function ContactAttributes(props: Props) {
   const fields = usePanelRead(loadFields);
   const locked = disabled || tags.loading || !!tags.error;
   const options = tags.data?.all.filter(tag => !tags.data?.assigned.some(item => item.id === tag.id)) ?? [];
+  const attachingRef = useRef(false), creatingRef = useRef(false);
+  const attachForm = useForm({
+    defaultValues: { selected: '' },
+    onSubmit: async ({ value }) => {
+      if (attachingRef.current || locked || !options.some(tag => tag.id === value.selected)) return;
+      attachingRef.current = true;
+      try {
+        if (await run(async etag => { onRecord(await client.addTag(id, value.selected, etag)); }, tags.read)) attachForm.reset();
+      } finally { attachingRef.current = false; }
+    },
+  });
+  const createForm = useForm({
+    defaultValues: { name: '' },
+    onSubmit: async ({ value }) => {
+      if (creatingRef.current || locked || !value.name.trim()) return;
+      creatingRef.current = true;
+      try {
+        if (await run(async () => { await client.createTag({ name: value.name }); }, tags.read)) createForm.reset();
+      } finally { creatingRef.current = false; }
+    },
+  });
+  const selected = useStore(attachForm.store, state => state.values.selected);
+  const name = useStore(createForm.store, state => state.values.name);
+  const attaching = useStore(attachForm.store, state => state.isSubmitting);
+  const creating = useStore(createForm.store, state => state.isSubmitting);
   return <><section className="contact-card"><h3>Thẻ</h3>
     {tags.error && <p role="alert">{tags.error.message} <button onClick={() => void tags.read().catch(() => { })}>Tải lại thẻ</button></p>}
     {tags.data && !tags.error && <><ul className="tag-list">{tags.data.assigned.map(tag => <li key={tag.id}>{tag.name}
       <button aria-label={'Gỡ ' + tag.name} disabled={locked} onClick={() => void run(async etag => onRecord(await client.removeTag(id, tag.id, etag)), tags.read)}>×</button></li>)}</ul>
       {!tags.data.assigned.length && <p>Chưa gắn thẻ.</p>}
-      <form className="contact-form" onSubmit={e => {
-        e.preventDefault();
-        if (!locked && options.some(tag => tag.id === selected)) void run(async etag => { onRecord(await client.addTag(id, selected, etag)); setSelected(''); }, tags.read);
-      }}><label>Thẻ có sẵn<select disabled={locked} value={selected} onChange={e => setSelected(e.target.value)}><option value="">Chọn thẻ</option>
-        {options.map(tag => <option key={tag.id} value={tag.id}>{tag.name}</option>)}</select></label><button disabled={locked || !selected}>Gắn thẻ</button></form>
-      <form className="contact-form" onSubmit={e => {
-        e.preventDefault();
-        if (!locked && name.trim()) void run(async () => { await client.createTag({ name }); setName(''); }, tags.read);
-      }}><label>Tên thẻ mới<input disabled={locked} required maxLength={64} value={name} onChange={e => setName(e.target.value)} /></label><button disabled={locked || !name.trim()}>Tạo thẻ</button></form></>}
+      <form className="contact-form" onSubmit={e => { e.preventDefault(); void attachForm.handleSubmit(); }}>
+        <attachForm.Field name="selected">{field => <label>Thẻ có sẵn<select disabled={locked || attaching} value={field.state.value} onBlur={field.handleBlur} onChange={e => field.handleChange(e.target.value)}><option value="">Chọn thẻ</option>
+          {options.map(tag => <option key={tag.id} value={tag.id}>{tag.name}</option>)}</select></label>}</attachForm.Field><button disabled={locked || attaching || !selected}>Gắn thẻ</button></form>
+      <form className="contact-form" onSubmit={e => { e.preventDefault(); void createForm.handleSubmit(); }}>
+        <createForm.Field name="name">{field => <label>Tên thẻ mới<input disabled={locked || creating} required maxLength={64} value={field.state.value} onBlur={field.handleBlur} onChange={e => field.handleChange(e.target.value)} /></label>}</createForm.Field><button disabled={locked || creating || !name.trim()}>Tạo thẻ</button></form></>}
   </section><section className="contact-card"><h3>Trường tùy chỉnh</h3>
       {fields.error && <p role="alert">{fields.error.message} <button onClick={() => void fields.read().catch(() => { })}>Tải lại trường</button></p>}
       {fields.data && !fields.error && <>{fields.data.map(definition => <FieldEditor key={definition.id} {...props} definition={definition} />)}

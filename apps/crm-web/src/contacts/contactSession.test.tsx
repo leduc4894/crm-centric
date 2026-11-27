@@ -205,3 +205,28 @@ it('ignores an abort-resistant PATCH after A to B to A and logout/login', async 
   expect(location.pathname).toBe('/app/contacts/' + contactId);
   expect(writes).toBe(1);
 });
+it('drops an attribute draft and ignores a late tag creation after tenant changes', async () => {
+  const auth = client(); signIn(auth, 'one');
+  let finish: ((response: Response) => void) | undefined;
+  let writes = 0;
+  vi.stubGlobal('fetch', (request: Request | string) => {
+    if (typeof request === 'string') return Promise.resolve(Response.json(tenants));
+    const path = new URL(request.url).pathname;
+    if (path.endsWith('/v1/tags') && request.method === 'POST') { writes++; return new Promise<Response>(resolve => { finish = resolve; }); }
+    if (path.endsWith('/contacts/' + contactId)) return Promise.resolve(Response.json({ id: contactId, displayName: 'Current', version: 1, createdAt: '2026-01-01', updatedAt: '2026-01-01' }, { headers: { ETag: '"v1"' } }));
+    return Promise.resolve(Response.json({ items: [], nextCursor: null }));
+  });
+  history.replaceState(null, '', '/app/contacts/' + contactId);
+  renderContactRoute(children => <AuthProvider client={auth}><TenantProvider><Harness>{children}</Harness></TenantProvider></AuthProvider>);
+  await screen.findByText('Tenant A'); act(() => screen.getByRole('button', { name: 'Tenant A' }).click());
+  const input = await screen.findByLabelText('Tên thẻ mới');
+  fireEvent.change(input, { target: { value: 'Old draft' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Tạo thẻ' }));
+  await waitFor(() => expect(finish).toBeDefined());
+  act(() => screen.getByRole('button', { name: 'Tenant B' }).click());
+  await waitFor(() => expect((screen.getByLabelText('Tên thẻ mới') as HTMLInputElement).value).toBe(''));
+  fireEvent.change(screen.getByLabelText('Tên thẻ mới'), { target: { value: 'Current draft' } });
+  await act(async () => finish!(Response.json({ id: contactId, name: 'Old draft' }, { status: 201 })));
+  expect((screen.getByLabelText('Tên thẻ mới') as HTMLInputElement).value).toBe('Current draft');
+  expect(writes).toBe(1);
+});

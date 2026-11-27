@@ -132,3 +132,90 @@ it.each(['field', 'delete'])('reviews a changed record and sibling values before
   await submit();
   await waitFor(() => expect(mutations().map(req => req.headers.get('If-Match'))).toEqual(['"v2"']));
 });
+it('does not send an unchanged field when its form is submitted directly', async () => {
+  const calls = setup((req, path) => {
+    if (path.endsWith('/custom-fields')) return page([field]);
+    if (path.endsWith('/fields/' + itemId)) return req.method === 'GET' ? new Response('{"value":1}') : record(2);
+  });
+  await screen.findByDisplayValue('1');
+  await change('Amount', '2');
+  await change('Amount', '1');
+  const button = screen.getByRole('button', { name: 'Lưu Amount' });
+  expect(button.matches(':disabled')).toBe(true);
+  const { fireEvent } = await import('@testing-library/react');
+  fireEvent.submit(button.closest('form')!);
+  await waitFor(() => expect(calls.filter(req => req.method === 'PUT')).toHaveLength(0));
+});
+it.each(['1e131072', '1e-16384', '123456789012345678901234567890123', '1.00E+0'])('preserves numeric token %s through the field form and wire', async token => {
+  let raw = '0';
+  setup(async (req, path) => {
+    if (path.endsWith('/custom-fields')) return page([field]);
+    if (path.endsWith('/fields/' + itemId)) {
+      if (req.method === 'GET') return new Response('{"value":' + raw + '}');
+      raw = (await req.clone().text()).slice(9, -1); return record(2);
+    }
+  });
+  await screen.findByDisplayValue('0');
+  await change('Amount', token); await click('Lưu Amount');
+  await waitFor(() => expect(raw).toBe(token));
+  await screen.findByDisplayValue(token);
+});
+it('retains a tag draft and write lock after 412 when sibling refresh fails', async () => {
+  let writes = 0;
+  let reads = 0;
+  const tag = { id: itemId, name: 'VIP' };
+  setup((req, path) => {
+    if (path.endsWith('/v1/tags')) return page([tag]);
+    if (path.endsWith('/custom-fields')) return page([field]);
+    if (path.endsWith('/fields/' + itemId)) return ++reads > 1 ? new Response(null, { status: 403 }) : new Response('{"value":1}');
+    if (path.endsWith('/tags/' + itemId) && req.method === 'PUT') { writes++; return new Response(null, { status: 412 }); }
+  });
+  await change('Thẻ có sẵn', itemId); await click('Gắn thẻ');
+  await click('Đối chiếu dữ liệu');
+  await screen.findByText(/WEB_CRM/);
+  expect((screen.getByLabelText('Thẻ có sẵn') as HTMLSelectElement).value).toBe(itemId);
+  expect(screen.getByRole('button', { name: 'Gắn thẻ' }).matches(':disabled')).toBe(true);
+  expect(writes).toBe(1);
+});
+it('prevents duplicate tag creation while a request is pending', async () => {
+  let release!: (response: Response) => void;
+  const pending = new Promise<Response>(resolve => { release = resolve; });
+  const calls = setup((req, path) => path.endsWith('/v1/tags') && req.method === 'POST' ? pending : undefined);
+  await change('Tên thẻ mới', 'VIP');
+  const button = screen.getByRole('button', { name: 'Tạo thẻ' });
+  const { fireEvent } = await import('@testing-library/react');
+  fireEvent.submit(button.closest('form')!); fireEvent.submit(button.closest('form')!);
+  await waitFor(() => expect(calls.filter(req => req.method === 'POST')).toHaveLength(1));
+  release(Response.json({ id: itemId, name: 'VIP' }, { status: 201 }));
+  await waitFor(() => expect((screen.getByLabelText('Tên thẻ mới') as HTMLInputElement).value).toBe(''));
+});
+it('retains field draft if refresh fails after a successful write', async () => {
+  let reads = 0;
+  setup((req, path) => {
+    if (path.endsWith('/custom-fields')) return page([field]);
+    if (path.endsWith('/fields/' + itemId)) {
+      if (req.method === 'PUT') return record(2);
+      return ++reads === 2 ? new Response(null, { status: 500 }) : new Response('{"value":1}');
+    }
+  });
+  await screen.findByDisplayValue('1');
+  await change('Amount', '123'); await click('Lưu Amount');
+  await click('Tải lại giá trị');
+  await screen.findByDisplayValue('123');
+});
+it('serializes simultaneous submissions from different attribute forms', async () => {
+  let release!: (response: Response) => void;
+  const pending = new Promise<Response>(resolve => { release = resolve; });
+  const calls = setup((req, path) => {
+    if (path.endsWith('/custom-fields')) return page([field]);
+    if (path.endsWith('/fields/' + itemId)) return req.method === 'PUT' ? record(2) : new Response('{"value":1}');
+    if (path.endsWith('/v1/tags') && req.method === 'POST') return pending;
+  });
+  await screen.findByDisplayValue('1');
+  await change('Tên thẻ mới', 'VIP'); await change('Amount', '2');
+  const { fireEvent } = await import('@testing-library/react');
+  fireEvent.submit(screen.getByRole('button', { name: 'Tạo thẻ' }).closest('form')!);
+  fireEvent.submit(screen.getByRole('button', { name: 'Lưu Amount' }).closest('form')!);
+  await waitFor(() => expect(calls.filter(req => ['POST', 'PUT'].includes(req.method))).toHaveLength(1));
+  release(Response.json({ id: itemId, name: 'VIP' }, { status: 201 }));
+});

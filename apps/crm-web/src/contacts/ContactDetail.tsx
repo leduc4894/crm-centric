@@ -30,6 +30,7 @@ export function ContactDetail({ client: transport, id }: { client: CrmClient; id
   const [editing, setEditing] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
+  const writing = useRef(false);
   const [readOnly, setReadOnly] = useState(false);
   const [deleteFailed, setDeleteFailed] = useState(false);
   useEffect(() => {
@@ -81,12 +82,14 @@ export function ContactDetail({ client: transport, id }: { client: CrmClient; id
     });
   }
   const run: RecordWrite = async (write, refresh, onForbidden) => {
-    if (!record || busy || readOnly || reconcile || editing || deleteFailed) return;
+    if (!record || busy || writing.current || readOnly || reconcile || editing || deleteFailed) return false;
+    writing.current = true;
     setBusy(true); setPanelFailure(null);
     try {
       if (!record.etag) throw new CrmError('WEB_CRM_CONTRACT_INVALID');
       await write(record.etag);
       await refresh();
+      return true;
     } catch (cause) {
       const error = safeError(cause);
       setPanelFailure(error);
@@ -95,7 +98,8 @@ export function ContactDetail({ client: transport, id }: { client: CrmClient; id
       } else if (error.status === 412 || error.status === 404 || !error.status || error.status >= 500) {
         requestReview(refresh);
       }
-    } finally { setBusy(false); }
+      return false;
+    } finally { writing.current = false; setBusy(false); }
   };
   async function review() {
     if (!reconcile || busy) return;
