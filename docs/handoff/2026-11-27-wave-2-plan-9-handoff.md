@@ -93,3 +93,59 @@ zero skips (73 seconds). The previous old-fixture run failed 1/1, expected 5,
 actual 17. Commit `1cdf1c8` fixes the fixture; it and `892d225` were pushed to
 `origin/wave-2`. This focused case does not establish that all Compose failures
 are fixed. Hosted runs and security/governance results must still be inspected.
+
+## Hosted CI results checked
+
+User asked to check completed CI. Run
+https://github.com/leduc4894/crm-centric/actions/runs/46027476925 attempt 1
+failed on PR head `1cdf1c878b1e840ec63f0eda768731fab8aa35a5`, actual merge
+`648ce2fbcc3044d08006e96ab6e990932139680f`, base
+`db04aeaecd7f4b6d083335a71418788d3c4561ca`. Compose PASS 18/18, zero skips.
+Contract unittest suite PASS 137/137, zero skips; contracts-sdk job then failed
+at `contract-compatibility` (`CI_COMMAND_FAILED`, correlation
+`aafdb77d-8fd4-4039-9a51-8961975917cc`), without a more specific safe reason in
+its log. Web failed at compatibility `CONTRACT_POLICY_REVIEW_REQUIRED`
+(correlation `eb5570d0-1003-4f98-b967-c075a6e69a8d`), before browser suite
+results. Backend failed during dotnet tests; safe output says only
+`OTHER_TESTS_FAILED` / `OTHER` (correlation
+`60aef185-a366-4f6d-8cd3-720785460748`); completion summary has zero test
+counts and does not identify the failed test, so root cause remains unknown.
+Security failed `CI_SCAN_FINDINGS` with 105 blocked Gitleaks records and one
+blocked Trivy record (correlation `28e1fff4-cc8d-4b81-a3d5-161ca2bfdb46`).
+Aggregate failed `CI_REPORT_INVALID` (correlation
+`5d667397-aaf7-415d-a6a7-41c81ab38e8f`). Prior run 46026514267 was cancelled;
+no cause or actor was investigated. Safe artifacts downloaded to
+`.local/plan9-run-46027476925/` and GitHub retains them temporarily. No tests,
+fixes, CI runs, policy changes or pushes were performed during this check.
+
+Next: systematically identify backend failure with safe diagnostics and focused
+local tests; independently triage security findings and prepare exact-candidate
+compatibility review, without weakening gates. Group all actionable fixes and
+verify locally before pushing once, as user requested; then run hosted CI for the
+new candidate. `tests/CI` hosted coverage, benchmark and Wave 2/P0 exit remain
+open.
+
+## Backend diagnosis and grouped candidate
+
+User asked to fix non-security CI, push and monitor; aggregate must still fail if
+security fails. Focused PostgreSQL test run across tenant/contact/tag/field/
+timeline schema classes: 49 passed, five `ContactEmailSchemaTests` failed, zero
+skipped. All five failed during setup: latest `DatabaseRoleGrants.ApplyAsync`
+requires newer tag, field and timeline schema, but the email migration fixture
+intentionally starts at `20261127000000_ContactFoundation`. Commit `d8fc9eb`
+grants only the historical contact access needed by that fixture, without
+changing application grants. Focused `dotnet test ... --filter
+'FullyQualifiedName~ContactEmailSchemaTests'` then passed 5/5, zero skips.
+This reproduces an actual defect but the previous hosted output did not identify
+its failing class, so it is not proof that it was the only backend failure.
+
+Commit `23fc3e3` extends bounded diagnostics with fixed integration-class
+identifiers; no raw test text is emitted. New diagnostic test failed before the
+change and the focused `python3 -m unittest discover -s tests/CI -p
+test_job_processes.py -v` passed 22/22, zero skips. `git diff --check` passed.
+Actual-base compatibility locally returned `CONTRACT_POLICY_REVIEW_REQUIRED`,
+correlation `65620b5e-5844-4377-89f3-8fce76e26b08`; preflight stopped before
+semantic comparisons. No security policy or compatibility approval was changed;
+previous candidate-specific approval does not transfer. A fresh candidate-specific
+maintainer decision and actual-base evaluation are still required, and cannot be
+self-approved by the implementer. Full test suite remains reserved for hosted CI.
