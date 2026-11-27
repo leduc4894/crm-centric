@@ -137,3 +137,9 @@ The new browser test failed RED 1/1 because the fixture lacked `withContactSessi
 The current hosted real-browser job selects the existing OIDC test by name. Plan 5 must include the contacts spec with its real-stack opt-in and assert an executed passing result in the hosted evidence. Independent Task 6 review precedes the wave-exit run.
 
 The shared-fixture regression `CRM_REAL_OIDC_TEST=1 npm exec --workspace @crm-centric/crm-web -- playwright test tests/e2e/browser-oidc.spec.ts --project=chromium --grep 'real provider signs'` passed 1/1 in 1.6 minutes with zero skips. Local result is in `.local/contacts-browser-regression.log`.
+
+### Final review remediation
+
+On `wave-2`, commit `ff3d7ec` fixes the missing-ETag path in ContactDetail, removes the discarded-representation fallback from crmClient, and updates ContactAttributes and crmClient tests. The user-authorized Plan 4 implementation includes review fixes. Field writes and deletes now require review of a current contact and sibling values plus explicit resubmission. Field drafts survive reconciliation, and delete requires fresh confirmation. The profile edit path already checks its displayed ETag. No contract or migration change.
+
+The focused unversioned-field/delete test filter failed both new cases RED. Vitest then passed 57/57 in ContactAttributes, ContactTimeline, ContactForm and crmClient. CRM web typecheck and whitespace checks passed. Full suite and acceptance drills were not rerun. Full commands are in local evidence file `.superpowers/sdd/2026-11-27-wave-2-plan-4-timeline-contact-ui/final-fix-report.md`. Other in-progress branch documentation edits remain outside this fix. Next step is independent review of the correction. Previously recorded governance and acceptance gaps remain open.
