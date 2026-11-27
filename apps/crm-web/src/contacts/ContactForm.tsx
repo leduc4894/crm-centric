@@ -32,6 +32,7 @@ export function ContactForm({ client, record, choices = [], readOnly, refreshLis
   const [choosing, setChoosing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [review, setReview] = useState(false);
+  const [reconcileId, setReconcileId] = useState<string | null>(null);
   const submitting = useRef(false);
   const form = useForm({
     defaultValues: { name: record?.data.displayName ?? '', email: record?.data.email ?? '', phone: record?.data.phone ?? '' },
@@ -43,7 +44,7 @@ export function ContactForm({ client, record, choices = [], readOnly, refreshLis
   const validationError = useStore(form.store, state => state.errorMap.onSubmit);
   async function read(id?: string) {
     setBusy(true);
-    if (choosing) { setBase(undefined); setReview(false); }
+    if (choosing || reconcileId) { setBase(undefined); setReview(false); }
     try {
       if (id) {
         const latest = await client.getContact(id);
@@ -51,7 +52,7 @@ export function ContactForm({ client, record, choices = [], readOnly, refreshLis
         await refreshAttributes?.();
         setBase(latest); setReview(true);
       } else await refreshList?.();
-      setFailure(null); setBlocked(false);
+      setFailure(null); if (!reconcileId) setBlocked(false);
     } catch (error) { setFailure(safeError(error)); }
     finally { setBusy(false); }
   }
@@ -76,6 +77,13 @@ export function ContactForm({ client, record, choices = [], readOnly, refreshLis
       }
       const saved = original && submittedChanges && base ? await client.patchContact(original.data.id, submittedChanges, base.etag!) :
         await client.createContact(body, base ? { id: base.data.id, etag: base.etag! } : undefined);
+      const expectedId = original?.data.id ?? base?.data.id;
+      if (!saved.etag || (expectedId && expectedId.toLowerCase() !== saved.data.id.toLowerCase())) {
+        setReconcileId(expectedId ?? saved.data.id);
+        setBlocked(true); setReview(false);
+        setFailure(new CrmError('WEB_CRM_CONTRACT_INVALID'));
+        return;
+      }
       onSaved(saved);
     } catch (error) {
       const result = safeError(error);
@@ -92,10 +100,11 @@ export function ContactForm({ client, record, choices = [], readOnly, refreshLis
     {validationError && <p role="alert">{validationError}</p>}
     {failure && <p role="alert">{mutationMessage(failure)}</p>}
     {choosing && <fieldset><legend>Chọn liên hệ để đối chiếu</legend>
-      {choices.map(item => <button key={item.id} type="button" disabled={busy || readOnly} onClick={() => void read(item.id)}>Chọn {item.displayName}</button>)}
+      {choices.map(item => <button key={item.id} type="button" disabled={busy || readOnly || !!reconcileId} onClick={() => void read(item.id)}>Chọn {item.displayName}{choices.filter(choice => choice.displayName === item.displayName).length > 1 ? ' — ' + item.id : ''}</button>)}
     </fieldset>}
     {review && base && <section><h4>Dữ liệu hiện tại</h4><dl><dt>Tên</dt><dd>{base.data.displayName}</dd><dt>Email</dt><dd>{base.data.email ?? '—'}</dd><dt>Điện thoại</dt><dd>{base.data.phone ?? '—'}</dd></dl></section>}
-    {blocked && failure?.status !== 403 && <button type="button" disabled={busy} onClick={() => void read(base?.data.id)}>Tải lại dữ liệu</button>}
+    {blocked && !(reconcileId && review) && failure?.status !== 403 && <button type="button" disabled={busy} onClick={() => void read(reconcileId ?? base?.data.id)}>Tải lại dữ liệu</button>}
+    {reconcileId && review && base && <button type="button" disabled={busy} onClick={() => onSaved(base)}>Xác nhận dữ liệu</button>}
     <div className="contact-actions"><button type="submit" disabled={busy || readOnly || unchanged || blocked || (choosing && !base)}>{record ? 'Lưu' : base ? 'Cập nhật ' + base.data.displayName : 'Tạo'}</button>
     <button type="button" disabled={busy} onClick={onCancel}>Hủy</button></div>
   </form>;

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { AuthClient } from '../auth/authClient';
 import { AuthProvider, useAuth } from '../auth/AuthProvider';
@@ -167,6 +167,41 @@ it('ignores a previous session delete completion after logout and login as the s
   await screen.findByRole('heading', { name: 'Session 2' });
   await act(async () => finishDelete!(new Response(null, { status: 204 })));
   expect(screen.getByRole('heading', { name: 'Session 2' })).toBeTruthy();
+  expect(location.pathname).toBe('/app/contacts/' + contactId);
+  expect(writes).toBe(1);
+});
+
+it('ignores an abort-resistant PATCH after A to B to A and logout/login', async () => {
+  const auth = client(); signIn(auth, 'one');
+  let finishPatch: ((response: Response) => void) | undefined;
+  let reads = 0, writes = 0;
+  const contact = (name: string) => Response.json({ id: contactId, displayName: name, version: 1, createdAt: '2026-01-01', updatedAt: '2026-01-01' }, { headers: { ETag: '"v1"' } });
+  vi.stubGlobal('fetch', (request: Request | string) => {
+    if (typeof request === 'string') return Promise.resolve(Response.json(tenants));
+    if (request.method === 'PATCH') { writes++; return new Promise<Response>(done => { finishPatch = done; }); }
+    if (new URL(request.url).pathname.endsWith('/contacts/' + contactId)) return Promise.resolve(contact('Record ' + ++reads));
+    return Promise.resolve(Response.json({ items: [], nextCursor: null }));
+  });
+  history.replaceState(null, '', '/app/contacts/' + contactId);
+  renderContactRoute(children => <AuthProvider client={auth}><TenantProvider><Harness>{children}</Harness></TenantProvider></AuthProvider>);
+  const select = (name: string) => act(() => screen.getByRole('button', { name: 'Tenant ' + name }).click());
+  await screen.findByText('Tenant A'); select('A'); await screen.findByRole('heading', { name: 'Record 1' });
+  fireEvent.click(screen.getByRole('button', { name: 'Chỉnh sửa' }));
+  fireEvent.change(screen.getByLabelText('Tên liên hệ'), { target: { value: 'Old draft' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Lưu' })); await waitFor(() => expect(finishPatch).toBeDefined());
+  select('B'); await screen.findByRole('heading', { name: 'Record 2' });
+  select('A'); await screen.findByRole('heading', { name: 'Record 3' });
+  Reflect.set(auth, 'idToken', 'synthetic-id');
+  Reflect.set(auth, 'metadata', async () => ({ end_session_endpoint: 'https://id.example/logout' }));
+  Reflect.set(Reflect.get(auth, 'env'), 'logout', async () => undefined);
+  await act(async () => auth.logout());
+  act(() => signIn(auth, 'two')); await screen.findByText('Tenant A'); select('A');
+  await screen.findByRole('heading', { name: 'Record 4' });
+  fireEvent.click(screen.getByRole('button', { name: 'Chỉnh sửa' }));
+  fireEvent.change(screen.getByLabelText('Tên liên hệ'), { target: { value: 'Current draft' } });
+  await act(async () => finishPatch!(contact('Stale saved')));
+  expect((screen.getByLabelText('Tên liên hệ') as HTMLInputElement).value).toBe('Current draft');
+  expect(screen.queryByText('Stale saved')).toBeNull();
   expect(location.pathname).toBe('/app/contacts/' + contactId);
   expect(writes).toBe(1);
 });
