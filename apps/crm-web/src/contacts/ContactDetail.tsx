@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ContactForm, mutationMessage, safeError, type Snapshot } from './ContactForm';
 import { navigate, openContacts } from './ContactShell';
 import { ContactTimeline } from './ContactTimeline';
 import { ContactAttributes } from './ContactAttributes';
-import type { RecordWrite } from './recordPanels';
+import type { RecordWrite, RegisterPanelRead } from './recordPanels';
 import { CrmError, type CrmClient } from './crmClient';
 
 function DeleteDialog({ name, onCancel, onConfirm }: { name: string; onCancel(): void; onConfirm(): void }) {
@@ -37,13 +37,27 @@ export function ContactDetail({ client, id }: { client: CrmClient; id: string })
   }, [id, client, attempt]);
   const [panelFailure, setPanelFailure] = useState<CrmError | null>(null);
   const [reconcile, setReconcile] = useState<(() => Promise<void>) | null>(null);
+  const panelReads = useRef(new Set<() => Promise<void>>());
+  const register = useCallback<RegisterPanelRead>(read => {
+    panelReads.current.add(read);
+    return () => { panelReads.current.delete(read); };
+  }, []);
+  async function refreshAttributes(extra?: () => Promise<void>) {
+    const reads = new Set(panelReads.current);
+    if (extra) reads.add(extra);
+    await Promise.all(Array.from(reads, read => read()));
+  }
   function accept(result: Snapshot) {
     if (result.data.id.toLowerCase() !== id.toLowerCase()) throw new CrmError('WEB_CRM_CONTRACT_INVALID');
     setRecord(result);
   }
   async function updateVersion(etag: string | null) {
     if (etag) setRecord(old => old && { ...old, etag });
-    else accept(await client.getContact(id));
+    else {
+      const snapshot = await client.getContact(id);
+      await refreshAttributes();
+      accept(snapshot);
+    }
   }
   const run: RecordWrite = async (write, refresh, onForbidden) => {
     if (!record || busy || readOnly || reconcile || editing || deleteFailed) return;
@@ -58,7 +72,8 @@ export function ContactDetail({ client, id }: { client: CrmClient; id: string })
         if (onForbidden) onForbidden(); else setReadOnly(true);
       } else if (error.status === 412 || error.status === 404 || !error.status || error.status >= 500) {
         setReconcile(() => async () => {
-          try { accept(await client.getContact(id)); }
+          let snapshot: Snapshot;
+          try { snapshot = await client.getContact(id); }
           catch (cause) {
             const readError = safeError(cause);
             if (readError.status === 403 || readError.status === 404) {
@@ -67,7 +82,8 @@ export function ContactDetail({ client, id }: { client: CrmClient; id: string })
             }
             throw cause;
           }
-          await refresh();
+          await refreshAttributes(refresh);
+          accept(snapshot);
         });
       }
     } finally { setBusy(false); }
@@ -101,12 +117,12 @@ export function ContactDetail({ client, id }: { client: CrmClient; id: string })
     {!record && !failure && <p role="status">Đang tải…</p>}
     {record && <div className="contact-record"><div className="contact-profile"><section className="contact-card">
       <h3>Thông tin liên hệ</h3>
-      {editing ? <ContactForm client={client} readOnly={readOnly} record={record} onForbidden={() => setReadOnly(true)} onCancel={() => setEditing(false)}
+      {editing ? <ContactForm client={client} readOnly={readOnly} record={record} refreshAttributes={refreshAttributes} onForbidden={() => setReadOnly(true)} onCancel={() => setEditing(false)}
         onSaved={saved => { setRecord(saved); setEditing(false); }} /> :
         <><dl><dt>Email</dt><dd>{record.data.email ?? '—'}</dd><dt>Điện thoại</dt><dd>{record.data.phone ?? '—'}</dd></dl>
         {!readOnly && <div className="contact-actions"><button disabled={locked} onClick={() => setEditing(true)}>Chỉnh sửa</button>
         <button disabled={locked} onClick={() => setConfirm(true)}>Xóa liên hệ</button></div>}</>}
-    </section><ContactAttributes client={client} id={id} disabled={locked} run={run} onRecord={accept} /></div>
+    </section><ContactAttributes client={client} id={id} disabled={locked} run={run} register={register} onRecord={accept} /></div>
       <ContactTimeline client={client} id={id} disabled={locked} run={run} onVersion={updateVersion} /></div>}
     {confirm && record && <DeleteDialog name={record.data.displayName} onCancel={() => setConfirm(false)} onConfirm={() => void remove()} />}
   </>;

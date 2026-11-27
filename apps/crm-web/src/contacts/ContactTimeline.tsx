@@ -53,6 +53,6 @@ export function ContactTimeline({ client, id, disabled, run, onVersion }: Props)
       <time dateTime={item.occurredAt}>{new Date(item.occurredAt).toLocaleString('vi-VN')}</time>
       <p>{item.summary}</p><small>{item.source} · {item.type}{item.inboxId && <> · {item.inboxId}</>}</small>
     </li>)}</ol> : <p>Chưa có hoạt động.</p>)}
-    {data?.nextCursor && !error && <button disabled={loading || disabled} onClick={() => void more().catch(() => { })}>Hoạt động trước</button>}
+    {data?.nextCursor && !error && <button disabled={loading} onClick={() => void more().catch(() => { })}>Hoạt động trước</button>}
   </section>;
 }

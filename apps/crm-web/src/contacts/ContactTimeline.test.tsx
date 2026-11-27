@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
-import { setup, entry, page, record, click, change, id } from './recordTestSupport';
+import { setup, field, itemId, entry, page, record, click, change, id } from './recordTestSupport';
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 it('renders ordered provenance and untrusted summaries as text and pages forward', async () => {
   setup((req, path) => path.endsWith('/timeline') ? new URL(req.url).searchParams.has('cursor') ? page([{ ...entry, id, summary: 'Older' }]) : page([entry], 'opaque') : undefined);
@@ -75,4 +75,63 @@ it('returns keyboard focus to the note input after saving', async () => {
   const submit = screen.getByRole('button', { name: 'Thêm ghi chú' });
   submit.focus(); fireEvent.click(submit);
   await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText('Ghi chú')));
+});
+it('gates cross-panel writes on refresh of the conflicting field and preserves its draft', async () => {
+  let conflict = false;
+  let resolveField: ((response: Response) => void) | undefined;
+  const calls = setup((req, path) => {
+    if (path.endsWith('/custom-fields')) return page([field]);
+    if (path.endsWith('/fields/' + itemId)) {
+      if (req.method === 'PUT') return record(3);
+      if (!conflict) return new Response('{"value":1}');
+      return new Promise<Response>(resolve => { resolveField = resolve; });
+    }
+    if (path.endsWith('/notes')) { conflict = true; return new Response(null, { status: 412 }); }
+    if (path.endsWith(id)) return record(conflict ? 2 : 1);
+  });
+  await screen.findByDisplayValue('1'); await change('Amount', '500');
+  await change('Ghi chú', 'Note draft'); await click('Thêm ghi chú'); await click('Đối chiếu dữ liệu');
+  await waitFor(() => expect(resolveField).toBeDefined());
+  expect(screen.getByRole('button', { name: 'Lưu Amount' }).matches(':disabled')).toBe(true);
+  await act(async () => resolveField!(new Response('{"value":22}')));
+  await screen.findByText('Giá trị hiện tại: 22');
+  expect(screen.getByDisplayValue('500')).toBeTruthy();
+  expect(screen.getByDisplayValue('Note draft')).toBeTruthy();
+  expect(calls.filter(r => r.method === 'PUT')).toHaveLength(0);
+  await click('Lưu Amount');
+  await waitFor(() => expect(calls.find(r => r.method === 'PUT')?.headers.get('If-Match')).toBe('"v2"'));
+});
+it('allows timeline pagination after the server denies a note write', async () => {
+  const calls = setup((req, path) => {
+    if (path.endsWith('/notes')) return new Response(null, { status: 403 });
+    if (path.endsWith('/timeline')) return new URL(req.url).searchParams.has('cursor') ? page([{ ...entry, id, summary: 'Page two' }]) : page([entry], 'next');
+  });
+  await screen.findByText(entry.summary);
+  await change('Ghi chú', 'Operator draft'); await click('Thêm ghi chú');
+  await screen.findByRole('alert');
+  expect(screen.getByRole('button', { name: 'Thêm ghi chú' }).matches(':disabled')).toBe(true);
+  await click('Hoạt động trước'); await screen.findByText('Page two');
+  expect(calls.filter(r => r.method === 'POST')).toHaveLength(1);
+});
+it('keeps writes locked when a sibling field read fails during reconciliation', async () => {
+  let conflict = false, failRefresh = true;
+  const calls = setup((_req, path) => {
+    if (path.endsWith('/custom-fields')) return page([field]);
+    if (path.endsWith('/fields/' + itemId)) {
+      if (conflict && failRefresh) return new Response(null, { status: 503 });
+      return new Response(conflict ? '{"value":3}' : '{"value":1}');
+    }
+    if (path.endsWith('/notes')) { conflict = true; return new Response(null, { status: 412 }); }
+    if (path.endsWith(id)) return record(conflict ? 2 : 1);
+  });
+  await screen.findByDisplayValue('1'); await change('Amount', '9'); await change('Ghi chú', 'Draft');
+  await click('Thêm ghi chú'); await click('Đối chiếu dữ liệu');
+  await screen.findByRole('button', { name: 'Tải lại giá trị' });
+  expect(screen.getByRole('button', { name: 'Thêm ghi chú' }).matches(':disabled')).toBe(true);
+  expect(screen.getByRole('button', { name: 'Lưu Amount' }).matches(':disabled')).toBe(true);
+  failRefresh = false; await click('Đối chiếu dữ liệu');
+  await screen.findByText('Giá trị hiện tại: 3');
+  expect(screen.getByDisplayValue('9')).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Lưu Amount' }).matches(':disabled')).toBe(false);
+  expect(calls.filter(r => r.method !== 'GET')).toHaveLength(1);
 });

@@ -3,10 +3,10 @@ import type { Snapshot } from './ContactForm';
 import { CustomFieldSettings, type Definition } from './CustomFieldSettings';
 import { CrmError, type CrmClient } from './crmClient';
 import { exactNumber, type FieldValue } from './losslessJson';
-import { collectPages, usePanelRead, type RecordWrite } from './recordPanels';
+import { collectPages, usePanelRead, type RecordWrite, type RegisterPanelRead } from './recordPanels';
 
-interface Props { client: CrmClient; id: string; disabled: boolean; run: RecordWrite; onRecord(record: Snapshot): void }
-function FieldEditor({ definition, client, id, disabled, run, onRecord }: Props & { definition: Definition }) {
+interface Props { client: CrmClient; id: string; disabled: boolean; run: RecordWrite; register: RegisterPanelRead; onRecord(record: Snapshot): void }
+function FieldEditor({ definition, client, id, disabled, run, register, onRecord }: Props & { definition: Definition }) {
   const [draft, setDraft] = useState<string>();
   const load = useCallback(async (signal: AbortSignal) => {
     try { return (await client.getField(id, definition.id, signal)).data; }
@@ -15,7 +15,7 @@ function FieldEditor({ definition, client, id, disabled, run, onRecord }: Props 
       throw cause;
     }
   }, [client, definition.id, id]);
-  const { data, read, error, loading } = usePanelRead(load);
+  const { data, read, error, loading } = usePanelRead(load, register);
   const current = typeof data === 'object' && data !== null ? data.numberToken : String(data ?? '');
   const value = draft ?? current;
   const inactive = disabled || loading || !!error;
@@ -50,7 +50,7 @@ export function ContactAttributes(props: Props) {
     ]);
     return { all, assigned };
   }, [client, id]);
-  const tags = usePanelRead(loadTags);
+  const tags = usePanelRead(loadTags, props.register);
   const loadFields = useCallback((signal: AbortSignal) => collectPages(cursor => client.listFields(cursor ? { cursor } : {}, signal)), [client]);
   const fields = usePanelRead(loadFields);
   const locked = disabled || tags.loading || !!tags.error;

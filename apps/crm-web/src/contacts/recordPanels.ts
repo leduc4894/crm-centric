@@ -2,10 +2,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { safeError } from './ContactForm';
 import { CrmError } from './crmClient';
 
+type PanelRead = () => Promise<void>;
+export type RegisterPanelRead = (read: PanelRead) => () => void;
 export type RecordWrite = (write: (etag: string) => Promise<void>, refresh: () => Promise<void>, onForbidden?: () => void) => Promise<void>;
 
 // A replacement read supersedes both the initial read and any in-flight page.
-export function usePanelRead<T>(load: (signal: AbortSignal) => Promise<T>) {
+export function usePanelRead<T>(load: (signal: AbortSignal) => Promise<T>, register?: RegisterPanelRead) {
   const [data, setData] = useState<T>();
   const [error, setError] = useState<CrmError>();
   const [loading, setLoading] = useState(true);
@@ -25,10 +27,11 @@ export function usePanelRead<T>(load: (signal: AbortSignal) => Promise<T>) {
     } finally { if (!controller.signal.aborted) setLoading(false); }
   }, [load]);
   useEffect(() => {
+    const unregister = register?.(read);
     let mounted = true;
     queueMicrotask(() => { if (mounted) void read().catch(() => { /* read exposes the failure in the panel */ }); });
-    return () => { mounted = false; active.current?.abort(); };
-  }, [read]);
+    return () => { mounted = false; unregister?.(); active.current?.abort(); };
+  }, [read, register]);
   return { data, error, loading, read };
 }
 

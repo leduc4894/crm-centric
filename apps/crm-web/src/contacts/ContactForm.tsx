@@ -17,12 +17,13 @@ interface Props {
   record?: Snapshot;
   choices?: Contact[];
   readOnly: boolean;
+  refreshAttributes?: () => Promise<void>;
   refreshList?: () => Promise<void>;
   onSaved: (record: Snapshot) => void;
   onCancel: () => void;
   onForbidden: () => void;
 }
-export function ContactForm({ client, record, choices = [], readOnly, refreshList, onSaved, onCancel, onForbidden }: Props) {
+export function ContactForm({ client, record, choices = [], readOnly, refreshList, refreshAttributes, onSaved, onCancel, onForbidden }: Props) {
   const [base, setBase] = useState(record);
   const [name, setName] = useState(record?.data.displayName ?? '');
   const [email, setEmail] = useState(record?.data.email ?? '');
@@ -39,6 +40,7 @@ export function ContactForm({ client, record, choices = [], readOnly, refreshLis
       if (id) {
         const latest = await client.getContact(id);
         if (latest.data.id.toLowerCase() !== id.toLowerCase() || !latest.etag) throw new CrmError('WEB_CRM_CONTRACT_INVALID');
+        await refreshAttributes?.();
         setBase(latest); setReview(true);
       } else await refreshList?.();
       setFailure(null); setBlocked(false);
