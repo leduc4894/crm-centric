@@ -107,3 +107,33 @@ Verification used Node 24.22.2. The three Task 5 Vitest files failed RED 12/12 f
 On `wave-2` based on `9c16929`, the review of [Plan 4](../superpowers/plans/2026-11-27-wave-2-plan-4-timeline-contact-ui.md) found two gaps. A contact version recovered after a failed write could leave another editor showing stale data. ContactDetail, ContactAttributes, ContactForm and recordPanels now refresh displayed tag membership and mounted field values before adopting the recovered version. A sibling read failure keeps writes locked and preserves drafts. ContactTimeline now permits reads of subsequent pages after a denied write. The changed tests are in ContactTimeline.test.tsx. No contract, dependency or migration changed.
 
 The focused Vitest filter `cross-panel|denies a note` failed RED 2/2 then passed GREEN 2/2. The seven contact test files passed 64/64, including a failed sibling read followed by explicit recovery. CRM web typecheck, focused ESLint and staged whitespace checks passed. Detailed results are in the ignored Task 5 SDD report. The changes are in the commit titled “Refresh sibling attributes before accepting a recovered contact version”. The separate branch handoff edit is excluded. Next is independent re-review, followed by Task 6 browser E2E and hosted wave-exit CI. No full suite or browser tests ran during this correction.
+
+## Task 6 focused real-stack verification
+
+On `wave-2` at `e2fdb3a`, based on `5508826`, [Plan 4](../superpowers/plans/2026-11-27-wave-2-plan-4-timeline-contact-ui.md) adds a Chromium journey in `apps/crm-web/tests/e2e/contacts.spec.ts` and extends `realOidcFixture.ts`. Two separate browser contexts sign in with the same disposable owner. The fixture adds that owner to both tenants only for the contacts flow. A disposable, runtime-generated cursor key enables real list and timeline reads. The unrelated branch handoff is excluded.
+
+**Reproduction.** Use Linux with readable `/proc`, Docker Engine and Compose, available pinned images/build dependencies, Python 3, the repository's locked npm workspaces, Node 24.22.2/npm 11.19.1, Playwright Chromium and its system libraries. Leave loopback port 5173 free. Run the following command from the repository root.
+
+```sh
+CRM_REAL_OIDC_TEST=1 npm exec --workspace @crm-centric/crm-web -- playwright test tests/e2e/contacts.spec.ts
+```
+
+The command starts its own uniquely labelled Compose project via `scripts/dev-up.sh`, migrates PostgreSQL, provisions synthetic Keycloak identities, seeds staff memberships and launches Vite on 5173. API and issuer ports are allocated on loopback. Fixture teardown closes browser contexts, stops its Vite process group and removes its containers, network, volumes, locally tagged images and temporary state. Omitting the opt-in skips the real-provider case. The local runner used the repository-local .NET 10.0.403 installation and extracted browser libraries.
+
+| Focused command | Result |
+| --- | --- |
+| `dotnet test tests/Integration/Integration.csproj --filter 'FullyQualifiedName~TimelineSchemaTests\|FullyQualifiedName~TimelineEndpointsTests\|FullyQualifiedName~TimelineConcurrencyTests'` | 19 passed, 0 failed, 0 skipped on PostgreSQL/Testcontainers |
+| `python3 -m unittest discover -s tests/Contract -p 'test_contact_timeline.py' -v` | 1 passed, 0 failed, 0 skipped |
+| `npm exec --workspace @crm-centric/crm-web -- vitest run` with the seven contact test files, contactsProxy, devServer, tenantProxy, realOidcFixture and stackProvenance | 90 passed in 12 files, 0 failed, 0 skipped |
+| `npm run typecheck --workspace @crm-centric/crm-web` and ESLint on both E2E files | Passed |
+| `python3 scripts/contracts/compatibility.py --base-ref origin/main --mvp-reviewed-policy` | Closed with CONTRACT_POLICY_REVIEW_REQUIRED on actual base db04aea, correlation 20787911-15e3-4ba0-bef2-fd434edb45ae |
+
+The contact list opens a dedicated record with profile and attributes beside the activity panel. Source review against the prototype found the same background, typography, navigation placement, accent colors and card treatment. This is a structural and style review. The timeline migration continues to require a forward fix after data is stored. [Timeline migration and rollback](../operations/10-TIMELINE-MIGRATION.md)
+
+The browser fixture is the only shared test support changed here. Task 6 adds no migration or public contract change. Plan 4's documented strong ETag and optional generated client header still require candidate-specific actual-base governance review. Security remains FAIL/deferred. Plan 5 owns full GitHub CI and the 50,000-contact/50-concurrent-user latency benchmark. External ingest/replay RT-EVT-01, remote DemoModule, duplicate delivery, outage/recovery, restore drills, Wave 2 and P0 remain OPEN. No full local suite, push or deployment.
+
+The new browser test failed RED 1/1 because the fixture lacked `withContactSessions`. An intermediate stack authenticated and created a contact but could not list it because the cursor key was unset. Its browser was stopped during diagnosis, and disconnected-context teardown failed. The runner's owned resources were removed. The fixture now supplies an ephemeral key and skips already-disconnected contexts during cleanup. The contacts browser command then passed 1/1 in 1.4 minutes, zero skips. It verified persistence after reload and Keycloak SSO, tag membership, an exact 29-digit field value, literal markup in a note, stale note HTTP 412 and draft retention, 390-pixel viewport fit, keyboard focus, and an empty tenant B list after delaying a successful tenant A API response. Neither credentials nor request headers were printed. Local evidence is in `.local/contacts-browser-{red,green,final}.log` and `.local/contacts-final-*.log`. The middle browser log records the interrupted attempt. The staged whitespace check passed.
+
+The current hosted real-browser job selects the existing OIDC test by name. Plan 5 must include the contacts spec with its real-stack opt-in and assert an executed passing result in the hosted evidence. Independent Task 6 review precedes the wave-exit run.
+
+The shared-fixture regression `CRM_REAL_OIDC_TEST=1 npm exec --workspace @crm-centric/crm-web -- playwright test tests/e2e/browser-oidc.spec.ts --project=chromium --grep 'real provider signs'` passed 1/1 in 1.6 minutes with zero skips. Local result is in `.local/contacts-browser-regression.log`.
