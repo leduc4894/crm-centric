@@ -11,7 +11,7 @@ Trước khi triển khai, đối chiếu các yêu cầu và gate Wave 1 còn �
 
 ## Phương án và ranh giới
 
-Chọn năm plan tuần tự theo chức năng: CRUD và contract; truy vấn; tags/fields; timeline và UI; exit. Cách này cho phép kiểm chứng từng lát cắt, giữ UI gắn contract đã ổn định và dành benchmark/full suite cho exit. Một plan lớn duy nhất khó review; chia backend và UI thành hai dự án độc lập làm chậm kiểm chứng luồng người dùng. Đây là đề xuất kỹ thuật dựa trên cấu trúc đã trao đổi, không mở rộng phạm vi MVP.
+Theo quyết định người dùng, hoàn thành Plan 4 hiện tại trước; sau đó tích hợp TanStack theo các plan nhỏ riêng biệt, rồi thực hiện Wave 2 exit. Mỗi bước kế thừa UI đã có, có thể review và kiểm thử độc lập; không mặc định viết lại UI hoặc thay đổi contract. TanStack Virtual để sau khi có bằng chứng cần thiết.
 
 Không làm integration kernel, webhook ingestion, external identity mapping, automation, marketplace hay visual editor. Timeline nhận dữ liệu ngoài qua Wave 3; không giả lập tích hợp đã hoạt động. Không tự động liên kết contact theo email hoặc cấp membership khi tạo contact. Identity linking và extension panels không là điều kiện hoàn thành UI Wave 2.
 
@@ -36,14 +36,20 @@ Danh sách hỗ trợ tìm/filter, trạng thái loading/empty/error, phân tran
 2. **Search/filter/pagination:** truy vấn và index tenant-safe, cursor validation và tests khi filter, tenant, sort hoặc dữ liệu thay đổi. Không khẳng định benchmark exit chỉ từ fixture.
 3. **Tags và custom fields:** definition, values, validation, gắn/gỡ tag, concurrency và audit. Kiểm thử tenant, permission, type, normalization và race liên quan.
 4. **Timeline và UI:** phần lưu/đọc timeline và notes trong scope contract, provenance, UI list/detail và các luồng CRUD/tag/field; tích hợp SDK thật, kiểm thử UI và browser liên quan. Tích hợp external event vẫn thuộc Wave 3.
-5. **Wave 2 exit:** review traceability, migration, audit và docs; chạy full suite trên GitHub CI và benchmark có evidence. Xử lý thất bại trước khi đánh giá exit; báo chính xác các gate còn fail/deferred.
+5. **TanStack Query:** quản lý server state cho contact, tags, fields và timeline. Query key và lifecycle ràng buộc identity, tenant, filter; hủy request, xóa hoặc cô lập cache khi logout/đổi tenant; không tự retry mutation 412 hoặc mutation có kết quả chưa xác định.
+6. **TanStack Table:** chuyển bảng contact theo prototype; tìm kiếm, filter và cursor pagination tiếp tục ở server, không tải toàn bộ tenant về client.
+7. **TanStack Router:** routing list/detail/settings; giữ deep link, back/forward, tenant isolation và auth flow.
+8. **TanStack Form:** chuyển các form phù hợp; giữ draft khi 412, validation và số custom field lossless, không tự làm tròn qua JavaScript Number.
+9. **Wave 2 exit:** review traceability, migration, audit và docs; chạy full suite trên GitHub CI và benchmark có evidence. Xử lý thất bại trước khi đánh giá exit; báo chính xác các gate còn fail/deferred.
 
-Plan 1–4 có thể chia nhỏ thành commit review được; mỗi plan xác định danh sách test và điều kiện hoàn thành cụ thể. Các thay đổi dùng RED → GREEN → refactor. Test integration PostgreSQL dùng Testcontainers; không dùng in-memory thay thế cho isolation/concurrency.
+Plan 5–8 được người dùng đồng ý về hướng và thứ tự; các plan chi tiết chưa được viết hoặc thực thi. Trước mỗi plan, review code hiện tại, chọn phiên bản stable và pin trong lockfile; giữ hành vi, accessibility, contract và kiểm thử regression tương ứng. Không đưa TanStack Virtual vào nếu chưa có nhu cầu đo được.
+
+Plan 1–8 có thể chia nhỏ thành commit review được; mỗi plan xác định danh sách test và điều kiện hoàn thành cụ thể. Các thay đổi dùng RED → GREEN → refactor. Test integration PostgreSQL dùng Testcontainers; không dùng in-memory thay thế cho isolation/concurrency.
 
 ## Chiến lược kiểm thử và exit
 
-- **Plan 1–4:** chạy local chỉ các test liên quan đến thay đổi, bao gồm test unit, contract, integration PostgreSQL thật và UI/browser phù hợp. Viết test trước, ghi kết quả RED/GREEN và phạm vi đã chạy. Không chạy full suite local trong các plan; không coi test liên quan là bằng chứng full suite. Nếu cần CI hay workflow hiện tại tự chạy thêm, ghi nhận kết quả thực tế; không tự ý tắt gate bắt buộc.
-- **Plan 5:** full test suite chỉ chạy ở bước Wave 2 exit **trên GitHub CI**, không chạy full suite local. Xác định workflow, candidate SHA, lệnh và artifact trước khi chạy; nếu workflow hiện tại chưa đáp ứng thì kế hoạch exit phải bổ sung cách chạy có thể kiểm chứng, không vô hiệu hóa gate. Ghi rõ job nào pass/fail/skip, security deferred và aggregate thực tế; không suy diễn pass từ test chọn lọc. Test tập trung local để chẩn đoán hoặc xác nhận sửa lỗi vẫn được phép, nhưng full suite chỉ chạy lại trên GitHub CI.
+- **Plan 1–8:** chạy local chỉ các test liên quan đến thay đổi, bao gồm test unit, contract, integration PostgreSQL thật và UI/browser phù hợp. Viết test trước, ghi kết quả RED/GREEN và phạm vi đã chạy. Không chạy full suite local trong các plan; không coi test liên quan là bằng chứng full suite. Nếu cần CI hay workflow hiện tại tự chạy thêm, ghi nhận kết quả thực tế; không tự ý tắt gate bắt buộc.
+- **Plan 9:** full test suite chỉ chạy ở bước Wave 2 exit **trên GitHub CI**, không chạy full suite local. Xác định workflow, candidate SHA, lệnh và artifact trước khi chạy; nếu workflow hiện tại chưa đáp ứng thì kế hoạch exit phải bổ sung cách chạy có thể kiểm chứng, không vô hiệu hóa gate. Ghi rõ job nào pass/fail/skip, security deferred và aggregate thực tế; không suy diễn pass từ test chọn lọc. Test tập trung local để chẩn đoán hoặc xác nhận sửa lỗi vẫn được phép, nhưng full suite chỉ chạy lại trên GitHub CI.
 - Benchmark contact list với ít nhất 50.000 contacts/tenant và 50 concurrent users; p95 < 400 ms. Ghi CPU/RAM/DB/network, dataset/seed, workload, warmup, duration, sample count, error rate, p95, commit và artifact. Benchmark là kiểm chứng riêng tại exit; chọn môi trường có thể mô tả và tái lập, không mặc định runner GitHub đủ ổn định nếu chưa chứng minh. Không thay benchmark bằng seed fixture.
 - Exit cần permission/concurrency/audit tests pass và bằng chứng đầy đủ cho phạm vi Wave 2, kể cả migration và tenant isolation; cập nhật acceptance matrix, docs và handoff theo kết quả thật. Security FAIL/deferred và P0 vẫn OPEN cho tới khi các điều kiện tương ứng được giải quyết; không tuyên bố P0 hoàn tất từ Wave 2 exit.
 

@@ -270,3 +270,23 @@ User reported Plan 3 complete and requested Plan 4. Verified branch `wave-2` at 
 User approved the Plan 4 proposal to add the updated contact's strong ETag to the `201` response for note creation. Updated the plan to record approval; this does not waive contract compatibility or consumer checks, approve a breaking change, or by itself request implementation. Plan and this handoff remain uncommitted on `wave-2` at `efb5db8`. No code, contract, tests or CI run in this documentation-only update. Next: implement Plan 4 when requested, with focused local tests and full suite on GitHub CI at Wave 2 exit.
 
 User requested committing the Plan 4 document and this handoff on `wave-2`. Staged whitespace verification and final status are checked with the commit. No implementation, test suite or CI ran in this documentation-only session; Plan 4 remains unexecuted.
+
+## Partial update lookup
+
+User asked whether contact partial update is supported. Read the current OpenAPI and `ContactEndpoints.PatchAsync`: PATCH accepts displayName/email/phone selectively; omitted fields are unchanged, explicit null clears email/phone, displayName cannot be null, and strong If-Match is required. No application code changed and no tests run in this lookup. Plan 4 work was already in progress with changes under `apps/crm-web/src/contacts/`; preserve those user/agent changes. This handoff update is uncommitted.
+
+## Integration and automation ETag documentation lookup
+
+User asked whether ETag handling for integrations/automation is documented. Reviewed access/state, event architecture, SDK design and roadmap: contact API preconditions and SDK preservation/no silent retry are documented, but a specific Wave 3/4 worker conflict-resolution policy and n8n behavior are not yet defined as implementation requirements. User agreed in conversation to handling conflict in SDK/workers in later waves; detailed design remains future work. No code or tests changed/run. Existing Plan 4 frontend and handoff changes were preserved; this lookup adds only this uncommitted handoff note.
+
+## TanStack lookup
+
+User asked about TanStack. Checked package manifests/lockfile for `@tanstack/` and found no matches at lookup time; reviewed TanStack's official library overview. No dependency was installed or application code modified. Existing concurrent Plan 4 work was preserved. No tests run; this handoff update is uncommitted.
+
+## TanStack comparison
+
+User requested a comparison with similar React tools. Consulted official TanStack Query/Table, React Hook Form and AG Grid documentation; recommendation is to assess Query and Table incrementally after current Plan 4, preserving tenant-scoped cache, ETag and server pagination behavior. No dependency installation, implementation or test run. Existing concurrent work preserved; this handoff update is uncommitted.
+
+## TanStack plan sequence and integration concurrency decisions
+
+User approved documenting separate Wave 2 plans for TanStack Query (5), Table (6), Router (7), Form (8), followed by exit/full GitHub CI and benchmark (9), and requested documenting the related ETag integration/automation proposals without committing. Updated Wave 2 design, backlog and Plan 4's next-step reference; added Wave 3/4 SDK/worker concurrency design to event architecture and linked it from access/state and roadmap. Future plans remain unwritten and unimplemented; n8n and integration credentials are not claimed implemented. No public contract, application code or CI policy changed. Preserve all pre-existing handoff and ongoing Plan 4 work; branch `wave-2` at start `a171fdf`, with pre-existing handoff edits. Verification: `git diff --check` and targeted documentation/reference review; no tests or CI run for this documentation-only work. All changes remain uncommitted per user instruction. Next: finish Plan 4, then write Plan 5 against actual frontend; Plan 9 performs full suite on GitHub CI and benchmark. Security FAIL/deferred; Wave 2/P0 OPEN.

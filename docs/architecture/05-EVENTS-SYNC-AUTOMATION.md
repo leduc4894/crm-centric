@@ -11,6 +11,17 @@ Use CloudEvents-aligned metadata: `specversion`, `id`, `source`, `type`, `subjec
 5. Worker maps external subject to contact, updates CRM projection and append immutable timeline.
 6. Unmatched subject → review queue; do not silently create/merge identity.
 
+## Contact concurrency — SDK và workers (Wave 3–4)
+
+Quyết định hướng thiết kế được người dùng đồng ý; đây là yêu cầu cho plan Wave 3/4, **chưa phải bằng chứng worker, API key hay n8n node đã được triển khai**. Contract contact hiện tại và ADR-020/021 tiếp tục là nguồn chuẩn về headers và status.
+
+- Client bên ngoài gọi contact mutation qua API phải lấy strong ETag hiện tại và gửi `If-Match`; credential/API key xác thực và cấp scope, không bỏ precondition. Conditional POST upsert phải kèm cả `X-Contact-Id` và `If-Match` khớp cùng active contact; không tự chuyển intent sang contact khác khi email được tái sử dụng. Credential chỉ cho tenant và scopes đã bind; không tin tenant từ body hoặc header để tự cấp quyền. Luồng credential cụ thể sẽ được thiết kế trong Wave 3.
+- SDK phải giữ ETag và Problem/reason/correlation, hỗ trợ client gửi preconditions và phân biệt 400/412/428. Không tự overwrite hoặc retry mù quáng trên `412`; cách dùng thuận tiện không được thay đổi contract hay ẩn conflict.
+- Webhook publisher không cần biết contact ETag chỉ để gửi event. Sau khi event được verify, lưu inbox/work bền vững và ACK theo protocol; integration worker resolve tenant/contact theo mapping đã xác minh, dùng version predicate tương đương ETag khi gọi CRM qua port nội bộ, hoặc If-Match nếu gọi HTTP. Dù đi qua port, không bỏ qua tenant, optimistic concurrency, audit/outbox hay API boundary của module ngoài.
+- Khi version conflict, worker đọc lại state tenant-scoped và chỉ retry có giới hạn nếu action/ownership policy cho phép chứng minh intent vẫn đúng; với add-tag, kiểm tra tag đã có và coi no-op là thành công khi phù hợp, không phát sinh audit/event giả. Thay đổi có thể ghi đè dữ liệu như email/phone cần ownership/conflict policy rõ; nếu không xác định an toàn, dừng với reason token, correlation ID và trạng thái cần xử lý, không mặc định last-write-wins. Số lần retry, backoff và đường xử lý cụ thể phải được chốt trong plan tương ứng.
+- Idempotency khác optimistic concurrency: dedup inbox/action bằng identity ổn định và giữ identity khi retry/replay; ETag không ngăn event hoặc side effect lặp. Không tự retry mutation HTTP sau timeout/commit không rõ kết quả nếu chưa có cơ chế reconciliation/idempotency chứng minh an toàn.
+- Wave 3 kiểm thử credential binding, cross-tenant, concurrent event/contact edits, conflict, replay và no-op bằng PostgreSQL thật; Wave 4 kiểm thử add-tag, conflict không an toàn, crash/replay và một logical action. Contract/schema changes tuân ADR, migration và consumer tests. Node n8n là consumer API độc lập có thể được thiết kế sau khi credential contract ổn định; chưa thuộc scope triển khai Wave 2 và không được giả định đã hỗ trợ API key.
+
 ## Outbound path
 1. Business transaction changes local state and inserts Outbox in same DB transaction.
 2. Dispatch worker claims with SKIP LOCKED, leases, retry with capped exponential backoff + jitter.

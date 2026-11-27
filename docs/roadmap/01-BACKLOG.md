@@ -26,16 +26,19 @@ Local Plan 4 replaces the old contract-only workflow with `.github/workflows/wav
 ## Wave 2 — CRM Contacts
 - Contacts CRUD, filters/pagination, tags, custom field definitions and values, activity timeline.
 - Optimistic concurrency, audit, contacts API contract, TS client generation.
+- Sau Plan 4: Plan 5 TanStack Query → Plan 6 Table → Plan 7 Router → Plan 8 Form; mỗi plan review và test liên quan local. TanStack Virtual để sau khi có nhu cầu đo được. Plan 9 là Wave 2 exit và full suite trên GitHub CI. Xem [Wave 2 design](../superpowers/specs/2026-11-27-wave-2-crm-contacts-design.md).
 **Exit:** 50k contacts/tenant, 50 concurrent users; p95 <400ms trong benchmark environment ghi rõ CPU/RAM/DB/network; permission/concurrency/audit tests pass. Chỉ seed fixture không đủ đóng wave.
 
 ## Wave 3 — Integration Kernel
 - Module manifest schema+registry, install/uninstall, connector credentials, verified webhook ingestion/inbox, outbox worker, delivery retries/DLQ.
 - Contact external identity links, unmatched queue, schema registry.
+- Thiết kế xử lý contact version/ETag cho integration clients và worker, theo [quy tắc conflict](../architecture/05-EVENTS-SYNC-AUTOMATION.md); credential phải bind tenant và scope.
 **Exit:** cross-host DemoModule verified publisher + approved schema v2 install; panel/SSO/event descriptors được resolve không sửa Core; webhook binding/rotation/SSRF/concurrent dedup pass. Remote action effects được chứng minh ở Wave 4.
 
 ## Wave 4 — Automation P0
 - Trigger registry, safe condition DSL, add-tag and remote action, versioned rule definitions, history, pause/resume.
 - Idempotency and crash/replay tests.
+- Thiết kế xử lý contact version conflict theo loại action và kiểm thử retry/replay, không blind overwrite.
 **Exit:** event from DemoModule triggers exactly one logical action.
 
 ## Wave 5 — Hardening / MVP release
