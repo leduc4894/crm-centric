@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { ContactShell } from './ContactShell';
 const id = '10000000-0000-4000-8000-000000000001';
@@ -64,23 +64,57 @@ it('does not reuse old pages when returning to a previous filter', async () => {
   await screen.findByText('Fresh page');
   expect(screen.queryByText('Tải thêm')).toBeNull();
 });
-it('deduplicates overlapping pages and rejects a multi-page cursor cycle', async () => {
+it('table_preserves_server_pages_and_filter_race', async () => {
   history.replaceState(null, '', '/app/contacts');
   const pending: Array<(response: Response) => void> = [];
   const queries: URLSearchParams[] = [];
-  vi.stubGlobal('fetch', (req: Request) => { queries.push(new URL(req.url).searchParams); return new Promise<Response>(resolve => pending.push(resolve)); });
-  const row = (name: string) => ({ id, displayName: name, version: 1, createdAt: '2026-01-01', updatedAt: '2026-01-01' });
+  vi.stubGlobal('fetch', (req: Request) => {
+    queries.push(new URL(req.url).searchParams);
+    return new Promise<Response>(resolve => pending.push(resolve));
+  });
+  const respond = async (index: number, response: Response) => {
+    await waitFor(() => expect(pending[index]).toBeDefined());
+    await act(async () => pending[index]!(response));
+  };
+  const row = (suffix: number, displayName: string) => ({
+    id: id.slice(0, -1) + suffix, displayName, version: 1, createdAt: '2026-01-01', updatedAt: '2026-01-01',
+  });
+  const page = (items: ReturnType<typeof row>[], nextCursor: string | null) => Response.json({ items, nextCursor });
+  const names = () => within(screen.getByRole('table')).getAllByRole('link').map(link => link.textContent);
   render(<ContactShell />);
   await waitFor(() => expect(pending).toHaveLength(1));
-  await act(async () => pending[0]!(Response.json({ items: [row('first')], nextCursor: 'a' })));
-  await screen.findByText('first'); fireEvent.click(screen.getByText('Tải thêm'));
-  await waitFor(() => expect(pending).toHaveLength(2));
-  await act(async () => pending[1]!(Response.json({ items: [row('updated')], nextCursor: 'b' })));
-  await screen.findByText('updated'); expect(screen.queryByText('first')).toBeNull();
+  fireEvent.change(screen.getByLabelText('Tìm kiếm'), { target: { value: '%_+' } });
+  fireEvent.change(screen.getByLabelText('ID thẻ'), { target: { value: id } });
+  fireEvent.change(screen.getByLabelText('Cập nhật từ'), { target: { value: '2026-01-01T12:00' } });
+  fireEvent.click(screen.getByText('Lọc'));
+  await respond(1, page([row(1, 'Zulu'), row(2, 'Beta')], 'cursor-A'));
+  await screen.findByRole('table');
+  await respond(0, page([row(4, 'Old filter')], null));
+  expect(names()).toEqual(['Zulu', 'Beta']);
   fireEvent.click(screen.getByText('Tải thêm'));
-  await waitFor(() => expect(pending).toHaveLength(3));
-  await act(async () => pending[2]!(Response.json({ items: [row('bad cycle')], nextCursor: 'a' })));
+  await respond(2, new Response(null, { status: 503 }));
+  fireEvent.click(await screen.findByText('Thử lại'));
+  await respond(3, page([row(2, 'New Beta'), row(3, 'Alpha')], 'cursor-B'));
+  await screen.findByRole('link', { name: 'New Beta' });
+  expect(names()).toEqual(['Zulu', 'New Beta', 'Alpha']);
+  expect(screen.queryByText(/tổng số|trang \d+|\d+ liên hệ/i)).toBeNull();
+  fireEvent.click(screen.getByText('Tải thêm'));
+  await respond(4, page([row(4, 'Invalid page')], 'cursor-A'));
   expect((await screen.findByRole('alert')).textContent).toContain('WEB_CRM_CONTRACT_INVALID');
-  expect(screen.queryByText('bad cycle')).toBeNull();
-  expect(queries.map(q => q.get('cursor'))).toEqual([null, 'a', 'b']);
+  expect(names()).toEqual(['Zulu', 'New Beta', 'Alpha']);
+  fireEvent.click(screen.getByText('Thử lại'));
+  await waitFor(() => expect(pending).toHaveLength(6));
+  fireEvent.change(screen.getByLabelText('Tìm kiếm'), { target: { value: 'fresh' } });
+  fireEvent.click(screen.getByText('Lọc'));
+  expect(screen.queryByRole('table')).toBeNull();
+  await respond(6, page([row(4, 'Fresh result')], null));
+  await screen.findByRole('table');
+  await respond(5, page([row(3, 'Stale next page')], null));
+  expect(names()).toEqual(['Fresh result']);
+  expect(screen.queryByText('Tải thêm')).toBeNull();
+  const filters = { q: '%_+', tagId: id, updatedSince: new Date('2026-01-01T12:00').toISOString() };
+  expect(queries.map(params => Object.fromEntries(params))).toEqual([
+    {}, filters, { ...filters, cursor: 'cursor-A' }, { ...filters, cursor: 'cursor-A' }, { ...filters, cursor: 'cursor-B' },
+    { ...filters, cursor: 'cursor-B' }, { ...filters, q: 'fresh' },
+  ]);
 });

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { AuthClient } from '../auth/authClient';
 import { AuthProvider, useAuth } from '../auth/AuthProvider';
@@ -10,7 +10,7 @@ const tenantA = '11111111-1111-4111-8111-111111111111';
 const tenantB = '22222222-2222-4222-8222-222222222222';
 const contactId = '33333333-3333-4333-8333-333333333333';
 const tenants = { items: [{ id: tenantA, name: 'A', status: 'active' }, { id: tenantB, name: 'B', status: 'active' }], nextCursor: null };
-const page = (name: string) => Response.json({ items: [{ id: contactId, displayName: name, version: 1, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' }], nextCursor: null });
+const page = (name: string, id = contactId, nextCursor: string | null = null) => Response.json({ items: [{ id, displayName: name, version: 1, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' }], nextCursor });
 function client() { return new AuthClient({ issuer: 'https://id.example', clientId: 'web', callbackUrl: 'https://app.example/auth/callback', logoutUrl: 'https://app.example/', allowLocalHttp: false }); }
 // Seed a synthetic authenticated session without performing a real OIDC exchange. AuthClient's
 // real notification, invalidation and expiry methods still drive AuthProvider and TenantProvider.
@@ -54,17 +54,48 @@ it('ignores late A and B replies after switching A to B to A and refreshing the 
   expect(screen.getByText('Current')).toBeTruthy();
 });
 
-it('clears the old contact after logout and same-principal sign-in', async () => {
+it('table_scope_switch_drops_old_rows', async () => {
   const auth = client(); signIn(auth, 'one');
   const pending: Array<(response: Response) => void> = [];
-  vi.stubGlobal('fetch', (request: Request | string) => typeof request === 'string' ? Promise.resolve(Response.json(tenants)) : new Promise<Response>(done => pending.push(done)));
-  mount(auth); await screen.findByText('Tenant A'); act(() => screen.getByText('Tenant A').click());
-  await waitFor(() => expect(pending).toHaveLength(1)); await act(async () => pending[0]!(page('Old session'))); await screen.findByText('Old session');
+  vi.stubGlobal('fetch', (request: Request | string) => typeof request === 'string'
+    ? Promise.resolve(Response.json(tenants))
+    : new Promise<Response>(done => pending.push(done)));
+  const select = async (name: string) => act(() => screen.getByRole('button', { name: 'Tenant ' + name }).click());
+  const reply = async (index: number, response: Response) => {
+    await waitFor(() => expect(pending[index]).toBeDefined());
+    await act(async () => pending[index]!(response));
+  };
+  mount(auth); await screen.findByText('Tenant A'); await select('A');
+  await reply(0, page('First A', contactId, 'more'));
+  await screen.findByRole('table');
+  act(() => screen.getByRole('button', { name: 'Tải thêm' }).click());
+  await waitFor(() => expect(pending).toHaveLength(2));
+  await select('B');
+  expect(screen.queryByRole('table')).toBeNull();
+  await reply(2, page('Tenant B record', tenantB));
+  await screen.findByRole('table');
+  await select('A');
+  expect(screen.queryByRole('table')).toBeNull();
+  await reply(3, page('Returning A', contactId, 'more'));
+  await screen.findByRole('table');
+  act(() => screen.getByRole('button', { name: 'Tải thêm' }).click());
+  await waitFor(() => expect(pending).toHaveLength(5));
   Reflect.set(auth, 'idToken', 'synthetic-id');
   Reflect.set(auth, 'metadata', async () => ({ end_session_endpoint: 'https://id.example/logout' }));
   Reflect.set(Reflect.get(auth, 'env'), 'logout', async () => undefined);
-  await act(async () => auth.logout()); expect(screen.queryByText('Old session')).toBeNull();
-  act(() => signIn(auth, 'two')); await screen.findByText('Tenant A'); act(() => screen.getByText('Tenant A').click());
-  expect(screen.queryByText('Old session')).toBeNull(); await waitFor(() => expect(pending).toHaveLength(2));
-  await act(async () => pending[1]!(page('New session'))); await screen.findByText('New session');
+  await act(async () => auth.logout());
+  expect(screen.queryByRole('table')).toBeNull();
+  act(() => signIn(auth, 'two')); await screen.findByText('Tenant A'); await select('A');
+  expect(screen.queryByRole('table')).toBeNull();
+  const currentId = '44444444-4444-4444-8444-444444444444';
+  await reply(5, page('New session', currentId));
+  await screen.findByRole('table');
+  await reply(1, page('Late first A'));
+  await reply(4, page('Late previous session'));
+  const links = within(screen.getByRole('table')).getAllByRole('link');
+  expect(links.map(link => link.textContent)).toEqual(['New session']);
+  expect(links[0]!.getAttribute('href')).toBe('/app/contacts/' + currentId);
+  expect(screen.queryByRole('button', { name: 'Tải thêm' })).toBeNull();
+  act(() => links[0]!.click());
+  expect(location.pathname).toBe('/app/contacts/' + currentId);
 });

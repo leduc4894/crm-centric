@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { ContactShell } from './ContactShell';
 const id = '10000000-0000-4000-8000-000000000001';
@@ -73,22 +73,41 @@ it.each([403, 0])('handles a forbidden or uncertain write without retries and cl
   tenant = null; view.rerender(<ContactShell />);
   await waitFor(() => expect(screen.queryByDisplayValue('Private draft')).toBeNull());
 });
-it('blocks stale upsert after email reuse, preserves the draft, and invalidates a selection whose reload fails', async () => {
+it('table_keeps_create_candidates_and_conflict_review', async () => {
   let posts = 0, gets = 0;
   const other = '10000000-0000-4000-8000-000000000002';
-  const { calls } = setup(req => {
+  const { calls, view } = setup(req => {
     if (req.method === 'POST') return new Response(null, { status: ++posts === 1 ? 428 : 412 });
-    if (new URL(req.url).pathname.endsWith(other)) return new Response(null, { status: 404 });
-    if (new URL(req.url).pathname.endsWith(id)) return response(++gets === 1 ? 'Original' : 'Latest', gets === 1 ? '"v1"' : '"v2"');
-    return Response.json({ items: [record, { ...record, id: other, displayName: 'Other' }], nextCursor: null });
+    const url = new URL(req.url);
+    if (url.pathname.endsWith(other)) return new Response(null, { status: 404 });
+    if (url.pathname.endsWith(id)) return response(++gets === 1 ? 'Original' : 'Latest', gets === 1 ? '"v7"' : '"v8"');
+    const items = url.searchParams.has('q')
+      ? [record, { ...record, id: other, displayName: 'Other' }]
+      : [{ ...record, id: '10000000-0000-4000-8000-000000000003', displayName: 'Excluded' }];
+    return Response.json({ items, nextCursor: null });
   }, false);
+  await within(await screen.findByRole('table')).findByRole('link', { name: 'Excluded' });
+  await change('Tìm kiếm', 'active'); await click('Lọc');
+  await screen.findByRole('link', { name: 'Original' });
+  expect(within(screen.getByRole('table')).getAllByRole('link').map(link => link.textContent)).toEqual(['Original', 'Other']);
   await click('Thêm liên hệ'); await change('Tên liên hệ', 'Draft'); await change('Email', record.email); await click('Tạo');
-  await click('Chọn Original'); await click('Cập nhật Original');
+  await screen.findByRole('button', { name: 'Chọn Original' });
+  expect(screen.queryByRole('button', { name: 'Chọn Excluded' })).toBeNull();
+  await click('Chọn Original');
+  expect(posts).toBe(1);
+  await click('Cập nhật Original');
+  await screen.findByRole('alert');
+  const selected = calls.filter(req => req.method === 'POST')[1]!;
+  expect(selected.headers.get('X-Contact-Id')).toBe(id);
+  expect(selected.headers.get('If-Match')).toBe('"v7"');
   await click('Tải lại dữ liệu'); await screen.findByText('Latest');
   expect((screen.getByLabelText('Tên liên hệ') as HTMLInputElement).value).toBe('Draft');
   await click('Chọn Other'); await screen.findByRole('alert');
   expect(screen.queryByRole('button', { name: 'Cập nhật Latest' })).toBeNull();
-  expect(calls.filter(req => req.method === 'POST')).toHaveLength(2);
+  tenant = other; view.rerender(<ContactShell />);
+  expect(screen.queryByDisplayValue('Draft')).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Chọn Other' })).toBeNull();
+  expect(posts).toBe(2);
 });
 it('shows uncertain outcome after a real client deadline and waits for an explicit read', async () => {
   let gets = 0, writes = 0;
@@ -136,16 +155,17 @@ it('keeps ambiguous create blocked when a filter supersedes its reconciliation r
   history.replaceState(null, '', '/app/contacts');
   let reads = 0, writes = 0;
   let finishRead: ((response: Response) => void) | undefined;
-  const page = () => Response.json({ items: [], nextCursor: null });
+  const page = (displayName: string) => Response.json({ items: [{ ...record, displayName }], nextCursor: null });
   vi.stubGlobal('fetch', (req: Request) => {
     if (req.method === 'POST') {
       writes++;
       return new Promise<Response>((_, reject) => req.signal.addEventListener('abort', () => reject(req.signal.reason)));
     }
     if (++reads === 2) return new Promise<Response>(resolve => { finishRead = resolve; });
-    return Promise.resolve(page());
+    return Promise.resolve(page(reads === 1 ? 'Initial contact' : 'Filtered result'));
   });
   render(<ContactShell />);
+  await screen.findByRole('link', { name: 'Initial contact' });
   await click('Thêm liên hệ'); await change('Tên liên hệ', 'No email');
   vi.useFakeTimers();
   try {
@@ -155,7 +175,9 @@ it('keeps ambiguous create blocked when a filter supersedes its reconciliation r
   await click('Tải lại dữ liệu');
   await waitFor(() => expect(finishRead).toBeDefined());
   await change('Tìm kiếm', 'filter'); await click('Lọc');
-  await act(async () => finishRead!(page()));
+  await screen.findByRole('link', { name: 'Filtered result' });
+  await act(async () => finishRead!(page('Canceled response')));
+  expect(within(screen.getByRole('table')).getAllByRole('link').map(link => link.textContent)).toEqual(['Filtered result']);
   const submit = screen.getByRole('button', { name: 'Tạo' });
   expect(submit.matches(':disabled')).toBe(true);
   expect(screen.getByRole('alert').textContent).toContain('WEB_CRM_READ_CANCELLED');
