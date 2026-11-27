@@ -180,12 +180,19 @@ export class RealOidcFixture {
       await expect(unavailable.getByRole('alert')).toContainText('OIDC_LOGIN_FAILED');
     } finally { await this.stop(); }
   }
-  private async start() {
+  async withContactSessions(browser: Browser, exercise: (first: Page, second: Page) => Promise<void>) {
+    try {
+      await this.start(true);
+      await exercise(await this.signIn(browser, 0), await this.signIn(browser, 0));
+    } finally { await this.stop(); }
+  }
+
+  private async start(sharedMembership = false) {
     if (process.env['CRM_REAL_OIDC_TEST'] !== '1') throw new Error('E2E_FIXTURE_OPT_IN_REQUIRED');
     this.stateDir = await mkdtemp(join(tmpdir(), 'crm-browser-oidc-'));
     this.apiPort = await port(); const idpPort = await port(); this.issuer = `http://localhost:${idpPort}/realms/crm-local`;
     this.env = { ...process.env, LOCAL_STACK_PROJECT: owner, LOCAL_STACK_STATE_DIR: join(this.stateDir, 'state'), LOCAL_API_PORT: String(this.apiPort), LOCAL_IDP_PORT: String(idpPort), CI_RESOURCE_OWNER: fixtureResourceOwner(owner, process.env['CI_RESOURCE_OWNER']) };
-    await command('bash', ['scripts/dev-up.sh'], this.env);
+    await command('bash', ['scripts/dev-up.sh'], { ...this.env, CONTACT_CURSOR_SIGNING_KEY: randomBytes(32).toString('base64') });
     const password = (await readFile(join(this.stateDir, 'state', 'idp_admin_password'), 'utf8')).trim();
     const login = new URLSearchParams({ grant_type: 'password', client_id: 'admin-cli', username: 'local-admin', password });
     const result = await responseOk(await fetch(`http://localhost:${idpPort}/realms/master/protocol/openid-connect/token`, { method: 'POST', body: login }), 'ADMIN_LOGIN');
@@ -198,7 +205,8 @@ export class RealOidcFixture {
     const containers = (await command('docker', ['ps', '-q', '--filter', `label=com.docker.compose.project=${owner}`, '--filter', 'label=com.docker.compose.service=crm-db'], this.env)).trim();
     if (!/^[a-f0-9]{12,64}$/.test(containers)) throw new Error('E2E_OWNED_DB_INVALID');
     const sql = `INSERT INTO platform.tenants VALUES ('${this.tenantIds[0]}','Tenant A','active',now()),('${this.tenantIds[1]}','Tenant B','active',now());\n` + this.subjects.map((sub, i) => `INSERT INTO platform.memberships VALUES ('${this.tenantIds[i]}',gen_random_uuid(),'${this.issuer}','${sub}','owner','active',1); INSERT INTO platform.staff_bindings VALUES ('${this.issuer}','${sub}','active','e2e');`).join('\n');
-    await command('docker', ['exec', '-i', containers, 'psql', '-U', 'postgres', '-d', 'crm', '-v', 'ON_ERROR_STOP=1'], this.env, sql);
+    const membership = sharedMembership ? `INSERT INTO platform.memberships VALUES ('${this.tenantIds[1]}',gen_random_uuid(),'${this.issuer}','${this.subjects[0]}','owner','active',1);` : '';
+    await command('docker', ['exec', '-i', containers, 'psql', '-U', 'postgres', '-d', 'crm', '-v', 'ON_ERROR_STOP=1'], this.env, sql + membership);
     this.server = spawn('npm', ['run', 'dev'], { cwd: root, env: { ...this.env, VITE_OIDC_ISSUER: this.issuer, VITE_OIDC_CLIENT_ID: 'crm-web-local', VITE_OIDC_CALLBACK_URL: `${webOrigin}/auth/callback`, VITE_OIDC_LOGOUT_URL: `${webOrigin}/`, VITE_OIDC_LOCAL_HTTP: 'true' }, stdio: 'ignore', detached: true });
     const deadline = Date.now() + 120_000;
     while (Date.now() < deadline) {
@@ -234,7 +242,9 @@ export class RealOidcFixture {
     return page;
   }
   private async stop() {
-    for (const context of this.contexts) await context.close();
+    for (const context of this.contexts) {
+      if (context.browser()?.isConnected()) await context.close();
+    }
     if (this.server?.pid) { try { process.kill(-this.server.pid, 'SIGTERM'); } catch { /* already stopped */ } }
     if (!this.stateDir) return;
     for (const kind of ['container', 'network', 'volume']) {
