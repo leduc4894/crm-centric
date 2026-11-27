@@ -4,10 +4,16 @@ import { expect, test, type Page } from '@playwright/test';
 
 async function verifyCleanupBeforeResources(page: Page, url: string) {
   await page.addInitScript(() => {
-    const original = history.replaceState.bind(history);
-    history.replaceState = (...args) => { performance.mark('callback-cleaned'); original(...args); };
+    const recorded: string[] = [];
+    Object.assign(window, { __testHistoryUrls: recorded });
+    const originalReplace = history.replaceState.bind(history);
+    const originalPush = history.pushState.bind(history);
+    history.replaceState = (...args) => { recorded.push(JSON.stringify(args)); performance.mark('callback-cleaned'); originalReplace(...args); };
+    history.pushState = (...args) => { recorded.push(JSON.stringify(args)); originalPush(...args); };
   });
   const requests: { url: string; referer: string }[] = [];
+  const logs: string[] = [];
+  page.on('console', message => logs.push(message.text()));
   page.on('request', (request) => {
     if (request.isNavigationRequest()) return;
     requests.push({ url: request.url(), referer: request.headers().referer ?? '' });
@@ -23,6 +29,16 @@ async function verifyCleanupBeforeResources(page: Page, url: string) {
   expect(timing.cleaned).toBeDefined();
   expect(timing.resources.length).toBeGreaterThan(0);
   for (const resource of timing.resources) expect(resource.start, resource.name).toBeGreaterThanOrEqual(timing.cleaned!);
+  const links = await page.locator('a').evaluateAll(nodes => nodes.map(node => (node as HTMLAnchorElement).href));
+  await page.getByRole('link', { name: 'Liên hệ' }).click();
+  await expect(page).toHaveURL(/\/app\/contacts$/);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/auth\/callback$/);
+  const historyWrites = await page.evaluate(() => Reflect.get(window, '__testHistoryUrls') as string[]);
+  for (const value of [...links, ...logs, ...historyWrites]) {
+    expect(value).not.toContain('synthetic-callback-sentinel');
+    expect(value).not.toContain('synthetic-state-sentinel');
+  }
   for (const request of requests) {
     expect(request.url).not.toContain('synthetic-callback-sentinel');
     expect(request.referer).not.toContain('synthetic-callback-sentinel');

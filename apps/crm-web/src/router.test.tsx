@@ -9,6 +9,8 @@ vi.mock('./tenant/TenantPicker', () => ({ TenantPicker: () => null }));
 vi.mock('./health/HealthStatus', () => ({ HealthStatus: () => null }));
 vi.mock('./contacts/ContactShell', () => ({ ContactShell: ({ recordId }: { recordId?: string }) => <p>{recordId ? `Record ${recordId}` : 'Contact list'}</p> }));
 afterEach(cleanup);
+// jsdom does not implement scrolling; these tests assert routing rather than viewport movement.
+window.scrollTo = () => {};
 const uuid = 'ABCDEF01-0000-4000-8000-000000000001';
 async function mount(path: string) {
   const history = createMemoryHistory({ initialEntries: [path] });

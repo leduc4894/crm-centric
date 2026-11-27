@@ -3,6 +3,9 @@ import { render } from '@testing-library/react';
 import { createRootRoute, createRoute, createRouter, Outlet, RouterProvider } from '@tanstack/react-router';
 import { ContactShell } from './ContactShell';
 
+// jsdom does not implement scrolling; route tests do not depend on viewport movement.
+window.scrollTo = () => {};
+
 const Refresh = createContext(0);
 function ScopedShell({ recordId }: { recordId?: string }) { useContext(Refresh); return <ContactShell recordId={recordId ?? null} />; }
 const root = createRootRoute({ component: () => <Outlet /> });
