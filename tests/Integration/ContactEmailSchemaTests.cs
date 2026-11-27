@@ -26,7 +26,10 @@ public sealed class ContactEmailSchemaTests : IAsyncLifetime
         await context.GetService<IMigrator>().MigrateAsync(Previous);
         foreach (var id in new[] { tenant, other })
             await Sql(owner, "SELECT platform.create_tenant_with_owner($1,'Example','issuer','subject','correlation')", id);
-        await DatabaseRoleGrants.ApplyAsync(owner, db.ApplicationRole, default);
+        // The fixture deliberately starts before tags, fields and timeline exist.
+        // Grant only the historical contact access needed to exercise this migration.
+        var role = new NpgsqlCommandBuilder().QuoteIdentifier(db.ApplicationRole);
+        await Sql(owner, $"GRANT USAGE ON SCHEMA crm TO {role}; GRANT SELECT, INSERT, UPDATE ON crm.contacts TO {role}");
     }
 
     public async Task DisposeAsync()
