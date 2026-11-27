@@ -12,6 +12,12 @@ const webOrigin = 'http://localhost:5173';
 const owner = `crm-e2e-${randomUUID().replaceAll('-', '')}`;
 const secret = () => randomBytes(24).toString('hex');
 
+export function fixtureResourceOwner(projectOwner: string, ciOwner?: string): string {
+  if (ciOwner === undefined) return projectOwner;
+  if (!/^[a-f0-9]{32}$/.test(ciOwner)) throw new Error('E2E_OWNER_INVALID');
+  return ciOwner;
+}
+
 async function port(): Promise<number> {
   const s = createServer(); await new Promise<void>((resolve, reject) => { s.once('error', reject); s.listen(0, '127.0.0.1', resolve); });
   const address = s.address(); if (!address || typeof address === 'string') throw new Error('E2E_PORT_INVALID');
@@ -178,7 +184,7 @@ export class RealOidcFixture {
     if (process.env['CRM_REAL_OIDC_TEST'] !== '1') throw new Error('E2E_FIXTURE_OPT_IN_REQUIRED');
     this.stateDir = await mkdtemp(join(tmpdir(), 'crm-browser-oidc-'));
     this.apiPort = await port(); const idpPort = await port(); this.issuer = `http://localhost:${idpPort}/realms/crm-local`;
-    this.env = { ...process.env, LOCAL_STACK_PROJECT: owner, LOCAL_STACK_STATE_DIR: join(this.stateDir, 'state'), LOCAL_API_PORT: String(this.apiPort), LOCAL_IDP_PORT: String(idpPort), CI_RESOURCE_OWNER: owner };
+    this.env = { ...process.env, LOCAL_STACK_PROJECT: owner, LOCAL_STACK_STATE_DIR: join(this.stateDir, 'state'), LOCAL_API_PORT: String(this.apiPort), LOCAL_IDP_PORT: String(idpPort), CI_RESOURCE_OWNER: fixtureResourceOwner(owner, process.env['CI_RESOURCE_OWNER']) };
     await command('bash', ['scripts/dev-up.sh'], this.env);
     const password = (await readFile(join(this.stateDir, 'state', 'idp_admin_password'), 'utf8')).trim();
     const login = new URLSearchParams({ grant_type: 'password', client_id: 'admin-cli', username: 'local-admin', password });
@@ -232,7 +238,7 @@ export class RealOidcFixture {
     if (this.server?.pid) { try { process.kill(-this.server.pid, 'SIGTERM'); } catch { /* already stopped */ } }
     if (!this.stateDir) return;
     for (const kind of ['container', 'network', 'volume']) {
-      const ids = (await command('docker', [kind, 'ls', kind === 'container' ? '-aq' : '-q', '--filter', `label=com.docker.compose.project=${owner}`, '--filter', `label=io.crm-centric.ci-owner=${owner}`], this.env)).trim().split('\n').filter(Boolean);
+      const ids = (await command('docker', [kind, 'ls', kind === 'container' ? '-aq' : '-q', '--filter', `label=com.docker.compose.project=${owner}`, '--filter', `label=io.crm-centric.ci-owner=${this.env['CI_RESOURCE_OWNER']}`], this.env)).trim().split('\n').filter(Boolean);
       for (const id of ids) { if (!/^[a-f0-9]{12,64}$/.test(id) && kind !== 'volume' && kind !== 'network') throw new Error('E2E_CLEANUP_ID_INVALID'); await command('docker', [kind, 'rm', ...(kind === 'container' ? ['-f'] : []), id], this.env); }
     }
     const images = (await command('docker', ['image', 'ls', '--format', '{{.Repository}}', '--filter', `reference=${owner}-*`], this.env)).trim().split('\n').filter(Boolean);

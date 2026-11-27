@@ -73,7 +73,7 @@ describe('OIDC browser session', () => {
     await expect(f.client.completeCallback(url.href)).rejects.toThrow(/OIDC_CALLBACK_FAILED/);
     expect(f.client.getAccessToken()).toBeNull(); expect(f.clean()).toBe(config.callbackUrl);
   });
-  it.each([{ iss: 'https://wrong.example' }, { aud: 'wrong' }, { exp: 1 }, { nonce: 'wrong' }])('rejects invalid signed claims', async (claims) => {
+  it.each([{ iss: 'https://wrong.example' }, { aud: 'wrong' }, { exp: 1 }, { nonce: 'wrong' }])('rejects invalid signed claims case %#', async (claims) => {
     const f = fixture(); await f.login(); f.claims(claims);
     await expect(f.client.completeCallback(f.callback())).rejects.toThrow(/OIDC_CALLBACK_FAILED/); expect(f.client.getAccessToken()).toBeNull();
   });

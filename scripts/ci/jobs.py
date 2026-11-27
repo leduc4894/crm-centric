@@ -24,6 +24,20 @@ def verify_versions(actual):
 class JobError(Exception):
     def __init__(self, token): self.token = token
 
+def merge_browser_evidence(regular, provider):
+    from scripts.ci.summary import parse_cases
+    regular_cases = parse_cases('playwright', regular)
+    provider_cases = parse_cases('playwright', provider)
+    expected = 'browser-oidc.spec.ts::real provider signs in isolated tenants and terminates provider session::chromium'
+    if len(provider_cases) != 1 or provider_cases[0] != {'id': expected, 'outcome': 'passed'}:
+        raise ReportError('CI_DISCOVERY_INCOMPLETE')
+    cases = regular_cases + provider_cases
+    if len({case['id'] for case in cases}) != len(cases):
+        raise ReportError('CI_DISCOVERY_INCOMPLETE')
+    counters = ('expected', 'unexpected', 'skipped', 'flaky')
+    return {'errors': [], 'stats': {key: regular['stats'][key] + provider['stats'][key] for key in counters},
+            'suites': regular['suites'] + provider['suites']}
+
 def stop_process_group(process, grace=1):
     """Signal only the session created for this exact command, including descendants."""
     try:
@@ -463,17 +477,23 @@ def main():
                     for command in plan3_commands(identity,args.mode):
                         execute(command)
                 else:
-                    vitest = scratch/'vitest.json'; browser = scratch/'browser.json'
+                    vitest = scratch/'vitest.json'; browser = scratch/'browser.json'; provider = scratch/'provider.json'
                     env = {**os.environ,'PLAYWRIGHT_JSON_OUTPUT_NAME':str(browser),
-                           'PLAYWRIGHT_HTML_OPEN':'never'}
+                           'PLAYWRIGHT_HTML_OPEN':'never', 'CI_PLAYWRIGHT_SPLIT':'1'}
                     # Plan 3 owns real API stack startup, readiness and teardown.
                     # Reporter args are supplied through the workspace-local npm config below.
                     execute(['bash','scripts/check-plan3.sh','--base-ref',identity.base_sha,'--with-browser']+(['--mvp-reviewed-policy'] if args.mode=='mvp' else []),env=env)
+                    provider_env = {**os.environ, 'PLAYWRIGHT_JSON_OUTPUT_NAME':str(provider),
+                                    'PLAYWRIGHT_HTML_OPEN':'never', 'CRM_REAL_OIDC_TEST':'1'}
+                    execute(['npm','exec','--workspace','apps/crm-web','--','playwright','test',
+                             'tests/e2e/browser-oidc.spec.ts','--project=chromium',
+                             '--grep','real provider signs in isolated tenants and terminates provider session'],env=provider_env)
                     execute(['npm','exec','--workspace','apps/crm-web','--','vitest','run',
                              '--reporter=json','--outputFile='+str(vitest)])
                     report['suites'].extend([
                         {'name':'vitest','format':'vitest','report':json.loads(vitest.read_text())},
-                        {'name':'browser','format':'playwright','report':json.loads(browser.read_text())}])
+                        {'name':'browser','format':'playwright','report':merge_browser_evidence(
+                            json.loads(browser.read_text()), json.loads(provider.read_text()))}])
             if args.mode=='hardening' and args.job in ('backend','compose','web-browser'):
                 from scripts.ci.image_identity import verify_job_evidence
                 from scripts.ci.scan import ScanError

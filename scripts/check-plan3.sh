@@ -371,7 +371,11 @@ browser_step() {
     return "$status"
   fi
   bash scripts/dev-smoke.sh || status=$?
-  npm run test:e2e -w apps/crm-web || status=$?
+  if [ "${CI_PLAYWRIGHT_SPLIT:-0}" = 1 ]; then
+    npm run test:e2e -w apps/crm-web -- --grep-invert 'real provider signs in isolated tenants and terminates provider session' || status=$?
+  else
+    npm run test:e2e -w apps/crm-web || status=$?
+  fi
   if ! bash scripts/dev-down.sh; then
     record_condition PLAN3_STACK_TEARDOWN_FAILED \
       "step browser-e2e: the local stack was not stopped cleanly"

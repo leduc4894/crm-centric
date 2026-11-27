@@ -1,8 +1,16 @@
 import { createServer } from 'node:net';
 import { describe, expect, it } from 'vitest';
 import { listenerOwnedByProcessGroup, privateOperation } from './realOidcFixture.ts';
+import * as fixtureModule from './realOidcFixture.ts';
 
 describe('isolated browser fixture safeguards', () => {
+  it('uses the CI owner for cleanup while retaining the isolated project owner locally', () => {
+    const resolve = (fixtureModule as unknown as { fixtureResourceOwner?: (owner: string, ci?: string) => string }).fixtureResourceOwner;
+    expect(resolve).toBeTypeOf('function');
+    expect(resolve!('crm-e2e-project')).toBe('crm-e2e-project');
+    expect(resolve!('crm-e2e-project', 'a'.repeat(32))).toBe('a'.repeat(32));
+    expect(() => resolve!('crm-e2e-project', 'invalid')).toThrow('E2E_OWNER_INVALID');
+  });
   it('redacts the underlying error and cause from credential operations', async () => {
     const sentinel = 'SYNTHETIC_PASSWORD_SECRET_8c0b';
     let captured: unknown;

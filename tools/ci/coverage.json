@@ -110,7 +110,12 @@
         "test_sdk_surface.TypeScriptSurfaceTests.test_empty_declaration_file_reports_reason_and_correlation",
         "test_sdk_surface.TypeScriptSurfaceTests.test_existing_model_member_change_fails_but_new_model_passes",
         "test_sdk_surface.TypeScriptSurfaceTests.test_new_operation_on_existing_path_is_additive",
-        "test_sdk_surface.TypeScriptSurfaceTests.test_unreadable_declarations_report_reason_and_correlation"
+        "test_sdk_surface.TypeScriptSurfaceTests.test_unreadable_declarations_report_reason_and_correlation",
+        "test_wave1_security_review.Wave1SecurityReviewTests.test_additional_security_change_or_modified_review_evidence_is_rejected",
+        "test_wave1_security_review.Wave1SecurityReviewTests.test_exact_reviewed_change_is_accepted_only_in_mvp_before_expiry",
+        "test_wave1_security_review.Wave1SecurityReviewTests.test_other_contract_cannot_inherit_review",
+        "test_wave1_security_review.Wave1SecurityReviewTests.test_real_gate_keeps_hardening_closed_and_runs_sdk_after_mvp_review",
+        "test_wave1_security_review.Wave1SecurityReviewTests.test_reviewed_break_is_reported_as_break_not_compatible"
       ]
     },
     "local": {
@@ -306,6 +311,11 @@
     }
   },
   "simulation_skips": {
+    "test_wave1_security_review.Wave1SecurityReviewTests.test_additional_security_change_or_modified_review_evidence_is_rejected": "the pinned oasdiff",
+    "test_wave1_security_review.Wave1SecurityReviewTests.test_exact_reviewed_change_is_accepted_only_in_mvp_before_expiry": "the pinned oasdiff",
+    "test_wave1_security_review.Wave1SecurityReviewTests.test_other_contract_cannot_inherit_review": "the pinned oasdiff",
+    "test_wave1_security_review.Wave1SecurityReviewTests.test_real_gate_keeps_hardening_closed_and_runs_sdk_after_mvp_review": "the pinned oasdiff",
+    "test_wave1_security_review.Wave1SecurityReviewTests.test_reviewed_break_is_reported_as_break_not_compatible": "the pinned oasdiff",
     "test_compatibility.CompatibilityTests.test_added_schema_requires_review_without_fixture_proof": "the pinned oasdiff",
     "test_compatibility.CompatibilityTests.test_additional_schema_must_be_valid_and_existing_renamed_fails": "the pinned oasdiff",
     "test_compatibility.CompatibilityTests.test_all_schema_closures_are_hashed_when_one_changes": "the pinned oasdiff",

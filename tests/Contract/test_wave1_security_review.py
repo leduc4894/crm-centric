@@ -10,12 +10,14 @@ from pathlib import Path
 from unittest.mock import patch
 
 import yaml
+import prerequisites
 from scripts.contracts import compatibility
 
 ROOT = Path(__file__).resolve().parents[2]
 BASE = '40bc2905b7750b139ff0607000127a3e5c06e2d8'
 
 
+@unittest.skipUnless(prerequisites.OASDIFF[0], prerequisites.OASDIFF[1])
 class Wave1SecurityReviewTests(unittest.TestCase):
     def setUp(self):
         self.old = yaml.safe_load(subprocess.check_output(

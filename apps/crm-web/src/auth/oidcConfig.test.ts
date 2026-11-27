@@ -23,7 +23,7 @@ describe('OIDC configuration', () => {
     { ...local, VITE_OIDC_CALLBACK_URL: 'http://localhost:5173/auth/callback?code=bad' },
     { ...local, VITE_OIDC_LOGOUT_URL: 'http://localhost:5173/other' },
     { ...local, VITE_OIDC_LOGOUT_URL: 'http://evil.example/' }
-  ])('rejects unsafe configuration', (env) => {
+  ])('rejects unsafe configuration case %#', (env) => {
     expect(() => parseOidcConfig(env)).toThrow(/OIDC_CONFIG_INVALID/);
   });
 });
