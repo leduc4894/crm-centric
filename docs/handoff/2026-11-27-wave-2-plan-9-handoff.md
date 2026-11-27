@@ -149,3 +149,30 @@ semantic comparisons. No security policy or compatibility approval was changed;
 previous candidate-specific approval does not transfer. A fresh candidate-specific
 maintainer decision and actual-base evaluation are still required, and cannot be
 self-approved by the implementer. Full test suite remains reserved for hosted CI.
+
+## Hosted run 46031836021 and provisional compatibility preparation
+
+Run https://github.com/leduc4894/crm-centric/actions/runs/46031836021 attempt 1
+finished FAILURE on head `71959b35c08738d16a03e1f4f54e4f0b21075ce0`, actual
+merge `7dee3cfa002e64d75f00e0d88aee292938462d43`, base
+`db04aeaecd7f4b6d083335a71418788d3c4561ca`. Backend PASS 423/423 (396
+integration, 27 Local), Compose PASS 18/18, all zero skips. Contract unittest
+suite PASS 137/137 zero skips, but job failed later at compatibility. Web failed
+`CONTRACT_POLICY_REVIEW_REQUIRED` before browser tests (correlation
+`f6b0db28-1a30-41cc-a76b-3bdefc748b1f`); security and aggregate FAIL. Artifacts
+are `.local/plan9-run-46031836021/`; job summaries apply only to this merge.
+
+User explicitly authorized *preparing* an evaluation and presenting its results,
+not activating an approval. A disposable clone `.local/plan9-evaluation-spike`
+uses the existing scoped evaluator with candidate/tree constants altered only in
+that clone. On the exact head and base it followed the evaluator's simulated
+reviewed-breaking branch (correlation `e3f69d3e-e311-476d-8b37-f1a95c4588c3`):
+TypeScript and .NET SDK surfaces both incompatible, both historical consumers and
+packaged contact consumer checks passed. This simulation does not constitute an
+actual gate verdict, independent review, acceptance, or authorization to deploy.
+Review package: [candidate review](../engineering/17-WAVE-2-CANDIDATE-REVIEW-PACKAGE.md).
+No real gate or trusted baseline was changed; no approval self-issued. Before
+activation, require review and explicit approval for an exact scoped mechanism,
+preserve the old approval scope, negative cases and semantic checks, and rerun CI
+on the new candidate. The browser suite has not run on the latest candidate;
+`tests/CI` hosted coverage and benchmark remain open. Full suite local was not run.
