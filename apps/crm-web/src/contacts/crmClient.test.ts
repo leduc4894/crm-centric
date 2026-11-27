@@ -47,7 +47,11 @@ it('aborts on timeout', async () => {
   await vi.advanceTimersByTimeAsync(10000);
   await result;
 });
-it.each(['{"value":1,"value":true}', '\u00a0{"value":1}', '{"value":01}'])('rejects ambiguous or invalid field JSON', async body => {
+it.each([
+  { label: 'duplicate field keys', body: '{"value":1,"value":true}' },
+  { label: 'invalid whitespace', body: '\u00a0{"value":1}' },
+  { label: 'leading zero', body: '{"value":01}' },
+])('rejects invalid field JSON with $label', async ({ body }) => {
   vi.stubGlobal('fetch', async () => new Response(body));
   await expect(client().getField(id, id)).rejects.toMatchObject({ reasonToken: 'WEB_CRM_CONTRACT_INVALID' });
 });

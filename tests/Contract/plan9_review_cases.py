@@ -20,7 +20,7 @@ class Plan9ReviewTests(unittest.TestCase):
         cls.repo = Path(cls.tmp.name) / 'repo'
         subprocess.run(['git','clone','--shared','--no-checkout',str(ROOT),str(cls.repo)],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
         subprocess.run(['git','-C',str(cls.repo),'checkout','--detach',CANDIDATE],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
-        for name in ('scripts/ci/jobs.py','tests/CI/test_job_processes.py','apps/crm-web/src/contacts/contactQueries.test.tsx','apps/crm-web/index.html','apps/crm-web/src/App.tsx'):
+        for name in ('scripts/ci/jobs.py','tests/CI/test_job_processes.py','apps/crm-web/src/contacts/contactQueries.test.tsx','apps/crm-web/index.html','apps/crm-web/src/App.tsx','apps/crm-web/src/contacts/crmClient.test.ts'):
             (cls.repo/name).write_bytes((ROOT/name).read_bytes())
         helper=cls.repo/'tests/Contract/plan9_review_cases.py'
         helper.write_bytes((ROOT/'tests/Contract/plan9_review_cases.py').read_bytes())
@@ -95,7 +95,7 @@ class Plan9ReviewTests(unittest.TestCase):
         finally: path.unlink(missing_ok=True)
 
     def test_ci_diagnostic_override_requires_exact_pinned_bytes(self):
-        paths=('scripts/ci/jobs.py','tests/CI/test_job_processes.py','apps/crm-web/src/contacts/contactQueries.test.tsx','apps/crm-web/index.html','apps/crm-web/src/App.tsx')
+        paths=('scripts/ci/jobs.py','tests/CI/test_job_processes.py','apps/crm-web/src/contacts/contactQueries.test.tsx','apps/crm-web/index.html','apps/crm-web/src/App.tsx','apps/crm-web/src/contacts/crmClient.test.ts')
         originals={name:(self.repo/name).read_bytes() for name in paths}
         try:
             for name in paths: (self.repo/name).write_bytes((ROOT/name).read_bytes())

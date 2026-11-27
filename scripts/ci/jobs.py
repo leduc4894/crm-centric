@@ -136,6 +136,34 @@ def plan3_failure_diagnostic(stdout, stderr):
                 if match and match.group(1) in _FRONTEND_TEST_FILES:
                     found.add(match.group(1))
         result['plan3FailedFiles'] = sorted(found) if found else ['OTHER']
+        if 'src/contacts/ContactTimeline.test.tsx' in found:
+            allowed_cases = frozenset((
+                'requires explicit successful review when a saved note has no ETag',
+                'does not attach the note ETag to an old contact representation',
+                'renders ordered provenance and untrusted summaries as text and pages forward',
+                'validates Unicode note length and uses returned or refreshed ETag (true)',
+                'validates Unicode note length and uses returned or refreshed ETag (false)',
+                'keeps draft after conflict or uncertain delivery and requires explicit reconciliation (412)',
+                'keeps draft after conflict or uncertain delivery and requires explicit reconciliation (0)',
+                'retries a failed timeline read and rejects a different contact in the page',
+                'removes the stale record when reconciliation confirms deletion',
+                'holds a timed-out note for explicit review without replay',
+                'returns keyboard focus to the note input after saving',
+                'gates cross-panel writes on refresh of the conflicting field and preserves its draft',
+                'allows timeline pagination after the server denies a note write',
+                'keeps writes locked when a sibling field read fails during reconciliation',
+                'retains a successful note draft when its post-write timeline refresh fails',
+                'prevents simultaneous note submits while the first request is pending',
+                'locks for review and retains a saved note if sibling refresh returns 403',
+                'keeps the note locked for review when the post-write contact read returns 403',
+                'keeps the note locked for review when the post-write contact read returns 409',
+            ))
+            cases = set()
+            for line in sections[0].splitlines():
+                match = re.fullmatch(r'\s*FAIL\s+src/contacts/ContactTimeline\.test\.tsx\s+>\s+(.+?)\s*', line)
+                if match and match.group(1) in allowed_cases:
+                    cases.add(match.group(1))
+            result['plan3TimelineCases'] = sorted(cases) if cases else ['OTHER']
     return result
 
 # These public identifiers are reviewed source names, not arbitrary test output.

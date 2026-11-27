@@ -376,6 +376,16 @@ class ProcessTests(unittest.TestCase):
         self.assertEqual(['src/contacts/contactQueries.test.tsx'],result['plan3FailedFiles'])
         self.assertNotIn('private-sentinel',stream.getvalue())
 
+    def test_frontend_failure_reports_only_reviewed_timeline_test_title(self):
+        from scripts.ci.jobs import plan3_failure_diagnostic
+        data=("===== frontend-test: npm run test (exit 1, 9s) =====\n"
+              " FAIL  src/contacts/ContactTimeline.test.tsx > holds a timed-out note for explicit review without replay\n"
+              " FAIL src/contacts/ContactTimeline.test.tsx > private-sentinel\n"
+              "plan3 aggregate: FAIL at frontend-test (PLAN3_FRONTEND_STEP_FAILED)\n").encode()
+        result=plan3_failure_diagnostic(data,b'')
+        self.assertEqual(['holds a timed-out note for explicit review without replay'],result['plan3TimelineCases'])
+        self.assertNotIn('private-sentinel',str(result))
+
     def test_frontend_failure_reports_only_known_test_file(self):
         from scripts.ci.jobs import plan3_failure_diagnostic
         data = ("===== frontend-test: npm run test (exit 1, 9s) =====\n"
