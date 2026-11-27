@@ -109,6 +109,9 @@ disposable, giữ object ngoài migration; đây không phải restore/DR drill.
 
 ## Frontend và contract toolchain (Wave 0 Plan 3)
 
+Nguồn tham chiếu thiết kế UX/UI là [mẫu giao diện Centric](prototypes/centric-ui/index.html).
+Đây là mẫu HTML độc lập để định hướng thiết kế; ứng dụng frontend nằm tại `apps/crm-web`.
+
 Root repo là npm workspace; Node **24.22.2** và npm **11.19.1** được pin (`.node-version`,
 `package.json`), lockfile commit. `npm ci` ở root cài toàn workspace từ lockfile.
 
