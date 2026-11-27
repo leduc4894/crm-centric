@@ -43,6 +43,7 @@ Local Plan 4 replaces the old contract-only workflow with `.github/workflows/wav
 
 ## Wave 5 — Hardening / MVP release
 - End-to-end UX, Playwright, failure injection, security testing, backup/restore, dashboards, docs, operator runbook and release checklist.
+- Apache ECharts là lựa chọn chart đã duyệt nếu P0 dashboard cần biểu đồ; đánh giá và kiểm thử khi thực sự triển khai. Reporting mở rộng theo P1/P2; không mở rộng P0 chỉ vì đã chọn thư viện. Xem [technology radar](02-TECH-RADAR.md).
 **Exit:** all P0 acceptance passed; backup/WAL restore đo đạt RPO/RTO, outage/recovery và remote DemoModule E2E có evidence; no security blocker. Theo dõi từng US tại `../engineering/03-ACCEPTANCE-MATRIX.md`.
 
 ## P1 — Product and Marketing
