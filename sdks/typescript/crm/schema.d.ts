@@ -131,7 +131,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** listContacts */
+        /**
+         * listContacts
+         * @description Returns active contacts ordered by updated_at DESC, id DESC using a tenant and filter bound cursor; concurrent changes do not provide a snapshot. The q filter is a literal case-insensitive substring of display name or email, following the PostgreSQL collation, not accent-insensitive matching. updatedSince is inclusive and all filters are combined with AND. Each query parameter may appear once. Unknown or invalid parameters are rejected.
+         */
         get: operations["listContacts"];
         put?: never;
         /**

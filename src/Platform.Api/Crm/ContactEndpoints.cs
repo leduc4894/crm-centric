@@ -13,6 +13,7 @@ public static class ContactEndpoints
 {
     public static IEndpointRouteBuilder MapContactEndpoints(this IEndpointRouteBuilder endpoints)
     {
+        endpoints.MapGet("/api/v1/contacts",ListAsync).RequireAuthorization().WithMetadata(new RequireAccessToken());
         endpoints.MapPost("/api/v1/contacts",CreateAsync).RequireAuthorization().WithMetadata(new RequireAccessToken());
         endpoints.MapGet("/api/v1/contacts/{id}",GetAsync).RequireAuthorization().WithMetadata(new RequireAccessToken());
         endpoints.MapPatch("/api/v1/contacts/{id}",PatchAsync).RequireAuthorization().WithMetadata(new RequireAccessToken());
@@ -21,6 +22,60 @@ public static class ContactEndpoints
     }
 
     private static Task Error(HttpContext context,int status,string reason) => OperationalErrors.WriteProblemAsync(context,status,reason,context.RequestAborted);
+
+    private static async Task ListAsync(HttpContext context, IConfiguration configuration)
+    {
+        await TenantEndpointTransaction.RunAsync(context,configuration,false,async (connection,transaction,tenant,commit) =>
+        {
+            if (context.Request.Query.TryGetValue("cursor", out var suppliedCursor) && suppliedCursor.Count == 1 && suppliedCursor[0] is { Length: > 2048 })
+            { await Error(context,400,"CURSOR_INVALID"); return; }
+            if (!ValidQueryEncoding(context.Request.QueryString.Value) || !ContactListQuery.TryParse(context.Request.Query,out var query))
+            { await Error(context,400,"REQUEST_INVALID"); return; }
+            if (!ContactCursor.TryCreate(configuration,out var signer)) { await Error(context,503,"CRM_CURSOR_UNAVAILABLE"); return; }
+            DateTime? anchor=null; Guid? anchorId=null;
+            if (query!.Cursor is not null)
+            {
+                if (!signer!.TryDecode(query.Cursor,tenant,query,out var time,out var id)) { await Error(context,400,"CURSOR_INVALID"); return; }
+                anchor=time; anchorId=id;
+            }
+            var rows=await ContactStore.ListAsync(connection,transaction,tenant,query.Q,query.TagId,query.UpdatedSince,anchor,anchorId,query.Limit,context.RequestAborted);
+            string? next=null;
+            if (rows.Count>query.Limit) { rows.RemoveAt(rows.Count-1); var last=rows[^1]; next=signer!.Encode(tenant,query,last.UpdatedAt,last.Id); }
+            await commit(); await context.Response.WriteAsJsonAsync(new { items=rows,nextCursor=next },cancellationToken:context.RequestAborted);
+        },TenantPermission.ContactsRead,"CRM_STORE_UNAVAILABLE");
+    }
+
+    // Validate percent-decoded bytes before ASP.NET replaces malformed UTF-8.
+    private static bool ValidQueryEncoding(string? raw)
+    {
+        if (raw is null) return true;
+        try
+        {
+            var utf8=new UTF8Encoding(false,true);
+            foreach (var part in raw.TrimStart('?').Split('&','='))
+            {
+                using var bytes=new MemoryStream();
+                for (int i=0;i<part.Length;i++)
+                {
+                    if (part[i]=='%')
+                    {
+                        if (i+2>=part.Length || !byte.TryParse(part.AsSpan(i+1,2),System.Globalization.NumberStyles.HexNumber,System.Globalization.CultureInfo.InvariantCulture,out var b)) return false;
+                        bytes.WriteByte(b); i+=2;
+                    }
+                    else
+                    {
+                        var start=i;
+                        while (i+1<part.Length && part[i+1]!='%') i++;
+                        bytes.Write(utf8.GetBytes(part[start..(i+1)]));
+                    }
+                }
+                _=utf8.GetString(bytes.ToArray());
+            }
+            return true;
+        }
+        catch (DecoderFallbackException) { return false; }
+        catch (EncoderFallbackException) { return false; }
+    }
 
     private static async Task GetAsync(HttpContext context, IConfiguration configuration, string id)
     {

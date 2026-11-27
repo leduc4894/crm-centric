@@ -7,6 +7,32 @@ public sealed record ContactRecord(Guid Id, string DisplayName, string? Email, s
 
 public static class ContactStore
 {
+    public static async Task<List<ContactRecord>> ListAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, Guid tenantId,
+        string? q, Guid? tagId, DateTimeOffset? updatedSince, DateTime? anchorTime, Guid? anchorId, int limit, CancellationToken ct)
+    {
+        await using var command = new NpgsqlCommand("""
+            SELECT c.id,c.display_name,c.email,c.phone,c.version,c.created_at,c.updated_at FROM crm.contacts c
+            WHERE c.tenant_id=@tenant AND c.deleted_at IS NULL
+              AND (@q IS NULL OR c.display_name ILIKE @q ESCAPE E'\\' OR c.email ILIKE @q ESCAPE E'\\')
+              AND (@tag IS NULL OR EXISTS (SELECT 1 FROM crm.contact_tags ct JOIN crm.tags t ON t.tenant_id=ct.tenant_id AND t.id=ct.tag_id
+                    WHERE ct.tenant_id=c.tenant_id AND ct.contact_id=c.id AND ct.tag_id=@tag))
+              AND (@since IS NULL OR c.updated_at >= @since)
+              AND (@anchor IS NULL OR (c.updated_at,c.id) < (@anchor,@anchor_id))
+            ORDER BY c.updated_at DESC,c.id DESC LIMIT @count
+            """,connection,transaction);
+        var pattern = q is null ? null : "%" + q.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_") + "%";
+        command.Parameters.AddWithValue("tenant",tenantId);
+        command.Parameters.AddWithValue("q",NpgsqlDbType.Text,(object?)pattern ?? DBNull.Value);
+        command.Parameters.AddWithValue("tag",NpgsqlDbType.Uuid,(object?)tagId ?? DBNull.Value);
+        command.Parameters.AddWithValue("since",NpgsqlDbType.TimestampTz,(object?)updatedSince ?? DBNull.Value);
+        command.Parameters.AddWithValue("anchor",NpgsqlDbType.TimestampTz,(object?)anchorTime ?? DBNull.Value);
+        command.Parameters.AddWithValue("anchor_id",NpgsqlDbType.Uuid,(object?)anchorId ?? DBNull.Value);
+        command.Parameters.AddWithValue("count",limit+1);
+        var result=new List<ContactRecord>(); await using var reader=await command.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct)) result.Add(Read(reader));
+        return result;
+    }
+
     public static async Task<ContactRecord> CreateAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, Guid tenantId,
         string displayName, string? email, string? phone, CancellationToken ct)
     {
