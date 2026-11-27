@@ -286,3 +286,23 @@ it.each(['null', '""'])('leaves existing optional string %s unchanged until edit
   expect(screen.getByRole('button', { name: 'Lưu Amount' }).matches(':disabled')).toBe(true);
   expect(calls.filter(req => req.method === 'PUT')).toHaveLength(0);
 });
+
+it('retains and locks an existing field draft when definition refresh fails, then recovers', async () => {
+  let created = false, fail = true;
+  setup((req, path) => {
+    if (path.endsWith('/custom-fields')) {
+      if (req.method === 'POST') { created = true; return Response.json({ ...field, id: '20000000-0000-4000-8000-000000000002', key: 'other', displayName: 'Other' }, { status: 201 }); }
+      if (created && fail) return new Response(null, { status: 503 });
+      return page([field]);
+    }
+    if (path.endsWith('/fields/' + itemId)) return new Response('{"value":1}');
+  });
+  await screen.findByDisplayValue('1'); await change('Amount', '123');
+  await click('Định nghĩa trường'); await change('Khóa trường', 'other'); await change('Tên trường', 'Other'); await click('Tạo trường');
+  await screen.findByRole('button', { name: 'Tải lại trường' });
+  expect((screen.getByLabelText('Amount') as HTMLInputElement).value).toBe('123');
+  expect(screen.getByLabelText('Amount').matches(':disabled')).toBe(true);
+  fail = false; await click('Đối chiếu dữ liệu');
+  await waitFor(() => expect(screen.getByLabelText('Amount').matches(':disabled')).toBe(false));
+  expect((screen.getByLabelText('Amount') as HTMLInputElement).value).toBe('123');
+});

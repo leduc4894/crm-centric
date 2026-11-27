@@ -103,7 +103,7 @@ export function ContactAttributes(props: Props) {
         <createForm.Field name="name">{field => <label>Tên thẻ mới<input disabled={locked || creating} required maxLength={64} value={field.state.value} onBlur={field.handleBlur} onChange={e => field.handleChange(e.target.value)} /></label>}</createForm.Field><button disabled={locked || creating || !name.trim()}>Tạo thẻ</button></form></>}
   </section><section className="contact-card"><h3>Trường tùy chỉnh</h3>
       {fields.error && <p role="alert">{fields.error.message} <button onClick={() => void fields.read().catch(() => { })}>Tải lại trường</button></p>}
-      {fields.data && <>{!fields.error && fields.data.map(definition => <FieldEditor key={definition.id} {...props} definition={definition} />)}
+      {fields.data && <>{fields.data.map(definition => <FieldEditor key={definition.id} {...props} disabled={disabled || fields.loading || !!fields.error} definition={definition} />)}
         {!fields.data.length && <p>Chưa có trường tùy chỉnh.</p>}
         <CustomFieldSettings client={client} fields={fields.data} disabled={disabled || fields.loading || !!fields.error} run={run} refresh={fields.read} /></>}
     </section></>;

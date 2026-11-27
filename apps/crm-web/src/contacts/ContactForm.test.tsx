@@ -375,3 +375,15 @@ it('allows restoring the original value after review without overwriting untouch
   await click('Lưu'); await waitFor(() => expect(client.patchContact).toHaveBeenCalledTimes(2));
   expect(client.patchContact).toHaveBeenLastCalledWith(id, { displayName: 'Original' }, '"v2"');
 });
+
+it.each(['', 'new@example.test'])('patches a reviewed newly created record after changing its email to %s', async email => {
+  const data = { ...record, displayName: 'Created', email: 'created@example.test' };
+  const fresh = { data, etag: '"v2"', status: 200 };
+  const client = { createContact: vi.fn().mockResolvedValue({ ...fresh, etag: null, status: 201 }), getContact: vi.fn().mockResolvedValue(fresh), patchContact: vi.fn().mockResolvedValue({ ...fresh, etag: '"v3"' }) } as unknown as CrmClient;
+  render(<ContactForm client={client} readOnly={false} onSaved={vi.fn()} onCancel={vi.fn()} onForbidden={vi.fn()} />);
+  await change('Tên liên hệ', 'Created'); await change('Email', 'created@example.test'); await click('Tạo');
+  await screen.findByRole('alert'); await click('Tải lại dữ liệu'); await screen.findByText('Created', { selector: 'dd' });
+  await click('Giữ và chỉnh sửa bản nháp'); await change('Email', email); await click('Cập nhật Created');
+  await waitFor(() => expect(client.patchContact).toHaveBeenCalledWith(id, { email: email || null }, '"v2"'));
+  expect(client.createContact).toHaveBeenCalledTimes(1);
+});

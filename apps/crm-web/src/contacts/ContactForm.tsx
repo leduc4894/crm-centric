@@ -37,6 +37,7 @@ export function ContactForm({ client, record, choices = [], readOnly, refreshLis
   const [busy, setBusy] = useState(false);
   const [review, setReview] = useState(false);
   const [reconcileId, setReconcileId] = useState<string | null>(null);
+  const [createdReview, setCreatedReview] = useState(false);
   const submitting = useRef(false);
   const form = useForm({
     defaultValues: { name: record?.data.displayName ?? '', email: record?.data.email ?? '', phone: record?.data.phone ?? '' },
@@ -54,11 +55,11 @@ export function ContactForm({ client, record, choices = [], readOnly, refreshLis
         const latest = await client.getContact(id);
         if (latest.data.id.toLowerCase() !== id.toLowerCase() || !latest.etag) throw new CrmError('WEB_CRM_CONTRACT_INVALID');
         await refreshAttributes?.();
-        if (original) {
+        if (original || createdReview) {
           const value = form.state.values;
           setIntent(previous => {
             const next = new Set(previous);
-            if (!reviewed) {
+            if (!reviewed && original) {
               if (value.name !== original.data.displayName) next.add('name');
               if (value.email !== (original.data.email ?? '')) next.add('email');
               if (value.phone !== (original.data.phone ?? '')) next.add('phone');
@@ -95,10 +96,11 @@ export function ContactForm({ client, record, choices = [], readOnly, refreshLis
       if (base && !base.etag) {
         setBlocked(true); throw new CrmError('WEB_CRM_CONTRACT_INVALID');
       }
-      const saved = original && submittedChanges && base ? await client.patchContact(original.data.id, submittedChanges, base.etag!) :
+      const saved = (original || createdReview) && submittedChanges && base ? await client.patchContact(base.data.id, submittedChanges, base.etag!) :
         await client.createContact(body, base ? { id: base.data.id, etag: base.etag! } : undefined);
       const expectedId = original?.data.id ?? base?.data.id;
       if (!saved.etag || (expectedId && expectedId.toLowerCase() !== saved.data.id.toLowerCase())) {
+        if (!original && !base) setCreatedReview(true);
         setReconcileId(expectedId ?? saved.data.id);
         setBlocked(true); setReview(false);
         setFailure(new CrmError('WEB_CRM_CONTRACT_INVALID'));

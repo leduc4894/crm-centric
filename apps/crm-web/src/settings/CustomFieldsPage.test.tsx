@@ -136,6 +136,7 @@ it('accepts 200 Unicode scalars and rejects 201 without narrowing the contract',
   fireEvent.change(screen.getByLabelText('Tên trường'), { target: { value: '🙂'.repeat(201) } });
   await waitFor(() => expect((screen.getByLabelText('Khóa trường') as HTMLInputElement).value).toBe('amount'));
   submit(); expect(posts).toBe(0);
+  expect((await screen.findByRole('alert')).textContent).toContain('200');
   fireEvent.change(screen.getByLabelText('Tên trường'), { target: { value: '🙂'.repeat(200) } });
   submit(); await waitFor(() => expect(posts).toBe(1));
 });
