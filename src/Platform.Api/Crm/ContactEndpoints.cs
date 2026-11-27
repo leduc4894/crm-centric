@@ -27,7 +27,7 @@ public static class ContactEndpoints
     {
         await TenantEndpointTransaction.RunAsync(context,configuration,false,async (connection,transaction,tenant,commit) =>
         {
-            if (context.Request.Query.TryGetValue("cursor", out var suppliedCursor) && suppliedCursor.Count == 1 && suppliedCursor[0] is { Length: > 2048 })
+            if (context.Request.Query.TryGetValue("cursor", out var suppliedCursor) && suppliedCursor.Count == 1 && suppliedCursor[0] is { Length: 0 or > 2048 })
             { await Error(context,400,"CURSOR_INVALID"); return; }
             if (!ValidQueryEncoding(context.Request.QueryString.Value) || !ContactListQuery.TryParse(context.Request.Query,out var query))
             { await Error(context,400,"REQUEST_INVALID"); return; }

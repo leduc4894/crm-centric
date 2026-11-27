@@ -90,6 +90,8 @@ public sealed partial class ContactListTests : IAsyncLifetime
         foreach(var path in new[]{"?limit=0","?limit=101","?limit=01","?q=","?q=a&q=b","?unknown=secret","?tagId=ABC","?updatedSince=no","?q=%00","?q=%FF"})
         { using var r=await Send(HttpMethod.Get,"/api/v1/contacts"+path); await Problem(r,HttpStatusCode.BadRequest,"REQUEST_INVALID"); Assert.DoesNotContain("secret",await r.Content.ReadAsStringAsync()); }
         using var bad=await Send(HttpMethod.Get,"/api/v1/contacts?cursor=bad"); await Problem(bad,HttpStatusCode.BadRequest,"CURSOR_INVALID");
+        using var empty=await Send(HttpMethod.Get,"/api/v1/contacts?cursor="); await Problem(empty,HttpStatusCode.BadRequest,"CURSOR_INVALID");
+        using var duplicate=await Send(HttpMethod.Get,"/api/v1/contacts?cursor=&cursor=bad"); await Problem(duplicate,HttpStatusCode.BadRequest,"REQUEST_INVALID");
         using var oversized=await Send(HttpMethod.Get,"/api/v1/contacts?cursor="+new string('a',2049)); await Problem(oversized,HttpStatusCode.BadRequest,"CURSOR_INVALID");
     }
     [Fact]
