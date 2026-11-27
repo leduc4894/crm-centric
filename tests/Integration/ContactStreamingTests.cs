@@ -11,19 +11,20 @@ public sealed partial class ContactEndpointsTests
     [Theory]
     [InlineData("POST")]
     [InlineData("PATCH")]
+    [InlineData("NOTE")]
     public async Task Slow_body_holds_no_mutation_or_membership_lock_and_rechecks_revocation(string method)
     {
-        var id=method == "PATCH" ? await CreateContact("target@example.test") : Guid.Empty;
-        var body=method == "PATCH" ? "{\"displayName\":\"After\"}" : "{\"displayName\":\"After\",\"email\":\"stream@example.test\"}";
+        var id=method != "POST" ? await CreateContact("target@example.test") : Guid.Empty;
+        var body=method == "NOTE" ? """{"text":"After"}""" : method == "PATCH" ? "{\"displayName\":\"After\"}" : "{\"displayName\":\"After\",\"email\":\"stream@example.test\"}";
         using var stream=new SlowBodyStream(body);
         using var cancel=new CancellationTokenSource(TimeSpan.FromSeconds(20));
         var pending=factory.Server.SendAsync(context => {
-            context.Request.Method=method;
-            context.Request.Path=method == "PATCH" ? $"/api/v1/contacts/{id}" : "/api/v1/contacts";
+            context.Request.Method=method == "NOTE" ? "POST" : method;
+            context.Request.Path=method == "NOTE" ? $"/api/v1/contacts/{id}/notes" : method == "PATCH" ? $"/api/v1/contacts/{id}" : "/api/v1/contacts";
             context.Request.ContentType="application/json";
             context.Request.Headers.Authorization="Bearer " + issuer.IssueToken(new() { Subject="agent" });
             context.Request.Headers["X-Tenant-Id"]=tenant.ToString();
-            if (method == "PATCH") context.Request.Headers.IfMatch="\"v1\"";
+            if (method != "POST") context.Request.Headers.IfMatch="\"v1\"";
             context.Request.Body=stream;
         },cancel.Token);
         try
@@ -41,8 +42,9 @@ public sealed partial class ContactEndpointsTests
             stream.Release.TrySetResult();
             var response=await pending.WaitAsync(TimeSpan.FromSeconds(8));
             Assert.Equal(StatusCodes.Status403Forbidden,response.Response.StatusCode);
-            Assert.Equal(method == "PATCH" ? 2 : 1,await Count("crm.contacts",tenant));
-            Assert.Equal(method == "PATCH" ? 2 : 1,await Count("outbox.events",tenant));
+            Assert.Equal(0,await Count("crm.timeline_entries",tenant));
+            Assert.Equal(method != "POST" ? 2 : 1,await Count("crm.contacts",tenant));
+            Assert.Equal(method != "POST" ? 2 : 1,await Count("outbox.events",tenant));
         }
         finally { stream.Release.TrySetResult(); cancel.Cancel(); try { await pending; } catch (OperationCanceledException) { } }
     }
