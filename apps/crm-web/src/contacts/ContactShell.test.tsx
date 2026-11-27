@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { ContactShell } from './ContactShell';
 const a = 'ABCDEF01-0000-4000-8000-000000000001', b = '10000000-0000-4000-8000-000000000002';
@@ -55,4 +55,28 @@ it('removes visible records synchronously on tenant and principal changes', asyn
   expect(screen.getByRole('link', { name: 'Current' })).toBeTruthy();
   identity = null; view.rerender(<ContactShell />);
   expect(screen.queryByText('Current')).toBeNull();
+});
+it.each(['tenant','principal','contact'])('discards pending activity and visible attribute drafts when the %s changes', async dimension => {
+  tenant=a;
+  history.replaceState(null,'','/app/contacts/'+a);
+  let finish: ((response:Response)=>void) | undefined;
+  const page=(items:unknown[]=[])=>Response.json({items,nextCursor:null});
+  vi.stubGlobal('fetch',async(req:Request)=>{
+    const path=new URL(req.url).pathname;
+    if(path.endsWith('/timeline') && !finish) return new Promise<Response>(resolve=>{finish=resolve;});
+    if(path.endsWith(a) || path.endsWith(b)) return Response.json({id:path.split('/').at(-1),displayName:'Profile',version:1,createdAt:'2026-01-01',updatedAt:'2026-01-01'});
+    return page();
+  });
+  const view=render(<ContactShell/>);
+  const input=await screen.findByLabelText('Tên thẻ mới');
+  fireEvent.change(input,{target:{value:'Old draft'}});
+  if(dimension==='tenant') tenant=b;
+  else if(dimension==='principal') identity='new';
+  else history.replaceState(null,'','/app/contacts/'+b);
+  act(()=>window.dispatchEvent(new PopStateEvent('popstate')));
+  view.rerender(<ContactShell/>);
+  expect(screen.queryByDisplayValue('Old draft')).toBeNull();
+  await screen.findByText('Chưa có hoạt động.');
+  await act(async()=>finish!(page([{id:b,contactId:a,occurredAt:'2026-01-01',source:'crm',type:'note',inboxId:null,summary:'Old activity'}])));
+  expect(screen.queryByText('Old activity')).toBeNull();
 });

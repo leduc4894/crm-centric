@@ -35,3 +35,16 @@ body { margin: 0; background: #f6f8fc; color: #202b42; font: 14px/1.5 Inter, sys
 .contact-content dialog { border: 1px solid #d2dbe9; border-radius: 12px; padding: 24px; }
 .contact-content dialog::backdrop { background: #17263d66; }
 @media (max-width: 900px) { .contact-record { grid-template-columns: 1fr; } }
+.contact-content select, .contact-content textarea { box-sizing: border-box; width: 100%; border: 1px solid #bbc7da; border-radius: 6px; padding: 8px; color: inherit; font: inherit; background: white; }
+.activity-panel textarea { resize: vertical; }
+.contact-profile .contact-card + .contact-card { margin-top: 0; }
+.contact-card form + form, .contact-card form + div { margin-top: 14px; }
+.contact-card fieldset { min-width: 0; display: grid; gap: 10px; border: 1px solid #e5eaf2; }
+.activity-list { padding-left: 22px; border-top: 1px solid #e5eaf2; }
+.activity-list li { padding: 14px 0; border-bottom: 1px solid #e5eaf2; }
+.activity-list li::marker { color: #315dde; }
+.activity-list time, .activity-list small { color: #485771; }
+.activity-list p { white-space: pre-wrap; }
+.tag-list { display: flex; gap: 8px; flex-wrap: wrap; list-style: none; padding: 0; }
+.tag-list li { padding: 3px 8px; border-radius: 8px; background: #eef3ff; color: #273f79; }
+.tag-list button { margin-left: 5px; padding: 2px 7px; }

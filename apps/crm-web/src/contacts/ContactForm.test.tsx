@@ -62,7 +62,7 @@ it.each([403, 0])('handles a forbidden or uncertain write without retries and cl
       if (!status) throw new Error('private@example.test');
       return Response.json({ detail: 'private@example.test' }, { status });
     }
-    return response();
+    return new URL(req.url).pathname.endsWith(id) ? response() : Response.json({ items: [], nextCursor: null });
   });
   await click('Chỉnh sửa'); await change('Tên liên hệ', 'Private draft'); await click('Lưu');
   const alert = await screen.findByRole('alert');
@@ -93,7 +93,10 @@ it('shows uncertain outcome after a real client deadline and waits for an explic
   let gets = 0, writes = 0;
   history.replaceState(null, '', '/app/contacts/' + id);
   vi.stubGlobal('fetch', (req: Request) => {
-    if (req.method === 'GET') { gets++; return Promise.resolve(response()); }
+    if (req.method === 'GET') {
+      if (!new URL(req.url).pathname.endsWith(id)) return Promise.resolve(Response.json({ items: [], nextCursor: null }));
+      gets++; return Promise.resolve(response());
+    }
     writes++;
     return new Promise<Response>((_, reject) => req.signal.addEventListener('abort', () => reject(req.signal.reason)));
   });
