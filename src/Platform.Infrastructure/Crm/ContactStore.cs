@@ -124,6 +124,21 @@ public static class ContactStore
         await using var reader=await command.ExecuteReaderAsync(ct); return await reader.ReadAsync(ct) ? Read(reader) : null;
     }
 
+    public static async Task<ContactRecord?> AdvanceVersionAsync(NpgsqlConnection connection, NpgsqlTransaction tx,
+        Guid tenant, Guid id, long version, CancellationToken ct)
+    {
+        await using var command = new NpgsqlCommand("""
+            UPDATE crm.contacts SET version=version+1,updated_at=now()
+            WHERE tenant_id=@tenant AND id=@id AND version=@version AND deleted_at IS NULL
+            RETURNING id,display_name,email,phone,version,created_at,updated_at
+            """, connection, tx);
+        command.Parameters.AddWithValue("tenant", tenant);
+        command.Parameters.AddWithValue("id", id);
+        command.Parameters.AddWithValue("version", version);
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        return await reader.ReadAsync(ct) ? Read(reader) : null;
+    }
+
     public static async Task<long?> DeleteAsync(NpgsqlConnection connection,NpgsqlTransaction transaction,Guid tenantId,Guid id,long version,CancellationToken ct)
     {
         await using var command=new NpgsqlCommand("""

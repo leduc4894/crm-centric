@@ -36,14 +36,23 @@ public abstract class DefinitionEndpointFixture : IAsyncLifetime
         client = factory.CreateClient();
     }
     public async Task DisposeAsync() { client.Dispose(); await factory.DisposeAsync(); await issuer.DisposeAsync(); await db.DisposeAsync(); }
-    protected async Task<HttpResponseMessage> Send(HttpMethod method, string path, string? body = null, string subject = "owner", string? selected = null, bool anonymous = false)
+    protected async Task<HttpResponseMessage> Send(HttpMethod method, string path, string? body = null, string subject = "owner", string? selected = null, bool anonymous = false, string[]? match = null)
     {
         using var req = new HttpRequestMessage(method, path);
         if (!anonymous) req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", issuer.IssueToken(new() { Subject = subject, Role = "owner" }));
         req.Headers.Add("X-Tenant-Id", selected ?? tenant.ToString());
+        if (match is not null) req.Headers.TryAddWithoutValidation("If-Match", match);
         if (body is not null) req.Content = new StringContent(body, Encoding.UTF8, "application/json");
         return await client.SendAsync(req);
     }
+    protected async Task<Guid> CreateId(string path, string json, bool foreign = false)
+    {
+        using var response = await Send(HttpMethod.Post, path, json, foreign ? "other" : "owner", foreign ? other.ToString() : null);
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        return doc.RootElement.GetProperty("id").GetGuid();
+    }
+
     protected static async Task Problem(HttpResponseMessage r, HttpStatusCode status, string reason)
     {
         Assert.Equal(status, r.StatusCode); Assert.Equal("application/problem+json", r.Content.Headers.ContentType!.MediaType);

@@ -17,7 +17,56 @@ internal static class TagEndpoints
             DefinitionEndpoints.ListAsync<TagRecord>(ctx, config, "tags", TagStore.ListAsync));
         routes.MapPost("", (HttpContext ctx, IConfiguration config) =>
             DefinitionEndpoints.CreateAsync(ctx, config, "tags", TenantPermission.ContactsWrite, Parse));
+
+        var contacts = endpoints.MapGroup("/api/v1/contacts/{id}/tags").RequireAuthorization().WithMetadata(new RequireAccessToken());
+        contacts.MapGet("", ListContactTagsAsync);
+        contacts.MapMethods("/{tagId}", ["PUT", "DELETE"], SetContactTagAsync);
     }
+
+    private static Task ListContactTagsAsync(HttpContext ctx, IConfiguration config, string id) =>
+        TenantEndpointTransaction.RunAsync(ctx, config, false, async (connection, tx, tenant, commit) =>
+        {
+            var ct = ctx.RequestAborted;
+            if (!Guid.TryParseExact(id, "D", out var contact))
+            { await OperationalErrors.WriteProblemAsync(ctx, 400, "REQUEST_INVALID", ct); return; }
+            if (await ContactStore.GetAsync(connection, tx, tenant, contact, ct) is null)
+            { await OperationalErrors.WriteProblemAsync(ctx, 404, "NOT_FOUND", ct); return; }
+            await DefinitionEndpoints.WritePageAsync(ctx, config, tenant, "contact-tags", contact,
+                (after, limit) => TagStore.ListAsync(connection, tx, tenant, contact, after, limit, ct), commit);
+        }, TenantPermission.ContactsRead, "CRM_STORE_UNAVAILABLE");
+
+    private static Task SetContactTagAsync(HttpContext ctx, IConfiguration config, string id, string tagId) =>
+        TenantEndpointTransaction.RunAsync(ctx, config, true, async (connection, tx, tenant, commit) =>
+        {
+            var ct = ctx.RequestAborted;
+            Task Error(int status, string token) => OperationalErrors.WriteProblemAsync(ctx, status, token, ct);
+            if (!Guid.TryParseExact(id, "D", out var contact) || !Guid.TryParseExact(tagId, "D", out var tag))
+            { await Error(400, "REQUEST_INVALID"); return; }
+            var row = await ContactStore.LockByIdAsync(connection, tx, tenant, contact, ct);
+            if (row is null) { await Error(404, "NOT_FOUND"); return; }
+            var precondition = MembershipPreconditions.Parse(ctx.Request.Headers.IfMatch, out var version);
+            if (precondition == MembershipPreconditionResult.Missing) { await Error(428, "PRECONDITION_REQUIRED"); return; }
+            if (precondition == MembershipPreconditionResult.Invalid) { await Error(400, "PRECONDITION_INVALID"); return; }
+            if (version != row.Contact.Version) { await Error(412, "VERSION_CONFLICT"); return; }
+            if (row.Deleted) { await Error(404, "NOT_FOUND"); return; }
+
+            var issuer = ctx.User.FindFirst("iss")!.Value;
+            var subject = ctx.User.FindFirst("sub")!.Value;
+            var changed = await TagStore.SetAssignmentAsync(connection, tx, tenant, contact, tag, issuer, subject,
+                HttpMethods.IsPut(ctx.Request.Method), ct);
+            if (changed is null) { await Error(404, "NOT_FOUND"); return; }
+            var result = row.Contact;
+            if (changed.Value)
+            {
+                result = await ContactStore.AdvanceVersionAsync(connection, tx, tenant, contact, version, ct);
+                if (result is null) { await Error(412, "VERSION_CONFLICT"); return; }
+                await ContactMutationJournal.AppendAsync(connection, tx, tenant, contact, issuer, subject, "contact.updated",
+                    ctx.TraceIdentifier, result.Version, ct);
+            }
+            await commit();
+            ctx.Response.Headers.ETag = MembershipPreconditions.Format(result.Version);
+            await ctx.Response.WriteAsJsonAsync(result, ct);
+        }, TenantPermission.ContactsWrite, "CRM_STORE_UNAVAILABLE");
 
     private static DefinitionInput Parse(JsonElement body)
     {
@@ -44,30 +93,36 @@ internal static class DefinitionEndpoints
 
     internal static Task ListAsync<T>(HttpContext ctx, IConfiguration config, string kind,
         Func<NpgsqlConnection, NpgsqlTransaction, Guid, Guid?, int, CancellationToken, Task<List<T>>> list) where T : IDefinitionRecord =>
-        TenantEndpointTransaction.RunAsync(ctx, config, false, async (connection, tx, tenant, commit) =>
+        TenantEndpointTransaction.RunAsync(ctx, config, false, (connection, tx, tenant, commit) =>
+            WritePageAsync(ctx, config, tenant, kind, null,
+                (after, limit) => list(connection, tx, tenant, after, limit, ctx.RequestAborted), commit),
+            TenantPermission.ContactsRead, "CRM_STORE_UNAVAILABLE");
+
+    internal static async Task WritePageAsync<T>(HttpContext ctx, IConfiguration config, Guid tenant, string kind,
+        Guid? contact, Func<Guid?, int, Task<List<T>>> list, Func<Task> commit) where T : IDefinitionRecord
+    {
+        var query = ctx.Request.Query;
+        var limit = 20;
+        if (query.Any(q => q.Key is not ("limit" or "cursor") || q.Value.Count != 1)
+            || (query.TryGetValue("limit", out var limits) && (!int.TryParse(limits[0], NumberStyles.None, CultureInfo.InvariantCulture, out limit) || limit is < 1 or > 100)))
+        { await Error(ctx, 400, "REQUEST_INVALID"); return; }
+        if (!CrmCollectionCursor.TryCreate(config, out var signer)) { await Error(ctx, 503, "CRM_CURSOR_UNAVAILABLE"); return; }
+        Guid? after = null;
+        if (query.TryGetValue("cursor", out var token))
         {
-            var query = ctx.Request.Query;
-            var limit = 20;
-            if (query.Any(q => q.Key is not ("limit" or "cursor") || q.Value.Count != 1)
-                || (query.TryGetValue("limit", out var limits) && (!int.TryParse(limits[0], NumberStyles.None, CultureInfo.InvariantCulture, out limit) || limit is < 1 or > 100)))
-            { await Error(ctx, 400, "REQUEST_INVALID"); return; }
-            if (!CrmCollectionCursor.TryCreate(config, out var signer)) { await Error(ctx, 503, "CRM_CURSOR_UNAVAILABLE"); return; }
-            Guid? after = null;
-            if (query.TryGetValue("cursor", out var token))
-            {
-                if (!signer!.TryDecode(token[0]!, tenant, kind, null, out var id)) { await Error(ctx, 400, "CURSOR_INVALID"); return; }
-                after = id;
-            }
-            var rows = await list(connection, tx, tenant, after, limit + 1, ctx.RequestAborted);
-            string? next = null;
-            if (rows.Count > limit)
-            {
-                rows.RemoveAt(limit);
-                next = signer!.Encode(tenant, kind, null, rows[^1].Id);
-            }
-            await commit();
-            await ctx.Response.WriteAsJsonAsync(new { items = rows, nextCursor = next }, ctx.RequestAborted);
-        }, TenantPermission.ContactsRead, "CRM_STORE_UNAVAILABLE");
+            if (!signer!.TryDecode(token[0]!, tenant, kind, contact, out var id)) { await Error(ctx, 400, "CURSOR_INVALID"); return; }
+            after = id;
+        }
+        var rows = await list(after, limit + 1);
+        string? next = null;
+        if (rows.Count > limit)
+        {
+            rows.RemoveAt(limit);
+            next = signer!.Encode(tenant, kind, contact, rows[^1].Id);
+        }
+        await commit();
+        await ctx.Response.WriteAsJsonAsync(new { items = rows, nextCursor = next }, ctx.RequestAborted);
+    }
 
     internal static async Task CreateAsync(HttpContext ctx, IConfiguration config, string kind, TenantPermission permission,
         Func<JsonElement, DefinitionInput> parse)
