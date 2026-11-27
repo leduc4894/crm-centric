@@ -131,6 +131,49 @@ class ProcessTests(unittest.TestCase):
                 self.assertEqual({'reasonToken': 'CI_COMMAND_FAILED', 'commandStage': stage}, json.loads(stream.getvalue()))
                 self.assertNotIn('private', stream.getvalue())
 
+    def test_reviewed_contract_break_emits_safe_run_bound_diagnostic(self):
+        import contextlib, io, json
+        process = unittest.mock.Mock(returncode=0)
+        process.communicate.return_value = (json.dumps({
+            'reason': 'CONTRACT_BREAKING_REVIEWED',
+            'securityReview': {'basis': 'maintainer-reviewed-adr-019', 'independentVerification': False},
+            'private': 'do-not-emit'}).encode(), b'private-error')
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output), patch('scripts.ci.jobs.subprocess.Popen', return_value=process):
+            execute([sys.executable, 'scripts/contracts/compatibility.py'])
+        self.assertTrue(output.getvalue(), 'reviewed break diagnostic was not emitted')
+        self.assertEqual({'reasonToken': 'CONTRACT_BREAKING_REVIEWED',
+                          'basis': 'maintainer-reviewed-adr-019', 'independentVerification': False},
+                         json.loads(output.getvalue()))
+        self.assertNotIn('private', output.getvalue())
+
+    def test_plan3_review_evidence_survives_later_browser_failure(self):
+        import contextlib, io, json
+        process = unittest.mock.Mock(returncode=1)
+        process.communicate.return_value = (
+            b'private log\n===== compatibility: python3 scripts/contracts/compatibility.py (exit 0, 2s) =====\n' + json.dumps({'reason': 'CONTRACT_BREAKING_REVIEWED',
+                'securityReview': {'basis': 'maintainer-reviewed-adr-019',
+                                   'independentVerification': False}, 'private': 'sentinel'}).encode() + b'\n', b'')
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output), patch('scripts.ci.jobs.subprocess.Popen', return_value=process):
+            with self.assertRaises(JobError): execute(['bash', 'scripts/check-plan3.sh'])
+        rows = [json.loads(line) for line in output.getvalue().splitlines()]
+        self.assertIn({'reasonToken': 'CONTRACT_BREAKING_REVIEWED',
+                       'basis': 'maintainer-reviewed-adr-019', 'independentVerification': False}, rows)
+        self.assertNotIn('sentinel', output.getvalue())
+
+    def test_plan3_other_step_cannot_forge_review_evidence(self):
+        import contextlib, io, json
+        process = unittest.mock.Mock(returncode=1)
+        process.communicate.return_value = (
+            b'===== generated-check: command (exit 0, 2s) =====\n' + json.dumps({
+                'reason': 'CONTRACT_BREAKING_REVIEWED', 'securityReview': {
+                    'basis': 'maintainer-reviewed-adr-019', 'independentVerification': False}}).encode() + b'\n', b'')
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output), patch('scripts.ci.jobs.subprocess.Popen', return_value=process):
+            with self.assertRaises(JobError): execute(['bash', 'scripts/check-plan3.sh'])
+        self.assertNotIn('CONTRACT_BREAKING_REVIEWED', output.getvalue())
+
     def test_dotnet_failure_projects_only_known_test_family(self):
         import contextlib,io,json
         process=unittest.mock.Mock(returncode=1)

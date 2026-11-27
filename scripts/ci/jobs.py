@@ -227,6 +227,28 @@ def execute(command, timeout=3300, env=None):
         stop_process_group(process)
         process.communicate()
         raise
+    review_output = b''
+    if tuple(command[:2]) == (sys.executable, 'scripts/contracts/compatibility.py') and process.returncode == 0:
+        review_output = stdout
+    elif tuple(command[:2]) == ('bash', 'scripts/check-plan3.sh'):
+        sections = re.findall(rb'^===== compatibility: [^\r\n]* \(exit 0, [0-9]+s\) =====\r?\n(.*?)(?=^===== |\Z)',
+                              stdout, re.MULTILINE | re.DOTALL)
+        if len(sections) == 1:
+            review_output = sections[0]
+    if len(review_output) <= 1024 * 1024:
+        for line in review_output.splitlines():
+            try:
+                result = json.loads(line)
+                review = result.get('securityReview', {})
+                if (result.get('reason') == 'CONTRACT_BREAKING_REVIEWED'
+                        and review.get('basis') == 'maintainer-reviewed-adr-019'
+                        and review.get('independentVerification') is False):
+                    print(json.dumps({'reasonToken': 'CONTRACT_BREAKING_REVIEWED',
+                                      'basis': 'maintainer-reviewed-adr-019',
+                                      'independentVerification': False}))
+                    break
+            except (ValueError, TypeError, AttributeError, RecursionError):
+                continue
     if process.returncode:
         # Fixed command families only: never echo argv, paths or child output.
         stages={('dotnet','restore'):'dotnet-restore',('dotnet','build'):'dotnet-build',

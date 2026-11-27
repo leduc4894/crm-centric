@@ -1,6 +1,12 @@
 # Wave 1 identity contract — baseline review package
 
-Status: **OPEN; independent technical review completed, human baseline decision pending**. The review is not a formal security approval, trusted-baseline change, waiver, deployment approval, or passing gate. Wave 1 and P0 remain OPEN. Under the user's conditional work-order decision, Wave 2 can begin only after all other applicable Wave 1 requirements and gates pass, with the security gate remaining deferred and honestly reported.
+Status: **MVP scoped contract review authorized; deployment and issuer/consumer readiness remain OPEN.** The user selected a narrowly scoped reviewed-change mechanism on 2026-11-27. It does not advance the trusted baseline, approve deployment, or independently verify the candidate. Wave 1 and P0 remain OPEN. Under the user's conditional work-order decision, Wave 2 can begin only after all other applicable Wave 1 requirements and gates pass, with the security gate remaining deferred and honestly reported.
+
+## MVP reviewed breaking change
+
+The MVP compatibility option accepts only the exact reviewed comparison from base `40bc2905b7750b139ff0607000127a3e5c06e2d8` to the pinned CRM contract documents and the listed ADR, selected implementation and test file hashes, before `2027-02-11T00:00:00Z`. Any other security projection change or change to those reviewed inputs remains blocked. OpenAPI breaking detection, SDK surface comparison and historical consumer checks still execute. A successful accepted case is reported as `CONTRACT_BREAKING_REVIEWED` / `reviewed-breaking`, not as compatible; CI job logs emit a bounded review marker. Hardening/default mode does not accept it.
+
+This mechanism and its fixed review live in the candidate and do **not** provide independent enforcement against a candidate changing the gate or other unpinned files. The exact recorded file hashes are a bounded review scope, not a claim that all runtime code is immutable. The existing independent technical review was performed on an earlier revision and is not formal rollout approval. The user authorized this MVP governance decision; it does not turn the deferred security scan into a pass. Actual issuer exclusivity, consumer readiness and deployment prerequisites in ADR-019 remain open.
 
 ## Exact scope
 
