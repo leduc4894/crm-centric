@@ -3,6 +3,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using System.Globalization;
 using Platform.Infrastructure.Persistence;
 using Platform.Infrastructure.Crm;
 using Xunit;
@@ -138,8 +141,52 @@ public sealed class ContactSchemaTests : IAsyncLifetime
                    AND (SELECT count(*) FROM jsonb_object_keys(payload->'payload'))=1
                 FROM outbox.events
                 """, eventId));
+            var json = (string)(await Sql(owner, "SELECT payload::text FROM outbox.events WHERE id=$1", eventId))!;
+            AssertContactIntent(json, eventId, tenant, contact);
+            var original = JsonNode.Parse(json)!.AsObject();
+            var invalid = new List<JsonObject>();
+            var unknown = original.DeepClone().AsObject(); unknown["extra"] = true; invalid.Add(unknown);
+            var time = original.DeepClone().AsObject(); time["occurredAt"] = "yesterday"; invalid.Add(time);
+            var wrongType = original.DeepClone().AsObject(); wrongType["eventId"] = 12; invalid.Add(wrongType);
+            var missing = original.DeepClone().AsObject(); missing.Remove("tenantId"); invalid.Add(missing);
+            var badType = original.DeepClone().AsObject(); badType["eventType"] = "crm.contact.other.v1"; invalid.Add(badType);
+            var zero = original.DeepClone().AsObject(); zero["payload"]!["version"] = 0; invalid.Add(zero);
+            var nestedUnknown = original.DeepClone().AsObject(); nestedUnknown["payload"]!["extra"] = true; invalid.Add(nestedUnknown);
+            foreach (var example in invalid)
+                Assert.ThrowsAny<Xunit.Sdk.XunitException>(() => AssertContactIntent(example.ToJsonString(), eventId, tenant, contact));
             await tx.CommitAsync();
         }
+    }
+
+    private static void AssertContactIntent(string json, Guid eventId, Guid tenantId, Guid contactId)
+    {
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+        Assert.Equal(JsonValueKind.Object, root.ValueKind);
+        Assert.Equal(new[] { "contactId", "eventId", "eventType", "occurredAt", "payload", "tenantId" },
+            root.EnumerateObject().Select(property => property.Name).OrderBy(name => name, StringComparer.Ordinal).ToArray());
+        foreach (var (name, expected) in new[] { ("eventId", eventId), ("tenantId", tenantId), ("contactId", contactId) })
+        {
+            var value = root.GetProperty(name);
+            Assert.Equal(JsonValueKind.String, value.ValueKind);
+            Assert.True(Guid.TryParseExact(value.GetString(), "D", out var parsed));
+            Assert.Equal(expected, parsed);
+        }
+        var eventType = root.GetProperty("eventType");
+        Assert.Equal(JsonValueKind.String, eventType.ValueKind);
+        Assert.Equal("crm.contact.created.v1", eventType.GetString());
+        var occurred = root.GetProperty("occurredAt");
+        Assert.Equal(JsonValueKind.String, occurred.ValueKind);
+        // The journal emits UTC RFC 3339; this subset is stricter than schema's date-time format.
+        Assert.True(DateTimeOffset.TryParseExact(occurred.GetString(), "yyyy-MM-dd'T'HH:mm:ss.FFFFFFF'Z'",
+            CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out _));
+        var payload = root.GetProperty("payload");
+        Assert.Equal(JsonValueKind.Object, payload.ValueKind);
+        Assert.Equal(new[] { "version" }, payload.EnumerateObject().Select(property => property.Name).ToArray());
+        var version = payload.GetProperty("version");
+        Assert.Equal(JsonValueKind.Number, version.ValueKind);
+        Assert.True(version.TryGetInt64(out var number));
+        Assert.Equal(1L, number);
     }
 
     [Theory]
