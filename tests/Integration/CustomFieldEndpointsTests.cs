@@ -153,12 +153,47 @@ public sealed class CustomFieldEndpointsTests : DefinitionEndpointFixture
         Assert.Equal("changed", await Change(1, "1e131072"));
         Assert.Equal("conflict", await Change(1, "10e131071"));
         Assert.Equal("unchanged", await Change(2, "10e131071"));
+        Assert.Equal("unchanged", await Change(2, " \t\r\n10e131071 \n\t"));
+        Assert.Equal("invalid", await Change(2, "\v1"));
+        Assert.Equal("invalid", await Change(2, "1\u00a0"));
+        Assert.Equal("changed", await Change(2, " \t\r\n2e131072 \n\t"));
+        Assert.Equal("unchanged", await Change(3, "20e131071"));
         await tx.CommitAsync();
-        Assert.Equal(2, await Count("outbox.events", tenant));
-        Assert.Equal(3, await Count("audit.entries", tenant));
+        Assert.Equal(3, await Count("outbox.events", tenant));
+        Assert.Equal(4, await Count("audit.entries", tenant));
         using var read = await Send(HttpMethod.Get, $"/api/v1/contacts/{contact}/fields/{field}");
         using var json = JsonDocument.Parse(await read.Content.ReadAsStringAsync());
-        Assert.Equal("1e131072", json.RootElement.GetProperty("value").GetRawText());
+        Assert.Equal("2e131072", json.RootElement.GetProperty("value").GetRawText());
+        using var current = await Send(HttpMethod.Get, $"/api/v1/contacts/{contact}");
+        Assert.Equal("\"v3\"", current.Headers.ETag!.ToString());
+    }
+
+    [Fact]
+    public async Task Padded_database_number_replaces_existing_exact_value()
+    {
+        var contact = await CreateId("/api/v1/contacts", """{"displayName":"Direct"}""");
+        var field = await CreateId(Path, Body.Replace("string", "number"));
+        var path = $"/api/v1/contacts/{contact}/fields/{field}";
+        using (var initial = await Send(HttpMethod.Put, path, """{"value":1e131072}""", match: ["\"v1\""]))
+            Assert.Equal(HttpStatusCode.OK, initial.StatusCode);
+        await using (var app = new Npgsql.NpgsqlConnection(db.ApplicationConnectionString))
+        {
+            await app.OpenAsync();
+            await using var tx = await app.BeginTransactionAsync();
+            await using (var set = new Npgsql.NpgsqlCommand("SELECT set_config('crm.tenant_id',$1,true)", app, tx))
+            { set.Parameters.AddWithValue(tenant.ToString()); await set.ExecuteNonQueryAsync(); }
+            await using var cmd = new Npgsql.NpgsqlCommand("SELECT platform.mutate_contact_attribute($1,$2,$3,$4,'agent',2,'numeric-test','field',$5)", app, tx);
+            foreach (var value in new object[] { tenant, contact, field, Issuer, " \t\r\n2 \n\t" }) cmd.Parameters.AddWithValue(value);
+            Assert.Equal("changed", await cmd.ExecuteScalarAsync());
+            await tx.CommitAsync();
+        }
+        using var read = await Send(HttpMethod.Get, path);
+        using var json = JsonDocument.Parse(await read.Content.ReadAsStringAsync());
+        Assert.Equal("2", json.RootElement.GetProperty("value").GetRawText());
+        using var current = await Send(HttpMethod.Get, $"/api/v1/contacts/{contact}");
+        Assert.Equal("\"v3\"", current.Headers.ETag!.ToString());
+        Assert.Equal(3, await Count("outbox.events", tenant));
+        Assert.Equal(4, await Count("audit.entries", tenant));
     }
 
     [Fact]

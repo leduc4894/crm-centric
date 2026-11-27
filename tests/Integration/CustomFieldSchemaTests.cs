@@ -128,6 +128,21 @@ public sealed class CustomFieldSchemaTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Exact_number_whitespace_upgrade_replaces_existing_database_function()
+    {
+        const string old = "20261127035000_ExactFieldNumbers";
+        const string definition = "SELECT pg_get_functiondef('platform.set_contact_field(uuid,uuid,uuid,text,text,text)'::regprocedure)";
+        await context.GetService<IMigrator>().MigrateAsync(old);
+        Assert.DoesNotContain("raw:=btrim", (string)(await Sql(owner, definition))!);
+        await context.Database.MigrateAsync();
+        Assert.Contains("raw:=btrim", (string)(await Sql(owner, definition))!);
+        await using var app = new NpgsqlConnection(db.ApplicationConnectionString);
+        await app.OpenAsync();
+        Assert.Equal(false, await Sql(app, "SELECT has_function_privilege(current_user,'platform.set_contact_field(uuid,uuid,uuid,text,text,text)','EXECUTE')"));
+        Assert.Equal(true, await Sql(app, "SELECT has_function_privilege(current_user,'platform.mutate_contact_attribute(uuid,uuid,uuid,text,text,bigint,text,text,text)','EXECUTE')"));
+    }
+
+    [Fact]
     public async Task Number_canonicalization_matches_numeric_equality_and_large_exponent_carries()
     {
         Assert.Equal(0L, await Sql(owner, """
