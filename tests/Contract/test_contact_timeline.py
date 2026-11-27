@@ -23,5 +23,8 @@ class TimelineContract(unittest.TestCase):
             self.assertEqual(schemas["TimelineEntry"]["properties"][name], {"type": "string"})
         self.assertEqual(schemas["CreateNote"]["properties"]["text"],
                          {"type": "string", "minLength": 1, "maxLength": 1000})
-        self.assertEqual(create["responses"]["201"]["headers"]["ETag"]["schema"],
-                         {"type": "string", "pattern": '^"v[1-9][0-9]*"$'})
+        header = create["responses"]["201"]["headers"]["ETag"]
+        self.assertFalse(header.get("required", False))
+        self.assertIn("always returns the updated contact's strong ETag", header["description"])
+        self.assertIn("GET /api/v1/contacts/{id}", header["description"])
+        self.assertEqual(header["schema"], {"type": "string", "pattern": '^"v[1-9][0-9]*"$'})

@@ -2124,7 +2124,7 @@ export interface operations {
             /** @description Created */
             201: {
                 headers: {
-                    /** @description Strong optimistic concurrency token for the updated contact. */
+                    /** @description The server always returns the updated contact's strong ETag on success. If the header is missing, clients must GET /api/v1/contacts/{id} to obtain its current ETag before the next conditional write. */
                     ETag?: string;
                     [name: string]: unknown;
                 };

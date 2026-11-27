@@ -1181,7 +1181,10 @@ paths:
                 $ref: '#/components/schemas/TimelineEntry'
           headers:
             ETag:
-              description: Strong optimistic concurrency token for the updated contact.
+              description: >-
+                The server always returns the updated contact's strong ETag on success.
+                If the header is missing, clients must GET /api/v1/contacts/{id} to obtain
+                its current ETag before the next conditional write.
               schema:
                 type: string
                 pattern: ^"v[1-9][0-9]*"$
