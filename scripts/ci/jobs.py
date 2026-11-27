@@ -146,6 +146,14 @@ def dotnet_failure_diagnostic(stdout, stderr):
         'ContainerRuntimeTests','FakeOidcIssuerTests','HealthTests','ImageEvidenceSecretTests',
         'KeycloakContainerTests','LocalBootstrapTests','MigrationTests','OperationalSecurityTests',
         'ReadinessTests','RolePrivilegeTests','SmokeTests','StructuredLoggingTests',
+        'AuditEndpointsTests','ContactConcurrencyTests','ContactCursorTests','ContactEmailSchemaTests',
+        'ContactEndpointsTests','ContactListTests','ContactSchemaTests','ContactStreamingTests',
+        'ContactTagFoundationTests','CrmCollectionCursorTests','CustomFieldEndpointsTests',
+        'CustomFieldSchemaTests','InviteAcceptanceTests','InviteManagementTests','InviteSchemaTests',
+        'InviteSecurityTests','MembershipEndpointsTests','MembershipParsingTests','OidcAuthenticationTests',
+        'TagEndpointsTests','TagFieldConcurrencyTests','TenantAuthorizationTests','TenantEndpointsTests',
+        'TenantIsolationTests','TenantLifecycleSchemaTests','TenantProvisioningTests','TenantSchemaTests',
+        'TimelineConcurrencyTests','TimelineEndpointsTests','TimelineSchemaTests',
     )
     matches=[]
     for name in classes:

@@ -202,6 +202,13 @@ class ProcessTests(unittest.TestCase):
         self.assertEqual(['OTHER'],diagnostic['dotnetMethods'])
         self.assertNotIn('private',stream.getvalue())
 
+    def test_dotnet_failure_identifies_wave2_test_families_without_echoing_payload(self):
+        from scripts.ci.jobs import dotnet_failure_diagnostic
+        output = (b'[xUnit.net 00:01] Integration.ContactSchemaTests.Case [FAIL]\n'
+                  b'Failed Integration.TimelineEndpointsTests.Case private-sentinel')
+        self.assertEqual(['CONTACT_SCHEMA_TESTS_FAILED', 'TIMELINE_ENDPOINTS_TESTS_FAILED'],
+                         dotnet_failure_diagnostic(output, b''))
+
     def test_dotnet_failure_keeps_multiple_allowlisted_families(self):
         from scripts.ci.jobs import dotnet_failure_diagnostic
         self.assertEqual(['SMOKE_TESTS_FAILED','CONTAINER_IMAGE_BUILD_FAILED'],
