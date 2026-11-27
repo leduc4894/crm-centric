@@ -120,6 +120,11 @@ it('ignores abort-resistant detail reads across tenant switches and logout/login
   const contact = (name: string) => Response.json({ id: contactId, displayName: name, version: 1, createdAt: '2026-01-01', updatedAt: '2026-01-01' }, { headers: { ETag: '"v1"' } });
   await screen.findByText('Tenant A'); await select('A'); await waitFor(() => expect(pending).toHaveLength(1));
   await select('B'); await waitFor(() => expect(pending).toHaveLength(2));
+  await act(async () => pending[1]!(contact('Current B')));
+  await screen.findByRole('heading', { name: 'Current B' });
+  await act(async () => pending[0]!(contact('Old A')));
+  expect(screen.queryByText('Old A')).toBeNull();
+  expect(screen.getByRole('heading', { name: 'Current B' })).toBeTruthy();
   await select('A'); await waitFor(() => expect(pending).toHaveLength(3));
   Reflect.set(auth, 'idToken', 'synthetic-id');
   Reflect.set(auth, 'metadata', async () => ({ end_session_endpoint: 'https://id.example/logout' }));
@@ -129,8 +134,39 @@ it('ignores abort-resistant detail reads across tenant switches and logout/login
   await waitFor(() => expect(pending).toHaveLength(4));
   await act(async () => pending[3]!(contact('Current session')));
   await screen.findByRole('heading', { name: 'Current session' });
-  await act(async () => { pending[0]!(contact('Old A')); pending[1]!(contact('Old B')); pending[2]!(new Response(null, { status: 401 })); });
+  await act(async () => pending[2]!(new Response(null, { status: 401 })));
   expect(auth.getSnapshot().status).toBe('authenticated');
-  expect(screen.queryByText('Old A')).toBeNull(); expect(screen.queryByText('Old B')).toBeNull();
+  expect(screen.queryByText('Old A')).toBeNull(); expect(screen.queryByText('Current B')).toBeNull();
   expect(screen.getByRole('heading', { name: 'Current session' })).toBeTruthy();
+});
+
+it('ignores a previous session delete completion after logout and login as the same principal', async () => {
+  const auth = client(); signIn(auth, 'one');
+  let finishDelete: ((response: Response) => void) | undefined;
+  let reads = 0, writes = 0;
+  vi.stubGlobal('fetch', (request: Request | string) => {
+    if (typeof request === 'string') return Promise.resolve(Response.json(tenants));
+    const path = new URL(request.url).pathname;
+    if (request.method === 'DELETE') { writes++; return new Promise<Response>(done => { finishDelete = done; }); }
+    if (path.endsWith('/contacts/' + contactId)) return Promise.resolve(Response.json({ id: contactId, displayName: 'Session ' + ++reads, version: 1, createdAt: '2026-01-01', updatedAt: '2026-01-01' }, { headers: { ETag: '"v1"' } }));
+    return Promise.resolve(Response.json({ items: [], nextCursor: null }));
+  });
+  history.replaceState(null, '', '/app/contacts/' + contactId);
+  renderContactRoute(children => <AuthProvider client={auth}><TenantProvider><Harness>{children}</Harness></TenantProvider></AuthProvider>);
+  await screen.findByText('Tenant A'); act(() => screen.getByRole('button', { name: 'Tenant A' }).click());
+  await screen.findByRole('heading', { name: 'Session 1' });
+  act(() => screen.getByRole('button', { name: 'Xóa liên hệ' }).click());
+  act(() => screen.getByRole('button', { name: 'Xác nhận xóa' }).click());
+  await waitFor(() => expect(finishDelete).toBeDefined());
+  Reflect.set(auth, 'idToken', 'synthetic-id');
+  Reflect.set(auth, 'metadata', async () => ({ end_session_endpoint: 'https://id.example/logout' }));
+  Reflect.set(Reflect.get(auth, 'env'), 'logout', async () => undefined);
+  await act(async () => auth.logout());
+  act(() => signIn(auth, 'two')); await screen.findByText('Tenant A');
+  act(() => screen.getByRole('button', { name: 'Tenant A' }).click());
+  await screen.findByRole('heading', { name: 'Session 2' });
+  await act(async () => finishDelete!(new Response(null, { status: 204 })));
+  expect(screen.getByRole('heading', { name: 'Session 2' })).toBeTruthy();
+  expect(location.pathname).toBe('/app/contacts/' + contactId);
+  expect(writes).toBe(1);
 });

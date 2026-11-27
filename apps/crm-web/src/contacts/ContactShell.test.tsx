@@ -260,7 +260,7 @@ it('does not let a previous tenant mutation redirect after A to B to A', async (
 it('does not reuse the list after an uncertain write and back navigation', async () => {
   tenant = a; history.replaceState(null, '', '/app/contacts');
   const record = { id: a, displayName: 'Old list', version: 1, createdAt: '2026-01-01', updatedAt: '2026-01-01' };
-  let lists = 0, writes = 0, finishList: ((response: Response) => void) | undefined;
+  let lists = 0, reads = 0, writes = 0, finishList: ((response: Response) => void) | undefined;
   vi.stubGlobal('fetch', async (req: Request) => {
     const path = new URL(req.url).pathname;
     if (path.endsWith('/contacts')) {
@@ -268,7 +268,7 @@ it('does not reuse the list after an uncertain write and back navigation', async
       return new Promise<Response>(resolve => { finishList = resolve; });
     }
     if (req.method === 'PATCH') { writes++; throw new TypeError('connection lost'); }
-    if (path.endsWith(a)) return Response.json(record, { headers: { ETag: '"v1"' } });
+    if (path.endsWith(a)) { reads++; return Response.json(record, { headers: { ETag: '"v1"' } }); }
     return Response.json({ items: [], nextCursor: null });
   });
   renderShell(); fireEvent.click(await screen.findByRole('link', { name: 'Old list' }));
@@ -279,5 +279,63 @@ it('does not reuse the list after an uncertain write and back navigation', async
   expect(screen.queryByText('Old list')).toBeNull();
   await act(async () => finishList!(Response.json({ items: [], nextCursor: null })));
   await screen.findByText('Chưa có liên hệ.');
-  expect(writes).toBe(1);
+  act(() => history.forward());
+  await screen.findByRole('heading', { name: 'Old list' });
+  expect(screen.queryByDisplayValue('Draft')).toBeNull();
+  expect(reads).toBe(2); expect(writes).toBe(1);
+});
+
+it('reloads the list and record during back and forward after a successful edit', async () => {
+  tenant = a; history.replaceState(null, '', '/app/contacts');
+  const record = { id: a, displayName: 'Before', version: 1, createdAt: '2026-01-01', updatedAt: '2026-01-01' };
+  let lists = 0, reads = 0, writes = 0;
+  vi.stubGlobal('fetch', async (req: Request) => {
+    const path = new URL(req.url).pathname;
+    if (path.endsWith('/contacts')) { lists++; return Response.json({ items: [writes ? { ...record, displayName: 'After', version: 2 } : record], nextCursor: null }); }
+    if (req.method === 'PATCH') { writes++; return Response.json({ ...record, displayName: 'After', version: 2 }, { headers: { ETag: '"v2"' } }); }
+    if (path.endsWith(a)) { reads++; return Response.json(writes ? { ...record, displayName: 'After', version: 2 } : record, { headers: { ETag: writes ? '"v2"' : '"v1"' } }); }
+    return Response.json({ items: [], nextCursor: null });
+  });
+  renderShell(); fireEvent.click(await screen.findByRole('link', { name: 'Before' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Chỉnh sửa' }));
+  fireEvent.change(screen.getByLabelText('Tên liên hệ'), { target: { value: 'After' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Lưu' }));
+  await screen.findByRole('heading', { name: 'After' });
+  act(() => history.back());
+  await screen.findByRole('link', { name: 'After' });
+  expect(screen.queryByRole('link', { name: 'Before' })).toBeNull();
+  act(() => history.forward()); await screen.findByRole('heading', { name: 'After' });
+  expect(lists).toBe(2); expect(reads).toBe(2); expect(writes).toBe(1);
+});
+
+it('keeps writes locked on missing ETag and failed sibling refresh after entering a record route', async () => {
+  tenant = a; history.replaceState(null, '', '/app/contacts');
+  const fieldId = '20000000-0000-4000-8000-000000000003';
+  const record = { id: a, displayName: 'Reviewed', version: 1, createdAt: '2026-01-01', updatedAt: '2026-01-01' };
+  let reads = 0, writes = 0;
+  vi.stubGlobal('fetch', async (req: Request) => {
+    const path = new URL(req.url).pathname;
+    if (req.method !== 'GET') writes++;
+    if (path.endsWith('/contacts')) return Response.json({ items: [record], nextCursor: null });
+    if (path.endsWith('/custom-fields')) return Response.json({ items: [{ id: fieldId, key: 'amount', displayName: 'Amount', dataType: 'number', required: false, version: 1 }], nextCursor: null });
+    if (path.endsWith('/fields/' + fieldId)) return reads === 3 ? new Response(null, { status: 503 }) : Response.json({ value: 1 });
+    if (path.endsWith(a)) { reads++; return Response.json(record, { headers: reads < 3 ? {} : { ETag: '"v1"' } }); }
+    return Response.json({ items: [], nextCursor: null });
+  });
+  renderShell(); fireEvent.click(await screen.findByRole('link', { name: 'Reviewed' }));
+  await screen.findByDisplayValue('1');
+  fireEvent.change(screen.getByLabelText('Ghi chú'), { target: { value: 'Draft note' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Thêm ghi chú' }));
+  const review = await screen.findByRole('button', { name: 'Đối chiếu dữ liệu' });
+  expect(screen.getByRole('button', { name: 'Thêm ghi chú' }).matches(':disabled')).toBe(true);
+  fireEvent.click(review);
+  await waitFor(() => expect(reads).toBe(2));
+  expect(screen.getByRole('button', { name: 'Thêm ghi chú' }).matches(':disabled')).toBe(true);
+  fireEvent.click(screen.getByRole('button', { name: 'Đối chiếu dữ liệu' }));
+  await screen.findByRole('button', { name: 'Tải lại giá trị' });
+  expect(screen.getByRole('button', { name: 'Thêm ghi chú' }).matches(':disabled')).toBe(true);
+  expect(screen.getByDisplayValue('Draft note')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Đối chiếu dữ liệu' }));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Thêm ghi chú' }).matches(':disabled')).toBe(false));
+  expect(writes).toBe(0);
 });
