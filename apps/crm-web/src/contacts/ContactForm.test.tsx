@@ -79,8 +79,13 @@ it('table_keeps_create_candidates_and_conflict_review', async () => {
   const { calls, view } = setup(req => {
     if (req.method === 'POST') return new Response(null, { status: ++posts === 1 ? 428 : 412 });
     const url = new URL(req.url);
-    if (url.pathname.endsWith(other)) return new Response(null, { status: 404 });
-    if (url.pathname.endsWith(id)) return response(++gets === 1 ? 'Original' : 'Latest', gets === 1 ? '"v7"' : '"v8"');
+    if (url.pathname.endsWith(id)) return new Response(null, { status: 404 });
+    if (url.pathname.endsWith(other)) {
+      gets++;
+      return Response.json({ ...record, id: other, displayName: gets === 1 ? 'Reviewed Other' : 'Latest Other' }, {
+        headers: { ETag: gets === 1 ? '"v27"' : '"v28"' },
+      });
+    }
     const items = url.searchParams.has('q')
       ? [record, { ...record, id: other, displayName: 'Other' }]
       : [{ ...record, id: '10000000-0000-4000-8000-000000000003', displayName: 'Excluded' }];
@@ -93,17 +98,18 @@ it('table_keeps_create_candidates_and_conflict_review', async () => {
   await click('Thêm liên hệ'); await change('Tên liên hệ', 'Draft'); await change('Email', record.email); await click('Tạo');
   await screen.findByRole('button', { name: 'Chọn Original' });
   expect(screen.queryByRole('button', { name: 'Chọn Excluded' })).toBeNull();
-  await click('Chọn Original');
+  await click('Chọn Other');
+  await screen.findByText('Reviewed Other', { selector: 'dd' });
   expect(posts).toBe(1);
-  await click('Cập nhật Original');
+  await click('Cập nhật Reviewed Other');
   await screen.findByRole('alert');
   const selected = calls.filter(req => req.method === 'POST')[1]!;
-  expect(selected.headers.get('X-Contact-Id')).toBe(id);
-  expect(selected.headers.get('If-Match')).toBe('"v7"');
-  await click('Tải lại dữ liệu'); await screen.findByText('Latest');
+  expect(selected.headers.get('X-Contact-Id')).toBe(other);
+  expect(selected.headers.get('If-Match')).toBe('"v27"');
+  await click('Tải lại dữ liệu'); await screen.findByText('Latest Other', { selector: 'dd' });
   expect((screen.getByLabelText('Tên liên hệ') as HTMLInputElement).value).toBe('Draft');
-  await click('Chọn Other'); await screen.findByRole('alert');
-  expect(screen.queryByRole('button', { name: 'Cập nhật Latest' })).toBeNull();
+  await click('Chọn Original'); await screen.findByRole('alert');
+  expect(screen.queryByRole('button', { name: 'Cập nhật Latest Other' })).toBeNull();
   tenant = other; view.rerender(<ContactShell />);
   expect(screen.queryByDisplayValue('Draft')).toBeNull();
   expect(screen.queryByRole('button', { name: 'Chọn Other' })).toBeNull();

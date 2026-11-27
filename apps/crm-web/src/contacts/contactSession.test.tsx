@@ -57,9 +57,12 @@ it('ignores late A and B replies after switching A to B to A and refreshing the 
 it('table_scope_switch_drops_old_rows', async () => {
   const auth = client(); signIn(auth, 'one');
   const pending: Array<(response: Response) => void> = [];
-  vi.stubGlobal('fetch', (request: Request | string) => typeof request === 'string'
-    ? Promise.resolve(Response.json(tenants))
-    : new Promise<Response>(done => pending.push(done)));
+  const requestedTenants: Array<string | null> = [];
+  vi.stubGlobal('fetch', (request: Request | string) => {
+    if (typeof request === 'string') return Promise.resolve(Response.json(tenants));
+    requestedTenants.push(request.headers.get('X-Tenant-Id'));
+    return new Promise<Response>(done => pending.push(done));
+  });
   const select = async (name: string) => act(() => screen.getByRole('button', { name: 'Tenant ' + name }).click());
   const reply = async (index: number, response: Response) => {
     await waitFor(() => expect(pending[index]).toBeDefined());
@@ -73,7 +76,9 @@ it('table_scope_switch_drops_old_rows', async () => {
   await select('B');
   expect(screen.queryByRole('table')).toBeNull();
   await reply(2, page('Tenant B record', tenantB));
-  await screen.findByRole('table');
+  const tenantBTable = within(await screen.findByRole('table'));
+  expect(tenantBTable.getAllByRole('link').map(link => link.textContent)).toEqual(['Tenant B record']);
+  expect(tenantBTable.getByRole('link').getAttribute('href')).toBe('/app/contacts/' + tenantB);
   await select('A');
   expect(screen.queryByRole('table')).toBeNull();
   await reply(3, page('Returning A', contactId, 'more'));
@@ -92,6 +97,7 @@ it('table_scope_switch_drops_old_rows', async () => {
   await screen.findByRole('table');
   await reply(1, page('Late first A'));
   await reply(4, page('Late previous session'));
+  expect(requestedTenants).toEqual([tenantA, tenantA, tenantB, tenantA, tenantA, tenantA]);
   const links = within(screen.getByRole('table')).getAllByRole('link');
   expect(links.map(link => link.textContent)).toEqual(['New session']);
   expect(links[0]!.getAttribute('href')).toBe('/app/contacts/' + currentId);
