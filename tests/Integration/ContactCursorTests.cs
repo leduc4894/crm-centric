@@ -60,6 +60,25 @@ public class ContactCursorTests
         Assert.Equal(new DateTimeOffset(Stamp.AddTicks(10)), Parse(("updatedSince", [timestamp])).UpdatedSince);
     }
 
+    [Theory]
+    [InlineData("2026-11-27T23:30:00+15:00", "2026-11-27T08:30:00Z")]
+    [InlineData("2026-11-27T01:00:00-23:59", "2026-11-28T00:59:00Z")]
+    [InlineData("2016-12-31T23:59:60Z", "2017-01-01T00:00:00Z")]
+    [InlineData("2017-01-01T14:59:60.00000001+15:00", "2017-01-01T00:00:00.000001Z")]
+    public void Rfc3339_offsets_and_leap_seconds_normalize_to_utc(string input, string expected)
+    {
+        Assert.Equal(DateTimeOffset.Parse(expected, System.Globalization.CultureInfo.InvariantCulture), Parse(("updatedSince", [input])).UpdatedSince);
+    }
+
+    [Theory]
+    [InlineData("2026-11-27T01:00:00+24:00")]
+    [InlineData("2016-12-31T12:00:60Z")]
+    [InlineData("2026-11-27T01:00:00+15:60")]
+    [InlineData("0001-01-01T00:00:00+15:00")]
+    [InlineData("9999-12-31T23:59:59.9999999Z")]
+    public void Invalid_offset_and_out_of_range_utc_are_rejected(string input) =>
+        Assert.False(ContactListQuery.TryParse(Query(("updatedSince", [input])), out _));
+
     [Fact]
     public void Cursor_is_bound_to_tenant_filters_and_not_page_size()
     {

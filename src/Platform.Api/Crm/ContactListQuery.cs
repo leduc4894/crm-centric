@@ -68,11 +68,29 @@ public sealed record ContactListQuery(int Limit, string? Q, Guid? TagId, DateTim
         var fraction = match.Groups["fraction"].Value;
         var micros = fraction.PadRight(6, '0')[..6];
         var roundUp = fraction.Length > 6 && fraction.AsSpan(6).ContainsAnyExcept('0');
+        var date = match.Groups["date"].Value.Replace('t', 'T');
+        var leapSecond = date.AsSpan(17, 2).SequenceEqual("60");
+        if (leapSecond) date = date[..17] + "59";
+        if (!DateTime.TryParseExact(date + "." + micros, "yyyy-MM-dd'T'HH:mm:ss.ffffff", CultureInfo.InvariantCulture, DateTimeStyles.None, out var local)) return false;
         var zone = match.Groups["zone"].Value;
-        if (zone.Equals("z", StringComparison.OrdinalIgnoreCase)) zone = "+00:00";
-        var normalized = match.Groups["date"].Value.Replace('t', 'T') + "." + micros + zone;
-        if (!DateTimeOffset.TryParseExact(normalized, "yyyy-MM-dd'T'HH:mm:ss.ffffffzzz", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed)) return false;
-        try { result = parsed.ToUniversalTime().AddTicks(roundUp ? 10 : 0); return true; }
+        var offsetMinutes = 0;
+        if (!zone.Equals("z", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!int.TryParse(zone.AsSpan(1, 2), NumberStyles.None, CultureInfo.InvariantCulture, out var hours) ||
+                !int.TryParse(zone.AsSpan(4, 2), NumberStyles.None, CultureInfo.InvariantCulture, out var minutes) ||
+                hours > 23 || minutes > 59) return false;
+            offsetMinutes = (hours * 60 + minutes) * (zone[0] == '-' ? -1 : 1);
+        }
+        try
+        {
+            var utc = DateTime.SpecifyKind(local.AddMinutes(-offsetMinutes), DateTimeKind.Utc);
+            // Offsets may place the UTC leap second on another local date.
+            // IERS announcements determine which UTC dates have one.
+            if (leapSecond && (utc.Hour != 23 || utc.Minute != 59)) return false;
+            if (leapSecond) utc = utc.AddSeconds(1);
+            result = new DateTimeOffset(utc.AddTicks(roundUp ? 10 : 0));
+            return true;
+        }
         catch (ArgumentOutOfRangeException) { return false; }
     }
 }
