@@ -163,3 +163,24 @@ it('keeps ambiguous create blocked when a filter supersedes its reconciliation r
   await waitFor(() => expect(submit.matches(':disabled')).toBe(false));
   expect(reads).toBe(4); expect(writes).toBe(1);
 });
+it('reconciles ambiguous create with a new read even while the initial list read is pending', async () => {
+  history.replaceState(null, '', '/app/contacts');
+  const reads: Array<(response: Response) => void> = [];
+  let writes = 0;
+  const page = () => Response.json({ items: [], nextCursor: null });
+  vi.stubGlobal('fetch', (req: Request) => {
+    if (req.method === 'POST') { writes++; return Promise.resolve(new Response(null, { status: 503 })); }
+    return new Promise<Response>(resolve => reads.push(resolve));
+  });
+  render(<ContactShell />);
+  await waitFor(() => expect(reads).toHaveLength(1));
+  await click('Thêm liên hệ'); await change('Tên liên hệ', 'Pending'); await click('Tạo');
+  await screen.findByRole('alert');
+  await click('Tải lại dữ liệu');
+  await waitFor(() => expect(reads).toHaveLength(2));
+  expect(screen.getByRole('button', { name: 'Tạo' }).matches(':disabled')).toBe(true);
+  await act(async () => reads[1]!(page()));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Tạo' }).matches(':disabled')).toBe(false));
+  await act(async () => reads[0]!(page()));
+  expect(writes).toBe(1);
+});

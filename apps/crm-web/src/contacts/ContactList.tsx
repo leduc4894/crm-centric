@@ -21,6 +21,8 @@ export function ContactList({ client }: { client: CrmClient }) {
   async function refreshList() {
     const current = generation.current;
     try {
+      await scope.client.cancelQueries({ queryKey: options.queryKey, exact: true });
+      if (current !== generation.current || !scope.isCurrent()) throw new CrmError('WEB_CRM_READ_CANCELLED');
       const result = await pages.refetch({ cancelRefetch: true, throwOnError: true });
       if (current !== generation.current || !scope.isCurrent() || result.isError) throw new CrmError('WEB_CRM_READ_CANCELLED');
     } catch (error) {

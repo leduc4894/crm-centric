@@ -5,6 +5,8 @@ import { useContactQueryScope } from './queryScope';
 
 type Scope = ReturnType<typeof useContactQueryScope>;
 type Page = Awaited<ReturnType<CrmClient['listContacts']>>;
+// One signal represents one infinite-query fetch, including all pages of a refetch.
+const cursorsByFetch = new WeakMap<AbortSignal, Set<string>>();
 async function read<T>(scope: Scope, signal: AbortSignal, fetch: () => Promise<T>): Promise<T> {
   try {
     const result = await fetch();
@@ -21,10 +23,14 @@ export function contactsOptions(scope: Scope, client: CrmClient, filters: Contac
     queryKey, initialPageParam: undefined as string | undefined,
     queryFn: async ({ signal, pageParam }) => {
       const result = await read(scope, signal, () => client.listContacts(pageParam ? { ...filters, cursor: pageParam } : filters, signal));
-      const previous = scope.client.getQueryData<InfiniteData<Page, string | undefined>>(queryKey);
-      const index = previous?.pageParams.indexOf(pageParam) ?? -1;
-      const used = index < 0 ? previous?.pageParams : previous?.pageParams.slice(0, index + 1);
-      if (result.data.nextCursor && (result.data.nextCursor === pageParam || (pageParam && used?.includes(result.data.nextCursor)))) throw new CrmError('WEB_CRM_CONTRACT_INVALID');
+      let used = cursorsByFetch.get(signal);
+      if (!used) {
+        const previous = scope.client.getQueryData<InfiniteData<Page, string | undefined>>(queryKey);
+        used = new Set(pageParam ? previous?.pageParams.filter((cursor): cursor is string => cursor !== undefined) : []);
+        cursorsByFetch.set(signal, used);
+      }
+      if (pageParam) used.add(pageParam);
+      if (result.data.nextCursor && used.has(result.data.nextCursor)) throw new CrmError('WEB_CRM_CONTRACT_INVALID');
       return result;
     },
     getNextPageParam: last => last.data.nextCursor ?? undefined,
