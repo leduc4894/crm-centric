@@ -176,3 +176,41 @@ activation, require review and explicit approval for an exact scoped mechanism,
 preserve the old approval scope, negative cases and semantic checks, and rerun CI
 on the new candidate. The browser suite has not run on the latest candidate;
 `tests/CI` hosted coverage and benchmark remain open. Full suite local was not run.
+
+## Security delta and candidate scope work
+
+User asked whether security introduced new findings. Compared exact hosted runs
+`46027476925` and `46031836021`: Trivy had the same nine finding IDs and
+verdicts (one blocked); Gitleaks had 105 blocked in each, with seven IDs added
+and seven removed. Reproduced all 105 IDs for both exact merge trees using pinned
+Gitleaks 8.30.1 and the same policy. Compared rule, path and SHA-256 of the
+unredacted finding value solely in process memory; all seven changed-ID records
+matched one-to-one, zero unmatched or ambiguous. No secrets, raw scanner reports
+or fingerprints were printed or saved. The changed opaque IDs reflect record
+metadata changes; within this comparison no new security finding was found.
+This is not clearance: 105 secret findings and one vulnerability remain blocked;
+a later candidate must be scanned independently.
+
+User asked to continue after the candidate review package. Preparing a separate
+candidate-owned scope for product tree `71959b35c08738d16a03e1f4f54e4f0b21075ce0`,
+base `db04aeaecd7f4b6d083335a71418788d3c4561ca`, retaining original Plan 3 scope
+and expiry, exact tree and coverage checks, archive verification and semantic
+comparison/consumer checks. This is not independent enforcement. New focused
+scope tests initially errored for missing implementation, then passed alongside
+old scope tests 16/16 with zero skips; the real actual-base check is still
+running at this checkpoint. Security verdict remains FAIL; `tests/CI` hosted
+coverage, benchmark and P0 exit remain open. See next checkpoint for exact
+commands, gate outcome, candidate and CI results.
+
+Candidate-scoped implementation check: actual-base
+`python3 scripts/contracts/compatibility.py --base-ref
+db04aeaecd7f4b6d083335a71418788d3c4561ca --mvp-reviewed-policy` in the prepared
+worktree returned `CONTRACT_BREAKING_REVIEWED`, correlation
+`670a3090-61b4-471b-a248-22be8a86b132`; both SDK surfaces incompatible, both
+historical consumers and packaged contact consumers passed. This is local,
+candidate-owned, not independent enforcement. New scope tests pass 6/6; combined
+old/new scope tests passed 16/16 before adding the final preflight case. A first
+archive test failed because it included the tool-created `.git` and `.local`
+entries; corrected the test to examine the raw archive before materialization,
+then it passed. No external reviewer was dispatched; user instructions permit
+only one coding agent. Hosted CI and browser checks still need the new candidate.

@@ -55,3 +55,25 @@ branch reviewed; that label does not mean this candidate has been reviewed or
 approved. Confirm exact diffs, semantic outputs and review scope independently
 before choosing an activation path; do not carry this simulated result to another
 candidate. No deploy, consumer rollout, security waiver or acceptance approval.
+
+## Candidate-scoped implementation in progress
+
+Following the request to continue, a candidate-owned MVP scope is being prepared
+for the exact head/base above, retaining the Plan 3 scope separately. It is not
+independent enforcement. Scope tests exercise base, target, mode, expiry, changed
+and untracked product files, coverage inventory, symlinks and snapshot tampering.
+A real actual-base comparison and final hosted candidate run must still be
+recorded below before any success claim. No security finding is waived.
+
+Focused implementation check: the exact-base gate on the prepared worktree
+returned `CONTRACT_BREAKING_REVIEWED` (correlation
+`670a3090-61b4-471b-a248-22be8a86b132`): TypeScript and .NET SDK surfaces
+incompatible, both historical consumer checks and packaged contact consumer
+checks passed. This is a local result of candidate-owned code, not independent
+enforcement, deployed compatibility, or evidence for a later product tree.
+Scope/preflight tests for the new tree passed 6/6; the previous scope and new
+scope tests together passed 16/16 before the final additional preflight case.
+Hosted CI must still evaluate the committed candidate. The user asked to proceed
+with this bounded implementation after the candidate review package; scope is
+limited to this exact product tree, base, MVP mode, expiry and unchanged
+inventory. Full branch review and P0 acceptance remain open.
