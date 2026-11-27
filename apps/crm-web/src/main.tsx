@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { App } from './App';
+import { RouterProvider } from '@tanstack/react-router';
+import { createAppRouter } from './router';
 import { ConfiguredAuthProvider } from './auth/AuthProvider.tsx';
 
 declare global { interface Window { __crmOidcCallback?: string } }
@@ -15,6 +16,6 @@ if (container === null) {
 
 createRoot(container).render(
   <StrictMode>
-    <ConfiguredAuthProvider callbackUrl={callbackUrl}><App /></ConfiguredAuthProvider>
+    <ConfiguredAuthProvider callbackUrl={callbackUrl}><RouterProvider router={createAppRouter()} /></ConfiguredAuthProvider>
   </StrictMode>
 );

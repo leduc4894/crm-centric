@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
-import { ContactShell } from './ContactShell';
+import { renderContactRoute } from './testRouter';
 const id = '10000000-0000-4000-8000-000000000001';
 let tenant: string | null = id;
 const authState = { status: 'authenticated', issuer: 'i', subject: 's' };
@@ -13,7 +13,7 @@ function setup(handler: (req: Request) => Response, detail = true) {
   history.replaceState(null, '', '/app/contacts' + (detail ? '/' + id : ''));
   const calls: Request[] = [];
   vi.stubGlobal('fetch', (req: Request) => { calls.push(req); return Promise.resolve(handler(req)); });
-  const view = render(<ContactShell />);
+  const view = renderContactRoute();
   return { calls, view };
 }
 const response = (name = 'Original', tag = '"v1"', status = 200) => Response.json({ ...record, displayName: name }, { status, headers: { ETag: tag } });
@@ -70,7 +70,7 @@ it.each([403, 0])('handles a forbidden or uncertain write without retries and cl
   expect(alert.textContent).not.toContain('private@example.test');
   expect(alert.textContent).toContain(status ? 'Chỉ đọc' : 'Chưa xác định');
   expect(calls.filter(req => req.method === 'PATCH')).toHaveLength(1);
-  tenant = null; view.rerender(<ContactShell />);
+  tenant = null; view.rerender();
   await waitFor(() => expect(screen.queryByDisplayValue('Private draft')).toBeNull());
 });
 it('table_keeps_create_candidates_and_conflict_review', async () => {
@@ -110,7 +110,7 @@ it('table_keeps_create_candidates_and_conflict_review', async () => {
   expect((screen.getByLabelText('Tên liên hệ') as HTMLInputElement).value).toBe('Draft');
   await click('Chọn Original'); await screen.findByRole('alert');
   expect(screen.queryByRole('button', { name: 'Cập nhật Latest Other' })).toBeNull();
-  tenant = other; view.rerender(<ContactShell />);
+  tenant = other; view.rerender();
   expect(screen.queryByDisplayValue('Draft')).toBeNull();
   expect(screen.queryByRole('button', { name: 'Chọn Other' })).toBeNull();
   expect(posts).toBe(2);
@@ -126,7 +126,7 @@ it('shows uncertain outcome after a real client deadline and waits for an explic
     writes++;
     return new Promise<Response>((_, reject) => req.signal.addEventListener('abort', () => reject(req.signal.reason)));
   });
-  render(<ContactShell />);
+  renderContactRoute();
   await click('Chỉnh sửa'); await change('Tên liên hệ', 'Draft');
   vi.useFakeTimers();
   try {
@@ -146,7 +146,7 @@ it.each(['POST', 'PATCH'])('freezes the submitted draft while %s is pending', as
     if (req.method === method) return new Promise<Response>(resolve => { finish = resolve; });
     return Promise.resolve(new URL(req.url).pathname.endsWith(id) ? response(finish ? 'Submitted' : 'Original') : Response.json({ items: [], nextCursor: null }));
   });
-  render(<ContactShell />);
+  renderContactRoute();
   await click(editing ? 'Chỉnh sửa' : 'Thêm liên hệ');
   await change('Tên liên hệ', 'Submitted');
   await click(editing ? 'Lưu' : 'Tạo');
@@ -170,7 +170,7 @@ it('keeps ambiguous create blocked when a filter supersedes its reconciliation r
     if (++reads === 2) return new Promise<Response>(resolve => { finishRead = resolve; });
     return Promise.resolve(page(reads === 1 ? 'Initial contact' : 'Filtered result'));
   });
-  render(<ContactShell />);
+  renderContactRoute();
   await screen.findByRole('link', { name: 'Initial contact' });
   await click('Thêm liên hệ'); await change('Tên liên hệ', 'No email');
   vi.useFakeTimers();
@@ -200,7 +200,7 @@ it('reconciles ambiguous create with a new read even while the initial list read
     if (req.method === 'POST') { writes++; return Promise.resolve(new Response(null, { status: 503 })); }
     return new Promise<Response>(resolve => reads.push(resolve));
   });
-  render(<ContactShell />);
+  renderContactRoute();
   await waitFor(() => expect(reads).toHaveLength(1));
   await click('Thêm liên hệ'); await change('Tên liên hệ', 'Pending'); await click('Tạo');
   await screen.findByRole('alert');

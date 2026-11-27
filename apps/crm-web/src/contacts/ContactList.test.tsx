@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
-import { ContactShell } from './ContactShell';
+import { renderContactRoute } from './testRouter';
 const id = '10000000-0000-4000-8000-000000000001';
 vi.mock('../tenant/TenantProvider', () => ({ useTenant: () => ({ identity: '["i","s"]', selectedTenantId: id }) }));
 vi.mock('../auth/AuthProvider', () => ({ useAuthClient: () => auth, useAuth: () => ({ state: authState }) }));
@@ -20,8 +20,8 @@ it('retries a failed read, applies literal filters, resets paging and rejects re
     await waitFor(() => expect(pending[index]).toBeDefined());
     await act(async () => pending[index]!(response));
   };
-  render(<ContactShell />);
-  expect(screen.getByRole('status')).toBeTruthy();
+  renderContactRoute();
+  expect(await screen.findByRole('status')).toBeTruthy();
   await respond(0, new Response(null, { status: 503 }));
   fireEvent.click(await screen.findByText('Thử lại'));
   await respond(1, Response.json({ items: [], nextCursor: 'opaque' }));
@@ -48,7 +48,7 @@ it('does not reuse old pages when returning to a previous filter', async () => {
   const pending: Array<(response: Response) => void> = [];
   vi.stubGlobal('fetch', () => new Promise<Response>(resolve => pending.push(resolve)));
   const page = (name: string, nextCursor: string | null) => Response.json({ items: [{ id, displayName: name, version: 1, createdAt: '2026-01-01', updatedAt: '2026-01-01' }], nextCursor });
-  render(<ContactShell />);
+  renderContactRoute();
   await waitFor(() => expect(pending).toHaveLength(1));
   await act(async () => pending[0]!(page('Old page', 'cursor')));
   await screen.findByText('Old page');
@@ -81,7 +81,7 @@ it('table_preserves_server_pages_and_filter_race', async () => {
   });
   const page = (items: ReturnType<typeof row>[], nextCursor: string | null) => Response.json({ items, nextCursor });
   const names = () => within(screen.getByRole('table')).getAllByRole('link').map(link => link.textContent);
-  render(<ContactShell />);
+  renderContactRoute();
   await waitFor(() => expect(pending).toHaveLength(1));
   fireEvent.change(screen.getByLabelText('Tìm kiếm'), { target: { value: '%_+' } });
   fireEvent.change(screen.getByLabelText('ID thẻ'), { target: { value: id } });

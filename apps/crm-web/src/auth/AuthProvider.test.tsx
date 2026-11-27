@@ -16,6 +16,7 @@ it('completes a captured callback only once under StrictMode', async () => {
   const { vi } = await import('vitest');
   const client = new AuthClient({ issuer: 'https://id.example', clientId: 'web', callbackUrl: 'https://app.example/auth/callback', logoutUrl: 'https://app.example/', allowLocalHttp: false });
   const complete = vi.spyOn(client, 'completeCallback').mockResolvedValue();
-  render(<StrictMode><AuthProvider client={client} callbackUrl="https://app.example/auth/callback?code=test"><View /></AuthProvider></StrictMode>);
+  render(<StrictMode><AuthProvider client={client} callbackUrl="https://app.example/auth/callback?code=synthetic&state=synthetic"><View /></AuthProvider></StrictMode>);
   await waitFor(() => expect(complete).toHaveBeenCalledTimes(1));
+  expect(complete).toHaveBeenCalledWith("https://app.example/auth/callback?code=synthetic&state=synthetic");
 });

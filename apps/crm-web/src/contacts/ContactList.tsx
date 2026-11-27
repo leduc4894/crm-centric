@@ -1,13 +1,14 @@
 import { useMemo, useRef, useState, type FormEvent } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { ContactForm, safeError } from './ContactForm';
-import { openContacts } from './ContactShell';
+import { useNavigate } from '@tanstack/react-router';
 import { ContactTable } from './ContactTable';
 import { contactsOptions, scopedRecordClient } from './contactQueries';
 import { useContactQueryScope } from './queryScope';
 import { contactIdPattern, CrmError, type ContactQuery, type CrmClient } from './crmClient';
 
 export function ContactList({ client }: { client: CrmClient }) {
+  const navigate = useNavigate();
   const [query, setQuery] = useState<ContactQuery>({});
   const [creating, setCreating] = useState(false);
   const [readOnly, setReadOnly] = useState(false);
@@ -48,7 +49,7 @@ export function ContactList({ client }: { client: CrmClient }) {
   return <>
     <header className="contact-title"><h2>Liên hệ</h2>{!readOnly && !creating && <button onClick={() => setCreating(true)}>Thêm liên hệ</button>}</header>
     {creating && <section className="contact-card"><h3>Thêm liên hệ</h3><ContactForm client={recordClient} readOnly={readOnly} choices={items} refreshList={refreshList}
-      onSaved={result => openContacts(result.data.id)} onCancel={() => setCreating(false)} onForbidden={() => setReadOnly(true)} /></section>}
+      onSaved={result => void navigate({ to: '/app/contacts/$contactId', params: { contactId: result.data.id } })} onCancel={() => setCreating(false)} onForbidden={() => setReadOnly(true)} /></section>}
     <div className="contact-card">
       <form className="contact-filters" onSubmit={filter}>
         <label>Tìm kiếm<input name="q" type="search" /></label>

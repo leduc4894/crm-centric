@@ -5,6 +5,11 @@ import { useTable } from '@tanstack/react-table';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { Contact } from './ContactForm';
 import { ContactTable } from './ContactTable';
+import { RouterContextProvider } from '@tanstack/react-router';
+import { createAppRouter } from '../router';
+import type { ReactNode } from 'react';
+const router = createAppRouter();
+function wrapper({ children }: { children: ReactNode }) { return <RouterContextProvider router={router}>{children}</RouterContextProvider>; }
 
 vi.mock('@tanstack/react-table', { spy: true });
 
@@ -25,7 +30,7 @@ const zoe: Contact = {
 const anna: Contact = { ...zoe, id: 'abcdef00-0000-4000-8000-000000000002', displayName: 'Anna' };
 
 it('renders_server_order_with_stable_contact_ids', () => {
-  const { rerender } = render(<ContactTable items={[zoe, anna]} />);
+  const { rerender } = render(<ContactTable items={[zoe, anna]} />, { wrapper });
   const [zoeLink, annaLink] = screen.getAllByRole('link');
   expect(zoeLink?.textContent).toBe('Zoe');
   expect(zoeLink?.getAttribute('href')).toBe('/app/contacts/ABCDEF00-0000-4000-8000-000000000001');
@@ -42,7 +47,7 @@ it('renders_server_order_with_stable_contact_ids', () => {
 it('renders_nulls_and_markup_safely', async () => {
   const user = userEvent.setup();
   const displayName = '<script>example</script>';
-  render(<ContactTable items={[{ ...zoe, displayName, email: null, phone: null }]} />);
+  render(<ContactTable items={[{ ...zoe, displayName, email: null, phone: null }]} />, { wrapper });
 
   const table = screen.getByRole('table');
   expect(within(table).getAllByRole('columnheader').map(header => header.textContent))
@@ -59,7 +64,7 @@ it('renders_nulls_and_markup_safely', async () => {
 
 it('uses_table_row_model_without_client_transforms', () => {
   const items = [zoe, anna];
-  render(<ContactTable items={items} />);
+  render(<ContactTable items={items} />, { wrapper });
 
   const hook = vi.mocked(useTable);
   const options = hook.mock.lastCall?.[0];

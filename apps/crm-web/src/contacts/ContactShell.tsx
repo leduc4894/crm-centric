@@ -1,26 +1,11 @@
-import { useLayoutEffect, useState, useSyncExternalStore, type MouseEvent } from 'react';
+import { useLayoutEffect, useState } from 'react';
 import { useAuth, useAuthClient } from '../auth/AuthProvider';
 import { ContactQueryScope } from './queryScope';
 import { useTenant } from '../tenant/TenantProvider';
-import { contactIdPattern, createCrmClient, type CrmClient } from './crmClient';
+import { createCrmClient, type CrmClient } from './crmClient';
 import { ContactDetail } from './ContactDetail';
 import { ContactList } from './ContactList';
 
-const listPath = '/app/contacts';
-function subscribe(change: () => void) {
-  window.addEventListener('popstate', change);
-  return () => window.removeEventListener('popstate', change);
-}
-export function navigate(event: MouseEvent<HTMLAnchorElement>) {
-  if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
-  event.preventDefault();
-  history.pushState(null, '', event.currentTarget.pathname);
-  window.dispatchEvent(new PopStateEvent('popstate'));
-}
-export function openContacts(id?: string) {
-  history.pushState(null, '', id ? listPath + '/' + id : listPath);
-  window.dispatchEvent(new PopStateEvent('popstate'));
-}
 function ContactRoute({ identity, tenantId, recordId }: { identity: string; tenantId: string; recordId: string | null }) {
   const auth = useAuthClient();
   const [client, setClient] = useState<CrmClient | null>(null);
@@ -42,14 +27,11 @@ function ContactRoute({ identity, tenantId, recordId }: { identity: string; tena
     ? <ContactDetail client={client} id={recordId} />
     : <ContactList client={client} />)}</section>;
 }
-export function ContactShell() {
+export function ContactShell({ recordId = null }: { recordId?: string | null }) {
   const { identity, selectedTenantId } = useTenant();
   const { state } = useAuth();
   const [session, setSession] = useState({ state, generation: 0 });
   if (session.state !== state) setSession({ state, generation: session.generation + 1 });
-  const path = useSyncExternalStore(subscribe, () => location.pathname);
-  const recordId = path.startsWith(listPath + '/') ? path.slice(listPath.length + 1) : null;
-  if (path !== listPath && !(recordId && contactIdPattern.test(recordId))) return null;
   if (!identity || !selectedTenantId) return <p>Chọn tenant để xem liên hệ.</p>;
-  return <ContactQueryScope identity={identity} tenantId={selectedTenantId} generation={session.generation}><ContactRoute key={JSON.stringify([identity, selectedTenantId, path, session.generation])} identity={identity} tenantId={selectedTenantId} recordId={recordId} /></ContactQueryScope>;
+  return <ContactQueryScope identity={identity} tenantId={selectedTenantId} generation={session.generation}><ContactRoute key={JSON.stringify([identity, selectedTenantId, recordId, session.generation])} identity={identity} tenantId={selectedTenantId} recordId={recordId} /></ContactQueryScope>;
 }

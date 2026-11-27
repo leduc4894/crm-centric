@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ContactForm, mutationMessage, safeError, type Snapshot } from './ContactForm';
-import { navigate, openContacts } from './ContactShell';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { ContactTimeline } from './ContactTimeline';
 import { ContactAttributes } from './ContactAttributes';
 import type { RecordWrite, RegisterPanelRead } from './recordPanels';
@@ -21,6 +21,7 @@ function DeleteDialog({ name, onCancel, onConfirm }: { name: string; onCancel():
   </dialog>;
 }
 export function ContactDetail({ client: transport, id }: { client: CrmClient; id: string }) {
+  const navigate = useNavigate();
   const scope = useContactQueryScope();
   const client = useMemo(() => scopedRecordClient(scope, transport), [scope, transport]);
   const [record, setRecord] = useState<Snapshot | null>(null);
@@ -115,7 +116,7 @@ export function ContactDetail({ client: transport, id }: { client: CrmClient; id
         return;
       }
       await client.deleteContact(id, record.etag);
-      openContacts();
+      void navigate({ to: '/app/contacts' });
     } catch (error) {
       const result = safeError(error);
       setFailure(result); setDeleteFailed(true);
@@ -123,7 +124,7 @@ export function ContactDetail({ client: transport, id }: { client: CrmClient; id
     } finally { setBusy(false); }
   }
   return <>
-    <a href="/app/contacts" onClick={navigate}>Liên hệ</a>
+    <Link to="/app/contacts">Liên hệ</Link>
     <h2>{record?.data.displayName ?? 'Hồ sơ liên hệ'}</h2>
     {failure && <p role="alert">{deleteFailed ? mutationMessage(failure) : failure.message} <button onClick={() => { setRecord(null); setFailure(null); setAttempt(n => n + 1); }}>Tải lại dữ liệu</button></p>}
     {panelFailure && <p role="alert">{mutationMessage(panelFailure)} {reconcile && <button disabled={busy} onClick={() => void review()}>Đối chiếu dữ liệu</button>}</p>}

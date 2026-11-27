@@ -1,13 +1,13 @@
 import { tableFeatures, useTable, type ColumnDef } from '@tanstack/react-table';
 import type { Contact } from './ContactForm';
-import { navigate } from './ContactShell';
+import { Link } from '@tanstack/react-router';
 
 const features = tableFeatures({});
 const columns: ColumnDef<typeof features, Contact>[] = [
   {
     id: 'displayName',
     header: 'Tên liên hệ',
-    cell: ({ row }) => <a href={'/app/contacts/' + row.id} onClick={navigate}>{row.original.displayName}</a>,
+    cell: ({ row }) => <Link to="/app/contacts/$contactId" params={{ contactId: row.id }}>{row.original.displayName}</Link>,
   },
   {
     id: 'email',

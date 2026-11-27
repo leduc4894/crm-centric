@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
-import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { AuthClient } from '../auth/authClient';
 import { AuthProvider, useAuth } from '../auth/AuthProvider';
 import { TenantProvider, useTenant } from '../tenant/TenantProvider';
-import { ContactShell } from './ContactShell';
+import { renderContactRoute } from './testRouter';
 
 const tenantA = '11111111-1111-4111-8111-111111111111';
 const tenantB = '22222222-2222-4222-8222-222222222222';
@@ -19,11 +19,11 @@ function signIn(auth: AuthClient, token: string) {
   Reflect.set(auth, 'expires', Date.now() + 60_000);
   Reflect.apply(Reflect.get(auth, 'setState'), auth, [{ status: 'authenticated', issuer: 'https://id.example', subject: 'same-user' }]);
 }
-function Harness() {
+function Harness({ children }: { children: React.ReactNode }) {
   const tenant = useTenant(); const auth = useAuth();
-  return <><p data-testid="auth">{auth.state.status}</p>{tenant.items.map(item => <button key={item.id} onClick={() => tenant.selectTenant(item.id)}>Tenant {item.name}</button>)}<ContactShell /></>;
+  return <><p data-testid="auth">{auth.state.status}</p>{tenant.items.map(item => <button key={item.id} onClick={() => tenant.selectTenant(item.id)}>Tenant {item.name}</button>)}{children}</>;
 }
-function mount(auth: AuthClient) { history.replaceState(null, '', '/app/contacts'); return render(<AuthProvider client={auth}><TenantProvider><Harness /></TenantProvider></AuthProvider>); }
+function mount(auth: AuthClient) { history.replaceState(null, '', '/app/contacts'); return renderContactRoute(children => <AuthProvider client={auth}><TenantProvider><Harness>{children}</Harness></TenantProvider></AuthProvider>); }
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 it('a real AuthClient invalidation on a contact 401 clears the visible tenant session', async () => {
@@ -103,5 +103,5 @@ it('table_scope_switch_drops_old_rows', async () => {
   expect(links[0]!.getAttribute('href')).toBe('/app/contacts/' + currentId);
   expect(screen.queryByRole('button', { name: 'Tải thêm' })).toBeNull();
   act(() => links[0]!.click());
-  expect(location.pathname).toBe('/app/contacts/' + currentId);
+  await waitFor(() => expect(location.pathname).toBe('/app/contacts/' + currentId));
 });
