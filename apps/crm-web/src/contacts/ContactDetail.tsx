@@ -56,12 +56,11 @@ export function ContactDetail({ client: transport, id }: { client: CrmClient; id
     setRecord(result);
   }
   async function updateVersion(etag: string | null) {
-    if (etag) setRecord(old => old && { ...old, etag });
-    else {
-      const snapshot = await client.getContact(id);
-      await refreshAttributes();
-      accept(snapshot);
-    }
+    if (!etag) throw new CrmError('WEB_CRM_CONTRACT_INVALID');
+    const snapshot = await client.getContact(id);
+    if (snapshot.etag !== etag) throw new CrmError('WEB_CRM_CONTRACT_INVALID');
+    await refreshAttributes();
+    accept(snapshot);
   }
   function requestReview(refresh?: () => Promise<void>) {
     setReconcile(() => async () => {

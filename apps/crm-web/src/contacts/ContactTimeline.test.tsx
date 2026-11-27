@@ -3,6 +3,43 @@ import { act, cleanup, fireEvent, screen, waitFor } from '@testing-library/react
 import { afterEach, expect, it, vi } from 'vitest';
 import { setup, field, itemId, entry, page, record, click, change, id } from './recordTestSupport';
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+it('requires explicit successful review when a saved note has no ETag', async () => {
+  let writes = 0, reads = 0, failSibling = true;
+  const calls = setup((_req, path) => {
+    if (path.endsWith('/custom-fields')) return page([field]);
+    if (path.endsWith('/fields/' + itemId)) return writes && failSibling ? new Response(null, { status: 503 }) : Response.json({ value: 1 });
+    if (path.endsWith('/notes')) { writes++; return Response.json(entry, { status: 201 }); }
+    if (path.endsWith(id)) {
+      reads++;
+      if (reads === 2) return Response.json({ ...entry, id, displayName: 'Current', version: 2, createdAt: '2026-01-01', updatedAt: '2026-01-01' });
+      return reads > 2 ? Response.json({ id, displayName: 'Current', version: 2, createdAt: '2026-01-01', updatedAt: '2026-01-01' }, { headers: { ETag: '"v2"' } }) : record();
+    }
+  });
+  await screen.findByDisplayValue('1'); await change('Ghi chú', 'Saved'); await click('Thêm ghi chú');
+  await screen.findByRole('button', { name: 'Đối chiếu dữ liệu' });
+  expect(screen.getByRole('button', { name: 'Thêm ghi chú' }).matches(':disabled')).toBe(true);
+  await click('Đối chiếu dữ liệu');
+  await waitFor(() => expect(screen.getAllByRole('alert').some(alert => alert.textContent?.includes('WEB_CRM_CONTRACT_INVALID'))).toBe(true));
+  expect(screen.getByRole('button', { name: 'Thêm ghi chú' }).matches(':disabled')).toBe(true);
+  await click('Đối chiếu dữ liệu'); await screen.findByRole('button', { name: 'Tải lại giá trị' });
+  expect(screen.getByRole('button', { name: 'Thêm ghi chú' }).matches(':disabled')).toBe(true);
+  failSibling = false; await click('Đối chiếu dữ liệu');
+  await screen.findByRole('heading', { name: 'Current' });
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Chỉnh sửa' }).matches(':disabled')).toBe(false));
+  expect(calls.filter(req => req.method === 'POST')).toHaveLength(1);
+});
+it('does not attach the note ETag to an old contact representation', async () => {
+  let wrote = false;
+  const calls = setup((req, path) => {
+    if (path.endsWith('/notes')) { wrote = true; return Response.json(entry, { status: 201, headers: { ETag: '"v2"' } }); }
+    if (path.endsWith(id) && req.method === 'GET') return wrote ? Response.json({ id, displayName: 'Changed elsewhere', version: 3, createdAt: '2026-01-01', updatedAt: '2026-01-01' }, { headers: { ETag: '"v3"' } }) : record();
+  });
+  await screen.findByText('Chưa có hoạt động.'); await change('Ghi chú', 'Saved'); await click('Thêm ghi chú');
+  await screen.findByRole('button', { name: 'Đối chiếu dữ liệu' });
+  expect(screen.getByRole('button', { name: 'Chỉnh sửa' }).matches(':disabled')).toBe(true);
+  await click('Đối chiếu dữ liệu'); await screen.findByRole('heading', { name: 'Changed elsewhere' });
+  expect(calls.filter(req => req.method === 'POST')).toHaveLength(1);
+});
 it('renders ordered provenance and untrusted summaries as text and pages forward', async () => {
   setup((req, path) => path.endsWith('/timeline') ? new URL(req.url).searchParams.has('cursor') ? page([{ ...entry, id, summary: 'Older' }]) : page([entry], 'opaque') : undefined);
   await screen.findByText(entry.summary); expect(document.querySelector('script')).toBeNull();
@@ -14,13 +51,16 @@ it.each([true, false])('validates Unicode note length and uses returned or refre
   let writes = 0;
   const calls = setup((_req, path) => {
     if (path.endsWith('/notes')) { writes++; return Response.json(entry, { status: 201, headers: hasHeader ? { ETag: '"v2"' } : {} }); }
-    if (path.endsWith(id)) return record(writes ? 7 : 1);
+    if (path.endsWith(id)) return record(writes ? (hasHeader ? 2 : 7) : 1);
   });
   await screen.findByText('Chưa có hoạt động.');
   await change('Ghi chú', '🙂'.repeat(1001)); expect((screen.getByRole('button', { name: 'Thêm ghi chú' }) as HTMLButtonElement).disabled).toBe(true);
   await change('Ghi chú', '🙂'.repeat(1000)); await click('Thêm ghi chú');
   await waitFor(() => expect((screen.getByLabelText('Ghi chú') as HTMLTextAreaElement).value).toBe(''));
-  await change('Ghi chú', 'B'); await click('Thêm ghi chú');
+  if (!hasHeader) await click('Đối chiếu dữ liệu');
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Chỉnh sửa' }).matches(':disabled')).toBe(false));
+  await change('Ghi chú', 'B');
+  await click('Thêm ghi chú');
   await waitFor(() => expect(writes).toBe(2));
   expect(calls.filter(r => r.method === 'POST').map(r => r.headers.get('If-Match'))).toEqual(['"v1"', hasHeader ? '"v2"' : '"v7"']);
 });
@@ -70,7 +110,11 @@ it('holds a timed-out note for explicit review without replay', async () => {
   expect(calls.filter(r => r.method === 'POST')).toHaveLength(1);
 });
 it('returns keyboard focus to the note input after saving', async () => {
-  setup((_req, path) => path.endsWith('/notes') ? Response.json(entry, { status: 201, headers: { ETag: '"v2"' } }) : undefined);
+  let saved = false;
+  setup((_req, path) => {
+    if (path.endsWith('/notes')) { saved = true; return Response.json(entry, { status: 201, headers: { ETag: '"v2"' } }); }
+    if (path.endsWith(id)) return record(saved ? 2 : 1);
+  });
   await screen.findByText('Chưa có hoạt động.'); await change('Ghi chú', 'Done');
   const submit = screen.getByRole('button', { name: 'Thêm ghi chú' });
   submit.focus(); fireEvent.click(submit);

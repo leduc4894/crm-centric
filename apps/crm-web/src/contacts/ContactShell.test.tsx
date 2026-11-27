@@ -10,6 +10,31 @@ vi.mock('../tenant/TenantProvider', () => ({ useTenant: () => ({ selectedTenantI
 let authState = { status: 'authenticated', issuer: 'issuer', subject: 'principal' };
 vi.mock('../auth/AuthProvider', () => ({ useAuthClient: () => auth, useAuth: () => ({ state: authState }) }));
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); tenant = null; identity = 'principal'; authState = { status: 'authenticated', issuer: 'issuer', subject: 'principal' }; });
+it('does not display a cached list after editing a record when the new list read fails', async () => {
+  const contact = { id: a, displayName: 'Old name', version: 1, createdAt: '2026-01-01', updatedAt: '2026-01-01' };
+  let lists = 0, finishList: ((response: Response) => void) | undefined;
+  vi.stubGlobal('fetch', async (req: Request) => {
+    const path = new URL(req.url).pathname;
+    if (path.endsWith('/contacts')) {
+      if (++lists === 1) return Response.json({ items: [contact], nextCursor: null });
+      return new Promise<Response>(resolve => { finishList = resolve; });
+    }
+    if (path.endsWith(a)) return Response.json(req.method === 'PATCH' ? { ...contact, displayName: 'New name', version: 2 } : contact, { headers: { ETag: req.method === 'PATCH' ? '"v2"' : '"v1"' } });
+    return Response.json({ items: [], nextCursor: null });
+  });
+  history.replaceState(null, '', '/app/contacts'); tenant = a; render(<ContactShell />);
+  fireEvent.click(await screen.findByRole('link', { name: 'Old name' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Chỉnh sửa' }));
+  fireEvent.change(screen.getByLabelText('Tên liên hệ'), { target: { value: 'New name' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Lưu' }));
+  await screen.findByRole('heading', { name: 'New name' });
+  fireEvent.click(screen.getByRole('link', { name: 'Liên hệ' }));
+  await waitFor(() => expect(finishList).toBeDefined());
+  expect(screen.queryByText('Old name')).toBeNull();
+  await act(async () => finishList!(new Response(null, { status: 503 })));
+  await screen.findByRole('alert');
+  expect(screen.queryByText('Old name')).toBeNull();
+});
 it('opens the dedicated record and follows browser history', async () => {
   const record = { id: a, displayName: 'Demo', version: 1, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' };
   vi.stubGlobal('fetch', async (req: Request) => Response.json(new URL(req.url).pathname.endsWith(a) ? record : { items: [record], nextCursor: null }));

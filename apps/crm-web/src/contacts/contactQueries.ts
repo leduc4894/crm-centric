@@ -70,9 +70,15 @@ export function scopedRecordClient(scope: Scope, client: CrmClient): CrmClient {
   }
   async function write<T>(operation: () => Promise<T>): Promise<T> {
     if (!scope.isCurrent()) throw new CrmError('WEB_CRM_READ_CANCELLED');
-    const result = await operation();
-    if (!scope.isCurrent()) throw new CrmError('WEB_CRM_READ_CANCELLED');
-    return result;
+    try {
+      const result = await operation();
+      if (!scope.isCurrent()) throw new CrmError('WEB_CRM_READ_CANCELLED');
+      return result;
+    } finally {
+      // A failed response may still follow a committed write. Never render a
+      // pre-write list snapshot after returning to the list, even on timeout.
+      if (scope.isCurrent()) scope.client.removeQueries({ queryKey: [scope.scopeId, 'contacts'] });
+    }
   }
   const page = (key: readonly unknown[], cursor?: string) => cursor ? [...key, cursor] : key;
   return {
