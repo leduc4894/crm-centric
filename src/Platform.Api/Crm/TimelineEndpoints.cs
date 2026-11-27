@@ -51,11 +51,14 @@ internal static class TimelineEndpoints
 
     private static async Task CreateAsync(HttpContext ctx, IConfiguration config, string id)
     {
-        if (!await ContactEndpoints.AuthorizeJsonBodyAsync(ctx, config, TenantPermission.ContactsWrite)) return;
         string text;
         try
         {
-            using var doc = await JsonDocument.ParseAsync(ctx.Request.Body, cancellationToken: ctx.RequestAborted);
+            // A fully escaped supplementary scalar takes twelve ASCII bytes.
+            // Leave room beyond the 12,000-byte value for JSON syntax and whitespace.
+            var body = await ContactEndpoints.ReadAuthorizedBodyAsync(ctx, config, maxBytes: 16 * 1024);
+            if (body is null) return;
+            using var doc = JsonDocument.Parse(body);
             if (doc.RootElement.ValueKind != JsonValueKind.Object || doc.RootElement.EnumerateObject().Count() != 1) throw new JsonException();
             text = DefinitionEndpoints.Text(doc.RootElement, "text", 1000);
         }

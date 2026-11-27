@@ -38,13 +38,18 @@ public abstract class DefinitionEndpointFixture : IAsyncLifetime
     public async Task DisposeAsync() { client.Dispose(); await factory.DisposeAsync(); await issuer.DisposeAsync(); await db.DisposeAsync(); }
     protected string Issuer => issuer.Issuer.AbsoluteUri;
 
-    protected async Task<HttpResponseMessage> Send(HttpMethod method, string path, string? body = null, string subject = "owner", string? selected = null, bool anonymous = false, string[]? match = null)
+    protected async Task<HttpResponseMessage> Send(HttpMethod method, string path, string? body = null, string subject = "owner", string? selected = null, bool anonymous = false, string[]? match = null, HttpContent? chunkedBody = null)
     {
         using var req = new HttpRequestMessage(method, path);
         if (!anonymous) req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", issuer.IssueToken(new() { Subject = subject, Role = "owner" }));
         req.Headers.Add("X-Tenant-Id", selected ?? tenant.ToString());
         if (match is not null) req.Headers.TryAddWithoutValidation("If-Match", match);
         if (body is not null) req.Content = new StringContent(body, Encoding.UTF8, "application/json");
+        if (chunkedBody is not null)
+        {
+            req.Headers.TransferEncodingChunked = true;
+            req.Content = chunkedBody;
+        }
         return await client.SendAsync(req);
     }
     protected async Task<Guid> CreateId(string path, string json, bool foreign = false)

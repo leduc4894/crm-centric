@@ -276,10 +276,10 @@ public static class ContactEndpoints
         return false;
     }
 
-    internal static async Task<byte[]?> ReadAuthorizedBodyAsync(HttpContext context,IConfiguration configuration, TenantPermission permission = TenantPermission.ContactsWrite)
+    internal static async Task<byte[]?> ReadAuthorizedBodyAsync(HttpContext context,IConfiguration configuration, TenantPermission permission = TenantPermission.ContactsWrite, int maxBytes = 8192)
     {
         if (!await AuthorizeJsonBodyAsync(context, configuration, permission)) return null;
-        const int maxBytes=8192; using var buffer=new MemoryStream(); var chunk=new byte[1024]; int count;
+        using var buffer=new MemoryStream(); var chunk=new byte[1024]; int count;
         while ((count=await context.Request.Body.ReadAsync(chunk,context.RequestAborted)) != 0)
         {
             if (buffer.Length+count>maxBytes) { await Error(context,413,"REQUEST_INVALID"); return null; }

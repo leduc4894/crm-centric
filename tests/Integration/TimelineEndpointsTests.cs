@@ -16,6 +16,23 @@ public sealed class TimelineEndpointsTests : DefinitionEndpointFixture
     }
 
     [Fact]
+    public async Task Oversized_chunked_body_returns_correlated_413_and_preserves_version()
+    {
+        var id = await CreateId("/api/v1/contacts", """{"displayName":"Timeline"}""");
+        var path = $"/api/v1/contacts/{id}";
+        using var body = System.Net.Http.Json.JsonContent.Create(new { text = new string('x', 65536) });
+        Assert.Null(body.Headers.ContentLength);
+        using var rejected = await Send(HttpMethod.Post, path + "/notes", match: ["\"v1\""], chunkedBody: body);
+        await Problem(rejected, HttpStatusCode.RequestEntityTooLarge, "REQUEST_INVALID");
+        using var contact = await Send(HttpMethod.Get, path);
+        Assert.Equal(HttpStatusCode.OK, contact.StatusCode);
+        Assert.Equal("\"v1\"", contact.Headers.ETag?.ToString());
+        Assert.Equal(0, await Count("crm.timeline_entries", tenant));
+        Assert.Equal(1, await Count("outbox.events", tenant));
+        Assert.Equal(1, await Count("audit.entries", tenant));
+    }
+
+    [Fact]
     public async Task Escaped_supplementary_characters_fit_the_scalar_limit()
     {
         var id = await CreateId("/api/v1/contacts", """{"displayName":"Timeline"}""");
