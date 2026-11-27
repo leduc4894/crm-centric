@@ -35,10 +35,12 @@ scratch_remove "$tmp/dotnet-sdk/Crm.Client"
 # frozen input does not advance or replace the compatibility baseline.
 git -C "$root" archive db04aeaecd7f4b6d083335a71418788d3c4561ca sdks/dotnet/Crm.Client | tar -x -C "$tmp/dotnet-sdk" --strip-components=2
 cp "$root/tests/ClientConsumers/dotnet/"* "$tmp/dotnet/"
-mkdir -p "$tmp/dotnet-v2" "$tmp/upsert"
+mkdir -p "$tmp/dotnet-v2" "$tmp/upsert" "$tmp/old-upsert"
 cp "$root/tests/ClientConsumers/dotnet/Program.cs" "$tmp/dotnet-v2/Program.cs"
 cp "$root/tests/ClientConsumers/dotnet-v2/"* "$tmp/dotnet-v2/"
 cp "$root/tests/ClientConsumers/contact-upsert/new/"* "$tmp/upsert/"
+cp "$root/tests/ClientConsumers/contact-upsert/old/Program.cs" "$tmp/old-upsert/Program.cs"
+cp "$root/tests/ClientConsumers/dotnet/Consumer.csproj" "$root/tests/ClientConsumers/dotnet/packages.lock.json" "$tmp/old-upsert/"
 image=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["dotnetImage"])' "$root/tools/contracts/toolchain.json")
 docker run --rm -u "$(id -u):$(id -g)" -v "$tmp:/work" -w /work -e HOME=/work -e DOTNET_CLI_HOME=/work -e DOTNET_CLI_TELEMETRY_OPTOUT=1 -e NUGET_PACKAGES=/work/nuget "$image" sh -ec '
   for project in /work/dotnet-sdk/*/*.csproj /work/new/*.csproj; do
@@ -51,7 +53,7 @@ docker run --rm -u "$(id -u):$(id -g)" -v "$tmp:/work" -w /work -e HOME=/work -e
   dotnet restore /work/dotnet/Consumer.csproj --locked-mode --source /work/feed --source https://api.nuget.org/v3/index.json
   dotnet run --project /work/dotnet/Consumer.csproj -c Release --no-restore
   if SDK_TEST_OMIT_EMAIL=1 dotnet run --project /work/dotnet/Consumer.csproj -c Release --no-build --no-restore >/work/negative-dotnet.log 2>&1; then exit 1; fi
-  for consumer in dotnet-v2 upsert; do
+  for consumer in dotnet-v2 old-upsert upsert; do
     dotnet restore "/work/$consumer/Consumer.csproj" --locked-mode --source /work/feed --source https://api.nuget.org/v3/index.json
     dotnet run --project "/work/$consumer/Consumer.csproj" -c Release --no-restore
     if [ "$consumer" = dotnet-v2 ] && SDK_TEST_OMIT_EMAIL=1 dotnet run --project "/work/$consumer/Consumer.csproj" -c Release --no-build --no-restore >/work/negative-dotnet-v2.log 2>&1; then exit 1; fi

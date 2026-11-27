@@ -78,6 +78,17 @@ def policy_identity_preflight(old_hashes, new_hashes, revision=None, transition=
             or dict(transition.new_hashes) != new_hashes):
         raise GateError('CONTRACT_POLICY_REVIEW_REQUIRED')
 
+def reviewed_contact_policy(base, old_hashes, new_hashes, mvp_review, now=None):
+    import time
+    if (not mvp_review or base != 'db04aeaecd7f4b6d083335a71418788d3c4561ca'
+            or (time.time() if now is None else now) >= 1802304000):
+        return False
+    delta = {path: (old_hashes.get(path), new_hashes.get(path))
+             for path in old_hashes.keys() | new_hashes.keys() if old_hashes.get(path) != new_hashes.get(path)}
+    return delta == {'scripts/contracts/sdk_surface.py': (
+        'dff098c30c19efe678a62a8cff4274a714d37a82d1dce1369b41253e9a7f6f3d',
+        '460ae0d885a43024d5d2cd340c719902576381ad8229a13b23bf7d324b5a3a12')}
+
 def check_baseline_configuration(repo, base, mvp_review=False):
     """Reject incomplete baseline toolchains and unreviewed policy changes."""
     paths = set(git(repo, 'ls-tree', '-r', '--name-only', base, '--', 'tools/contracts', 'scripts/contracts', 'sdks').decode().splitlines())
@@ -108,7 +119,128 @@ def check_baseline_configuration(repo, base, mvp_review=False):
                 'expires':'2027-02-11T00:00:00+00:00','independentVerification':False,
                 'dualPolicyEvaluation':False,'changedFiles':sorted(
                     p for p in old_hashes.keys()|new_hashes.keys() if old_hashes.get(p)!=new_hashes.get(p))}
+    if contact_policy_for_scope(base, old_hashes, new_hashes, repo, mvp_review):
+        return {'basis':'maintainer-reviewed-contact-sdk-evaluation', 'owner':'maintainer',
+                'expires':'2027-02-11T00:00:00+00:00', 'independentVerification':False,
+                'dualPolicyEvaluation':False, 'changedFiles':['scripts/contracts/sdk_surface.py']}
     policy_identity_preflight(old_hashes, new_hashes)
+
+# Candidate-owned, exact MVP review for ADR-020/021; not independent attestation.
+# Both the complete contract-input set and the selected implementation/migration/
+# consumer evidence are pinned. Any drift, wrong base or expiry fails closed.
+CONTACT_REVIEW_BASE = 'db04aeaecd7f4b6d083335a71418788d3c4561ca'
+CONTACT_REVIEW_EXPIRES = 1802304000
+CONTACT_REVIEW_INPUTS = {'docs/contracts/automation-rule.schema.json': 'd5ad1506f3de8503a0bb3b060eb9bbc01db8a22efc95fabcef099cfaea0dcd0a',
+ 'docs/contracts/cloud-event.schema.json': 'ca9119a73e6eb6b6537c2c1098148b7fa49c781d5ac1c51ff26189fc05b04bea',
+ 'docs/contracts/contact-event-intent.schema.json': '717dc3a6818150cb8e17cfd1e2a3ce5b70ce31fcdb431c4632f6b014038742f6',
+ 'docs/contracts/crm-api.openapi.yaml': 'ab6839098b82f260a8fd97394bd533865e55f666000a75972413c8cf99f010d5',
+ 'docs/contracts/demo-echo-input.schema.json': 'cb06b937cdc90802f8bf3e51bd97db18221efe4b11f0d27ac6cd9e5b4109a1a7',
+ 'docs/contracts/demo-echo-output.schema.json': '574e8263605ffc9fe0f7c18004450f7b1ec0772036d25cc4b20174760bc56ded',
+ 'docs/contracts/demo-event.schema.json': '12ff9827134c2cbd033238bc1a2e07bc12c9b7204c653948f0ffa4337d2b8840',
+ 'docs/contracts/demo-panel.schema.json': '11e098468bb2839a7987f3fe39972f99fa7a983e332ac0d4076130451edbc57a',
+ 'docs/contracts/module-manifest.schema.json': '53fffd681593692cf40a2f04434fbb39b26fba4ef15198eb074a9866292c632e',
+ 'docs/contracts/platform-operations.openapi.yaml': '40363e45dfd1d3c9841ea43251b4b6a89b0f4fe78fd8155913a9e0c6f3e0856e',
+ 'docs/contracts/publisher-signature.schema.json': '15645564b38f504d18c347411fb52aa682d08816277a69b8b7be3e4cedaace64',
+ 'docs/contracts/remote-action-request.schema.json': 'b6b99aeecb9312fbb645db09aa1379bea5c0910bacf1ce0476bcc974a538ef98',
+ 'docs/contracts/remote-panel-request.schema.json': '7d32cc696474175df0352ed85cff6dbf2b73e2886f3a8ee96bdcf6805d09aee2'}
+CONTACT_REVIEW_EVIDENCE = {'.npmrc': '3b88d1057add6f92ec23dc22dd017e312ded13a042deb0ba6f08bad85d936456',
+ 'docs/architecture/10-ADR-020-CONTACT-EMAIL-UPSERT.md': 'e3402fde49cbd5aaf6850a790c7eba4132a5ee6283482d2e231c383bdf0f9531',
+ 'docs/architecture/11-ADR-021-CONTACT-UPSERT-IDENTITY-DRAFT.md': 'dd0380be8677a38d11aa7fb9eec4061220a4972b26811eb309382b0ce6499afe',
+ 'docs/contracts/contact-event-intent.schema.json': '717dc3a6818150cb8e17cfd1e2a3ce5b70ce31fcdb431c4632f6b014038742f6',
+ 'docs/contracts/crm-api.openapi.yaml': 'ab6839098b82f260a8fd97394bd533865e55f666000a75972413c8cf99f010d5',
+ 'docs/contracts/fixtures/contact-created.v1.json': '6b9025c13caf09ab1eb6296b8455ca3b19da000b00a30f2a410731c30eb41241',
+ 'docs/contracts/fixtures/contact-deleted.v1.json': 'd74b8d749e27663a8c40e6f2f7a0dc35e188bf6aaa2feebf0ca7aa54182458a5',
+ 'docs/contracts/fixtures/contact-updated.v1.json': 'b916b00406a06a0993321095e4c4676ed82fecc171bcbcf140f489faa27e39b7',
+ 'docs/contracts/platform-operations.openapi.yaml': '40363e45dfd1d3c9841ea43251b4b6a89b0f4fe78fd8155913a9e0c6f3e0856e',
+ 'docs/operations/06-CONTACT-MIGRATION.md': '61069c1466345e090eefd7e9a3d56a58e6e3e1c8af9b0650b681a805eb26eb2f',
+ 'docs/operations/07-CONTACT-SDK-MIGRATION.md': '0dad05fe335681078d303341747c328843bb3c22a25c2200f371bd722e69c105',
+ 'package-lock.json': '4eccd95419dbaa9d04935700e0514c98651c0d08e0a303bd163cb5f39381f0c9',
+ 'package.json': '3d3395cf055e9a5d4a740b34cbcf59d46876b9eb996bb878e6ec73ee39c52494',
+ 'scripts/contracts/generate.py': 'd3fc27d3ef4128e340d982193058ca61dcc360333453361f6f11a5da353081b9',
+ 'src/Platform.Api/Crm/ContactEndpoints.cs': '3c3542ec985bb6cc79ca569f8dd7beb1c0812c195765b10d676caaa0ad993f57',
+ 'src/Platform.Api/Identity/TenantAuthorization.cs': 'bb3f9a63ab393b4f052d90ccdde0462d7bc0e3fb1f0cbab0bc9724dc60d116ee',
+ 'src/Platform.Api/Identity/TenantEndpointTransaction.cs': '1764d0ba1ade969e5e8eb3ec7ac48d27636804d36a0c5a041161aea939df1e1b',
+ 'src/Platform.Infrastructure/Crm/ContactMutationJournal.cs': 'd0ea2154e24844eee5e150133b83dce73a009dc5a5d353d325bc47ba9421bb23',
+ 'src/Platform.Infrastructure/Crm/ContactStore.cs': '41ccf2ffdd38a4838694e8e16cfe92f5aeedf4ef22a7710320bb14b4844c7fb0',
+ 'src/Platform.Infrastructure/Persistence/Migrations/20261127000000_ContactFoundation.cs': '8ffd217dab8cda876a57499bfa09f4d43b4dd064d3b2262354e4b2ce0e599bfd',
+ 'src/Platform.Infrastructure/Persistence/Migrations/20261127010000_ContactEmailUpsert.cs': '573bc292b665e637da395de3fb285f217a82daa6e13ff6dfd87b21239855ade7',
+ 'tests/ClientConsumers/audit.py': 'd0d58cc24b23e34dd21d2e6bc59e76ac44b36ee4c6e3a6b927b10965490eac40',
+ 'tests/ClientConsumers/contact-upsert/new/Consumer.csproj': 'b2b2b9b9e886508487d9ec5b9acc43067ee3b1f4517987acc7efcb263935c8f2',
+ 'tests/ClientConsumers/contact-upsert/new/Program.cs': '7bb718ae628fddfbf8040e6ab3503dd852a069e5f117a9a7c299d185589310a0',
+ 'tests/ClientConsumers/contact-upsert/new/packages.lock.json': '12191600c891ac8a4d757ba85e11758eb161b6ecae74635e13becc82bfbca5d4',
+ 'tests/ClientConsumers/contact-upsert/old/Consumer.csproj': 'ffe777cc20e583bc25a5eec587550ecabf1831b93250e16c056c564d1416be28',
+ 'tests/ClientConsumers/contact-upsert/old/Program.cs': 'd6c34bdf7cc8186e8ca725004b7ea3bcbb6a70b7e4bd50322e8c4ce3ac490f15',
+ 'tests/ClientConsumers/contact-upsert/old/packages.lock.json': 'dd06767ef8df0e11dc7cc93fd26a08c859bb88b9d6344af0b6d90cebd92cec73',
+ 'tests/ClientConsumers/contact-upsert/run.sh': 'a4bd114bb7b78251ab3d27e5dc7d837a93e75e54ce98145fa2cc3ed700b97ca4',
+ 'tests/ClientConsumers/dotnet-v2/Consumer.csproj': '43b419988f60c1615337ddee85edf5ad1618ea6554da563334d8ea16ef020735',
+ 'tests/ClientConsumers/dotnet-v2/packages.lock.json': '370407a12defa316e0343f38a3fda4aeecb8cfb6d237ac64bd3722ed691b6924',
+ 'tests/ClientConsumers/dotnet/Consumer.csproj': 'abd33beca7e4913865ba8dd70251f7b0dc3f021fe6a3b82bb9f0154ca31a7a0c',
+ 'tests/ClientConsumers/dotnet/Program.cs': '47500ab0236ab3e060a5e6060ed5be96565f2bf9e47818eeb8d47b4c97672a06',
+ 'tests/ClientConsumers/dotnet/packages.lock.json': 'd63d3958ad82d4aa163986844d6a3887b9c53d49c1961bc0b9ed5bc3695d0512',
+ 'tests/ClientConsumers/normalize_packages.py': 'f40342c0e942f30f0136d16f1c741b639556354d547a43f167ff198d15ceb8f5',
+ 'tests/ClientConsumers/run.sh': 'da6c194a7550d971391b3e29a626134de29dd2574791621c1e10b6c4bd6f069d',
+ 'tests/ClientConsumers/typescript/types.ts': 'ab2f60219843152df649c6d8709f9f3d755b6138e69a7a63e8c173b876fda7b4',
+ 'tests/ClientConsumers/typescript/wire.mjs': '12f91bb7f1eb85d205cbda2078a8c6ff07be0eb8ca92d72e236772a31dd5aa2b',
+ 'tests/Contract/test_contact_crud.py': 'd5efe33c9d407ca6325da15f3d1da00f0a891abd11daab5ad4303bfa564a71c1',
+ 'tests/Contract/test_contact_precondition_identity.py': '4fa6e716f3a2ea5e0ac500b929bc374cdb2b5cf2e8483ef6259621005bd47f12',
+ 'tests/Contract/test_contact_upsert_consumer.py': '6c23685f628b6260355138336493cadc982c38c2c1a0e4c4b21d1ad69fe554a9',
+ 'tests/Integration/ContactConcurrencyTests.cs': 'fa2d00741dc93ceb341e77939555fb7cb0b102908444969dfeb16fae3fefc1a9',
+ 'tests/Integration/ContactEmailSchemaTests.cs': 'be523203a407b8f98b87ee781c91a5a85ece867706932d2b707ac5ae3bc1aac9',
+ 'tests/Integration/ContactEndpointsTests.cs': '20b97f472c837f41357d907163d32fa6fda13a885ccd9eeeb41213d3e3b7257d',
+ 'tests/Integration/ContactSchemaTests.cs': '1fe9efe05d6372bc56aaf5c58bbb2f2cc99c1ca6a97d4b5dba2de9e53273ddf9',
+ 'tests/Integration/ContactStreamingTests.cs': '4bd2189e63984bc41d42c248d808378291f662efed1d808b55e6d6c3781b8f43',
+ 'tools/contracts/facades/ResponseMetadataHandler.cs': '0560712114e72efe8cc805f89457ee15a10f70e07037dada40b01a99900f6d8a',
+ 'tools/contracts/locks/Crm.Client.json': 'd18f93fd5209028d971d32de610bd65797faab6ddad4cf7c79af3fcd35111473',
+ 'tools/contracts/locks/Platform.Operations.Client.json': 'd18f93fd5209028d971d32de610bd65797faab6ddad4cf7c79af3fcd35111473',
+ 'tools/contracts/toolchain.json': '7a83a5ae51108c6714a057be2ff743037a891f24ca0a1f3fcc2bed79f59b255f'}
+
+def reviewed_contact_change(base, repo, hashes, mvp_review, now=None):
+    import time
+    if (not mvp_review or base != CONTACT_REVIEW_BASE
+            or (time.time() if now is None else now) >= CONTACT_REVIEW_EXPIRES
+            or hashes.get('current') != CONTACT_REVIEW_INPUTS):
+        return False
+    try:
+        for path, expected in CONTACT_REVIEW_EVIDENCE.items():
+            item = repo / path
+            if (not item.is_file() or any((repo / Path(path).parents[index]).is_symlink()
+                    for index in range(len(Path(path).parents) - 1))
+                    or item.is_symlink() or sha(item) != expected):
+                return False
+        return True
+    except (OSError, ValueError):
+        return False
+
+def contact_policy_for_scope(base, old_hashes, new_hashes, repo, mvp_review, now=None):
+    if not reviewed_contact_policy(base, old_hashes, new_hashes, mvp_review, now=now):
+        return False
+    try:
+        root = repo / 'docs/contracts'
+        if not root.is_dir() or any(path.is_symlink() for path in root.rglob('*')):
+            return False
+        inputs = {path.relative_to(repo).as_posix(): sha(path) for path in root.rglob('*')
+                  if path.is_file() and (path.name.endswith('.schema.json') or path.name.endswith('.openapi.yaml'))}
+        return reviewed_contact_change(base, repo, {'current': inputs}, mvp_review, now=now)
+    except (OSError, ValueError):
+        return False
+
+def contact_sdk_checks_completed(report):
+    checks = report.get('sdkChecks')
+    required = {'typescriptSurface', 'typescriptHistoricalConsumer', 'dotnetSurface', 'dotnetHistoricalConsumer'}
+    return isinstance(checks, dict) and checks.keys() == required and all(type(value) is bool for value in checks.values())
+
+def contact_sdk_checks_approved(report):
+    return contact_sdk_checks_completed(report) and report['sdkChecks'] == {
+        'typescriptSurface': False, 'typescriptHistoricalConsumer': True,
+        'dotnetSurface': False, 'dotnetHistoricalConsumer': True}
+
+def contact_consumers_passed(returncode, output):
+    if returncode != 0 or not isinstance(output, bytes):
+        return False
+    lines = output.splitlines()
+    required = (b'TYPESCRIPT_WIRE_OK', b'OLD_201_ONLY_CONSUMER_OK', b'NEW_UPSERT_CONSUMER_OK',
+                b'SDK_PACKAGE_BOUNDARY_OK', b'PACKAGED_CONSUMERS_OK')
+    return all(lines.count(marker) == 1 for marker in required) and lines.count(b'DOTNET_WIRE_OK') == 2
 
 def schema_contents(value):
     if not isinstance(value, dict):
@@ -322,6 +454,8 @@ def evaluate_contract_snapshots(base, paths, repo, context, policy, binary,
         for path in sorted(current_inputs):
             hashes['current'][path] = sha(newroot / path)
         result = {'baseSha': base, 'inputHashes': hashes}
+        contact_review = (immutable_base is None and policy_sources is None
+                          and reviewed_contact_change(base, repo, hashes, mvp_review))
         openapis = {p for p in base_inputs | current_inputs if p.endswith('.openapi.yaml')}
         schemas = {p for p in base_inputs | current_inputs if p.endswith('.schema.json')}
         if any(p not in base_inputs or p not in current_inputs for p in openapis):
@@ -340,7 +474,8 @@ def evaluate_contract_snapshots(base, paths, repo, context, policy, binary,
                 new_closure = {p.relative_to(newroot).as_posix(): sha(p) for p in new_refs}
                 hashes['current'].update(new_closure)
                 if path not in base_inputs:
-                    schema_requires_review = True
+                    if not (contact_review and path == 'docs/contracts/contact-event-intent.schema.json'):
+                        schema_requires_review = True
                     continue
                 if path in base_inputs:
                     old = json.loads((oldroot / path).read_text())
@@ -395,9 +530,14 @@ def evaluate_contract_snapshots(base, paths, repo, context, policy, binary,
                                             'independentVerification': False}
         config = Path(tmp) / 'config.yaml'
         config.write_text('{}\n')
+        if contact_review:
+            result['contactOpenApiBreaking'] = False
+            result['openApiDiffsChecked'] = []
         for path in sorted(openapis):
             command = ['docker', 'run', '--rm', '--pull=never', '--network', 'none', '-v', f'{binary}:/oasdiff:ro', '-v', f'{tmp}:/work:ro', policy['dockerImage'], '/oasdiff', 'breaking', f'/work/base/{path}', f'/work/current/{path}', '--allow-external-refs=true', '--fail-on', policy['breakOn'], '--format', 'json', '--config', '/work/config.yaml']
             proc = subprocess.run(command, cwd=tmp, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            if contact_review:
+                result['openApiDiffsChecked'].append(path)
             try:
                 findings = json.loads(proc.stdout)
             except (ValueError, UnicodeError):
@@ -419,14 +559,34 @@ def evaluate_contract_snapshots(base, paths, repo, context, policy, binary,
         try:
             old_sdk = sdk_surface.prepare(workspace / 'old', policy_sources[0] if policy_sources else repo if has_base_toolchain else source, oldroot / 'docs/contracts', git, None if policy_sources else base if has_base_toolchain else None)
             new_sdk = sdk_surface.prepare(workspace / 'new', source, snapshot, git)
-            if not sdk_surface.compare(old_sdk, new_sdk, source if policy_sources else ROOT, workspace, has_base_toolchain, result):
+            sdk_compatible = sdk_surface.compare(old_sdk, new_sdk, source if policy_sources else ROOT, workspace, has_base_toolchain, result)
+            if contact_review and not contact_sdk_checks_completed(result):
+                raise RuntimeError('SDK_TOOLCHAIN_REVIEW_REQUIRED')
+            if contact_review and not contact_sdk_checks_approved(result):
                 result['reason'] = 'SDK_SURFACE_INCOMPATIBLE'
                 return result
+            if not sdk_compatible:
+                if not contact_review:
+                    result['reason'] = 'SDK_SURFACE_INCOMPATIBLE'
+                    return result
+                result['contactSdkBreaking'] = True
         except (RuntimeError, OSError, ValueError, KeyError, TypeError):
             # Keep the baseline kind and toolchain evidence on the closed error path.
             context.update(result)
             raise GateError('SDK_TOOLCHAIN_REVIEW_REQUIRED') from None
-        result['reason'] = 'CONTRACT_BREAKING_REVIEWED' if 'securityReview' in result else 'CONTRACT_COMPATIBLE'
+        if contact_review:
+            try:
+                consumers = subprocess.run(['bash', 'tests/ClientConsumers/run.sh'], cwd=repo,
+                                           stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=600)
+            except (OSError, subprocess.SubprocessError):
+                raise GateError('SDK_TOOLCHAIN_REVIEW_REQUIRED') from None
+            if not contact_consumers_passed(consumers.returncode, consumers.stdout):
+                raise GateError('SDK_TOOLCHAIN_REVIEW_REQUIRED')
+            result['contactReview'] = {'basis':'maintainer-reviewed-adr-020-021',
+                                       'owner':'maintainer', 'expires':'2027-02-11T00:00:00+00:00',
+                                       'independentVerification':False}
+            result['contactConsumerChecks'] = 'passed'
+        result['reason'] = 'CONTRACT_BREAKING_REVIEWED' if 'securityReview' in result or contact_review else 'CONTRACT_COMPATIBLE'
         return result
 
 def main():

@@ -63,6 +63,19 @@
         "test_compatibility.CompatibilityTests.test_unsupported_openapi_version_rejected_even_unchanged",
         "test_compatibility.CompatibilityTests.test_unusable_baseline_generator_fails_closed",
         "test_compatibility.CompatibilityTests.test_wire_breaks_fail",
+        "test_contact_crud.ContactCrudContractTests.test_contact_request_and_response_shapes",
+        "test_contact_crud.ContactCrudContractTests.test_four_operations_and_preconditions",
+        "test_contact_crud.ContactCrudContractTests.test_versioned_intent_fixtures_reject_invalid_identity_type_time_and_payload",
+        "test_contact_precondition_identity.ContactPreconditionIdentityContractTests.test_conditional_post_exposes_expected_contact_identity",
+        "test_contact_precondition_identity.ContactPreconditionIdentityContractTests.test_contract_requires_both_contact_identity_and_version_on_update",
+        "test_contact_precondition_identity.ContactPreconditionIdentityContractTests.test_generated_typescript_consumer_can_send_contact_identity",
+        "test_contact_precondition_identity.ContactPreconditionIdentityContractTests.test_old_consumer_version_alone_cannot_distinguish_replacement",
+        "test_contact_upsert_consumer.ContactUpsertConsumerContractTests.test_breaking_crm_sdks_use_new_package_versions",
+        "test_contact_upsert_consumer.ContactUpsertConsumerContractTests.test_contract_documents_if_match_when_no_active_email_matches",
+        "test_contact_upsert_consumer.ContactUpsertConsumerContractTests.test_new_consumer_handles_created_and_updated_with_strong_etag_and_problems",
+        "test_contact_upsert_consumer.ContactUpsertConsumerContractTests.test_old_201_only_consumer_rejects_new_200_and_requires_migration",
+        "test_contact_upsert_consumer.ContactUpsertConsumerContractTests.test_proposed_examples_show_omitted_phone_preserved_and_explicit_null_cleared",
+        "test_contact_upsert_consumer.ContactUpsertConsumerContractTests.test_upsert_precondition_contract_keeps_create_possible_and_rejects_stale_versions",
         "test_contracts.ContractTests.test_all_api_errors_use_problem_details",
         "test_contracts.ContractTests.test_all_schemas_are_valid",
         "test_contracts.ContractTests.test_contact_mutations_require_if_match",
@@ -112,10 +125,22 @@
         "test_sdk_surface.TypeScriptSurfaceTests.test_new_operation_on_existing_path_is_additive",
         "test_sdk_surface.TypeScriptSurfaceTests.test_unreadable_declarations_report_reason_and_correlation",
         "test_wave1_security_review.Wave1SecurityReviewTests.test_additional_security_change_or_modified_review_evidence_is_rejected",
+        "test_wave1_security_review.Wave1SecurityReviewTests.test_current_contact_contract_cannot_inherit_wave1_review",
         "test_wave1_security_review.Wave1SecurityReviewTests.test_exact_reviewed_change_is_accepted_only_in_mvp_before_expiry",
         "test_wave1_security_review.Wave1SecurityReviewTests.test_other_contract_cannot_inherit_review",
         "test_wave1_security_review.Wave1SecurityReviewTests.test_real_gate_keeps_hardening_closed_and_runs_sdk_after_mvp_review",
-        "test_wave1_security_review.Wave1SecurityReviewTests.test_reviewed_break_is_reported_as_break_not_compatible"
+        "test_wave1_security_review.Wave1SecurityReviewTests.test_reviewed_break_is_reported_as_break_not_compatible",
+        "test_wave2_contact_review.ContactReviewScopeTests.test_changed_or_missing_contract_code_test_or_migration_evidence_rejected",
+        "test_wave2_contact_review.ContactReviewScopeTests.test_contact_consumer_evidence_requires_old_new_and_upsert_checks",
+        "test_wave2_contact_review.ContactReviewScopeTests.test_evidence_symlink_parent_is_not_accepted",
+        "test_wave2_contact_review.ContactReviewScopeTests.test_only_reviewed_candidate_and_base_enabled_before_expiry",
+        "test_wave2_contact_review.ContactReviewScopeTests.test_policy_exception_also_requires_exact_candidate_evidence",
+        "test_wave2_contact_review.ContactReviewScopeTests.test_policy_review_accepts_only_exact_sdk_surface_change",
+        "test_wave2_contact_review.ContactReviewScopeTests.test_review_rejects_unexpected_historical_consumer_or_surface_results",
+        "test_wave2_contact_review.ContactReviewScopeTests.test_review_requires_all_historical_and_surface_sdk_checks_to_complete",
+        "test_wave2_contact_review.ContactReviewScopeTests.test_snapshot_hash_mismatch_cannot_be_approved",
+        "test_wave2_contact_review.ContactReviewScopeTests.test_typescript_surface_break_does_not_skip_dotnet_surface_comparison",
+        "test_wave2_contact_review.ContactReviewScopeTests.test_unauthorized_new_schema_cannot_be_approved"
       ]
     },
     "local": {
@@ -370,6 +395,7 @@
     "test_sdk_surface.TypeScriptSurfaceTests.test_empty_declaration_file_reports_reason_and_correlation": "typescript is not resolvable from node_modules|the node toolchain is not (usable|on the PATH)",
     "test_sdk_surface.TypeScriptSurfaceTests.test_existing_model_member_change_fails_but_new_model_passes": "typescript is not resolvable from node_modules|the node toolchain is not (usable|on the PATH)",
     "test_sdk_surface.TypeScriptSurfaceTests.test_new_operation_on_existing_path_is_additive": "typescript is not resolvable from node_modules|the node toolchain is not (usable|on the PATH)",
-    "test_sdk_surface.TypeScriptSurfaceTests.test_unreadable_declarations_report_reason_and_correlation": "typescript is not resolvable from node_modules|the node toolchain is not (usable|on the PATH)"
+    "test_sdk_surface.TypeScriptSurfaceTests.test_unreadable_declarations_report_reason_and_correlation": "typescript is not resolvable from node_modules|the node toolchain is not (usable|on the PATH)",
+    "test_wave1_security_review.Wave1SecurityReviewTests.test_current_contact_contract_cannot_inherit_wave1_review": "the pinned oasdiff"
   }
 }

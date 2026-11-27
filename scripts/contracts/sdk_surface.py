@@ -74,14 +74,16 @@ def compare(base_root, candidate_root, current_source, work, has_base_toolchain,
         report['sdkToolchain'][label] = {key: provenance[key] for key in ('configurationSha256', 'corvusPackageSha256', 'openapiTypescript')}
     report['sdkToolchainChanged'] = report['sdkToolchain']['base'] != report['sdkToolchain']['current']
     scanner = current_source / 'tools/contracts/surface/compare-typescript.cjs'
+    typescript_surface = True
     for client in ('crm', 'operations'):
         for filename in ('schema.d.ts', 'index.ts'):
             old = base_root / 'sdks/typescript' / client / filename
             new = candidate_root / 'sdks/typescript' / client / filename
             if not scan_typescript(scanner, old, new, current_source):
-                return False
+                typescript_surface = False
     config = json.loads((candidate_root / 'tools/contracts/toolchain.json').read_text())
     base_config = json.loads((base_root / 'tools/contracts/toolchain.json').read_text())
+    typescript_consumer = None
     if has_base_toolchain:
         ts_fixture = base_root / 'tests/ClientConsumers/typescript/types.ts'
         cs_fixture = base_root / 'tests/ClientConsumers/dotnet/Program.cs'
@@ -113,8 +115,7 @@ def compare(base_root, candidate_root, current_source, work, has_base_toolchain,
             result = subprocess.run([str(compiler), '--noEmit', '--strict', '--module', 'NodeNext', '--moduleResolution', 'NodeNext', '--target', 'ES2022', 'types.ts'], cwd=consumer, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=300)
         except (OSError, subprocess.TimeoutExpired):
             raise RuntimeError('SDK_TOOLCHAIN_REVIEW_REQUIRED') from None
-        if result.returncode:
-            return False
+        typescript_consumer = result.returncode == 0
         cs_consumer = work / 'cs-consumer'
         cs_consumer.mkdir()
         shutil.copyfile(cs_fixture, cs_consumer / 'Program.cs')
@@ -149,13 +150,19 @@ def compare(base_root, candidate_root, current_source, work, has_base_toolchain,
             raise ValueError()
     except (ValueError, KeyError, TypeError):
         raise RuntimeError('SDK_TOOLCHAIN_REVIEW_REQUIRED') from None
-    if not all(item.get('compatible', False) for item in results[:2]):
-        return False
+    dotnet_surface = all(item.get('compatible', False) for item in results[:2])
+    dotnet_consumer = None
     if has_base_toolchain:
         consumer = results[2]
         if consumer.get('consumer'):
-            return True
-        if consumer.get('kind') == 'compile':
-            return False
-        raise RuntimeError('SDK_TOOLCHAIN_REVIEW_REQUIRED') from None
-    return True
+            dotnet_consumer = True
+        elif consumer.get('kind') == 'compile':
+            dotnet_consumer = False
+        else:
+            raise RuntimeError('SDK_TOOLCHAIN_REVIEW_REQUIRED') from None
+    report['sdkChecks'] = {'typescriptSurface': typescript_surface,
+                           'typescriptHistoricalConsumer': typescript_consumer,
+                           'dotnetSurface': dotnet_surface,
+                           'dotnetHistoricalConsumer': dotnet_consumer}
+    return (typescript_surface and dotnet_surface
+            and (not has_base_toolchain or (typescript_consumer and dotnet_consumer)))

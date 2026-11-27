@@ -253,14 +253,16 @@ def execute(command, timeout=3300, env=None):
         for line in review_output.splitlines():
             try:
                 result = json.loads(line)
-                review = result.get('securityReview', {})
-                if (result.get('reason') == 'CONTRACT_BREAKING_REVIEWED'
-                        and review.get('basis') == 'maintainer-reviewed-adr-019'
-                        and review.get('independentVerification') is False):
-                    print(json.dumps({'reasonToken': 'CONTRACT_BREAKING_REVIEWED',
-                                      'basis': 'maintainer-reviewed-adr-019',
-                                      'independentVerification': False}))
-                    break
+                for field, basis in (('securityReview', 'maintainer-reviewed-adr-019'),
+                                     ('contactReview', 'maintainer-reviewed-adr-020-021')):
+                    review = result.get(field, {})
+                    if (result.get('reason') == 'CONTRACT_BREAKING_REVIEWED'
+                            and review.get('basis') == basis
+                            and review.get('independentVerification') is False):
+                        print(json.dumps({'reasonToken': 'CONTRACT_BREAKING_REVIEWED',
+                                          'basis': basis,
+                                          'independentVerification': False}))
+                        break
             except (ValueError, TypeError, AttributeError, RecursionError):
                 continue
     if process.returncode:

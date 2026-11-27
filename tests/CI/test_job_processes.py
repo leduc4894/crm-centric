@@ -147,6 +147,22 @@ class ProcessTests(unittest.TestCase):
                          json.loads(output.getvalue()))
         self.assertNotIn('private', output.getvalue())
 
+    def test_contact_review_emits_only_scoped_safe_diagnostic(self):
+        import contextlib, io, json
+        process = unittest.mock.Mock(returncode=0)
+        process.communicate.return_value = (json.dumps({
+            'reason': 'CONTRACT_BREAKING_REVIEWED',
+            'contactReview': {'basis': 'maintainer-reviewed-adr-020-021', 'independentVerification': False},
+            'private': 'do-not-emit'}).encode(), b'private-error')
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output), patch('scripts.ci.jobs.subprocess.Popen', return_value=process):
+            execute([sys.executable, 'scripts/contracts/compatibility.py'])
+        self.assertTrue(output.getvalue(), 'contact reviewed-break marker missing')
+        self.assertEqual({'reasonToken': 'CONTRACT_BREAKING_REVIEWED',
+                          'basis': 'maintainer-reviewed-adr-020-021', 'independentVerification': False},
+                         json.loads(output.getvalue()))
+        self.assertNotIn('private', output.getvalue())
+
     def test_plan3_review_evidence_survives_later_browser_failure(self):
         import contextlib, io, json
         process = unittest.mock.Mock(returncode=1)
