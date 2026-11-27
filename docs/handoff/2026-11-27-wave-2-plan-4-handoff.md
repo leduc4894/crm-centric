@@ -71,3 +71,9 @@ Verification on Node 24.22.2/npm 11.19.1:
 | Browser E2E, deployment, full suite, hosted CI and P0 drills | Not run in Task 3 |
 
 Task 3 transport/shell edits are committed. Suite logs and SDD task report are ignored local artifacts. Next are independent Task 3 review, Tasks 4–5 UI implementation and Task 6 real-stack E2E. Actual-base policy review and wave-exit gates remain open.
+
+### Task 3 independent review corrections
+
+Commit `a455ebd` on `wave-2` addresses both important Task 3 findings. The CRM client now checks the documented success statuses of all sixteen operations before accepting an outcome. A 202 DELETE now closes with WEB_CRM_CONTRACT_INVALID. Deletion requires 204, contact upsert supports 200 and 201, and note creation requires 201. The proxy UUID pattern accepts both hex cases while preserving exact literal route names and method restrictions. The contact-shell history test uses an uppercase deep link and the loopback proxy test checks the uppercase record GET reaches the upstream.
+
+On the pinned toolchain, the client/proxy RED run failed 3 of 26 checks, exposing DELETE/upsert acceptance of 202 and an upstream miss for uppercase IDs. `npm exec --workspace @crm-centric/crm-web -- vitest run src/contacts/crmClient.test.ts src/contacts/ContactShell.test.tsx config/contactsProxy.test.ts config/devServer.test.ts config/tenantProxy.test.ts` then passed 43/43 with no skips. Web typecheck, focused ESLint and staged whitespace checks passed. Changed files are the client, proxy allowlist and their tests, plus the shell test. Full suite and browser E2E remain pending. Next is independent re-review. The minor date-format validation observation was deferred by the reviewer.
