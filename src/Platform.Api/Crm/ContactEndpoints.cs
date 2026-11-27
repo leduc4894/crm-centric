@@ -85,9 +85,31 @@ public static class ContactEndpoints
                 else
                 {
                     if (precondition == MembershipPreconditionResult.Valid) { await Error(context,412,"VERSION_CONFLICT"); return; }
-                    try { contact=await ContactStore.CreateAsync(connection,transaction,tenant,name,email,phone,context.RequestAborted); }
-                    catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.UniqueViolation)
-                    { await Error(context,409,"CONTACT_EMAIL_CONFLICT"); return; }
+                    // A PATCH may claim this email after the lookup but before
+                    // INSERT. Roll back only that statement and re-evaluate the
+                    // active match instead of treating the race as a generic 409.
+                    ContactRecord? created=null;
+                    for (var attempt=0; attempt<3 && created is null; attempt++)
+                    {
+                        const string savepoint="contact_email_insert";
+                        await transaction.SaveAsync(savepoint,context.RequestAborted);
+                        try
+                        {
+                            created=await ContactStore.CreateAsync(connection,transaction,tenant,name,email,phone,context.RequestAborted);
+                            await transaction.ReleaseAsync(savepoint,context.RequestAborted);
+                        }
+                        catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.UniqueViolation && ex.ConstraintName == "contacts_active_email_unique")
+                        {
+                            await transaction.RollbackAsync(savepoint,context.RequestAborted);
+                            await transaction.ReleaseAsync(savepoint,context.RequestAborted);
+                            if (await ContactStore.LockByEmailAsync(connection,transaction,tenant,email,context.RequestAborted) is not null)
+                            { await Error(context,428,"PRECONDITION_REQUIRED"); return; }
+                        }
+                        catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.UniqueViolation)
+                        { await Error(context,409,"CONTACT_EMAIL_CONFLICT"); return; }
+                    }
+                    if (created is null) throw new InvalidDataException("Contact email contention could not be resolved.");
+                    contact=created;
                     action="contact.created";
                 }
             }

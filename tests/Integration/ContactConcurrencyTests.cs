@@ -83,6 +83,49 @@ public sealed partial class ContactEndpointsTests
         await using var c=new NpgsqlConnection(db.MigrationConnectionString); await c.OpenAsync(); await using var cmd=new NpgsqlCommand("SELECT count(*) FROM audit.entries WHERE tenant_id=@tenant AND target_id=@id AND action IN ('contact.created','contact.updated','contact.deleted')",c); cmd.Parameters.AddWithValue("tenant",tenant); cmd.Parameters.AddWithValue("id",id); Assert.Equal(2L,await cmd.ExecuteScalarAsync());
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Post_and_patch_competing_for_same_email_follow_winner_and_leave_one_journal(bool patchWins)
+    {
+        var id=await CreateContact("original@example.test");
+        await using var admin=new NpgsqlConnection(db.MigrationConnectionString); await admin.OpenAsync();
+        var trigger=patchWins
+            ? $"CREATE FUNCTION crm.race_gate() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.tenant_id='{tenant}' AND NEW.email='race@example.test' THEN PERFORM pg_advisory_xact_lock(732062); END IF; RETURN NEW; END $$; CREATE TRIGGER race_gate BEFORE INSERT ON crm.contacts FOR EACH ROW EXECUTE FUNCTION crm.race_gate()"
+            : $"CREATE FUNCTION outbox.race_gate() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.tenant_id='{tenant}' AND NEW.contact_id<>'{id}' AND NEW.type='crm.contact.created.v1' THEN PERFORM pg_advisory_xact_lock(732062); END IF; RETURN NEW; END $$; CREATE TRIGGER race_gate BEFORE INSERT ON outbox.events FOR EACH ROW EXECUTE FUNCTION outbox.race_gate()";
+        await using (var setup=new NpgsqlCommand(trigger+"; SELECT pg_advisory_lock(732062)",admin)) await setup.ExecuteNonQueryAsync();
+        var post=Send(HttpMethod.Post,"/api/v1/contacts","{\"displayName\":\"New\",\"email\":\"race@example.test\"}");
+        Task<HttpResponseMessage>? patch=null;
+        try
+        {
+            var postPid=await FindBlockedPid(admin.ProcessID);
+            using(var otherTenant=await Send(HttpMethod.Post,"/api/v1/contacts","{\"displayName\":\"Other\",\"email\":\"race@example.test\"}","other",other.ToString()).WaitAsync(TimeSpan.FromSeconds(8))) Assert.Equal(HttpStatusCode.Created,otherTenant.StatusCode);
+            patch=Send(HttpMethod.Patch,$"/api/v1/contacts/{id}","{\"email\":\"RACE@example.test\"}",match:"\"v1\"");
+            if (patchWins)
+            {
+                using var winner=await patch.WaitAsync(TimeSpan.FromSeconds(8)); Assert.Equal(HttpStatusCode.OK,winner.StatusCode);
+            }
+            else await FindBlockedPid(postPid);
+            await using (var release=new NpgsqlCommand("SELECT pg_advisory_unlock(732062)",admin)) await release.ExecuteNonQueryAsync();
+            using var postResult=await post.WaitAsync(TimeSpan.FromSeconds(8));
+            if (patchWins) await Problem(postResult,(HttpStatusCode)428,"PRECONDITION_REQUIRED");
+            else
+            {
+                Assert.Equal(HttpStatusCode.Created,postResult.StatusCode);
+                using var loser=await patch.WaitAsync(TimeSpan.FromSeconds(8)); await Problem(loser,HttpStatusCode.Conflict,"CONTACT_EMAIL_CONFLICT");
+            }
+            Assert.Equal(patchWins ? 1 : 2,await Count("crm.contacts",tenant));
+            Assert.Equal(2,await Count("outbox.events",tenant));
+            await using var count=new NpgsqlCommand("SELECT count(*) FROM audit.entries WHERE tenant_id=@t AND action IN ('contact.created','contact.updated')",admin); count.Parameters.AddWithValue("t",tenant); Assert.Equal(2L,await count.ExecuteScalarAsync());
+        }
+        finally
+        {
+            await using var unlock=new NpgsqlCommand("SELECT pg_advisory_unlock_all()",admin); await unlock.ExecuteNonQueryAsync();
+            try { (await post.WaitAsync(TimeSpan.FromSeconds(8))).Dispose(); } catch (TimeoutException) { }
+            if (patch is not null) try { (await patch.WaitAsync(TimeSpan.FromSeconds(8))).Dispose(); } catch (TimeoutException) { }
+        }
+    }
+
     [Fact]
     public async Task Outbox_failure_rolls_back_patch_and_delete()
     {
