@@ -86,3 +86,10 @@ its helper pinned by hash. This preserves the existing named prerequisite skip
 in the intentionally Git-less CI simulation; the real suite must execute those
 regressions and rejects unexpected skips. These are candidate-owned checks, not
 an independent review or a security waiver.
+
+A subsequent CI run identified `contactQueries.test.tsx` as a frontend test
+fixture failure: it rendered a routed component without RouterProvider. The
+fixture now provides a real router; its exact test-file bytes are also separately
+hash-pinned by the scope. No application contract or runtime implementation was
+changed. Scope tests reject changes to each pinned exception. This additional
+test-only delta remains candidate-owned and is not independent enforcement.

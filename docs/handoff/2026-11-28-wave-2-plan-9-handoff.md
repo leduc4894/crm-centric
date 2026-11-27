@@ -97,3 +97,45 @@ passed and both SDK surfaces remain reported incompatible. This is still
 candidate-owned and not independent enforcement. Ready to commit and push one
 candidate with the bounded diagnostics and gitless-simulation fixture repair;
 hosted browser, aggregate harness, full suite and security remain to verify.
+
+## Frontend query test root cause
+
+Run 46043088359's bounded diagnostic identified
+`src/contacts/contactQueries.test.tsx` as the frontend failure (correlation
+`b818ea17-03ea-4a7d-b061-80a1bd318b45`). Focused Vitest reproduced 1/5 failed
+with a missing RouterProvider and a React Router null `isServer` error. The test
+fixture now renders ContactList inside a real TanStack RouterProvider and stubs
+jsdom scrolling; no application code changed. Focused rerun passed 5/5 with no
+skips or scroll warning; web typecheck and targeted ESLint passed. The exact
+changed test fixture is separately hash-pinned in the candidate scope, alongside
+the already pinned diagnostic files; scope tests reject tampering in all three.
+Existing required Plan 3 review test (with eight nested Plan 9 scope checks)
+passed 11/11 with zero skips. Actual-base comparison after the test-only delta
+and the current GitHub jobs are still running at this checkpoint; don't start a
+second CI until the current run completes.
+
+Security on run 46043088359: 105 blocked Gitleaks and one blocked Trivy,
+unchanged counts. Compared with run 46038766142, all 14 changed Gitleaks opaque
+IDs matched one-to-one on rule, file and in-memory-only value fingerprint;
+Trivy IDs/verdicts unchanged, zero new unmatched findings. This comparison is
+not a waiver or security clearance.
+
+Run 46043088359 completed: backend and Compose passed; contracts-sdk
+passed compatibility and aggregate-reporting, then failed `plan3-clean-export`
+(correlation `bc2148aa-db8c-4059-aec7-ffc9e3c5ab49`); nested reason was not
+projected in that run. Clean export runs the same frontend aggregate, so the
+RouterProvider fixture fix may resolve it, but that is not yet proven. Added a
+bounded nested diagnostic for clean-export without emitting payloads; the new
+case failed before implementation and `test_job_processes.py` passed 24/24
+with zero skips after. The scoped test/diagnostic files are pinned by exact hash;
+Plan 3 review tests (including eight nested Plan 9 regressions) passed 11/11.
+The router/query/scope Vitest subset passed 15/15; typecheck and focused ESLint
+passed. A first aggregate gate run returned reviewed-breaking while diagnostics
+were subsequently refined, so a fresh actual-base run is in progress for the
+final exact hashes. No new CI has started yet.
+
+Final grouped actual-base comparison, after the clean-export diagnostic hash was
+updated, returned `CONTRACT_BREAKING_REVIEWED`, correlation
+`b2cdbd98-ebbd-4367-a104-523978e1caa9`; both historical consumer checks and
+packaged contact checks passed while the two SDK surface breaks remain explicit.
+Candidate-owned, not independent enforcement. Ready for one hosted rerun.
