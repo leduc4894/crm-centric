@@ -124,7 +124,7 @@ def check_baseline_configuration(repo, base, mvp_review=False, target=None):
                     p for p in old_hashes.keys()|new_hashes.keys() if old_hashes.get(p)!=new_hashes.get(p))}
     if target == base and (contact_policy_for_scope(base, old_hashes, new_hashes, repo, mvp_review)
                            or (reviewed_contact_policy(base, old_hashes, new_hashes, mvp_review)
-                               and reviewed_plan3_candidate(base, repo, mvp_review, target))):
+                               and (reviewed_plan3_candidate(base, repo, mvp_review, target) or reviewed_plan9_candidate(base, repo, mvp_review, target)))):
         return {'basis':'maintainer-reviewed-contact-sdk-evaluation', 'owner':'maintainer',
                 'expires':'2027-02-11T00:00:00+00:00', 'independentVerification':False,
                 'dualPolicyEvaluation':False, 'changedFiles':['scripts/contracts/sdk_surface.py']}
@@ -148,32 +148,46 @@ PLAN3_GOVERNANCE_FILES = frozenset({
 })
 PLAN3_COVERAGE_SHA256 = 'aa7dff3457dc0c7728c68b0d7fd6948d43050c7b07593534f1b921ac812ffe60'
 
+PLAN9_REVIEW_COMMIT = '71959b35c08738d16a03e1f4f54e4f0b21075ce0'
+PLAN9_REVIEW_TREE = '6a7dda4d57c87565389ad125f750fe21be963f15'
+PLAN9_GOVERNANCE_FILES = PLAN3_GOVERNANCE_FILES | frozenset({
+    'tests/Contract/test_wave2_plan9_review.py',
+    'docs/engineering/17-WAVE-2-CANDIDATE-REVIEW-PACKAGE.md',
+    'docs/handoff/2026-11-27-wave-2-plan-9-handoff.md',
+})
+
 def reviewed_plan3_candidate(base, repo, enabled, target, now=None):
-    """Bind the local reviewed scope to the approved product tree, fail closed."""
+    return _reviewed_candidate(base, repo, enabled, target, now, PLAN3_REVIEW_COMMIT, PLAN3_REVIEW_TREE, PLAN3_GOVERNANCE_FILES)
+
+def reviewed_plan9_candidate(base, repo, enabled, target, now=None):
+    return _reviewed_candidate(base, repo, enabled, target, now, PLAN9_REVIEW_COMMIT, PLAN9_REVIEW_TREE, PLAN9_GOVERNANCE_FILES)
+
+def _reviewed_candidate(base, repo, enabled, target, now, commit, expected_tree, governance):
+    """Bind a reviewed scope to its exact product tree, fail closed."""
     import time
     if (not enabled or base != CONTACT_REVIEW_BASE or target != base
             or (time.time() if now is None else now) >= CONTACT_REVIEW_EXPIRES):
         return False
     try:
-        if git(repo, 'rev-parse', PLAN3_REVIEW_COMMIT + '^{tree}').decode().strip() != PLAN3_REVIEW_TREE:
+        if git(repo, 'rev-parse', commit + '^{tree}').decode().strip() != expected_tree:
             return False
         inventory = repo / 'tools/ci/coverage.json'
         if (inventory.is_symlink() or any((repo / parent).is_symlink() for parent in Path('tools/ci/coverage.json').parents if str(parent) != '.')
                 or sha(inventory) != PLAN3_COVERAGE_SHA256):
             return False
         tree = {}
-        for item in git(repo, 'ls-tree', '-rz', '--full-tree', PLAN3_REVIEW_COMMIT).split(b'\0'):
+        for item in git(repo, 'ls-tree', '-rz', '--full-tree', commit).split(b'\0'):
             if not item:
                 continue
             meta, name = item.split(b'\t', 1)
             mode, kind, oid = meta.decode('ascii').split()
             path = name.decode('utf-8')
-            if path not in PLAN3_GOVERNANCE_FILES:
+            if path not in governance:
                 if kind != 'blob' or mode not in ('100644', '100755'):
                     return False
                 tree[path] = (mode, oid)
         actual = {p.decode('utf-8') for p in git(repo, 'ls-files', '-z', '--cached', '--others', '--exclude-standard').split(b'\0') if p}
-        actual -= PLAN3_GOVERNANCE_FILES
+        actual -= governance
         if actual != set(tree):
             return False
         for path, (mode, oid) in tree.items():
@@ -191,14 +205,14 @@ def reviewed_plan3_candidate(base, repo, enabled, target, now=None):
     except (GateError, OSError, UnicodeError, ValueError):
         return False
 
-def materialize_plan3_source(repo, destination):
+def materialize_plan3_source(repo, destination, commit=PLAN3_REVIEW_COMMIT):
     """Use only the approved Git tree for evaluator code and consumers."""
     try:
-        archive_data = git(repo, 'archive', '--format=tar', PLAN3_REVIEW_COMMIT)
+        archive_data = git(repo, 'archive', '--format=tar', commit)
         destination.mkdir()
         with tarfile.open(fileobj=io.BytesIO(archive_data)) as archive:
             archive.extractall(destination, filter='data')
-        if not plan3_archive_matches_tree(repo, destination):
+        if not plan3_archive_matches_tree(repo, destination, commit):
             raise GateError('CONTRACT_POLICY_REVIEW_REQUIRED')
         git_dir = git(repo, 'rev-parse', '--absolute-git-dir').decode('utf-8').strip()
         (destination / '.git').write_text('gitdir: ' + git_dir + '\n')
@@ -211,12 +225,12 @@ def materialize_plan3_source(repo, destination):
     except (GateError, OSError, UnicodeError, ValueError, tarfile.TarError):
         raise GateError('CONTRACT_POLICY_REVIEW_REQUIRED') from None
 
-def plan3_archive_matches_tree(repo, root):
+def plan3_archive_matches_tree(repo, root, commit=PLAN3_REVIEW_COMMIT):
     """Reject Git archive omissions, substitutions and extra filesystem entries."""
     try:
         tree = {}
         directories = set()
-        for item in git(repo, 'ls-tree', '-rz', '--full-tree', PLAN3_REVIEW_COMMIT).split(b'\0'):
+        for item in git(repo, 'ls-tree', '-rz', '--full-tree', commit).split(b'\0'):
             if not item:
                 continue
             metadata, raw_name = item.split(b'\t', 1)
@@ -574,11 +588,13 @@ def evaluate_contract_snapshots(base, paths, repo, context, policy, binary,
         newroot = Path(tmp) / 'current'
         snapshot = newroot / 'docs/contracts'
         snapshot.parent.mkdir(parents=True)
-        plan3_review = (immutable_base is None and policy_sources is None and target == base
+        plan9_review = (immutable_base is None and policy_sources is None and target == base
+                        and reviewed_plan9_candidate(base, repo, mvp_review, target))
+        plan3_review = plan9_review or (immutable_base is None and policy_sources is None and target == base
                         and reviewed_plan3_candidate(base, repo, mvp_review, target))
         plan3_source = Path(tmp) / 'reviewed-source'
         if plan3_review:
-            materialize_plan3_source(repo, plan3_source)
+            materialize_plan3_source(repo, plan3_source, PLAN9_REVIEW_COMMIT if plan9_review else PLAN3_REVIEW_COMMIT)
         candidate_contracts = plan3_source / 'docs/contracts' if plan3_review else current_root
         shutil.copytree(candidate_contracts, snapshot, symlinks=True)
         if plan3_review and not plan3_contract_snapshot_matches(candidate_contracts, snapshot):
