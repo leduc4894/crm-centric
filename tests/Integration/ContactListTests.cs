@@ -4,6 +4,11 @@ using System.Text;
 using System.Text.Json;
 using Integration.Fixtures;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
+using System.Collections.Concurrent;
+using System.Security.Cryptography;
 using Npgsql;
 using Platform.Infrastructure.Persistence;
 using Xunit;
@@ -164,5 +169,67 @@ public sealed partial class ContactListTests : IAsyncLifetime
     {
         await Seed(101); using var first=await Send(HttpMethod.Get,"/api/v1/contacts?limit=100"); var page=await Page(first); Assert.Equal(100,page.ids.Length); Assert.NotNull(page.cursor);
         using var last=await Send(HttpMethod.Get,"/api/v1/contacts?limit=1&cursor="+page.cursor); var end=await Page(last); Assert.Single(end.ids); Assert.DoesNotContain(end.ids[0],page.ids); Assert.Null(end.cursor);
+    }
+    [Fact]
+    public async Task Listing_does_not_write_audit_or_outbox()
+    {
+        using(var created=await Send(HttpMethod.Post,"/api/v1/contacts","{\"displayName\":\"Existing\"}")) Assert.Equal(HttpStatusCode.Created,created.StatusCode);
+        var audit=await Count("audit.entries",tenant); var outbox=await Count("outbox.events",tenant);
+        Assert.Equal(1,audit); Assert.Equal(1,outbox);
+        using(var response=await Send(HttpMethod.Get,"/api/v1/contacts?q=Existing")) Assert.Single((await Page(response)).ids);
+        using(var invalid=await Send(HttpMethod.Get,"/api/v1/contacts?cursor=bad")) await Problem(invalid,HttpStatusCode.BadRequest,"CURSOR_INVALID");
+        Assert.Equal(audit,await Count("audit.entries",tenant)); Assert.Equal(outbox,await Count("outbox.events",tenant));
+    }
+
+    private Dictionary<string,string?> InstanceSettings(string key) => new() {
+        ["ConnectionStrings:Platform"]=db.ApplicationConnectionString, ["Oidc:Issuer"]=issuer.Issuer.AbsoluteUri,
+        ["Oidc:Audience"]="crm-api", ["Oidc:MetadataAddress"]=new Uri(issuer.Issuer,".well-known/openid-configuration").AbsoluteUri,
+        ["Oidc:AllowHttpLoopback"]="true", ["ContactCursor:SigningKey"]=key
+    };
+    private async Task<HttpResponseMessage> SendThrough(HttpClient http,string path)
+    {
+        using var request=new HttpRequestMessage(HttpMethod.Get,path);
+        request.Headers.Authorization=new AuthenticationHeaderValue("Bearer",issuer.IssueToken(new() {Subject="owner"}));
+        request.Headers.Add("X-Tenant-Id",tenant.ToString()); return await http.SendAsync(request);
+    }
+
+    [Fact]
+    public async Task Cursor_is_accepted_across_instances_with_same_key_but_not_different_key()
+    {
+        await Seed(3); var shared=Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)); var different=Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+        await using var f1=new ApiFactory(InstanceSettings(shared)); await using var f2=new ApiFactory(InstanceSettings(shared)); await using var f3=new ApiFactory(InstanceSettings(different));
+        using var c1=f1.CreateClient(); using var c2=f2.CreateClient(); using var c3=f3.CreateClient();
+        using var first=await SendThrough(c1,"/api/v1/contacts?limit=1"); var page=await Page(first); Assert.NotNull(page.cursor);
+        using(var same=await SendThrough(c2,"/api/v1/contacts?limit=1&cursor="+page.cursor)) { var result=await Page(same); Assert.Single(result.ids); Assert.DoesNotContain(result.ids[0],page.ids); }
+        using(var wrong=await SendThrough(c3,"/api/v1/contacts?limit=1&cursor="+page.cursor)) await Problem(wrong,HttpStatusCode.BadRequest,"CURSOR_INVALID");
+    }
+
+    private sealed class CaptureProvider : ILoggerProvider
+    {
+        public ConcurrentQueue<string> Messages { get; }=new();
+        public ILogger CreateLogger(string categoryName) => new CaptureLogger(Messages);
+        public void Dispose() { }
+        private sealed class CaptureLogger(ConcurrentQueue<string> messages) : ILogger
+        {
+            public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+            public bool IsEnabled(LogLevel level) => true;
+            public void Log<TState>(LogLevel level,EventId id,TState state,Exception? exception,Func<TState,Exception?,string> formatter) => messages.Enqueue(formatter(state,exception));
+        }
+    }
+
+    [Fact]
+    public async Task Http_errors_do_not_reflect_or_log_query_or_cursor()
+    {
+        const string search="private-search-sentinel"; const string cursor="private-cursor-sentinel";
+        var capture=new CaptureProvider();
+        using var instrumented=factory.WithWebHostBuilder(builder => builder.ConfigureLogging(logging => logging.AddProvider(capture)));
+        using var http=instrumented.CreateClient();
+        // Positive control verifies the in-memory provider actually receives host logs.
+        instrumented.Services.GetRequiredService<ILoggerFactory>().CreateLogger("privacy-test").LogWarning("capture-positive-control");
+        using var response=await SendThrough(http,"/api/v1/contacts?q="+search+"&cursor="+cursor);
+        await Problem(response,HttpStatusCode.BadRequest,"CURSOR_INVALID"); var content=await response.Content.ReadAsStringAsync();
+        Assert.DoesNotContain(search,content); Assert.DoesNotContain(cursor,content);
+        Assert.Contains(capture.Messages,message => message.Contains("capture-positive-control",StringComparison.Ordinal));
+        Assert.DoesNotContain(capture.Messages,message => message.Contains(search,StringComparison.Ordinal) || message.Contains(cursor,StringComparison.Ordinal));
     }
 }
