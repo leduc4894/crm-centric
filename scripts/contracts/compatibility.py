@@ -7,6 +7,7 @@ import hashlib
 import json
 import re
 import shutil
+import stat
 from pathlib import Path
 import subprocess
 import tempfile
@@ -119,7 +120,9 @@ def check_baseline_configuration(repo, base, mvp_review=False, target=None):
                 'expires':'2027-02-11T00:00:00+00:00','independentVerification':False,
                 'dualPolicyEvaluation':False,'changedFiles':sorted(
                     p for p in old_hashes.keys()|new_hashes.keys() if old_hashes.get(p)!=new_hashes.get(p))}
-    if target == base and contact_policy_for_scope(base, old_hashes, new_hashes, repo, mvp_review):
+    if target == base and (contact_policy_for_scope(base, old_hashes, new_hashes, repo, mvp_review)
+                           or (reviewed_contact_policy(base, old_hashes, new_hashes, mvp_review)
+                               and reviewed_plan3_candidate(base, repo, mvp_review, target))):
         return {'basis':'maintainer-reviewed-contact-sdk-evaluation', 'owner':'maintainer',
                 'expires':'2027-02-11T00:00:00+00:00', 'independentVerification':False,
                 'dualPolicyEvaluation':False, 'changedFiles':['scripts/contracts/sdk_surface.py']}
@@ -130,6 +133,55 @@ def check_baseline_configuration(repo, base, mvp_review=False, target=None):
 # consumer evidence are pinned. Any drift, wrong base or expiry fails closed.
 CONTACT_REVIEW_BASE = 'db04aeaecd7f4b6d083335a71418788d3c4561ca'
 CONTACT_REVIEW_EXPIRES = 1802304000
+PLAN3_REVIEW_COMMIT = '8e62f5282aa14cdfca746f2aa78ec05b59ffcb86'
+PLAN3_REVIEW_TREE = '5d9f8b09962405e09851936367d29d4c28414cf1'
+# Candidate-owned governance and documentation are deliberately outside the
+# approved product tree. This is not independent attestation or enforcement.
+PLAN3_GOVERNANCE_FILES = frozenset({
+    'scripts/contracts/compatibility.py',
+    'tests/Contract/test_wave2_plan3_review.py',
+    'docs/engineering/15-WAVE-2-PLAN-3-CONTRACT-REVIEW.md',
+    'docs/handoff/2026-11-27-wave-2-branch-handoff.md',
+})
+
+def reviewed_plan3_candidate(base, repo, enabled, target, now=None):
+    """Bind the local reviewed scope to the approved product tree, fail closed."""
+    import time
+    if (not enabled or base != CONTACT_REVIEW_BASE or target != base
+            or (time.time() if now is None else now) >= CONTACT_REVIEW_EXPIRES):
+        return False
+    try:
+        if git(repo, 'rev-parse', PLAN3_REVIEW_COMMIT + '^{tree}').decode().strip() != PLAN3_REVIEW_TREE:
+            return False
+        tree = {}
+        for item in git(repo, 'ls-tree', '-rz', '--full-tree', PLAN3_REVIEW_COMMIT).split(b'\0'):
+            if not item:
+                continue
+            meta, name = item.split(b'\t', 1)
+            mode, kind, oid = meta.decode('ascii').split()
+            path = name.decode('utf-8')
+            if path not in PLAN3_GOVERNANCE_FILES:
+                if kind != 'blob' or mode not in ('100644', '100755'):
+                    return False
+                tree[path] = (mode, oid)
+        actual = {p.decode('utf-8') for p in git(repo, 'ls-files', '-z', '--cached', '--others', '--exclude-standard').split(b'\0') if p}
+        actual -= PLAN3_GOVERNANCE_FILES
+        if actual != set(tree):
+            return False
+        for path, (mode, oid) in tree.items():
+            item = repo / path
+            if any((repo / parent).is_symlink() for parent in Path(path).parents if str(parent) != '.'):
+                return False
+            info = item.lstat()
+            if not stat.S_ISREG(info.st_mode) or bool(info.st_mode & 0o111) != (mode == '100755'):
+                return False
+            data = item.read_bytes()
+            blob = hashlib.sha1(b'blob ' + str(len(data)).encode('ascii') + b'\0' + data).hexdigest()
+            if blob != oid:
+                return False
+        return True
+    except (GateError, OSError, UnicodeError, ValueError):
+        return False
 CONTACT_REVIEW_INPUTS = {'docs/contracts/automation-rule.schema.json': 'd5ad1506f3de8503a0bb3b060eb9bbc01db8a22efc95fabcef099cfaea0dcd0a',
  'docs/contracts/cloud-event.schema.json': 'ca9119a73e6eb6b6537c2c1098148b7fa49c781d5ac1c51ff26189fc05b04bea',
  'docs/contracts/contact-event-intent.schema.json': '717dc3a6818150cb8e17cfd1e2a3ce5b70ce31fcdb431c4632f6b014038742f6',
@@ -459,7 +511,8 @@ def evaluate_contract_snapshots(base, paths, repo, context, policy, binary,
             hashes['current'][path] = sha(newroot / path)
         result = {'baseSha': base, 'inputHashes': hashes}
         contact_review = (immutable_base is None and policy_sources is None and target == base
-                          and reviewed_contact_change(base, repo, hashes, mvp_review))
+                          and (reviewed_contact_change(base, repo, hashes, mvp_review)
+                               or reviewed_plan3_candidate(base, repo, mvp_review, target)))
         openapis = {p for p in base_inputs | current_inputs if p.endswith('.openapi.yaml')}
         schemas = {p for p in base_inputs | current_inputs if p.endswith('.schema.json')}
         if any(p not in base_inputs or p not in current_inputs for p in openapis):
