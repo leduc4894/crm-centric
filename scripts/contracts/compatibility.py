@@ -89,7 +89,7 @@ def reviewed_contact_policy(base, old_hashes, new_hashes, mvp_review, now=None):
         'dff098c30c19efe678a62a8cff4274a714d37a82d1dce1369b41253e9a7f6f3d',
         '460ae0d885a43024d5d2cd340c719902576381ad8229a13b23bf7d324b5a3a12')}
 
-def check_baseline_configuration(repo, base, mvp_review=False):
+def check_baseline_configuration(repo, base, mvp_review=False, target=None):
     """Reject incomplete baseline toolchains and unreviewed policy changes."""
     paths = set(git(repo, 'ls-tree', '-r', '--name-only', base, '--', 'tools/contracts', 'scripts/contracts', 'sdks').decode().splitlines())
     marker = 'tools/contracts/toolchain.json'
@@ -119,7 +119,7 @@ def check_baseline_configuration(repo, base, mvp_review=False):
                 'expires':'2027-02-11T00:00:00+00:00','independentVerification':False,
                 'dualPolicyEvaluation':False,'changedFiles':sorted(
                     p for p in old_hashes.keys()|new_hashes.keys() if old_hashes.get(p)!=new_hashes.get(p))}
-    if contact_policy_for_scope(base, old_hashes, new_hashes, repo, mvp_review):
+    if target == base and contact_policy_for_scope(base, old_hashes, new_hashes, repo, mvp_review):
         return {'basis':'maintainer-reviewed-contact-sdk-evaluation', 'owner':'maintainer',
                 'expires':'2027-02-11T00:00:00+00:00', 'independentVerification':False,
                 'dualPolicyEvaluation':False, 'changedFiles':['scripts/contracts/sdk_surface.py']}
@@ -156,6 +156,7 @@ CONTACT_REVIEW_EVIDENCE = {'.npmrc': '3b88d1057add6f92ec23dc22dd017e312ded13a042
  'docs/operations/07-CONTACT-SDK-MIGRATION.md': '0dad05fe335681078d303341747c328843bb3c22a25c2200f371bd722e69c105',
  'package-lock.json': '4eccd95419dbaa9d04935700e0514c98651c0d08e0a303bd163cb5f39381f0c9',
  'package.json': '3d3395cf055e9a5d4a740b34cbcf59d46876b9eb996bb878e6ec73ee39c52494',
+ 'scripts/contracts/check.py': '4c287e4e68c2dac8838aefd37f02770c4bb902c267fa9f11e0e0e2171fd1018d',
  'scripts/contracts/generate.py': 'd3fc27d3ef4128e340d982193058ca61dcc360333453361f6f11a5da353081b9',
  'src/Platform.Api/Crm/ContactEndpoints.cs': '3c3542ec985bb6cc79ca569f8dd7beb1c0812c195765b10d676caaa0ad993f57',
  'src/Platform.Api/Identity/TenantAuthorization.cs': 'bb3f9a63ab393b4f052d90ccdde0462d7bc0e3fb1f0cbab0bc9724dc60d116ee',
@@ -395,11 +396,13 @@ def run(base_ref, repo, context, mvp_review=False):
     from jsonschema.exceptions import SchemaError
     try:
         base = git(repo, 'merge-base', 'HEAD', base_ref).decode().strip()
+        target = git(repo, 'rev-parse', '--verify', '--end-of-options', base_ref + '^{commit}').decode().strip()
         paths = git(repo, 'ls-tree', '-r', '--name-only', base, '--', 'docs/contracts').decode().splitlines()
     except (UnicodeError, ValueError):
         raise GateError('CONTRACT_BASE_UNAVAILABLE') from None
     context['baseSha'] = base
-    review=check_baseline_configuration(repo, base, mvp_review)
+    context['targetSha'] = target
+    review=check_baseline_configuration(repo, base, mvp_review, target=target)
     if review: context['policyReview']=review
     current_root = repo / 'docs/contracts'
     required = {'docs/contracts/crm-api.openapi.yaml', 'docs/contracts/platform-operations.openapi.yaml'}
@@ -414,13 +417,14 @@ def run(base_ref, repo, context, mvp_review=False):
             raise GateError('CONTRACT_TOOL_UNAVAILABLE')
     except (OSError, ValueError, KeyError, TypeError):
         raise GateError('CONTRACT_TOOL_UNAVAILABLE') from None
-    result=evaluate_contract_snapshots(base, paths, repo, context, policy, binary, mvp_review=mvp_review)
+    result=evaluate_contract_snapshots(base, paths, repo, context, policy, binary, mvp_review=mvp_review, target=target)
+    result['targetSha'] = target
     if review: result['policyReview']=review
     return result
 
 
 def evaluate_contract_snapshots(base, paths, repo, context, policy, binary,
-                                immutable_base=None, policy_sources=None, mvp_review=False):
+                                immutable_base=None, policy_sources=None, mvp_review=False, target=None):
     """Semantic phase shared with unprivileged immutable transition runners.
 
     Identity/trust is the coordinator's separate responsibility. The CLI above
@@ -446,15 +450,15 @@ def evaluate_contract_snapshots(base, paths, repo, context, policy, binary,
         # Materialize only Git-tracked inputs, including local $ref dependencies.
         for path in paths:
             if path.startswith('docs/contracts/') and '..' not in Path(path).parts:
-                target = oldroot / path
-                target.parent.mkdir(parents=True, exist_ok=True)
-                target.write_bytes(dict(immutable_base)[path] if immutable_base is not None else git(repo, 'show', f'{base}:{path}'))
+                target_path = oldroot / path
+                target_path.parent.mkdir(parents=True, exist_ok=True)
+                target_path.write_bytes(dict(immutable_base)[path] if immutable_base is not None else git(repo, 'show', f'{base}:{path}'))
         for path in sorted(base_inputs):
             hashes['base'][path] = sha(oldroot / path)
         for path in sorted(current_inputs):
             hashes['current'][path] = sha(newroot / path)
         result = {'baseSha': base, 'inputHashes': hashes}
-        contact_review = (immutable_base is None and policy_sources is None
+        contact_review = (immutable_base is None and policy_sources is None and target == base
                           and reviewed_contact_change(base, repo, hashes, mvp_review))
         openapis = {p for p in base_inputs | current_inputs if p.endswith('.openapi.yaml')}
         schemas = {p for p in base_inputs | current_inputs if p.endswith('.schema.json')}

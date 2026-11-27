@@ -59,8 +59,11 @@ class Wave1SecurityReviewTests(unittest.TestCase):
             self.assertFalse(self.reviewed())
 
     def test_current_contact_contract_cannot_inherit_wave1_review(self):
-        current = yaml.safe_load((ROOT / 'docs/contracts/crm-api.openapi.yaml').read_text())
-        self.assertFalse(self.reviewed(new=current, repo=ROOT))
+        # Pin the later ADR-020/021 contract as a negative fixture too; an
+        # unrelated future checkout must not change this historical assertion.
+        changed = yaml.safe_load(subprocess.check_output(
+            ['git', 'show', '4ee14a848cf66f1f09d0e2d92393521b5c514c94:docs/contracts/crm-api.openapi.yaml'], cwd=ROOT))
+        self.assertFalse(self.reviewed(new=changed))
 
     def test_other_contract_cannot_inherit_review(self):
         check = getattr(compatibility, 'reviewed_security_change', lambda *args, **kwargs: False)

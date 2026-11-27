@@ -1,16 +1,21 @@
 """Exact reviewed scope must not become a general compatibility waiver."""
 import copy
 import hashlib
+import io
+import tarfile
 from pathlib import Path
 import shutil
+import subprocess
 import tempfile
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from scripts.contracts import compatibility, sdk_surface
 
 ROOT = Path(__file__).resolve().parents[2]
 BASE = 'db04aeaecd7f4b6d083335a71418788d3c4561ca'
+REVIEWED_FIXTURE = 'e1f1549c8b5b20654cba30962e5fd499841c088c'
 FILES = (
     'docs/contracts/crm-api.openapi.yaml',
     'docs/contracts/platform-operations.openapi.yaml',
@@ -36,6 +41,7 @@ FILES = (
     'tests/ClientConsumers/dotnet/packages.lock.json',
     'tests/ClientConsumers/dotnet-v2/packages.lock.json',
     'scripts/contracts/generate.py',
+    'scripts/contracts/check.py',
     'src/Platform.Api/Identity/TenantAuthorization.cs',
     'src/Platform.Api/Identity/TenantEndpointTransaction.cs',
     'src/Platform.Infrastructure/Persistence/Migrations/20261127000000_ContactFoundation.cs',
@@ -65,23 +71,52 @@ FILES = (
 )
 
 
+def reviewed_fixture_available():
+    try:
+        return subprocess.run(['git', '-C', str(ROOT), 'cat-file', '-e', REVIEWED_FIXTURE + '^{commit}'],
+                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+@unittest.skipUnless(reviewed_fixture_available(), 'the immutable reviewed contact fixture is unavailable')
 class ContactReviewScopeTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.archive = subprocess.check_output(
+            ['git', '-C', str(ROOT), 'archive', REVIEWED_FIXTURE, '--', 'docs/contracts', *FILES],
+            stderr=subprocess.DEVNULL)
+
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.repo = Path(self.tmp.name)
-        contract_inputs = [p.relative_to(ROOT).as_posix() for p in (ROOT / 'docs/contracts').rglob('*')
+        with tarfile.open(fileobj=io.BytesIO(self.archive)) as archive:
+            archive.extractall(self.repo, filter='data')
+        contract_inputs = [p.relative_to(self.repo).as_posix() for p in (self.repo / 'docs/contracts').rglob('*')
                            if p.is_file() and (p.name.endswith('.schema.json') or p.name.endswith('.openapi.yaml'))]
-        for path in set(FILES) | set(contract_inputs):
-            target = self.repo / path
-            target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(ROOT / path, target)
         self.hashes = {'current': {path: hashlib.sha256((self.repo / path).read_bytes()).hexdigest()
                                     for path in contract_inputs}}
 
     def approved(self, base=BASE, enabled=True, now=1795737600):
         fn = getattr(compatibility, 'reviewed_contact_change', lambda *args, **kwargs: False)
         return fn(base, self.repo, self.hashes, enabled, now=now)
+
+    def test_approved_fixture_is_stable_when_current_checkout_drifts(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            clone=Path(temporary)/'repo'
+            subprocess.run(['git','clone','--shared','--no-checkout',str(ROOT),str(clone)],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+            subprocess.run(['git','-C',str(clone),'checkout','--detach',REVIEWED_FIXTURE],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+            target=clone/'src/Platform.Api/Crm/ContactEndpoints.cs'
+            target.write_bytes(target.read_bytes()+b'\n')
+            (clone/'docs/contracts/new.schema.json').write_text('{}')
+            with patch(__name__+'.ROOT',clone):
+                fixture=ContactReviewScopeTests('runTest')
+                try:
+                    fixture.setUp()
+                    self.assertTrue(fixture.approved(), 'approved fixture depended on current worktree')
+                finally:
+                    fixture.doCleanups()
 
     def test_only_reviewed_candidate_and_base_enabled_before_expiry(self):
         self.assertTrue(self.approved())
@@ -95,7 +130,7 @@ class ContactReviewScopeTests(unittest.TestCase):
                      'src/Platform.Api/Crm/ContactEndpoints.cs',
                      'tests/Integration/ContactEndpointsTests.cs',
                      'tests/ClientConsumers/contact-upsert/new/Program.cs',
-                     'scripts/contracts/generate.py'):
+                     'scripts/contracts/generate.py', 'scripts/contracts/check.py'):
             with self.subTest(path=path):
                 target = self.repo / path
                 original = target.read_bytes()
@@ -116,6 +151,47 @@ class ContactReviewScopeTests(unittest.TestCase):
         self.hashes = copy.deepcopy(self.hashes)
         self.hashes['current']['docs/contracts/contact-event-intent.schema.json'] = '0' * 64
         self.assertFalse(self.approved())
+
+    def test_exact_target_runs_every_check_and_reports_reviewed_break(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            clone=Path(temporary)/'repo'
+            subprocess.run(['git','clone','--shared','--no-checkout',str(ROOT),str(clone)],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+            subprocess.run(['git','-C',str(clone),'checkout','--detach',REVIEWED_FIXTURE],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+            paths=compatibility.git(clone,'ls-tree','-r','--name-only',BASE,'--','docs/contracts').decode().splitlines()
+            original_run=subprocess.run
+            calls=[]
+            def run(command,*args,**kwargs):
+                if command[0] == 'git': return original_run(command,*args,**kwargs)
+                calls.append(command)
+                if command[0] == 'docker': return SimpleNamespace(returncode=0,stdout=b'[]')
+                if command[:2] == ['bash','tests/ClientConsumers/run.sh']:
+                    return SimpleNamespace(returncode=0,stdout=b'TYPESCRIPT_WIRE_OK\nDOTNET_WIRE_OK\nDOTNET_WIRE_OK\nOLD_201_ONLY_CONSUMER_OK\nNEW_UPSERT_CONSUMER_OK\nSDK_PACKAGE_BOUNDARY_OK\nPACKAGED_CONSUMERS_OK\n')
+                raise AssertionError('unexpected subprocess')
+            def compare(old,new,source,workspace,base_toolchain,report):
+                report['sdkChecks']={'typescriptSurface':False,'typescriptHistoricalConsumer':True,'dotnetSurface':False,'dotnetHistoricalConsumer':True}
+                return False
+            with patch.object(compatibility.subprocess,'run',side_effect=run), patch.object(sdk_surface,'prepare',return_value=clone), patch.object(sdk_surface,'compare',side_effect=compare):
+                result=compatibility.evaluate_contract_snapshots(BASE,paths,clone,{}, {'dockerImage':'fixture','breakOn':'WARN'},Path('/fixture/oasdiff'),mvp_review=True,target=BASE)
+            self.assertEqual('CONTRACT_BREAKING_REVIEWED',result['reason'])
+            self.assertEqual(2,sum(command[0]=='docker' for command in calls))
+            self.assertEqual(1,sum(command[:2]==['bash','tests/ClientConsumers/run.sh'] for command in calls))
+            self.assertEqual(False,result['contactReview']['independentVerification'])
+
+    def test_diverged_target_with_reviewed_merge_base_is_not_approved(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            clone=Path(temporary)/'repo'
+            subprocess.run(['git','clone','--shared','--no-checkout',str(ROOT),str(clone)],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+            subprocess.run(['git','-C',str(clone),'checkout','--detach',REVIEWED_FIXTURE],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+            sibling=subprocess.check_output(['git','-C',str(clone),'-c','user.name=Fixture','-c','user.email=fixture@example.invalid',
+                'commit-tree',BASE+'^{tree}','-p',BASE,'-m','unrelated target']).decode().strip()
+            actual=subprocess.check_output(['git','-C',str(clone),'merge-base','HEAD',sibling]).decode().strip()
+            self.assertEqual(BASE,actual)
+            context={}
+            with patch.object(compatibility,'evaluate_contract_snapshots',return_value={'reason':'SHOULD_NOT_REACH'}):
+                with self.assertRaises(compatibility.GateError) as denied:
+                    compatibility.run(sibling,clone,context,True)
+            self.assertEqual('CONTRACT_POLICY_REVIEW_REQUIRED',str(denied.exception))
+            self.assertEqual(sibling,context.get('targetSha'), 'resolved target must remain visible on a closed path')
 
     def test_policy_review_accepts_only_exact_sdk_surface_change(self):
         fn = getattr(compatibility, 'reviewed_contact_policy', lambda *args, **kwargs: False)

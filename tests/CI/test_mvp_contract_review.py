@@ -34,14 +34,26 @@ class ContractReviewTests(unittest.TestCase):
     def test_default_gate_keeps_review_blocked_and_mvp_runs_identity_review(self):
         from scripts.contracts import compatibility as gate
         from pathlib import Path
+        import subprocess, tempfile
         root=Path(__file__).resolve().parents[2]
-        for base in (contract_review.BASE,contract_review.REMOTE_BASE):
-            with self.subTest(base=base):
-                with self.assertRaises(gate.GateError):
-                    gate.check_baseline_configuration(root,base)
-                reviewed=gate.check_baseline_configuration(root,base,mvp_review=True)
-                self.assertFalse(reviewed['independentVerification'])
-                self.assertFalse(reviewed['dualPolicyEvaluation'])
+        # Positive evidence must use the actual previously reviewed candidate,
+        # not whatever policy files happen to be in the evolving checkout.
+        with tempfile.TemporaryDirectory() as temporary:
+            snapshot=Path(temporary)/'repo'
+            subprocess.run(['git','clone','--shared','--no-checkout',str(root),str(snapshot)],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+            subprocess.run(['git','-C',str(snapshot),'checkout','--detach','40bc2905b7750b139ff0607000127a3e5c06e2d8'],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+            for base in (contract_review.BASE,contract_review.REMOTE_BASE):
+                with self.subTest(base=base):
+                    with self.assertRaises(gate.GateError):
+                        gate.check_baseline_configuration(snapshot,base)
+                    reviewed=gate.check_baseline_configuration(snapshot,base,mvp_review=True)
+                    self.assertFalse(reviewed['independentVerification'])
+                    self.assertFalse(reviewed['dualPolicyEvaluation'])
+            candidate=snapshot/'scripts/contracts/sdk_surface.py'
+            candidate.write_bytes(candidate.read_bytes()+b'\n')
+            for base in (contract_review.BASE,contract_review.REMOTE_BASE):
+                with self.subTest(drifted_base=base), self.assertRaises(gate.GateError):
+                    gate.check_baseline_configuration(snapshot,base,mvp_review=True)
 
     def test_mvp_clean_export_forwards_opt_in_and_hardening_does_not(self):
         from scripts.ci.jobs import plan3_commands
