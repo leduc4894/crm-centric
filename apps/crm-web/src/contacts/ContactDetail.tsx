@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ContactForm, mutationMessage, safeError, type Snapshot } from './ContactForm';
 import { navigate, openContacts } from './ContactShell';
 import { ContactTimeline } from './ContactTimeline';
 import { ContactAttributes } from './ContactAttributes';
 import type { RecordWrite, RegisterPanelRead } from './recordPanels';
 import { CrmError, type CrmClient } from './crmClient';
+import { scopedRecordClient } from './contactQueries';
+import { useContactQueryScope } from './queryScope';
 
 function DeleteDialog({ name, onCancel, onConfirm }: { name: string; onCancel(): void; onConfirm(): void }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -18,7 +20,9 @@ function DeleteDialog({ name, onCancel, onConfirm }: { name: string; onCancel():
     <div className="contact-actions"><button autoFocus onClick={onCancel}>Hủy</button><button onClick={onConfirm}>Xác nhận xóa</button></div>
   </dialog>;
 }
-export function ContactDetail({ client, id }: { client: CrmClient; id: string }) {
+export function ContactDetail({ client: transport, id }: { client: CrmClient; id: string }) {
+  const scope = useContactQueryScope();
+  const client = useMemo(() => scopedRecordClient(scope, transport), [scope, transport]);
   const [record, setRecord] = useState<Snapshot | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [failure, setFailure] = useState<CrmError | null>(null);

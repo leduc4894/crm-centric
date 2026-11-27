@@ -1,8 +1,8 @@
-import { useRef, useState, type FormEvent } from 'react';
+import { useMemo, useRef, useState, type FormEvent } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { ContactForm, safeError } from './ContactForm';
 import { navigate, openContacts } from './ContactShell';
-import { contactsOptions } from './contactQueries';
+import { contactsOptions, scopedRecordClient } from './contactQueries';
 import { useContactQueryScope } from './queryScope';
 import { contactIdPattern, CrmError, type ContactQuery, type CrmClient } from './crmClient';
 
@@ -11,6 +11,7 @@ export function ContactList({ client }: { client: CrmClient }) {
   const [creating, setCreating] = useState(false);
   const [readOnly, setReadOnly] = useState(false);
   const scope = useContactQueryScope();
+  const recordClient = useMemo(() => scopedRecordClient(scope, client), [scope, client]);
   const generation = useRef(0);
   const options = contactsOptions(scope, client, query);
   const pages = useInfiniteQuery(options);
@@ -45,7 +46,7 @@ export function ContactList({ client }: { client: CrmClient }) {
   }
   return <>
     <header className="contact-title"><h2>Liên hệ</h2>{!readOnly && !creating && <button onClick={() => setCreating(true)}>Thêm liên hệ</button>}</header>
-    {creating && <section className="contact-card"><h3>Thêm liên hệ</h3><ContactForm client={client} readOnly={readOnly} choices={items} refreshList={refreshList}
+    {creating && <section className="contact-card"><h3>Thêm liên hệ</h3><ContactForm client={recordClient} readOnly={readOnly} choices={items} refreshList={refreshList}
       onSaved={result => openContacts(result.data.id)} onCancel={() => setCreating(false)} onForbidden={() => setReadOnly(true)} /></section>}
     <div className="contact-card">
       <form className="contact-filters" onSubmit={filter}>

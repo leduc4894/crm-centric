@@ -2,7 +2,38 @@
 import { cleanup, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { setup, data, id, field, itemId, page, record, click, change } from './recordTestSupport';
+import { queryKeys } from './queryKeys';
+import type { useContactQueryScope } from './queryScope';
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+it('stores contact and attribute reads in the scoped query cache', async () => {
+  let scope: ReturnType<typeof useContactQueryScope> | undefined;
+  setup((_req, path) => path.endsWith('/custom-fields') ? page([field]) : path.endsWith('/fields/' + itemId) ? Response.json({ value: 1 }) : undefined, value => { scope = value; });
+  await screen.findByLabelText('Amount');
+  await waitFor(() => {
+    expect(scope?.client.getQueryData(queryKeys.contact(scope.scopeId, id))).toMatchObject({ data: { id }, etag: '"v1"' });
+    expect(scope?.client.getQueryData(queryKeys.fieldValue(scope.scopeId, id, itemId))).toBeDefined();
+  });
+});
+it('keeps the reviewed version when the query cache receives a newer contact during editing', async () => {
+  let scope: ReturnType<typeof useContactQueryScope> | undefined;
+  const calls = setup((req, path) => path.endsWith('/contacts/' + id) && req.method === 'PATCH' ? record(2) : undefined, value => { scope = value; });
+  await click('Chỉnh sửa');
+  await change('Tên liên hệ', 'Draft');
+  scope!.client.setQueryData(queryKeys.contact(scope!.scopeId, id), { data: { ...data, displayName: 'Elsewhere', version: 2 }, etag: '"v2"', status: 200 });
+  await click('Lưu');
+  await waitFor(() => expect(calls.find(req => req.method === 'PATCH')?.headers.get('If-Match')).toBe('"v1"'));
+});
+it('collects all tag and field pages through scoped queries', async () => {
+  const calls = setup((req, path) => {
+    const cursor = new URL(req.url).searchParams.get('cursor');
+    if (path.endsWith('/v1/tags')) return cursor ? page([{ id: itemId, name: 'VIP' }]) : page([], 'second-tag-page');
+    if (path.endsWith('/custom-fields')) return cursor ? page([field]) : page([], 'second-field-page');
+    if (path.endsWith('/fields/' + itemId)) return Response.json({ value: 1 });
+  });
+  await screen.findByRole('option', { name: 'VIP' });
+  await screen.findByDisplayValue('1');
+  expect(calls.filter(req => new URL(req.url).searchParams.has('cursor'))).toHaveLength(2);
+});
 it('creates a tag, attaches and removes it with the latest contact version', async () => {
   let created = false, attached = false;
   const tag = { id: itemId, name: 'VIP' };

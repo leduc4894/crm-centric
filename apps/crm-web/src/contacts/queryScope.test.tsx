@@ -6,8 +6,22 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { ContactQueryScope, useContactQueryScope } from './queryScope';
 import { queryKeys } from './queryKeys';
 import { createCrmClient } from './crmClient';
+import { scopedRecordClient } from './contactQueries';
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+it('rejects a late production record write after the session changes', async () => {
+  let finish: ((response: Response) => void) | undefined;
+  let client: ReturnType<typeof scopedRecordClient> | undefined;
+  vi.stubGlobal('fetch', () => new Promise<Response>(resolve => { finish = resolve; }));
+  const transport = createCrmClient({ origin: location.origin, tenantId: '10000000-0000-4000-8000-000000000002', token: 'fixture', signal: new AbortController().signal, invalidate: () => {} });
+  function Capture() { const scope = useContactQueryScope(); useEffect(() => { client = scopedRecordClient(scope, transport); }, [scope]); return null; }
+  const view = render(<ContactQueryScope identity="a" tenantId="one" generation={1}><Capture /></ContactQueryScope>);
+  const write = client!.createTag({ name: 'test' });
+  await waitFor(() => expect(finish).toBeDefined());
+  view.rerender(<ContactQueryScope identity="a" tenantId="one" generation={2}><Capture /></ContactQueryScope>);
+  finish!(Response.json({ id: '10000000-0000-4000-8000-000000000001', name: 'test' }, { status: 201 }));
+  await expect(write).rejects.toMatchObject({ reasonToken: 'WEB_CRM_READ_CANCELLED' });
+});
 const pending: Array<{ resolve: (value: string) => void; signal: AbortSignal }> = [];
 function Read() {
   const scope = useContactQueryScope();
