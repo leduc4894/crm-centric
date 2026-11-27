@@ -2,7 +2,6 @@ import { Link, Outlet } from '@tanstack/react-router';
 import { TenantProvider } from './tenant/TenantProvider.tsx';
 import { TenantPicker } from './tenant/TenantPicker.tsx';
 import { HealthStatus } from './health/HealthStatus.tsx';
-import './contacts/shell.css';
 
 export function App() {
   return <TenantProvider><div className="crm-shell">

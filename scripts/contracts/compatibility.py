@@ -150,11 +150,13 @@ PLAN3_COVERAGE_SHA256 = 'aa7dff3457dc0c7728c68b0d7fd6948d43050c7b07593534f1b921a
 
 PLAN9_REVIEW_COMMIT = '71959b35c08738d16a03e1f4f54e4f0b21075ce0'
 PLAN9_REVIEW_TREE = '6a7dda4d57c87565389ad125f750fe21be963f15'
-# Exact reviewed test and diagnostic delta; all other product files remain tree-bound.
+# Exact reviewed frontend, test and diagnostic delta; other files remain tree-bound.
 PLAN9_DIAGNOSTIC_HASHES = {
     'scripts/ci/jobs.py': '75d2c0dba3aeadb1b537c94065c3976c4bf69f3b9ab1f03405413703fc76e7e8',
     'tests/CI/test_job_processes.py': '67bcc24dd92ae57d3ad9c25a37709c47f2d0cf5573b3ee4dd568fd3ace5662c8',
     'apps/crm-web/src/contacts/contactQueries.test.tsx': '791176d691e2a89c07bb81bcbdfe3f96e19ea5739c29356c6c7043bd2761a97d',
+    'apps/crm-web/index.html': '44047a84aa56f5dfc78863cad9dbbdaa329859572bb3778e7afe6a148748fb94',
+    'apps/crm-web/src/App.tsx': '3527d55d19b78924a2fd29f4dc8d50efa6943ebdf2b4250f598f7ac297642b63',
 }
 PLAN9_GOVERNANCE_FILES = PLAN3_GOVERNANCE_FILES | frozenset({
     'tests/Contract/test_wave2_plan9_review.py',
@@ -217,7 +219,7 @@ def _reviewed_candidate(base, repo, enabled, target, now, commit, expected_tree,
         if commit == PLAN9_REVIEW_COMMIT:
             helper = repo / 'tests/Contract/plan9_review_cases.py'
             if (helper.is_symlink() or any((repo / parent).is_symlink() for parent in Path('tests/Contract/plan9_review_cases.py').parents if str(parent) != '.')
-                    or sha(helper) != '5f621cd67de7b8b2f51113b2edd8eee0b91460bcec8ff7064f0a47c64fe6fc01'):
+                    or sha(helper) != '6cc75c44fac5c4e985e9804370df395556d719cd625e3a9759100c1e14b8265d'):
                 return False
         tree = {}
         for item in git(repo, 'ls-tree', '-rz', '--full-tree', commit).split(b'\0'):
