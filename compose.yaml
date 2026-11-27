@@ -65,6 +65,7 @@ services:
       ASPNETCORE_URLS: http://+:8080
       ASPNETCORE_ENVIRONMENT: Development
       Oidc__Issuer: http://localhost:${LOCAL_IDP_PORT}/realms/crm-local
+      ContactCursor__SigningKey: ${CONTACT_CURSOR_SIGNING_KEY:-}
       Oidc__Audience: crm-api
       Oidc__MetadataAddress: https://keycloak:8443/realms/crm-local/.well-known/openid-configuration
       Oidc__AllowHttpLoopback: "true"
