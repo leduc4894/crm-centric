@@ -11,6 +11,7 @@ public static class DatabaseRoleGrants
         await using var command = new NpgsqlCommand($"""
             GRANT USAGE ON SCHEMA platform, crm, outbox TO {role};
             GRANT SELECT, INSERT, UPDATE ON crm.contacts TO {role};
+            GRANT SELECT ON crm.tags, crm.contact_tags TO {role};
             GRANT INSERT ON outbox.events TO {role};
             GRANT EXECUTE ON FUNCTION platform.append_contact_audit(uuid,uuid,text,text,text,text) TO {role};
             GRANT SELECT ON TABLE platform."__EFMigrationsHistory", platform.memberships TO {role};
@@ -31,6 +32,11 @@ public static class DatabaseRoleGrants
                 AND coalesce(bool_and(c.relrowsecurity AND c.relforcerowsecurity),true)
               FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
               WHERE (n.nspname='crm' AND c.relname='contacts') OR (n.nspname='outbox' AND c.relname='events')
+            ) AND (
+              SELECT (count(*)=2 OR (count(*)=0 AND NOT @require_contact_schema))
+                AND coalesce(bool_and(c.relrowsecurity AND c.relforcerowsecurity),true)
+              FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+              WHERE n.nspname='crm' AND c.relname IN ('tags','contact_tags')
             ) AND (
               -- Evaluate the login and every role it can assume, including non-inherited grants.
               SELECT bool_and(
@@ -56,6 +62,7 @@ public static class DatabaseRoleGrants
                   AND NOT EXISTS (
                     SELECT FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
                     WHERE (n.nspname='crm' AND c.relname='contacts' AND has_table_privilege(rolname,c.oid,'DELETE,TRUNCATE,REFERENCES,TRIGGER'))
+                       OR (n.nspname='crm' AND c.relname IN ('tags','contact_tags') AND (has_table_privilege(rolname,c.oid,'INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER') OR has_any_column_privilege(rolname,c.oid,'INSERT,UPDATE,REFERENCES')))
                        OR (n.nspname='outbox' AND c.relname='events' AND (has_table_privilege(rolname,c.oid,'SELECT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER') OR has_any_column_privilege(rolname,c.oid,'SELECT,UPDATE,REFERENCES')))
                   )
                   AND NOT EXISTS (
