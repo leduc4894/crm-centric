@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CRM contact mutation durable event intent v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["eventId", "tenantId", "contactId", "eventType", "occurredAt", "payload"],
+  "properties": {
+    "eventId": {"type": "string", "format": "uuid"},
+    "tenantId": {"type": "string", "format": "uuid"},
+    "contactId": {"type": "string", "format": "uuid"},
+    "eventType": {"enum": ["crm.contact.created.v1", "crm.contact.updated.v1", "crm.contact.deleted.v1"]},
+    "occurredAt": {"type": "string", "format": "date-time"},
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version"],
+      "properties": {
+        "version": {"type": "integer", "minimum": 1}
+      }
+    }
+  }
+}
