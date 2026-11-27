@@ -1,6 +1,7 @@
 import { createRootRoute, createRoute, createRouter, type RouterHistory } from '@tanstack/react-router';
 import { App } from './App';
 import { ContactShell } from './contacts/ContactShell';
+import { CustomFieldsPage } from './settings/CustomFieldsPage';
 import { contactIdPattern } from './contacts/crmClient';
 
 const rootRoute = createRootRoute({ component: App, notFoundComponent: NotFound });
@@ -13,7 +14,8 @@ function Detail() {
   const { contactId } = detailRoute.useParams();
   return contactIdPattern.test(contactId) ? <ContactShell recordId={contactId} /> : <NotFound />;
 }
-const routeTree = rootRoute.addChildren([platformRoute, callbackRoute, contactsRoute, detailRoute]);
+const settingsRoute = createRoute({ getParentRoute: () => rootRoute, path: '/app/settings/custom-fields', component: CustomFieldsPage });
+const routeTree = rootRoute.addChildren([platformRoute, callbackRoute, contactsRoute, detailRoute, settingsRoute]);
 export function createAppRouter(history?: RouterHistory) {
   return createRouter({ routeTree, ...(history && { history }), defaultPreload: false });
 }

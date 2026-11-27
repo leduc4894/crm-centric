@@ -7,7 +7,7 @@ import './contacts/shell.css';
 export function App() {
   return <TenantProvider><div className="crm-shell">
     <aside><header><h1><span className="brand-mark" aria-hidden="true">C</span> CRM Centric</h1></header>
-      <nav aria-label="Primary"><Link to="/">Platform</Link><Link to="/app/contacts">Liên hệ</Link></nav>
+      <nav aria-label="Primary"><Link to="/">Platform</Link><Link to="/app/contacts">Liên hệ</Link><Link to="/app/settings/custom-fields">Trường tùy chỉnh</Link></nav>
       <TenantPicker />
     </aside>
     <main><Outlet /><HealthStatus /></main>
