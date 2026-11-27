@@ -1,0 +1,18 @@
+body { margin: 0; background: #f6f8fc; color: #202b42; font: 14px/1.5 Inter, system-ui, sans-serif; }
+.crm-shell { display: grid; grid-template-columns: 232px minmax(0,1fr); min-height: 100vh; }
+.crm-shell aside { padding: 24px 16px; background: white; border-right: 1px solid #e6eaf1; }
+.crm-shell h1 { display: flex; gap: 10px; align-items: center; font-size: 21px; letter-spacing: -.04em; }
+.brand-mark { background: #3563e9; color: white; padding: 0 9px; border-radius: 9px; }
+.crm-shell nav { display: grid; margin: 24px 0; gap: 4px; }
+.crm-shell nav a { padding: 10px 12px; border-radius: 8px; text-decoration: none; font-weight: 600; }
+.crm-shell nav a:hover, .crm-shell nav a:focus-visible { background: #eef3ff; }
+.crm-shell a { color: #315dde; }
+.crm-shell main { padding: clamp(16px, 4vw, 42px); }
+.contact-content h2 { font-size: 29px; letter-spacing: -.03em; }
+.contact-card { background: white; padding: 20px; border: 1px solid #e5eaf2; border-radius: 12px; overflow-wrap: anywhere; }
+.crm-shell :focus-visible { outline: 3px solid #9cb9ff; outline-offset: 2px; }
+@media (max-width: 700px) {
+  .crm-shell { grid-template-columns: 1fr; align-content: start; }
+  .crm-shell aside { border-bottom: 1px solid #e6eaf1; }
+  .crm-shell nav { display: flex; margin: 10px 0; }
+}

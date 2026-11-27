@@ -1,0 +1,58 @@
+// @vitest-environment jsdom
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, expect, it, vi } from 'vitest';
+import { ContactShell } from './ContactShell';
+const a = '10000000-0000-4000-8000-000000000001', b = '10000000-0000-4000-8000-000000000002';
+let tenant: string | null = null;
+let identity: string | null = 'principal';
+const auth = { getAccessToken: () => 'synthetic', invalidate: vi.fn(), getSnapshot: () => ({ status: 'authenticated', issuer: 'issuer', subject: identity }) };
+vi.mock('../tenant/TenantProvider', () => ({ useTenant: () => ({ selectedTenantId: tenant, identity: identity && JSON.stringify(['issuer', identity]) }) }));
+vi.mock('../auth/AuthProvider', () => ({ useAuthClient: () => auth }));
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); tenant = null; identity = 'principal'; });
+it('opens the dedicated record and follows browser history', async () => {
+  const record = { id: a, displayName: 'Demo', version: 1, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' };
+  vi.stubGlobal('fetch', async (req: Request) => Response.json(new URL(req.url).pathname.endsWith(a) ? record : { items: [record], nextCursor: null }));
+  history.replaceState(null, '', '/app/contacts/' + a); tenant = a; render(<ContactShell />);
+  expect(await screen.findByRole('heading', { name: 'Demo' })).toBeTruthy();
+  act(() => screen.getByRole('link', { name: 'Liên hệ' }).click());
+  await screen.findByRole('link', { name: 'Demo' }); act(() => screen.getByRole('link', { name: 'Demo' }).click());
+  expect(await screen.findByRole('heading', { name: 'Demo' })).toBeTruthy();
+  act(() => history.back()); await screen.findByRole('link', { name: 'Demo' });
+  act(() => history.forward()); await screen.findByRole('heading', { name: 'Demo' });
+});
+it('resets immediately and ignores delayed previous tenant responses', async () => {
+  history.replaceState(null, '', '/app/contacts');
+  const pending: Array<(r: Response) => void> = [];
+  vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(resolve => pending.push(resolve))));
+  const view = render(<ContactShell />); expect(fetch).not.toHaveBeenCalled();
+  tenant = a; view.rerender(<ContactShell />); await waitFor(() => expect(pending).toHaveLength(1));
+  tenant = b; view.rerender(<ContactShell />); await waitFor(() => expect(pending).toHaveLength(2));
+  await act(async () => pending[0]!(Response.json({ items: [], nextCursor: null }, { status: 403 })));
+  expect(screen.queryByRole('alert')).toBeNull();
+  identity = null; tenant = null; view.rerender(<ContactShell />);
+  await act(async () => pending[1]!(new Response(null, { status: 401 })));
+  expect(auth.invalidate).not.toHaveBeenCalled();
+});
+it('removes visible records synchronously on tenant and principal changes', async () => {
+  history.replaceState(null, '', '/app/contacts');
+  tenant = a;
+  const pending: Array<(response: Response) => void> = [];
+  vi.stubGlobal('fetch', () => new Promise<Response>(resolve => pending.push(resolve)));
+  const view = render(<ContactShell />);
+  const record = { id: a, displayName: 'Tenant A only', version: 1, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' };
+  const page = (displayName: string) => Response.json({ items: [{ ...record, displayName }], nextCursor: null });
+  await waitFor(() => expect(pending).toHaveLength(1));
+  await act(async () => pending[0]!(page(record.displayName)));
+  expect(screen.getByRole('link', { name: record.displayName })).toBeTruthy();
+  tenant = b; view.rerender(<ContactShell />);
+  expect(screen.queryByText(record.displayName)).toBeNull();
+  await waitFor(() => expect(pending).toHaveLength(2));
+  identity = 'next-principal'; view.rerender(<ContactShell />);
+  await waitFor(() => expect(pending).toHaveLength(3));
+  await act(async () => pending[2]!(page('Current')));
+  await act(async () => pending[1]!(page('Previous principal')));
+  expect(screen.queryByText('Previous principal')).toBeNull();
+  expect(screen.getByRole('link', { name: 'Current' })).toBeTruthy();
+  identity = null; view.rerender(<ContactShell />);
+  expect(screen.queryByText('Current')).toBeNull();
+});

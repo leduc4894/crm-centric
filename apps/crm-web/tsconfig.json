@@ -20,6 +20,7 @@
     "types": ["vite/client", "node"],
     "baseUrl": ".",
     "paths": {
+      "@crm-centric/crm-client": ["../../sdks/typescript/crm/index.ts"],
       "@crm-centric/operations-client": ["../../sdks/typescript/operations/index.ts"]
     }
   },
