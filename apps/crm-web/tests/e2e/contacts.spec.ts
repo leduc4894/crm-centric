@@ -165,14 +165,23 @@ test('contact persists across sessions, rejects stale notes and isolates delayed
     await list(first);
     const received = signal();
     const release = signal();
-    const delivered = signal();
+    const fulfilled = signal();
+    const settled = signal();
+    let heldRequest: import('@playwright/test').Request | undefined;
+    const onSettled = (request: import('@playwright/test').Request) => {
+      if (request === heldRequest) settled.resolve();
+    };
+    first.on('requestfinished', onSettled);
+    first.on('requestfailed', onSettled);
     await first.route(url => url.pathname.endsWith('/contacts') && url.searchParams.get('q') === contact, async route => {
+      heldRequest = route.request();
       const response = await privateOperation(() => route.fetch());
       expect(response.status()).toBe(200);
       expect((await response.text()).includes(contact)).toBe(true);
       received.resolve();
       await release.promise;
-      try { await privateOperation(() => route.fulfill({ response })); } finally { delivered.resolve(); }
+      await privateOperation(() => route.fulfill({ response }));
+      fulfilled.resolve();
     }, { times: 1 });
     await first.getByLabel('Tìm kiếm').fill(contact);
     await button(first, 'Lọc').click();
@@ -180,13 +189,21 @@ test('contact persists across sessions, rejects stale notes and isolates delayed
     try {
       await button(first, 'Tenant B').click();
       await expect(first.getByText('Chưa có liên hệ.')).toBeVisible();
-      await expect(first.getByRole('link', { name: contact, exact: true })).toHaveCount(0);
+      release.resolve();
+      await Promise.all([fulfilled.promise, settled.promise]);
+      await first.evaluate(() => new Promise<void>(done => requestAnimationFrame(() => requestAnimationFrame(() => done()))));
+      await expect(first.getByText('Chưa có liên hệ.')).toBeVisible();
+      await expect(first.getByRole('row')).toHaveCount(0);
+      await expect(first.locator('a[href^="/app/contacts/"]')).toHaveCount(0);
       await button(first, 'Tenant A').click();
       await first.getByLabel('Tìm kiếm').fill('no matching synthetic contact');
       await button(first, 'Lọc').click();
       await expect(first.getByText('Chưa có liên hệ.')).toBeVisible();
-    } finally { release.resolve(); }
-    await delivered.promise;
+    } finally {
+      release.resolve();
+      first.off('requestfinished', onSettled);
+      first.off('requestfailed', onSettled);
+    }
     await expect(first.getByRole('link', { name: contact, exact: true })).toHaveCount(0);
     await button(first, 'Sign out').click();
     await expect(button(first, 'Sign in')).toBeVisible();
