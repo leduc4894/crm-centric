@@ -17,8 +17,73 @@ async function openContact(page: Page) {
   await list(page);
   await page.getByLabel('Tìm kiếm').fill(contact);
   await button(page, 'Lọc').click();
-  await page.getByRole('link', { name: contact }).click();
-  await expect(page.getByRole('heading', { name: contact })).toBeVisible();
+  await page.getByRole('link', { name: contact, exact: true }).click();
+  await expect(page.getByRole('heading', { name: contact, exact: true })).toBeVisible();
+}
+
+type ListPage = { items: { id: string; displayName: string }[]; nextCursor: string | null };
+
+async function checkContactTable(page: Page) {
+  const prefix = 'Synthetic browser';
+  const markup = prefix + ' <b>literal</b>';
+  // The default server page holds 20. The original contact plus these 20 require a real continuation.
+  for (let index = 1; index <= 20; index++) {
+    const name = index === 20 ? markup : prefix + ' ' + String(index).padStart(2, '0');
+    await list(page);
+    await button(page, 'Thêm liên hệ').click();
+    await page.getByLabel('Tên liên hệ').fill(name);
+    await button(page, 'Tạo').click();
+    await expect(page.getByRole('heading', { name, exact: true })).toBeVisible();
+  }
+  await list(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  const waitForPage = (cursor: string | null) => page.waitForResponse(response => {
+    const url = new URL(response.url());
+    return response.request().method() === 'GET' && url.pathname.endsWith('/contacts') &&
+      url.searchParams.get('q') === prefix && url.searchParams.get('cursor') === cursor;
+  });
+  const firstResponse = waitForPage(null);
+  await page.getByLabel('Tìm kiếm').fill(prefix);
+  await button(page, 'Lọc').click();
+  const first = await firstResponse;
+  expect(first.status()).toBe(200);
+  const firstPage = await first.json() as ListPage;
+  expect(firstPage.items).toHaveLength(20);
+  expect(typeof firstPage.nextCursor).toBe('string');
+  const region = page.getByRole('region', { name: 'Danh sách liên hệ' });
+  const table = region.getByRole('table');
+  const links = table.getByRole('link');
+  await expect(links).toHaveText(firstPage.items.map(item => item.displayName));
+  await expect(table.getByRole('columnheader')).toHaveText(['Tên liên hệ', 'Email', 'Điện thoại']);
+  await expect(table.locator('b')).toHaveCount(0);
+  const secondResponse = waitForPage(firstPage.nextCursor);
+  await button(page, 'Tải thêm').click();
+  const second = await secondResponse;
+  expect(second.status()).toBe(200);
+  const secondPage = await second.json() as ListPage;
+  expect(secondPage.items).toHaveLength(1);
+  expect(secondPage.nextCursor).toBeNull();
+  await expect(links).toHaveText([...firstPage.items, ...secondPage.items].map(item => item.displayName));
+  await expect(button(page, 'Tải thêm')).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await button(page, 'Lọc').focus();
+  await page.keyboard.press('Tab');
+  await expect(region).toBeFocused();
+  await region.press('End');
+  for (let i = 0; i < 8; i++) await region.press('ArrowRight');
+  await expect.poll(() => region.evaluate(element => {
+    const lastColumn = element.querySelector('th:last-child')!;
+    return element.scrollLeft > 0 && lastColumn.getBoundingClientRect().right <= element.getBoundingClientRect().right + 1;
+  })).toBe(true);
+  await page.keyboard.press('Tab');
+  const link = links.first();
+  await expect(link).toBeFocused();
+  await expect(link).toHaveText(markup);
+  await expect(link).toHaveAttribute('href', '/app/contacts/' + firstPage.items[0]!.id);
+  await link.press('Enter');
+  await expect(page.getByRole('heading', { name: markup, exact: true })).toBeVisible();
+  await page.goBack();
+  await expect(table.getByRole('link', { name: markup, exact: true })).toBeVisible();
 }
 
 test('contact persists across sessions, rejects stale notes and isolates delayed tenant reads', async ({ browser }) => {
@@ -34,7 +99,8 @@ test('contact persists across sessions, rejects stale notes and isolates delayed
     await expect(first.getByLabel('Tên liên hệ')).toBeFocused();
     await first.getByLabel('Tên liên hệ').fill(contact);
     await button(first, 'Tạo').press('Enter');
-    await expect(first.getByRole('heading', { name: contact })).toBeVisible();
+    await expect(first.getByRole('heading', { name: contact, exact: true })).toBeVisible();
+    await checkContactTable(first);
     await openContact(first);
     await first.getByLabel('Tên thẻ mới').fill('Browser tag');
     await button(first, 'Tạo thẻ').click();
@@ -114,14 +180,14 @@ test('contact persists across sessions, rejects stale notes and isolates delayed
     try {
       await button(first, 'Tenant B').click();
       await expect(first.getByText('Chưa có liên hệ.')).toBeVisible();
-      await expect(first.getByRole('link', { name: contact })).toHaveCount(0);
+      await expect(first.getByRole('link', { name: contact, exact: true })).toHaveCount(0);
       await button(first, 'Tenant A').click();
       await first.getByLabel('Tìm kiếm').fill('no matching synthetic contact');
       await button(first, 'Lọc').click();
       await expect(first.getByText('Chưa có liên hệ.')).toBeVisible();
     } finally { release.resolve(); }
     await delivered.promise;
-    await expect(first.getByRole('link', { name: contact })).toHaveCount(0);
+    await expect(first.getByRole('link', { name: contact, exact: true })).toHaveCount(0);
     await button(first, 'Sign out').click();
     await expect(button(first, 'Sign in')).toBeVisible();
     await fixture.signInAgain(first);
