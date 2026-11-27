@@ -69,6 +69,45 @@ public static class ContactStore
         return await reader.ReadAsync(ct) ? Read(reader) : null;
     }
 
+    public sealed record LockedContact(ContactRecord Contact, bool Deleted);
+
+    public static async Task<LockedContact?> LockByIdAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, Guid tenantId, Guid id, CancellationToken ct)
+    {
+        await using var command=new NpgsqlCommand("""
+            SELECT id,display_name,email,phone,version,created_at,updated_at,deleted_at FROM crm.contacts
+            WHERE tenant_id=@tenant AND id=@id FOR UPDATE
+            """,connection,transaction);
+        command.Parameters.AddWithValue("tenant",tenantId); command.Parameters.AddWithValue("id",id);
+        await using var reader=await command.ExecuteReaderAsync(ct);
+        return await reader.ReadAsync(ct) ? new LockedContact(Read(reader),!reader.IsDBNull(7)) : null;
+    }
+
+    public static async Task<ContactRecord?> PatchAsync(NpgsqlConnection connection,NpgsqlTransaction transaction,Guid tenantId,Guid id,long version,
+        bool namePresent,string? name,bool emailPresent,string? email,bool phonePresent,string? phone,CancellationToken ct)
+    {
+        await using var command=new NpgsqlCommand("""
+            UPDATE crm.contacts SET display_name=CASE WHEN @name_present THEN @name ELSE display_name END,
+              email=CASE WHEN @email_present THEN @email ELSE email END, phone=CASE WHEN @phone_present THEN @phone ELSE phone END,
+              version=version+1,updated_at=now()
+            WHERE tenant_id=@tenant AND id=@id AND version=@version AND deleted_at IS NULL
+            RETURNING id,display_name,email,phone,version,created_at,updated_at
+            """,connection,transaction);
+        command.Parameters.AddWithValue("tenant",tenantId); command.Parameters.AddWithValue("id",id); command.Parameters.AddWithValue("version",version);
+        command.Parameters.AddWithValue("name_present",namePresent); command.Parameters.AddWithValue("email_present",emailPresent); command.Parameters.AddWithValue("phone_present",phonePresent);
+        command.Parameters.AddWithValue("name",NpgsqlDbType.Text,(object?)name ?? DBNull.Value); command.Parameters.AddWithValue("email",NpgsqlDbType.Text,(object?)email ?? DBNull.Value); command.Parameters.AddWithValue("phone",NpgsqlDbType.Text,(object?)phone ?? DBNull.Value);
+        await using var reader=await command.ExecuteReaderAsync(ct); return await reader.ReadAsync(ct) ? Read(reader) : null;
+    }
+
+    public static async Task<long?> DeleteAsync(NpgsqlConnection connection,NpgsqlTransaction transaction,Guid tenantId,Guid id,long version,CancellationToken ct)
+    {
+        await using var command=new NpgsqlCommand("""
+            UPDATE crm.contacts SET deleted_at=now(),updated_at=now(),version=version+1
+            WHERE tenant_id=@tenant AND id=@id AND version=@version AND deleted_at IS NULL RETURNING version
+            """,connection,transaction);
+        command.Parameters.AddWithValue("tenant",tenantId); command.Parameters.AddWithValue("id",id); command.Parameters.AddWithValue("version",version);
+        return (long?)await command.ExecuteScalarAsync(ct);
+    }
+
     private static ContactRecord Read(NpgsqlDataReader reader) => new(reader.GetGuid(0),reader.GetString(1),
         reader.IsDBNull(2) ? null : reader.GetString(2), reader.IsDBNull(3) ? null : reader.GetString(3),
         reader.GetInt64(4),reader.GetDateTime(5),reader.GetDateTime(6));

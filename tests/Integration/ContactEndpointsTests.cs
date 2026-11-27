@@ -10,7 +10,7 @@ using Xunit;
 
 namespace Integration;
 
-public sealed class ContactEndpointsTests : IAsyncLifetime
+public sealed partial class ContactEndpointsTests : IAsyncLifetime
 {
     private readonly PostgresFixture db = new();
     private readonly Guid tenant = Guid.NewGuid(), other = Guid.NewGuid();
