@@ -262,3 +262,48 @@ and ESLint passed. Scope tests passed 11/11 (eight nested Plan 9 cases) and safe
 CI process tests passed 27/27. Five isolated timeline runs passed; do not call
 the earlier hosted failure resolved without further evidence. Ready for one
 hosted candidate; security remains FAIL and user requested no overlapping runs.
+
+## Run 46056853386 checkpoint
+
+Run https://github.com/leduc4894/crm-centric/actions/runs/46056853386 on head
+`51a75d48bf1ae32fd46cecc886cf841a53aaea15`, tested merge
+`e11b42916d34ad5081f8c7e6bc1ffcb72832fc2b`, base
+`db04aeaecd7f4b6d083335a71418788d3c4561ca`: web PASS 305/305 (296 Vitest,
+9 browser, zero skips), including real-provider OIDC and contacts journeys;
+backend PASS 423/423 and Compose PASS 18/18, all zero skips. Contracts-sdk
+was still running at this checkpoint. Security FAIL and aggregate must reflect
+actual outcome. Compared security with run 46053384297: Gitleaks 105 blocked
+in both, all 15 changed IDs matched old findings one-to-one by rule/file/value
+fingerprint computed only in memory; Trivy IDs and verdicts unchanged with one
+blocked. Zero unmatched or ambiguous. No values or fingerprints saved/printed;
+this is not security clearance. Safe job summaries under
+`.local/plan9-run-46056853386/`. No full local suite run.
+
+## Hosted non-security jobs green
+
+Run https://github.com/leduc4894/crm-centric/actions/runs/46056853386 attempt 1
+completed on PR head `51a75d48bf1ae32fd46cecc886cf841a53aaea15`, GitHub tested
+merge `e11b42916d34ad5081f8c7e6bc1ffcb72832fc2b`, base
+`db04aeaecd7f4b6d083335a71418788d3c4561ca`. Backend PASS 423/423; Compose
+PASS 18/18; contracts-sdk PASS with contract suite 137/137; web-browser PASS
+305/305 (296 Vitest and nine browser cases), all zero skips. Real-provider OIDC
+and contacts browser cases both executed and passed. Actual-base contract gate
+was `CONTRACT_BREAKING_REVIEWED`, candidate-owned and not independent
+attestation. Safe summaries under `.local/plan9-run-46056853386/`.
+
+Security FAIL: 105 blocked Gitleaks and one blocked Trivy finding. Compared to
+run 46053384297, seven changed opaque secret IDs matched seven earlier findings
+one-to-one by rule, file and in-memory value fingerprint; all 105 records were
+reproduced per run and zero ambiguous/unmatched remained. Trivy IDs/verdicts
+unchanged. No values/fingerprints saved or printed, and this comparison does not
+clear the findings. Aggregate FAIL `CI_JOB_NON_SUCCESS`, correlation
+`1735cd1a-0db9-4c52-ac97-be5d1f548858`; never call overall CI green.
+
+User's requested non-security job target is met on the tested merge above.
+`tests/CI` is not included as a hosted suite, benchmark 50k/50 has not run,
+security is unresolved, candidate-owned review is not independent enforcement,
+and P0's remote DemoModule, concurrent duplicate, worker/replay isolation,
+outage/recovery and restore drills remain OPEN. Wave 2/P0 exit therefore OPEN.
+No merge or deployment. This handoff is documentation-only and does not move
+verdicts to a different SHA. Next: continue Plan 9 discovery coverage/benchmark
+and acceptance evidence if requested; preserve the exact original run artifacts.
