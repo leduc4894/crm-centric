@@ -180,10 +180,10 @@ export class RealOidcFixture {
       await expect(unavailable.getByRole('alert')).toContainText('OIDC_LOGIN_FAILED');
     } finally { await this.stop(); }
   }
-  async withContactSessions(browser: Browser, exercise: (first: Page, second: Page) => Promise<void>) {
+  async withContactSessions(browser: Browser, exercise: (first: Page, second: Page, agent: Page) => Promise<void>) {
     try {
       await this.start(true);
-      await exercise(await this.signIn(browser, 0), await this.signIn(browser, 0));
+      await exercise(await this.signIn(browser, 0), await this.signIn(browser, 0), await this.signIn(browser, 1));
     } finally { await this.stop(); }
   }
 
@@ -211,7 +211,7 @@ export class RealOidcFixture {
     const containers = (await command('docker', ['ps', '-q', '--filter', `label=com.docker.compose.project=${owner}`, '--filter', 'label=com.docker.compose.service=crm-db'], this.env)).trim();
     if (!/^[a-f0-9]{12,64}$/.test(containers)) throw new Error('E2E_OWNED_DB_INVALID');
     const sql = `INSERT INTO platform.tenants VALUES ('${this.tenantIds[0]}','Tenant A','active',now()),('${this.tenantIds[1]}','Tenant B','active',now());\n` + this.subjects.map((sub, i) => `INSERT INTO platform.memberships VALUES ('${this.tenantIds[i]}',gen_random_uuid(),'${this.issuer}','${sub}','owner','active',1); INSERT INTO platform.staff_bindings VALUES ('${this.issuer}','${sub}','active','e2e');`).join('\n');
-    const membership = sharedMembership ? `INSERT INTO platform.memberships VALUES ('${this.tenantIds[1]}',gen_random_uuid(),'${this.issuer}','${this.subjects[0]}','owner','active',1);` : '';
+    const membership = sharedMembership ? `INSERT INTO platform.memberships VALUES ('${this.tenantIds[1]}',gen_random_uuid(),'${this.issuer}','${this.subjects[0]}','owner','active',1), ('${this.tenantIds[0]}',gen_random_uuid(),'${this.issuer}','${this.subjects[1]}','agent','active',1);` : '';
     await command('docker', ['exec', '-i', containers, 'psql', '-U', 'postgres', '-d', 'crm', '-v', 'ON_ERROR_STOP=1'], this.env, sql + membership);
     this.server = spawn('npm', ['run', 'dev'], { cwd: root, env: { ...this.env, VITE_OIDC_ISSUER: this.issuer, VITE_OIDC_CLIENT_ID: 'crm-web-local', VITE_OIDC_CALLBACK_URL: `${webOrigin}/auth/callback`, VITE_OIDC_LOGOUT_URL: `${webOrigin}/`, VITE_OIDC_LOCAL_HTTP: 'true' }, stdio: 'ignore', detached: true });
     const deadline = Date.now() + 120_000;

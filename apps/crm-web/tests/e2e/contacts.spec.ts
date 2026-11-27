@@ -80,17 +80,25 @@ async function checkContactTable(page: Page) {
   await expect(link).toBeFocused();
   await expect(link).toHaveText(markup);
   await expect(link).toHaveAttribute('href', '/app/contacts/' + firstPage.items[0]!.id);
+  const popup = page.context().waitForEvent('page');
+  await link.click({ modifiers: [process.platform === 'darwin' ? 'Meta' : 'Control'] });
+  const newTab = await popup;
+  await expect(newTab).toHaveURL(new RegExp('/app/contacts/' + firstPage.items[0]!.id + '$'));
+  await newTab.close();
+  await expect(table).toBeVisible();
   await link.press('Enter');
   await expect(page.getByRole('heading', { name: markup, exact: true })).toBeVisible();
   await page.goBack();
   await expect(table.getByRole('link', { name: markup, exact: true })).toBeVisible();
+  await page.goForward();
+  await expect(page.getByRole('heading', { name: markup, exact: true })).toBeVisible();
 }
 
 test('contact persists across sessions, rejects stale notes and isolates delayed tenant reads', async ({ browser }) => {
   test.skip(process.env['CRM_REAL_OIDC_TEST'] !== '1', 'Requires isolated real-provider stack');
   test.setTimeout(900_000);
   const fixture = new RealOidcFixture();
-  await fixture.withContactSessions(browser, async (first: Page, second: Page) => {
+  await fixture.withContactSessions(browser, async (first: Page, second: Page, agent: Page) => {
     first.setDefaultTimeout(15_000);
     second.setDefaultTimeout(15_000);
     await button(first, 'Tenant A').click();
@@ -101,6 +109,26 @@ test('contact persists across sessions, rejects stale notes and isolates delayed
     await button(first, 'Tạo').press('Enter');
     await expect(first.getByRole('heading', { name: contact, exact: true })).toBeVisible();
     await checkContactTable(first);
+    await first.getByRole('navigation').getByRole('link', { name: 'Trường tùy chỉnh' }).click();
+    await expect(first).toHaveURL(/\/app\/settings\/custom-fields$/);
+    await expect(first.getByRole('heading', { name: 'Định nghĩa trường tùy chỉnh' })).toBeVisible();
+    await first.getByLabel('Khóa trường').fill('browser_settings');
+    await first.getByLabel('Tên trường').fill('Browser settings field');
+    const definition = first.waitForResponse(r => r.url().endsWith('/custom-fields') && r.request().method() === 'POST');
+    await button(first, 'Tạo trường').click();
+    expect((await definition).status()).toBe(201);
+    await expect(first.getByText('Browser settings field', { exact: true })).toBeVisible();
+    await button(agent, 'Tenant A').click();
+    await agent.getByRole('navigation').getByRole('link', { name: 'Trường tùy chỉnh' }).click();
+    await expect(agent.getByText('Browser settings field', { exact: true })).toBeVisible();
+    await agent.getByLabel('Khóa trường').fill('agent_forbidden');
+    await agent.getByLabel('Tên trường').fill('Agent forbidden field');
+    const denied = agent.waitForResponse(r => r.url().endsWith('/custom-fields') && r.request().method() === 'POST');
+    await button(agent, 'Tạo trường').click();
+    expect((await denied).status()).toBe(403);
+    await expect(agent.getByLabel('Tên trường')).toHaveValue('Agent forbidden field');
+    await expect(button(agent, 'Tạo trường')).toBeDisabled();
+    await expect(first.getByText('Agent forbidden field', { exact: true })).toHaveCount(0);
     await openContact(first);
     await first.getByLabel('Tên thẻ mới').fill('Browser tag');
     await button(first, 'Tạo thẻ').click();
@@ -147,7 +175,11 @@ test('contact persists across sessions, rejects stale notes and isolates delayed
     second.off('request', countNotes);
 
 
+    const directRecordUrl = first.url();
     await first.reload();
+    await expect(first).toHaveURL(directRecordUrl);
+    await expect(first.getByRole('heading', { name: contact, exact: true })).toHaveCount(0);
+    await expect(button(first, 'Sign in')).toBeVisible();
     await button(first, 'Sign in').click();
     await button(first, 'Tenant A').click();
     await openContact(first);
