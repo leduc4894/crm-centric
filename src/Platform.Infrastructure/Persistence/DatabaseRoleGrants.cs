@@ -11,9 +11,8 @@ public static class DatabaseRoleGrants
         await using var command = new NpgsqlCommand($"""
             GRANT USAGE ON SCHEMA platform, crm, outbox TO {role};
             GRANT SELECT, INSERT, UPDATE ON crm.contacts TO {role};
-            GRANT EXECUTE ON FUNCTION platform.create_crm_definition(uuid,text,text,text,text,text,text,text,boolean) TO {role};
-            GRANT EXECUTE ON FUNCTION platform.set_contact_tag(uuid,uuid,uuid,text,text,boolean) TO {role};
-            GRANT EXECUTE ON FUNCTION platform.set_contact_field(uuid,uuid,uuid,text,text,text) TO {role};
+            GRANT EXECUTE ON FUNCTION platform.create_crm_definition(uuid,text,text,text,text,text[],text,text,boolean) TO {role};
+            GRANT EXECUTE ON FUNCTION platform.mutate_contact_attribute(uuid,uuid,uuid,text,text,bigint,text,text,text) TO {role};
             GRANT SELECT ON crm.tags, crm.contact_tags, crm.custom_field_defs, crm.contact_field_values TO {role};
             GRANT INSERT ON outbox.events TO {role};
             GRANT EXECUTE ON FUNCTION platform.append_contact_audit(uuid,uuid,text,text,text,text) TO {role};
@@ -64,8 +63,13 @@ public static class DatabaseRoleGrants
                   )
                   AND NOT EXISTS (
                     SELECT FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
-                    WHERE n.nspname='platform' AND p.proname IN ('create_tenant_with_owner','update_membership','lock_verified_staff','audit_staff_binding_change','invite_tenant_for_hash','create_invite','list_invites','list_audit_entries','revoke_invite','require_invite_manager','accept_invite','append_contact_audit','create_crm_definition','set_contact_tag','set_contact_field')
+                    WHERE n.nspname='platform' AND p.proname IN ('create_tenant_with_owner','update_membership','lock_verified_staff','audit_staff_binding_change','invite_tenant_for_hash','create_invite','list_invites','list_audit_entries','revoke_invite','require_invite_manager','accept_invite','append_contact_audit','create_crm_definition','mutate_contact_attribute','set_contact_tag','set_contact_field')
                     AND (has_function_privilege('public', p.oid, 'EXECUTE') OR NOT p.prosecdef OR ('search_path=pg_catalog' = ANY(p.proconfig)) IS DISTINCT FROM true)
+                  )
+                  AND NOT EXISTS (
+                    SELECT FROM pg_proc p WHERE p.pronamespace=to_regnamespace('platform')
+                      AND (@require_contact_schema OR to_regprocedure('platform.mutate_contact_attribute(uuid,uuid,uuid,text,text,bigint,text,text,text)') IS NOT NULL)
+                      AND p.proname IN ('set_contact_tag','set_contact_field') AND has_function_privilege(rolname,p.oid,'EXECUTE')
                   )
                   AND NOT EXISTS (
                     SELECT FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace

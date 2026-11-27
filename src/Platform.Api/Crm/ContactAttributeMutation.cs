@@ -8,7 +8,7 @@ namespace Platform.Api.Crm;
 internal static class ContactAttributeMutation
 {
     internal static Task RunAsync(HttpContext ctx, IConfiguration config, string id, string attributeId,
-        Func<NpgsqlConnection, NpgsqlTransaction, Guid, Guid, Guid, string, string, CancellationToken, Task<AttributeChange>> mutate) =>
+        string kind, string? raw) =>
         TenantEndpointTransaction.RunAsync(ctx, config, true, async (connection, tx, tenant, commit) =>
         {
             var ct = ctx.RequestAborted;
@@ -29,18 +29,14 @@ internal static class ContactAttributeMutation
 
             var issuer = ctx.User.FindFirst("iss")!.Value;
             var subject = ctx.User.FindFirst("sub")!.Value;
-            var change = await mutate(connection, tx, tenant, contact, attribute, issuer, subject, ct);
+            var change = await ContactStore.MutateAttributeAsync(connection, tx, tenant, contact, attribute, issuer, subject, version, ctx.TraceIdentifier, kind, raw, ct);
             if (change == AttributeChange.Missing) { await Error(404, "NOT_FOUND"); return; }
             if (change == AttributeChange.Invalid) { await Error(400, "REQUEST_INVALID"); return; }
             if (change == AttributeChange.Unrepresentable) { await Error(400, "FIELD_VALUE_UNREPRESENTABLE"); return; }
-            var result = row.Contact;
-            if (change == AttributeChange.Changed)
-            {
-                result = await ContactStore.AdvanceVersionAsync(connection, tx, tenant, contact, version, ct);
-                if (result is null) { await Error(412, "VERSION_CONFLICT"); return; }
-                await ContactMutationJournal.AppendAsync(connection, tx, tenant, contact, issuer, subject, "contact.updated",
-                    ctx.TraceIdentifier, result.Version, ct);
-            }
+            if (change == AttributeChange.Conflict) { await Error(412, "VERSION_CONFLICT"); return; }
+            var result = change == AttributeChange.Changed
+                ? await ContactStore.GetAsync(connection, tx, tenant, contact, ct) ?? throw new InvalidOperationException("Missing updated contact.")
+                : row.Contact;
             await commit();
             ctx.Response.Headers.ETag = MembershipPreconditions.Format(result.Version);
             await ctx.Response.WriteAsJsonAsync(result, ct);

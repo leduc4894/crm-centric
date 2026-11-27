@@ -36,14 +36,7 @@ internal static class TagEndpoints
         }, TenantPermission.ContactsRead, "CRM_STORE_UNAVAILABLE");
 
     private static Task SetContactTagAsync(HttpContext ctx, IConfiguration config, string id, string tagId) =>
-        ContactAttributeMutation.RunAsync(ctx, config, id, tagId, async (connection, tx, tenant, contact, tag, issuer, subject, ct) =>
-            (await TagStore.SetAssignmentAsync(connection, tx, tenant, contact, tag, issuer, subject,
-                HttpMethods.IsPut(ctx.Request.Method), ct)) switch
-            {
-                null => AttributeChange.Missing,
-                true => AttributeChange.Changed,
-                false => AttributeChange.Unchanged
-            });
+        ContactAttributeMutation.RunAsync(ctx, config, id, tagId, HttpMethods.IsPut(ctx.Request.Method) ? "attach" : "detach", null);
 
     private static DefinitionInput Parse(JsonElement body)
     {
@@ -64,7 +57,7 @@ internal static class DefinitionEndpoints
     {
         if (!body.TryGetProperty(key, out var prop) || prop.ValueKind != JsonValueKind.String) throw new JsonException();
         var value = prop.GetString()!;
-        if (value.Length == 0 || value.EnumerateRunes().Count() > maxLength || !ContactEndpoints.ValidText(value)) throw new JsonException();
+        if (value.Length == 0 || value.EnumerateRunes().Count() > maxLength) throw new JsonException();
         return value;
     }
 

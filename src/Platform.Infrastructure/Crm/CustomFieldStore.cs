@@ -5,7 +5,7 @@ namespace Platform.Infrastructure.Crm;
 
 public sealed record FieldDefinition(Guid Id, string Key, string DisplayName, string DataType, bool Required, int Version) : IDefinitionRecord;
 
-public enum AttributeChange { Missing, Invalid, Unrepresentable, Unchanged, Changed }
+public enum AttributeChange { Conflict, Missing, Invalid, Unrepresentable, Unchanged, Changed }
 
 public static class CustomFieldStore
 {
@@ -24,32 +24,11 @@ public static class CustomFieldStore
         return await cmd.ExecuteScalarAsync(ct) as string;
     }
 
-    public static async Task<AttributeChange> SetValueAsync(NpgsqlConnection connection, NpgsqlTransaction tx, Guid tenant,
-        Guid contact, Guid field, string issuer, string subject, string raw, CancellationToken ct)
-    {
-        await using var cmd = new NpgsqlCommand("SELECT platform.set_contact_field(@tenant,@contact,@field,@issuer,@subject,@raw)", connection, tx);
-        cmd.Parameters.AddWithValue("tenant", tenant);
-        cmd.Parameters.AddWithValue("contact", contact);
-        cmd.Parameters.AddWithValue("field", field);
-        cmd.Parameters.AddWithValue("issuer", issuer);
-        cmd.Parameters.AddWithValue("subject", subject);
-        cmd.Parameters.AddWithValue("raw", raw);
-        return await cmd.ExecuteScalarAsync(ct) switch
-        {
-            "missing" => AttributeChange.Missing,
-            "invalid" => AttributeChange.Invalid,
-            "unrepresentable" => AttributeChange.Unrepresentable,
-            "unchanged" => AttributeChange.Unchanged,
-            "changed" => AttributeChange.Changed,
-            _ => throw new InvalidDataException("Unexpected field mutation result.")
-        };
-    }
-
     public static async Task<List<FieldDefinition>> ListAsync(NpgsqlConnection connection, NpgsqlTransaction tx, Guid tenant,
         Guid? after, int limit, CancellationToken ct)
     {
         await using var command = new NpgsqlCommand("""
-            SELECT id,key,display_name,data_type,required,version FROM crm.custom_field_defs
+            SELECT id,key,display_name,data_type,required,version,display_parts FROM crm.custom_field_defs
             WHERE tenant_id=@tenant AND (@after IS NULL OR id>@after) ORDER BY id LIMIT @limit
             """, connection, tx);
         command.Parameters.AddWithValue("tenant", tenant);
@@ -58,7 +37,7 @@ public static class CustomFieldStore
         await using var reader = await command.ExecuteReaderAsync(ct);
         var rows = new List<FieldDefinition>();
         while (await reader.ReadAsync(ct))
-            rows.Add(new(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetBoolean(4), reader.GetInt32(5)));
+            rows.Add(new(reader.GetGuid(0), reader.GetString(1), reader.IsDBNull(6) ? reader.GetString(2) : string.Join('\0', reader.GetFieldValue<string[]>(6)), reader.GetString(3), reader.GetBoolean(4), reader.GetInt32(5)));
         return rows;
     }
 
@@ -66,8 +45,9 @@ public static class CustomFieldStore
         string issuer, string subject, string correlation, string kind, string label, string? key, string? type, bool required, CancellationToken ct)
     {
         await using var cmd = new NpgsqlCommand("SELECT platform.create_crm_definition($1,$2,$3,$4,$5,$6,$7,$8,$9)", connection, tx);
-        foreach (var value in new object[] { tenant, issuer, subject, correlation, kind, label })
+        foreach (var value in new object[] { tenant, issuer, subject, correlation, kind })
             cmd.Parameters.Add(new NpgsqlParameter { Value = value });
+        cmd.Parameters.Add(new NpgsqlParameter { NpgsqlDbType = NpgsqlDbType.Array | NpgsqlDbType.Text, Value = label.Split('\0') });
         cmd.Parameters.Add(new NpgsqlParameter { NpgsqlDbType = NpgsqlDbType.Text, Value = (object?)key ?? DBNull.Value });
         cmd.Parameters.Add(new NpgsqlParameter { NpgsqlDbType = NpgsqlDbType.Text, Value = (object?)type ?? DBNull.Value });
         cmd.Parameters.Add(new NpgsqlParameter { Value = required });

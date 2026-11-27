@@ -8,7 +8,11 @@ Owner, admin, agent and operator may read tags and field definitions/values. Own
 
 `20261127030000_CustomFields` creates tenant-keyed definitions/values, composite foreign keys and forced RLS and expands audit actions. `20261127031000_ContactTagAssignment` adds a controlled assignment function; its downgrade removes the function but leaves assignments. `20261127032000_ContactFieldValue` adds controlled field writes and an escaped-string marker. Deploy compatible API and schema as a coordinated release and use tested backups; no production rollout or restore drill is established by local tests.
 
-Downgrade is deliberately fail-closed: the last migration refuses to remove the marker if any tenant has values that depend on escaped-string representation; the definitions migration refuses removal if field data or the new audit records exist. Do not bypass these guards or discard data to force rollback. Back up, assess effects across tenants and audit retention, and prefer a reviewed forward fix. The migration tests exercise empty rollback and guarded data cases, not a production recovery drill.
+Migration `20261127033000_AtomicContactAttributes` revokes application access to the assignment and value helpers. The application calls `platform.mutate_contact_attribute` with the expected version, actor and correlation ID. PostgreSQL checks authorization, locks the contact, checks the version, changes the attribute, advances the version and writes both journal records in one operation. Reapply the matching release's role grants after a downgrade.
+
+Migration `20261127034000_DefinitionNames` stores names containing U+0000 as text segments and checks tag uniqueness against their normalized segments. The original columns and unique constraint handle ordinary names. A downgrade that would discard embedded NUL names fails across all tenants. Back up and use a forward fix if the database contains such names.
+
+Downgrade is deliberately fail-closed: the field value migration refuses to remove the marker if any tenant has values that depend on escaped-string representation; the definitions migration refuses removal if field data or the new audit records exist. Do not bypass these guards or discard data to force rollback. Back up, assess effects across tenants and audit retention, and prefer a reviewed forward fix. The migration tests exercise empty rollback and guarded data cases, not a production recovery drill.
 
 ## Open contract issue
 

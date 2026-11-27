@@ -52,8 +52,7 @@ internal static partial class CustomFieldEndpoints
         { await OperationalErrors.WriteProblemAsync(ctx, 413, "REQUEST_INVALID", ctx.RequestAborted); return; }
         catch (Exception ex) when (ex is JsonException or InvalidOperationException)
         { await OperationalErrors.WriteProblemAsync(ctx, 400, "REQUEST_INVALID", ctx.RequestAborted); return; }
-        await ContactAttributeMutation.RunAsync(ctx, config, id, fieldId, (connection, tx, tenant, contact, field, issuer, subject, ct) =>
-            CustomFieldStore.SetValueAsync(connection, tx, tenant, contact, field, issuer, subject, raw, ct));
+        await ContactAttributeMutation.RunAsync(ctx, config, id, fieldId, "field", raw);
     }
 
     [GeneratedRegex(@"\A[a-z][a-z0-9_]{0,63}\z")]

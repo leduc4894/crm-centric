@@ -36,6 +36,8 @@ public abstract class DefinitionEndpointFixture : IAsyncLifetime
         client = factory.CreateClient();
     }
     public async Task DisposeAsync() { client.Dispose(); await factory.DisposeAsync(); await issuer.DisposeAsync(); await db.DisposeAsync(); }
+    protected string Issuer => issuer.Issuer.AbsoluteUri;
+
     protected async Task<HttpResponseMessage> Send(HttpMethod method, string path, string? body = null, string subject = "owner", string? selected = null, bool anonymous = false, string[]? match = null)
     {
         using var req = new HttpRequestMessage(method, path);

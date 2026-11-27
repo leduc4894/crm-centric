@@ -124,19 +124,29 @@ public static class ContactStore
         await using var reader=await command.ExecuteReaderAsync(ct); return await reader.ReadAsync(ct) ? Read(reader) : null;
     }
 
-    public static async Task<ContactRecord?> AdvanceVersionAsync(NpgsqlConnection connection, NpgsqlTransaction tx,
-        Guid tenant, Guid id, long version, CancellationToken ct)
+    public static async Task<AttributeChange> MutateAttributeAsync(NpgsqlConnection connection, NpgsqlTransaction tx, Guid tenant,
+        Guid contact, Guid field, string issuer, string subject, long expected, string correlation, string kind, string? raw, CancellationToken ct)
     {
-        await using var command = new NpgsqlCommand("""
-            UPDATE crm.contacts SET version=version+1,updated_at=now()
-            WHERE tenant_id=@tenant AND id=@id AND version=@version AND deleted_at IS NULL
-            RETURNING id,display_name,email,phone,version,created_at,updated_at
-            """, connection, tx);
-        command.Parameters.AddWithValue("tenant", tenant);
-        command.Parameters.AddWithValue("id", id);
-        command.Parameters.AddWithValue("version", version);
-        await using var reader = await command.ExecuteReaderAsync(ct);
-        return await reader.ReadAsync(ct) ? Read(reader) : null;
+        await using var cmd = new NpgsqlCommand("SELECT platform.mutate_contact_attribute(@tenant,@contact,@field,@issuer,@subject,@expected,@correlation,@kind,@raw)", connection, tx);
+        cmd.Parameters.AddWithValue("tenant", tenant);
+        cmd.Parameters.AddWithValue("contact", contact);
+        cmd.Parameters.AddWithValue("field", field);
+        cmd.Parameters.AddWithValue("issuer", issuer);
+        cmd.Parameters.AddWithValue("subject", subject);
+        cmd.Parameters.AddWithValue("expected", expected);
+        cmd.Parameters.AddWithValue("correlation", correlation);
+        cmd.Parameters.AddWithValue("kind", kind);
+        cmd.Parameters.AddWithValue("raw", NpgsqlDbType.Text, (object?)raw ?? DBNull.Value);
+        return await cmd.ExecuteScalarAsync(ct) switch
+        {
+            "conflict" => AttributeChange.Conflict,
+            "missing" => AttributeChange.Missing,
+            "invalid" => AttributeChange.Invalid,
+            "unrepresentable" => AttributeChange.Unrepresentable,
+            "unchanged" => AttributeChange.Unchanged,
+            "changed" => AttributeChange.Changed,
+            _ => throw new InvalidDataException("Unexpected attribute mutation result.")
+        };
     }
 
     public static async Task<long?> DeleteAsync(NpgsqlConnection connection,NpgsqlTransaction transaction,Guid tenantId,Guid id,long version,CancellationToken ct)

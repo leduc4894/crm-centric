@@ -83,6 +83,49 @@ public sealed class CustomFieldSchemaTests : IAsyncLifetime
         await context.GetService<IMigrator>().MigrateAsync(Previous);
         Assert.Equal(DBNull.Value, await Sql(owner, "SELECT to_regclass('crm.custom_field_defs')::text"));
     }
+    [Fact]
+    public async Task Application_executes_only_the_journaled_attribute_mutation()
+    {
+        await using var app = new NpgsqlConnection(db.ApplicationConnectionString);
+        await app.OpenAsync();
+        foreach (var function in new[] { "platform.set_contact_tag(uuid,uuid,uuid,text,text,boolean)",
+            "platform.set_contact_field(uuid,uuid,uuid,text,text,text)" })
+            Assert.Equal(false, await Sql(app, "SELECT has_function_privilege(current_user,$1,'EXECUTE')", function));
+        Assert.Equal(true, await Sql(app, "SELECT has_function_privilege(current_user,'platform.mutate_contact_attribute(uuid,uuid,uuid,text,text,bigint,text,text,text)','EXECUTE')"));
+    }
+
+    [Fact]
+    public async Task Existing_app_grants_upgrade_to_the_atomic_interface()
+    {
+        await context.GetService<IMigrator>().MigrateAsync("20261127032000_ContactFieldValue");
+        var role = new NpgsqlCommandBuilder().QuoteIdentifier(db.ApplicationRole);
+        await Sql(owner, $"GRANT EXECUTE ON FUNCTION platform.set_contact_tag(uuid,uuid,uuid,text,text,boolean) TO {role}");
+        await DatabaseRoleGrants.ValidateAsync(owner, db.ApplicationRole, default);
+        await context.Database.MigrateAsync();
+        await DatabaseRoleGrants.ApplyAsync(owner, db.ApplicationRole, default);
+        Assert.Equal(false, await Sql(owner, "SELECT has_function_privilege($1,'platform.set_contact_tag(uuid,uuid,uuid,text,text,boolean)','EXECUTE')", db.ApplicationRole));
+    }
+
+    [Fact]
+    public async Task Downgrade_preserves_embedded_nul_names_in_another_tenant()
+    {
+        await using (var tx = await owner.BeginTransactionAsync())
+        {
+            await SetTenant(owner, other);
+            await Sql(owner, """
+                INSERT INTO crm.tags(tenant_id,id,name,name_parts,normalized_parts)
+                VALUES($1,gen_random_uuid(),'a'||chr(1)||'b',ARRAY['a','b'],ARRAY['a','b'])
+                """, other);
+            await tx.CommitAsync();
+        }
+        var error = await Assert.ThrowsAsync<PostgresException>(() =>
+            context.GetService<IMigrator>().MigrateAsync("20261127033000_AtomicContactAttributes"));
+        Assert.Contains("back up and use a forward fix", error.MessageText);
+        await using var read = await owner.BeginTransactionAsync();
+        await SetTenant(owner, other);
+        Assert.Equal(new[] { "a", "b" }, (string[])(await Sql(owner, "SELECT name_parts FROM crm.tags WHERE tenant_id=$1", other))!);
+    }
+
     private const string InsertDefinition = """
         INSERT INTO crm.custom_field_defs(tenant_id,id,key,display_name,data_type,required)
         VALUES($1,$2,'anniversary','Anniversary','date',false)

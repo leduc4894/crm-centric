@@ -9,6 +9,54 @@ public sealed class TagEndpointsTests : DefinitionEndpointFixture
     private const string Path = "/api/v1/tags";
     private const string Body = "{\"name\":\" Label \"}";
     [Fact]
+    public async Task Application_database_mutation_enforces_version_and_commits_both_journals()
+    {
+        var contact = await CreateId("/api/v1/contacts", """{"displayName":"Contact"}""");
+        var tag = await CreateId(Path, Body);
+        await using var app = new Npgsql.NpgsqlConnection(db.ApplicationConnectionString);
+        await app.OpenAsync();
+        await using var tx = await app.BeginTransactionAsync();
+        await using var set = new Npgsql.NpgsqlCommand("SELECT set_config('crm.tenant_id',$1,true)", app, tx);
+        set.Parameters.Add(new() { Value = tenant.ToString() });
+        await set.ExecuteNonQueryAsync();
+        async Task<string> Change(long expected)
+        {
+            await using var cmd = new Npgsql.NpgsqlCommand("""
+                SELECT platform.mutate_contact_attribute($1,$2,$3,$4,'agent',$5,'attribute-test','attach',NULL)
+                """, app, tx);
+            foreach (var arg in new object[] { tenant, contact, tag, Issuer, expected })
+                cmd.Parameters.Add(new() { Value = arg });
+            return (string)(await cmd.ExecuteScalarAsync())!;
+        }
+        Assert.Equal("conflict", await Change(2));
+        Assert.Equal("changed", await Change(1));
+        Assert.Equal("conflict", await Change(1));
+        Assert.Equal("unchanged", await Change(2));
+        await tx.CommitAsync();
+        Assert.Equal(1, await Count("crm.contact_tags", tenant));
+        Assert.Equal(2, await Count("outbox.events", tenant));
+        Assert.Equal(3, await Count("audit.entries", tenant));
+        using var result = await Send(HttpMethod.Get, $"/api/v1/contacts/{contact}");
+        Assert.Equal("\"v2\"", result.Headers.ETag!.ToString());
+    }
+
+    [Fact]
+    public async Task Definition_names_round_trip_embedded_nul_and_preserve_tag_uniqueness()
+    {
+        var label = " X\0Y ";
+        await CreateId(Path, JsonSerializer.Serialize(new { name = label }));
+        await Problem(await Send(HttpMethod.Post, Path, JsonSerializer.Serialize(new { name = "x\0y" })),
+            HttpStatusCode.Conflict, "TAG_NAME_CONFLICT");
+        await CreateId(Path, JsonSerializer.Serialize(new { name = "x\u0001y" }));
+        const string fields = "/api/v1/custom-fields";
+        await CreateId(fields, JsonSerializer.Serialize(new { key = "a", displayName = label, dataType = "string" }));
+        foreach (var (url, property) in new[] { (Path,"name"), (fields,"displayName") })
+        {
+            using var list = JsonDocument.Parse(await (await Send(HttpMethod.Get, url)).Content.ReadAsStringAsync());
+            Assert.Contains(list.RootElement.GetProperty("items").EnumerateArray(), item => item.GetProperty(property).GetString() == label);
+        }
+    }
+    [Fact]
     public async Task Concurrent_creation_is_unique_and_audited()
         => await VerifyCreation(Path, Body, "{\"name\":\"label\"}", "agent", "tag.created");
 
