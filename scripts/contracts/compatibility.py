@@ -152,8 +152,8 @@ PLAN9_REVIEW_COMMIT = '71959b35c08738d16a03e1f4f54e4f0b21075ce0'
 PLAN9_REVIEW_TREE = '6a7dda4d57c87565389ad125f750fe21be963f15'
 # Exact reviewed frontend, test and diagnostic delta; other files remain tree-bound.
 PLAN9_DIAGNOSTIC_HASHES = {
-    'scripts/ci/jobs.py': '75d2c0dba3aeadb1b537c94065c3976c4bf69f3b9ab1f03405413703fc76e7e8',
-    'tests/CI/test_job_processes.py': '67bcc24dd92ae57d3ad9c25a37709c47f2d0cf5573b3ee4dd568fd3ace5662c8',
+    'scripts/ci/jobs.py': '3b376e0ed241c4904502115b081c4b9be66037ce7acac7a074a7fbd2b6df0ae0',
+    'tests/CI/test_job_processes.py': 'eb219ac8afe879713ba3ec602c1505b156575271dcd2d40ab381bfe8f301d451',
     'apps/crm-web/src/contacts/contactQueries.test.tsx': '791176d691e2a89c07bb81bcbdfe3f96e19ea5739c29356c6c7043bd2761a97d',
     'apps/crm-web/index.html': '44047a84aa56f5dfc78863cad9dbbdaa329859572bb3778e7afe6a148748fb94',
     'apps/crm-web/src/App.tsx': '3527d55d19b78924a2fd29f4dc8d50efa6943ebdf2b4250f598f7ac297642b63',

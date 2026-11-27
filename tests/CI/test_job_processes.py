@@ -327,6 +327,43 @@ class ProcessTests(unittest.TestCase):
                               'plan3Step':step,'plan3Reason':reason},json.loads(stream.getvalue()))
             self.assertNotIn('private',stream.getvalue())
 
+    def test_browser_followup_commands_report_fixed_stage_without_payload(self):
+        import contextlib,io,json
+        process=unittest.mock.Mock(returncode=1)
+        process.communicate.return_value=(b'private-sentinel',b'')
+        commands=[(['npm','exec','--workspace','apps/crm-web','--','playwright','test','tests/e2e/browser-oidc.spec.ts'], 'browser-provider'),
+                  (['npm','exec','--workspace','apps/crm-web','--','playwright','test','tests/e2e/contacts.spec.ts'], 'browser-contacts'),
+                  (['npm','exec','--workspace','apps/crm-web','--','vitest','run'], 'browser-vitest')]
+        for command,stage in commands:
+            with self.subTest(stage=stage):
+                stream=io.StringIO()
+                with contextlib.redirect_stdout(stream),patch('scripts.ci.jobs.subprocess.Popen',return_value=process):
+                    with self.assertRaises(JobError):execute(command)
+                result=json.loads(stream.getvalue())
+                self.assertEqual(stage,result['commandStage'])
+                self.assertNotIn('private-sentinel',stream.getvalue())
+
+    def test_browser_vitest_failure_exposes_only_approved_file(self):
+        import contextlib,io,json,tempfile
+        from pathlib import Path
+        process=unittest.mock.Mock(returncode=1)
+        process.communicate.return_value=(b'private-sentinel',b'')
+        with tempfile.TemporaryDirectory(prefix='ci-job-') as directory:
+            report=Path(directory)/'vitest.json'
+            report.write_text(json.dumps({'testResults':[{'name':'/private/apps/crm-web/src/contacts/contactQueries.test.tsx','status':'failed','message':'private-sentinel'},{'name':'/private/apps/crm-web/src/secret.test.ts','status':'failed'}]}))
+            command=['npm','exec','--workspace','apps/crm-web','--','vitest','run','--outputFile='+str(report)]
+            stream=io.StringIO()
+            with contextlib.redirect_stdout(stream),patch('scripts.ci.jobs.subprocess.Popen',return_value=process):
+                with self.assertRaises(JobError):execute(command)
+            result=json.loads(stream.getvalue())
+            self.assertEqual(['src/contacts/contactQueries.test.tsx'],result['vitestFailedFiles'])
+            self.assertNotIn('private-sentinel',stream.getvalue())
+            self.assertNotIn('secret.test.ts',stream.getvalue())
+            from scripts.ci.jobs import vitest_failure_files
+            report.unlink();report.symlink_to('/etc/hosts')
+            self.assertEqual(['OTHER'],vitest_failure_files(command))
+            self.assertEqual(['OTHER'],vitest_failure_files(['--outputFile=/etc/hosts']))
+
     def test_clean_export_failure_projects_nested_frontend_failure(self):
         import contextlib,io,json
         process=unittest.mock.Mock(returncode=1)

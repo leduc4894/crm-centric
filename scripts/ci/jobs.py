@@ -56,6 +56,23 @@ def stop_process_group(process, grace=1):
     process.wait()
 
 
+_FRONTEND_TEST_FILES = frozenset((
+    'config/contactsProxy.test.ts','config/devServer.test.ts','config/tenantProxy.test.ts',
+    'config/healthProxy.test.ts','src/settings/CustomFieldsPage.test.tsx',
+    'src/callbackRouter.test.tsx','src/contacts/queryScope.test.tsx',
+    'src/contacts/ContactList.test.tsx','src/contacts/ContactTable.test.tsx',
+    'src/contacts/ContactShell.test.tsx','src/contacts/ContactForm.test.tsx',
+    'src/contacts/ContactTimeline.test.tsx','src/contacts/ContactAttributes.test.tsx',
+    'src/contacts/contactSession.test.tsx','src/contacts/crmClient.test.ts',
+    'src/contacts/contactQueries.test.tsx','src/contacts/CustomFieldSettings.test.tsx',
+    'src/auth/oidcConfig.test.ts','src/auth/authClient.test.ts','src/auth/AuthProvider.test.tsx',
+    'src/health/HealthStatus.test.tsx','src/health/healthClient.test.ts',
+    'src/tenant/tenantClient.test.ts','src/tenant/TenantPicker.test.tsx',
+    'src/router.test.tsx','src/tenant/TenantProvider.test.tsx',
+    'tests/picomatch-compatibility.test.ts','tests/e2e/realOidcFixture.test.ts',
+    'tests/e2e/stackProvenance.test.ts',
+))
+
 def plan3_failure_diagnostic(stdout, stderr):
     """Project private child output to fixed enums; never trust it as evidence.
 
@@ -109,29 +126,14 @@ def plan3_failure_diagnostic(stdout, stderr):
     if step == 'frontend-test':
         # Only source-reviewed filenames are eligible; never expose arbitrary
         # test titles, assertion details, paths or payloads from child output.
-        allowed = frozenset((
-            'config/contactsProxy.test.ts','config/devServer.test.ts','config/tenantProxy.test.ts',
-            'config/healthProxy.test.ts','src/settings/CustomFieldsPage.test.tsx',
-            'src/callbackRouter.test.tsx','src/contacts/queryScope.test.tsx',
-            'src/contacts/ContactList.test.tsx','src/contacts/ContactTable.test.tsx',
-            'src/contacts/ContactShell.test.tsx','src/contacts/ContactForm.test.tsx',
-            'src/contacts/ContactTimeline.test.tsx','src/contacts/ContactAttributes.test.tsx',
-            'src/contacts/contactSession.test.tsx','src/contacts/crmClient.test.ts',
-            'src/contacts/contactQueries.test.tsx','src/contacts/CustomFieldSettings.test.tsx',
-            'src/auth/oidcConfig.test.ts','src/auth/authClient.test.ts','src/auth/AuthProvider.test.tsx',
-            'src/health/HealthStatus.test.tsx','src/health/healthClient.test.ts',
-            'src/tenant/tenantClient.test.ts','src/tenant/TenantPicker.test.tsx',
-            'src/router.test.tsx','src/tenant/TenantProvider.test.tsx',
-            'tests/picomatch-compatibility.test.ts','tests/e2e/realOidcFixture.test.ts',
-            'tests/e2e/stackProvenance.test.ts',
-        ))
+
         clean = re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', output)
         sections = re.findall(r'^===== frontend-test: [^\r\n]* \(exit [1-9][0-9]*, [0-9]+s\) =====\r?\n(.*?)(?=^===== |\Z)', clean, re.MULTILINE | re.DOTALL)
         found = set()
         if len(sections) == 1:
             for line in sections[0].splitlines():
                 match = re.match(r'^\s*FAIL\s+([^\s]+\.test\.tsx?)(?:\s|$)', line)
-                if match and match.group(1) in allowed:
+                if match and match.group(1) in _FRONTEND_TEST_FILES:
                     found.add(match.group(1))
         result['plan3FailedFiles'] = sorted(found) if found else ['OTHER']
     return result
@@ -266,6 +268,32 @@ def dotnet_failure_methods(stdout, stderr):
     return observed or ['OTHER']
 
 
+def vitest_failure_files(command):
+    """Read only a bounded job-owned report and return reviewed filenames."""
+    try:
+        args = [x.split('=', 1)[1] for x in command if isinstance(x, str) and x.startswith('--outputFile=')]
+        if len(args) != 1: return ['OTHER']
+        path = Path(args[0])
+        parent = path.parent
+        if (not path.is_absolute() or parent.is_symlink() or path.is_symlink()
+                or not parent.name.startswith('ci-job-')
+                or parent.parent.resolve() != Path(tempfile.gettempdir()).resolve()
+                or not path.is_file() or path.stat().st_size > 8 * 1024 * 1024):
+            return ['OTHER']
+        report = json.loads(path.read_text())
+        results = report['testResults']
+        if not isinstance(results, list): return ['OTHER']
+        found = set()
+        for row in results:
+            if not isinstance(row, dict) or row.get('status') != 'failed': continue
+            name = row.get('name')
+            if not isinstance(name, str): continue
+            for allowed in _FRONTEND_TEST_FILES:
+                if name.endswith('/apps/crm-web/' + allowed): found.add(allowed)
+        return sorted(found) if found else ['OTHER']
+    except (OSError, ValueError, TypeError, KeyError, RecursionError):
+        return ['OTHER']
+
 def execute(command, timeout=3300, env=None):
     try:
         process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
@@ -321,7 +349,16 @@ def execute(command, timeout=3300, env=None):
                 ('bash','tests/Plan3/scratch-cleanup.sh'):'plan3-scratch-cleanup',
                 (sys.executable,'-m'):'python-suite',('node','-e'):'browser-launch'}
         stage=stages.get(tuple(command[:2]),'other')
+        browser_prefix = ('npm','exec','--workspace','apps/crm-web','--')
+        if tuple(command[:5]) == browser_prefix:
+            browser_stages = {
+                ('playwright','test','tests/e2e/browser-oidc.spec.ts'): 'browser-provider',
+                ('playwright','test','tests/e2e/contacts.spec.ts'): 'browser-contacts',
+                ('vitest','run'): 'browser-vitest',
+            }
+            stage = browser_stages.get(tuple(command[5:8]), browser_stages.get(tuple(command[5:7]), stage))
         diagnostic={'reasonToken':'CI_COMMAND_FAILED','commandStage':stage}
+        if stage == 'browser-vitest': diagnostic['vitestFailedFiles'] = vitest_failure_files(command)
         if stage == 'plan3': diagnostic.update(plan3_failure_diagnostic(stdout,stderr))
         elif stage == 'plan3-clean-export':
             nested = plan3_failure_diagnostic(stdout,stderr)
