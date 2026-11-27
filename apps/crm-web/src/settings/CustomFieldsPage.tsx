@@ -1,5 +1,5 @@
 import { useLayoutEffect, useState, type FormEvent } from 'react';
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, type InfiniteData } from '@tanstack/react-query';
 import { useAuth, useAuthClient } from '../auth/AuthProvider';
 import { useTenant } from '../tenant/TenantProvider';
 import { ContactQueryScope, useContactQueryScope } from '../contacts/queryScope';
@@ -27,6 +27,9 @@ function SettingsSession({ identity, tenantId }: { identity: string; tenantId: s
   return client ? <Definitions client={client} /> : <p role="status">Đang tải…</p>;
 }
 
+// An infinite-query refetch shares one signal across its pages; track only that sequence.
+const cursorsByFetch = new WeakMap<AbortSignal, Set<string>>();
+
 function Definitions({ client }: { client: CrmClient }) {
   const scope = useContactQueryScope();
   const [key, setKey] = useState(''), [name, setName] = useState('');
@@ -39,9 +42,14 @@ function Definitions({ client }: { client: CrmClient }) {
     queryFn: async ({ pageParam, signal }) => {
       const result = await client.listFields(pageParam ? { cursor: pageParam } : {}, signal);
       if (signal.aborted || !scope.isCurrent()) throw new CrmError('WEB_CRM_READ_CANCELLED');
-      const next = result.data.nextCursor;
-      const previous = scope.client.getQueryData<{ pageParams: Array<string | undefined> }>([scope.scopeId, 'settings-fields']);
-      if (pageParam && next && (next === pageParam || previous?.pageParams.includes(next))) throw new CrmError('WEB_CRM_CONTRACT_INVALID');
+      let used = cursorsByFetch.get(signal);
+      if (!used) {
+        const previous = scope.client.getQueryData<InfiniteData<Awaited<ReturnType<CrmClient['listFields']>>, string | undefined>>([scope.scopeId, 'settings-fields']);
+        used = new Set(pageParam ? previous?.pageParams.filter((cursor): cursor is string => cursor !== undefined) : []);
+        cursorsByFetch.set(signal, used);
+      }
+      if (pageParam) used.add(pageParam);
+      if (result.data.nextCursor && used.has(result.data.nextCursor)) throw new CrmError('WEB_CRM_CONTRACT_INVALID');
       return result;
     },
     getNextPageParam: last => last.data.nextCursor ?? undefined,
@@ -70,7 +78,7 @@ function Definitions({ client }: { client: CrmClient }) {
   }
   return <section className="contact-content"><h2>Định nghĩa trường tùy chỉnh</h2>
     {query.isPending && <p role="status">Đang tải…</p>}
-    {query.isError && <p role="alert">{safeError(query.error).message}</p>}
+    {query.isError && <><p role="alert">{safeError(query.error).message}</p><button disabled={query.isFetching} onClick={() => void query.refetch()}>Thử lại</button></>}
     {query.data && <><ul>{query.data.pages.flatMap((page, index) => page.data.items.map(field => <li key={`${index}:${field.id}`}>{field.displayName}</li>))}</ul>
       {query.hasNextPage && <button disabled={query.isFetching} onClick={() => void query.fetchNextPage()}>Tải thêm</button>}</>}
     <form className="contact-form" onSubmit={event => void save(event)}><fieldset disabled={busy || blocked || forbidden}><legend>Tạo định nghĩa</legend>

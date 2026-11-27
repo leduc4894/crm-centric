@@ -102,3 +102,28 @@ it('does not retry a timed-out create and requires a fresh review while retainin
     expect(posts).toBe(1);
   } finally { vi.useRealTimers(); }
 });
+
+it('refreshes three already-loaded pages after a successful create without treating a valid cursor as a cycle', async () => {
+  const urls: string[] = []; let created = false;
+  mount(req => {
+    if (req.method === 'POST') { created = true; return Response.json(definition('New'), { status: 201 }); }
+    const cursor = new URL(req.url).searchParams.get('cursor'); urls.push(cursor ?? 'first');
+    return page([definition(created && cursor === 'two' ? 'New' : cursor ?? 'First')], cursor === null ? 'one' : cursor === 'one' ? 'two' : null);
+  });
+  await select(); await screen.findByText('First');
+  fireEvent.click(screen.getByRole('button', { name: 'Tải thêm' })); await screen.findByText('one');
+  fireEvent.click(screen.getByRole('button', { name: 'Tải thêm' })); await screen.findByText('two');
+  draft(); submit(); await screen.findByText('New');
+  expect(screen.queryByRole('alert')).toBeNull();
+  expect(urls).toEqual(['first', 'one', 'two', 'first', 'one', 'two']);
+});
+
+it('shows the list failure reason and correlation and lets the user retry the list', async () => {
+  let reads = 0;
+  mount(() => ++reads === 1 ? problem('CRM_STORE_UNAVAILABLE', 503) : page([definition('Recovered')]));
+  await select();
+  const alert = await screen.findByRole('alert');
+  expect(alert.textContent).toContain('CRM_STORE_UNAVAILABLE'); expect(alert.textContent).toContain(id);
+  fireEvent.click(screen.getByRole('button', { name: 'Thử lại' }));
+  await screen.findByText('Recovered'); expect(reads).toBe(2);
+});
