@@ -31,6 +31,11 @@ public struct CreateContactResponse : IApiResponse<CreateContactResponse>
     public bool IsSuccess => this.StatusCode >= 200 && this.StatusCode < 300;
 
     /// <summary>
+    /// Gets the 200 response body.
+    /// </summary>
+    public Crm.Client.Models.Contact OkBody { get; private set; }
+
+    /// <summary>
     /// Gets the 201 response body.
     /// </summary>
     public Crm.Client.Models.Contact CreatedBody { get; private set; }
@@ -61,6 +66,11 @@ public struct CreateContactResponse : IApiResponse<CreateContactResponse>
     public Crm.Client.Models.Problem ConflictBody { get; private set; }
 
     /// <summary>
+    /// Gets the 412 response body.
+    /// </summary>
+    public Crm.Client.Models.Problem Status412Body { get; private set; }
+
+    /// <summary>
     /// Gets the 413 response body.
     /// </summary>
     public Crm.Client.Models.Problem Status413Body { get; private set; }
@@ -69,6 +79,11 @@ public struct CreateContactResponse : IApiResponse<CreateContactResponse>
     /// Gets the 415 response body.
     /// </summary>
     public Crm.Client.Models.Problem Status415Body { get; private set; }
+
+    /// <summary>
+    /// Gets the 428 response body.
+    /// </summary>
+    public Crm.Client.Models.Problem Status428Body { get; private set; }
 
     /// <summary>
     /// Gets the 429 response body.
@@ -89,7 +104,7 @@ public struct CreateContactResponse : IApiResponse<CreateContactResponse>
     /// Gets the value of the <c>ETag</c> response header,
     /// or <see langword="null"/> if the header was not present.
     /// </summary>
-    private Crm.Client.Models.PostApiV1ContactsCreatedETag eTagHeaderValue;
+    private Crm.Client.Models.PostApiV1ContactsOkETag eTagHeaderValue;
     private bool eTagHeaderParsed;
 
     /// <summary>
@@ -97,7 +112,7 @@ public struct CreateContactResponse : IApiResponse<CreateContactResponse>
     /// or <see langword="default"/> (undefined) if not present.
     /// Use <c>IsUndefined()</c> to check for absence.
     /// </summary>
-    public Crm.Client.Models.PostApiV1ContactsCreatedETag ETagHeader
+    public Crm.Client.Models.PostApiV1ContactsOkETag ETagHeader
     {
         get
         {
@@ -112,7 +127,7 @@ public struct CreateContactResponse : IApiResponse<CreateContactResponse>
                 && this.responseHeaders.TryGetValue("ETag", out string? rawValue)
                 && rawValue is not null)
             {
-                this.eTagHeaderValue = Corvus.Text.Json.OpenApi.HeaderValueParser.ParseString<Crm.Client.Models.PostApiV1ContactsCreatedETag>(rawValue, this.workspace);
+                this.eTagHeaderValue = Corvus.Text.Json.OpenApi.HeaderValueParser.ParseString<Crm.Client.Models.PostApiV1ContactsOkETag>(rawValue, this.workspace);
             }
 
             return this.eTagHeaderValue;
@@ -135,6 +150,14 @@ public struct CreateContactResponse : IApiResponse<CreateContactResponse>
 
         response.responseHeaders = responseHeaders;
         response.workspace = JsonWorkspace.CreateUnrented();
+
+        if (statusCode == 200)
+        {
+            var okDoc = await ParsedJsonDocument<Crm.Client.Models.Contact>.ParseAsync(contentStream, default, cancellationToken).ConfigureAwait(false);
+            response.parsedDocument = okDoc;
+            response.OkBody = okDoc.RootElement;
+            return response;
+        }
 
         if (statusCode == 201)
         {
@@ -184,6 +207,14 @@ public struct CreateContactResponse : IApiResponse<CreateContactResponse>
             return response;
         }
 
+        if (statusCode == 412)
+        {
+            var status412Doc = await ParsedJsonDocument<Crm.Client.Models.Problem>.ParseAsync(contentStream, default, cancellationToken).ConfigureAwait(false);
+            response.parsedDocument = status412Doc;
+            response.Status412Body = status412Doc.RootElement;
+            return response;
+        }
+
         if (statusCode == 413)
         {
             var status413Doc = await ParsedJsonDocument<Crm.Client.Models.Problem>.ParseAsync(contentStream, default, cancellationToken).ConfigureAwait(false);
@@ -197,6 +228,14 @@ public struct CreateContactResponse : IApiResponse<CreateContactResponse>
             var status415Doc = await ParsedJsonDocument<Crm.Client.Models.Problem>.ParseAsync(contentStream, default, cancellationToken).ConfigureAwait(false);
             response.parsedDocument = status415Doc;
             response.Status415Body = status415Doc.RootElement;
+            return response;
+        }
+
+        if (statusCode == 428)
+        {
+            var status428Doc = await ParsedJsonDocument<Crm.Client.Models.Problem>.ParseAsync(contentStream, default, cancellationToken).ConfigureAwait(false);
+            response.parsedDocument = status428Doc;
+            response.Status428Body = status428Doc.RootElement;
             return response;
         }
 
@@ -220,6 +259,23 @@ public struct CreateContactResponse : IApiResponse<CreateContactResponse>
         response.parsedDocument = defaultDoc;
         response.DefaultBody = defaultDoc.RootElement;
         return response;
+    }
+
+    /// <summary>
+    /// Tries to get the 200 typed response body.
+    /// </summary>
+    /// <param name="result">The typed response body if the status matches.</param>
+    /// <returns><see langword="true"/> if the status code is 200.</returns>
+    public bool TryGetOk(out Crm.Client.Models.Contact result)
+    {
+        if (this.StatusCode == 200)
+        {
+            result = this.OkBody;
+            return true;
+        }
+
+        result = default;
+        return false;
     }
 
     /// <summary>
@@ -325,6 +381,23 @@ public struct CreateContactResponse : IApiResponse<CreateContactResponse>
     }
 
     /// <summary>
+    /// Tries to get the 412 typed response body.
+    /// </summary>
+    /// <param name="result">The typed response body if the status matches.</param>
+    /// <returns><see langword="true"/> if the status code is 412.</returns>
+    public bool TryGetStatus412(out Crm.Client.Models.Problem result)
+    {
+        if (this.StatusCode == 412)
+        {
+            result = this.Status412Body;
+            return true;
+        }
+
+        result = default;
+        return false;
+    }
+
+    /// <summary>
     /// Tries to get the 413 typed response body.
     /// </summary>
     /// <param name="result">The typed response body if the status matches.</param>
@@ -351,6 +424,23 @@ public struct CreateContactResponse : IApiResponse<CreateContactResponse>
         if (this.StatusCode == 415)
         {
             result = this.Status415Body;
+            return true;
+        }
+
+        result = default;
+        return false;
+    }
+
+    /// <summary>
+    /// Tries to get the 428 typed response body.
+    /// </summary>
+    /// <param name="result">The typed response body if the status matches.</param>
+    /// <returns><see langword="true"/> if the status code is 428.</returns>
+    public bool TryGetStatus428(out Crm.Client.Models.Problem result)
+    {
+        if (this.StatusCode == 428)
+        {
+            result = this.Status428Body;
             return true;
         }
 
@@ -399,7 +489,7 @@ public struct CreateContactResponse : IApiResponse<CreateContactResponse>
     /// <returns><see langword="true"/> if the status code does not match any specific response.</returns>
     public bool TryGetDefault(out Crm.Client.Models.Problem result)
     {
-        if (this.StatusCode != 201 && this.StatusCode != 400 && this.StatusCode != 401 && this.StatusCode != 403 && this.StatusCode != 404 && this.StatusCode != 409 && this.StatusCode != 413 && this.StatusCode != 415 && this.StatusCode != 429 && this.StatusCode != 503)
+        if (this.StatusCode != 200 && this.StatusCode != 201 && this.StatusCode != 400 && this.StatusCode != 401 && this.StatusCode != 403 && this.StatusCode != 404 && this.StatusCode != 409 && this.StatusCode != 412 && this.StatusCode != 413 && this.StatusCode != 415 && this.StatusCode != 428 && this.StatusCode != 429 && this.StatusCode != 503)
         {
             result = this.DefaultBody;
             return true;
@@ -414,31 +504,42 @@ public struct CreateContactResponse : IApiResponse<CreateContactResponse>
     /// and calls the corresponding handler.
     /// </summary>
     /// <typeparam name="TResult">The type of the result returned by the handler.</typeparam>
+    /// <param name="matchOk">Handler for the 200 response.</param>
     /// <param name="matchCreated">Handler for the 201 response.</param>
     /// <param name="matchBadRequest">Handler for the 400 response.</param>
     /// <param name="matchUnauthorized">Handler for the 401 response.</param>
     /// <param name="matchForbidden">Handler for the 403 response.</param>
     /// <param name="matchNotFound">Handler for the 404 response.</param>
     /// <param name="matchConflict">Handler for the 409 response.</param>
+    /// <param name="matchStatus412">Handler for the 412 response.</param>
     /// <param name="matchStatus413">Handler for the 413 response.</param>
     /// <param name="matchStatus415">Handler for the 415 response.</param>
+    /// <param name="matchStatus428">Handler for the 428 response.</param>
     /// <param name="matchTooManyRequests">Handler for the 429 response.</param>
     /// <param name="matchServiceUnavailable">Handler for the 503 response.</param>
     /// <param name="matchDefault">Handler for a default response.</param>
     /// <returns>The result of calling the matched handler.</returns>
     public TResult MatchResult<TResult>(
+        ResponseMatcher<Crm.Client.Models.Contact, TResult> matchOk,
         ResponseMatcher<Crm.Client.Models.Contact, TResult> matchCreated,
         ResponseMatcher<Crm.Client.Models.Problem, TResult> matchBadRequest,
         ResponseMatcher<Crm.Client.Models.Problem, TResult> matchUnauthorized,
         ResponseMatcher<Crm.Client.Models.Problem, TResult> matchForbidden,
         ResponseMatcher<Crm.Client.Models.Problem, TResult> matchNotFound,
         ResponseMatcher<Crm.Client.Models.Problem, TResult> matchConflict,
+        ResponseMatcher<Crm.Client.Models.Problem, TResult> matchStatus412,
         ResponseMatcher<Crm.Client.Models.Problem, TResult> matchStatus413,
         ResponseMatcher<Crm.Client.Models.Problem, TResult> matchStatus415,
+        ResponseMatcher<Crm.Client.Models.Problem, TResult> matchStatus428,
         ResponseMatcher<Crm.Client.Models.Problem, TResult> matchTooManyRequests,
         ResponseMatcher<Crm.Client.Models.Problem, TResult> matchServiceUnavailable,
         ResponseMatcher<Crm.Client.Models.Problem, TResult> matchDefault)
     {
+        if (this.StatusCode == 200)
+        {
+            return matchOk(this.OkBody);
+        }
+
         if (this.StatusCode == 201)
         {
             return matchCreated(this.CreatedBody);
@@ -469,6 +570,11 @@ public struct CreateContactResponse : IApiResponse<CreateContactResponse>
             return matchConflict(this.ConflictBody);
         }
 
+        if (this.StatusCode == 412)
+        {
+            return matchStatus412(this.Status412Body);
+        }
+
         if (this.StatusCode == 413)
         {
             return matchStatus413(this.Status413Body);
@@ -477,6 +583,11 @@ public struct CreateContactResponse : IApiResponse<CreateContactResponse>
         if (this.StatusCode == 415)
         {
             return matchStatus415(this.Status415Body);
+        }
+
+        if (this.StatusCode == 428)
+        {
+            return matchStatus428(this.Status428Body);
         }
 
         if (this.StatusCode == 429)
@@ -499,33 +610,44 @@ public struct CreateContactResponse : IApiResponse<CreateContactResponse>
     /// <typeparam name="TContext">The type of the context to pass to the handler.</typeparam>
     /// <typeparam name="TResult">The type of the result returned by the handler.</typeparam>
     /// <param name="context">The context to pass to the handler.</param>
+    /// <param name="matchOk">Handler for the 200 response.</param>
     /// <param name="matchCreated">Handler for the 201 response.</param>
     /// <param name="matchBadRequest">Handler for the 400 response.</param>
     /// <param name="matchUnauthorized">Handler for the 401 response.</param>
     /// <param name="matchForbidden">Handler for the 403 response.</param>
     /// <param name="matchNotFound">Handler for the 404 response.</param>
     /// <param name="matchConflict">Handler for the 409 response.</param>
+    /// <param name="matchStatus412">Handler for the 412 response.</param>
     /// <param name="matchStatus413">Handler for the 413 response.</param>
     /// <param name="matchStatus415">Handler for the 415 response.</param>
+    /// <param name="matchStatus428">Handler for the 428 response.</param>
     /// <param name="matchTooManyRequests">Handler for the 429 response.</param>
     /// <param name="matchServiceUnavailable">Handler for the 503 response.</param>
     /// <param name="matchDefault">Handler for a default response.</param>
     /// <returns>The result of calling the matched handler.</returns>
     public TResult MatchResult<TContext, TResult>(
         in TContext context,
+        ResponseMatcher<Crm.Client.Models.Contact, TContext, TResult> matchOk,
         ResponseMatcher<Crm.Client.Models.Contact, TContext, TResult> matchCreated,
         ResponseMatcher<Crm.Client.Models.Problem, TContext, TResult> matchBadRequest,
         ResponseMatcher<Crm.Client.Models.Problem, TContext, TResult> matchUnauthorized,
         ResponseMatcher<Crm.Client.Models.Problem, TContext, TResult> matchForbidden,
         ResponseMatcher<Crm.Client.Models.Problem, TContext, TResult> matchNotFound,
         ResponseMatcher<Crm.Client.Models.Problem, TContext, TResult> matchConflict,
+        ResponseMatcher<Crm.Client.Models.Problem, TContext, TResult> matchStatus412,
         ResponseMatcher<Crm.Client.Models.Problem, TContext, TResult> matchStatus413,
         ResponseMatcher<Crm.Client.Models.Problem, TContext, TResult> matchStatus415,
+        ResponseMatcher<Crm.Client.Models.Problem, TContext, TResult> matchStatus428,
         ResponseMatcher<Crm.Client.Models.Problem, TContext, TResult> matchTooManyRequests,
         ResponseMatcher<Crm.Client.Models.Problem, TContext, TResult> matchServiceUnavailable,
         ResponseMatcher<Crm.Client.Models.Problem, TContext, TResult> matchDefault)
     where TContext : allows ref struct
     {
+        if (this.StatusCode == 200)
+        {
+            return matchOk(this.OkBody, context);
+        }
+
         if (this.StatusCode == 201)
         {
             return matchCreated(this.CreatedBody, context);
@@ -556,6 +678,11 @@ public struct CreateContactResponse : IApiResponse<CreateContactResponse>
             return matchConflict(this.ConflictBody, context);
         }
 
+        if (this.StatusCode == 412)
+        {
+            return matchStatus412(this.Status412Body, context);
+        }
+
         if (this.StatusCode == 413)
         {
             return matchStatus413(this.Status413Body, context);
@@ -564,6 +691,11 @@ public struct CreateContactResponse : IApiResponse<CreateContactResponse>
         if (this.StatusCode == 415)
         {
             return matchStatus415(this.Status415Body, context);
+        }
+
+        if (this.StatusCode == 428)
+        {
+            return matchStatus428(this.Status428Body, context);
         }
 
         if (this.StatusCode == 429)
@@ -588,7 +720,15 @@ public struct CreateContactResponse : IApiResponse<CreateContactResponse>
         }
         else if (mode == ValidationMode.Detailed)
         {
-            if (this.StatusCode == 201)
+            if (this.StatusCode == 200)
+            {
+                using JsonSchemaResultsCollector collector = JsonSchemaResultsCollector.Create(JsonSchemaResultsLevel.Detailed);
+                if (!this.OkBody.EvaluateSchema(collector))
+                {
+                    ThrowHelper.ThrowResponseBodyValidationFailed(200, SchemaValidationDetail.FormatResults(collector));
+                }
+            }
+            else if (this.StatusCode == 201)
             {
                 using JsonSchemaResultsCollector collector = JsonSchemaResultsCollector.Create(JsonSchemaResultsLevel.Detailed);
                 if (!this.CreatedBody.EvaluateSchema(collector))
@@ -636,6 +776,14 @@ public struct CreateContactResponse : IApiResponse<CreateContactResponse>
                     ThrowHelper.ThrowResponseBodyValidationFailed(409, SchemaValidationDetail.FormatResults(collector));
                 }
             }
+            else if (this.StatusCode == 412)
+            {
+                using JsonSchemaResultsCollector collector = JsonSchemaResultsCollector.Create(JsonSchemaResultsLevel.Detailed);
+                if (!this.Status412Body.EvaluateSchema(collector))
+                {
+                    ThrowHelper.ThrowResponseBodyValidationFailed(412, SchemaValidationDetail.FormatResults(collector));
+                }
+            }
             else if (this.StatusCode == 413)
             {
                 using JsonSchemaResultsCollector collector = JsonSchemaResultsCollector.Create(JsonSchemaResultsLevel.Detailed);
@@ -650,6 +798,14 @@ public struct CreateContactResponse : IApiResponse<CreateContactResponse>
                 if (!this.Status415Body.EvaluateSchema(collector))
                 {
                     ThrowHelper.ThrowResponseBodyValidationFailed(415, SchemaValidationDetail.FormatResults(collector));
+                }
+            }
+            else if (this.StatusCode == 428)
+            {
+                using JsonSchemaResultsCollector collector = JsonSchemaResultsCollector.Create(JsonSchemaResultsLevel.Detailed);
+                if (!this.Status428Body.EvaluateSchema(collector))
+                {
+                    ThrowHelper.ThrowResponseBodyValidationFailed(428, SchemaValidationDetail.FormatResults(collector));
                 }
             }
             else if (this.StatusCode == 429)
@@ -679,7 +835,14 @@ public struct CreateContactResponse : IApiResponse<CreateContactResponse>
         }
         else
         {
-            if (this.StatusCode == 201)
+            if (this.StatusCode == 200)
+            {
+                if (!this.OkBody.EvaluateSchema())
+                {
+                    ThrowHelper.ThrowResponseBodyValidationFailed(200);
+                }
+            }
+            else if (this.StatusCode == 201)
             {
                 if (!this.CreatedBody.EvaluateSchema())
                 {
@@ -721,6 +884,13 @@ public struct CreateContactResponse : IApiResponse<CreateContactResponse>
                     ThrowHelper.ThrowResponseBodyValidationFailed(409);
                 }
             }
+            else if (this.StatusCode == 412)
+            {
+                if (!this.Status412Body.EvaluateSchema())
+                {
+                    ThrowHelper.ThrowResponseBodyValidationFailed(412);
+                }
+            }
             else if (this.StatusCode == 413)
             {
                 if (!this.Status413Body.EvaluateSchema())
@@ -733,6 +903,13 @@ public struct CreateContactResponse : IApiResponse<CreateContactResponse>
                 if (!this.Status415Body.EvaluateSchema())
                 {
                     ThrowHelper.ThrowResponseBodyValidationFailed(415);
+                }
+            }
+            else if (this.StatusCode == 428)
+            {
+                if (!this.Status428Body.EvaluateSchema())
+                {
+                    ThrowHelper.ThrowResponseBodyValidationFailed(428);
                 }
             }
             else if (this.StatusCode == 429)

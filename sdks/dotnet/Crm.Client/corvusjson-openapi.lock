@@ -842,6 +842,12 @@
     "Models/GetApiV1ContactsQ.cs",
     "Models/GetApiV1ContactsQ.Mutable.cs",
     "Models/GetApiV1ContactsQ.JsonSchema.cs",
+    "Models/PostApiV1ContactsIfMatch.cs",
+    "Models/PostApiV1ContactsIfMatch.Mutable.cs",
+    "Models/PostApiV1ContactsIfMatch.JsonSchema.cs",
+    "Models/PostApiV1ContactsOkETag.cs",
+    "Models/PostApiV1ContactsOkETag.Mutable.cs",
+    "Models/PostApiV1ContactsOkETag.JsonSchema.cs",
     "Models/PostApiV1ContactsCreatedETag.cs",
     "Models/PostApiV1ContactsCreatedETag.Mutable.cs",
     "Models/PostApiV1ContactsCreatedETag.JsonSchema.cs",
@@ -885,6 +891,6 @@
   "generatorVersion": "5.8.8+ce4c7ce4cf80499e40e9690bd1261c337683194a",
   "includePaths": [],
   "rootNamespace": "Crm.Client",
-  "specFileHash": "937d6c0e1fe7e85c1bc21c2f55e024431323e459c78dff10915dfd5ba85ea23b",
+  "specFileHash": "68495f334dacaa00be601e7109a8e6bd42ae6c2987a943d22558dc92cbe6be34",
   "specVersion": "3.1"
 }

@@ -134,7 +134,10 @@ export interface paths {
         /** listContacts */
         get: operations["listContacts"];
         put?: never;
-        /** createContact */
+        /**
+         * Create or update a contact by email
+         * @description Within the authenticated tenant, a new or null email creates a contact. An existing active email matches after trimming leading and trailing whitespace and lowercasing; dots and plus tags are preserved. A matching email updates the existing contact only when If-Match is a strong ETag for its current version. The required displayName and other supplied fields replace their current values; omitted optional fields remain unchanged and explicit null clears a nullable field. Updates preserve the contact ID. A no-op keeps its version and ETag. Email is not an authenticated identity or an identity link. Failed preconditions make no changes.
+         */
         post: operations["createContact"];
         delete?: never;
         options?: never;
@@ -1514,6 +1517,8 @@ export interface operations {
             header: {
                 /** @description Selected tenant only; server verifies active membership or credential binding. Never an authorization assertion. */
                 "X-Tenant-Id": components["parameters"]["TenantContext"];
+                /** @description Required when the supplied email matches an active contact. Missing returns 428, stale returns 412, and malformed, weak, wildcard or multiple values return 400. A new contact does not require this header. */
+                "If-Match"?: string;
             };
             path?: never;
             cookie?: never;
@@ -1524,6 +1529,17 @@ export interface operations {
             };
         };
         responses: {
+            /** @description Existing contact updated, or unchanged when the request is a no-op. */
+            200: {
+                headers: {
+                    /** @description Strong optimistic concurrency token for the returned version. */
+                    ETag?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Contact"];
+                };
+            };
             /** @description Created */
             201: {
                 headers: {
@@ -1540,8 +1556,10 @@ export interface operations {
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
             409: components["responses"]["Problem"];
+            412: components["responses"]["Problem"];
             413: components["responses"]["Problem"];
             415: components["responses"]["Problem"];
+            428: components["responses"]["Problem"];
             429: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
             default: components["responses"]["Problem"];

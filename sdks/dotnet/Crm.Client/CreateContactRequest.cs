@@ -17,7 +17,7 @@ namespace Crm.Client;
 /// <summary>
 /// Request type for the CreateContact operation.
 /// </summary>
-/// <remarks>createContact</remarks>
+/// <remarks>Create or update a contact by email</remarks>
 public readonly struct CreateContactRequest : IApiRequest<CreateContactRequest>
 {
 
@@ -25,6 +25,11 @@ public readonly struct CreateContactRequest : IApiRequest<CreateContactRequest>
     /// Gets the X-Tenant-Id parameter.
     /// </summary>
     public Crm.Client.Models.JsonUuid XTenantId { get; init; }
+
+    /// <summary>
+    /// Gets the If-Match parameter.
+    /// </summary>
+    public Crm.Client.Models.PostApiV1ContactsIfMatch IfMatch { get; init; }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="CreateContactRequest"/> struct.
@@ -75,6 +80,13 @@ public readonly struct CreateContactRequest : IApiRequest<CreateContactRequest>
         using UnescapedUtf8JsonString utf8XTenantId = ((JsonElement)this.XTenantId).GetUtf8String();
         callback(nameUtf8XTenantId, utf8XTenantId.Span, state);
 
+        ReadOnlySpan<byte> nameUtf8IfMatch = "If-Match"u8;
+        if (this.IfMatch.IsNotUndefined())
+        {
+            using UnescapedUtf8JsonString utf8IfMatch = ((JsonElement)this.IfMatch).GetUtf8String();
+            callback(nameUtf8IfMatch, utf8IfMatch.Span, state);
+        }
+
     }
 
     /// <inheritdoc/>
@@ -99,12 +111,26 @@ public readonly struct CreateContactRequest : IApiRequest<CreateContactRequest>
                 ThrowHelper.ThrowRequestParameterValidationFailed("X-Tenant-Id", SchemaValidationDetail.FormatResults(collectorXTenantId));
             }
 
+            if (this.IfMatch.IsNotUndefined())
+            {
+                using JsonSchemaResultsCollector collectorIfMatch = JsonSchemaResultsCollector.Create(JsonSchemaResultsLevel.Detailed);
+                if (!this.IfMatch.EvaluateSchema(collectorIfMatch))
+                {
+                    ThrowHelper.ThrowRequestParameterValidationFailed("If-Match", SchemaValidationDetail.FormatResults(collectorIfMatch));
+                }
+            }
+
         }
         else
         {
             if (!this.XTenantId.EvaluateSchema())
             {
                 ThrowHelper.ThrowRequestParameterValidationFailed("X-Tenant-Id");
+            }
+
+            if (this.IfMatch.IsNotUndefined() && !this.IfMatch.EvaluateSchema())
+            {
+                ThrowHelper.ThrowRequestParameterValidationFailed("If-Match");
             }
 
         }
