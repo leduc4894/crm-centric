@@ -20,7 +20,7 @@ class Plan9ReviewTests(unittest.TestCase):
         cls.repo = Path(cls.tmp.name) / 'repo'
         subprocess.run(['git','clone','--shared','--no-checkout',str(ROOT),str(cls.repo)],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
         subprocess.run(['git','-C',str(cls.repo),'checkout','--detach',CANDIDATE],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
-        for name in ('scripts/ci/jobs.py','tests/CI/test_job_processes.py'):
+        for name in ('scripts/ci/jobs.py','tests/CI/test_job_processes.py','apps/crm-web/src/contacts/contactQueries.test.tsx'):
             (cls.repo/name).write_bytes((ROOT/name).read_bytes())
         helper=cls.repo/'tests/Contract/plan9_review_cases.py'
         helper.write_bytes((ROOT/'tests/Contract/plan9_review_cases.py').read_bytes())
@@ -95,13 +95,17 @@ class Plan9ReviewTests(unittest.TestCase):
         finally: path.unlink(missing_ok=True)
 
     def test_ci_diagnostic_override_requires_exact_pinned_bytes(self):
-        paths=('scripts/ci/jobs.py','tests/CI/test_job_processes.py')
+        paths=('scripts/ci/jobs.py','tests/CI/test_job_processes.py','apps/crm-web/src/contacts/contactQueries.test.tsx')
         originals={name:(self.repo/name).read_bytes() for name in paths}
         try:
             for name in paths: (self.repo/name).write_bytes((ROOT/name).read_bytes())
             self.assertTrue(self.approved())
-            path=self.repo/paths[0];path.write_bytes(path.read_bytes()+b'\n')
-            self.assertFalse(self.approved())
+            for name in paths:
+                path=self.repo/name; saved=path.read_bytes()
+                try:
+                    path.write_bytes(saved+b'\n')
+                    self.assertFalse(self.approved())
+                finally: path.write_bytes(saved)
         finally:
             for name,value in originals.items(): (self.repo/name).write_bytes(value)
 

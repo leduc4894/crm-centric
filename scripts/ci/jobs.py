@@ -322,7 +322,10 @@ def execute(command, timeout=3300, env=None):
                 (sys.executable,'-m'):'python-suite',('node','-e'):'browser-launch'}
         stage=stages.get(tuple(command[:2]),'other')
         diagnostic={'reasonToken':'CI_COMMAND_FAILED','commandStage':stage}
-        if stage=='plan3': diagnostic.update(plan3_failure_diagnostic(stdout,stderr))
+        if stage == 'plan3': diagnostic.update(plan3_failure_diagnostic(stdout,stderr))
+        elif stage == 'plan3-clean-export':
+            nested = plan3_failure_diagnostic(stdout,stderr)
+            if nested['plan3Step'] != 'other': diagnostic.update(nested)
         elif stage=='dotnet-test':
             diagnostic['dotnetTests'] = dotnet_failure_diagnostic(stdout,stderr)
             diagnostic['dotnetMethods'] = dotnet_failure_methods(stdout,stderr)

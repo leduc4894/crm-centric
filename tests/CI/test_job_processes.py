@@ -327,6 +327,18 @@ class ProcessTests(unittest.TestCase):
                               'plan3Step':step,'plan3Reason':reason},json.loads(stream.getvalue()))
             self.assertNotIn('private',stream.getvalue())
 
+    def test_clean_export_failure_projects_nested_frontend_failure(self):
+        import contextlib,io,json
+        process=unittest.mock.Mock(returncode=1)
+        process.communicate.return_value=(b'===== frontend-test: npm run test (exit 1, 9s) =====\n FAIL src/contacts/contactQueries.test.tsx > private-sentinel\nplan3 aggregate: FAIL at frontend-test (PLAN3_FRONTEND_STEP_FAILED)\n',b'')
+        stream=io.StringIO()
+        with contextlib.redirect_stdout(stream),patch('scripts.ci.jobs.subprocess.Popen',return_value=process):
+            with self.assertRaises(JobError): execute(['bash','tests/Plan3/clean-export.sh'])
+        result=json.loads(stream.getvalue())
+        self.assertEqual('frontend-test',result['plan3Step'])
+        self.assertEqual(['src/contacts/contactQueries.test.tsx'],result['plan3FailedFiles'])
+        self.assertNotIn('private-sentinel',stream.getvalue())
+
     def test_frontend_failure_reports_only_known_test_file(self):
         from scripts.ci.jobs import plan3_failure_diagnostic
         data = ("===== frontend-test: npm run test (exit 1, 9s) =====\n"

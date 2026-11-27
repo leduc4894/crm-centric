@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
+import { createRootRoute, createRouter, RouterProvider } from '@tanstack/react-router';
 import { ContactList } from './ContactList';
 import { contactsOptions, fieldValueOptions } from './contactQueries';
 import { exactNumber } from './losslessJson';
@@ -9,13 +10,16 @@ import { queryKeys } from './queryKeys';
 import type { CrmClient } from './crmClient';
 
 const record = { id: '10000000-0000-4000-8000-000000000001', displayName: 'Cached record', version: 1, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' };
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 it('stores the server page in the scoped infinite query cache and forwards its signal', async () => {
+  vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
   let scope: ReturnType<typeof useContactQueryScope> | undefined;
   function Probe() { scope = useContactQueryScope(); return null; }
   const listContacts = vi.fn(async (...args: [unknown, AbortSignal]) => { expect(args[1]).toBeInstanceOf(AbortSignal); return { data: { items: [record], nextCursor: null }, etag: '"v1"' }; });
   const client = { listContacts } as unknown as CrmClient;
-  render(<ContactQueryScope identity="principal" tenantId="tenant" generation={0}><Probe /><ContactList client={client} /></ContactQueryScope>);
+  const rootRoute = createRootRoute({ component: () => <ContactQueryScope identity="principal" tenantId="tenant" generation={0}><Probe /><ContactList client={client} /></ContactQueryScope> });
+  const router = createRouter({ routeTree: rootRoute });
+  render(<RouterProvider router={router} />);
   await screen.findByText('Cached record');
   await waitFor(() => expect(scope!.client.getQueryData(queryKeys.contacts(scope!.scopeId, {}))).toMatchObject({ pages: [{ data: { items: [record] }, etag: '"v1"' }] }));
   expect(listContacts.mock.calls[0]![1]).toBeInstanceOf(AbortSignal);
