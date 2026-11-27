@@ -212,3 +212,53 @@ breaks remain reported. Focused Plan 3 scope tests passed 11/11 after the final
 pins. Preparing one hosted rerun; the web follow-up stage remains undiagnosed on
 GitHub until that run produces the bounded diagnostic. Candidate-owned review,
 not independent enforcement.
+
+## Duplicate Vitest identities
+
+Run 46053384297 web advanced past its commands but failed
+`CI_DISCOVERY_INCOMPLETE`, correlation `00970e98-83e9-43a9-879f-ee212b436126`.
+A focused JSON reporter run across 12 Wave 2 contact/settings files reproduced
+168 passing tests with two duplicate identities: the three parameter cases of
+`crmClient.test.ts` shared one title. Named those cases by error type, preserving
+all three assertions. Focused rerun: 168/168 passing, zero duplicate identities;
+`crmClient.test.ts` alone passed 24/24, zero duplicate identities. The exact
+changed test file is pinned in the candidate-owned scope, and the scope helper
+checks tampering of every pinned delta; Plan 3 scope tests passed 11/11. No
+coverage threshold was loosened. Actual-base compatibility and the current
+hosted run remain in progress before the next grouped push.
+
+Security on run 46053384297 versus 46049997742: 105 blocked Gitleaks and one
+blocked Trivy in each; seven changed Gitleaks IDs all matched one-to-one on
+rule/file/in-memory value fingerprint, zero ambiguous or unmatched; Trivy IDs
+and verdicts unchanged. No secret values or fingerprints were saved or printed.
+No new finding detected in that comparison; security remains FAIL.
+
+Actual-base gate after the unique test-title delta returned
+`CONTRACT_BREAKING_REVIEWED`, correlation `eb1eb8e1-32eb-49fd-a2f5-ff924b4abeee`;
+both historical and packaged contact consumers passed, both SDK surface breaks
+remain reported. Candidate-owned review, not independent enforcement. Await the
+current hosted run's Compose/contracts results before the single grouped push.
+
+Run 46053384297 contracts-sdk also failed clean-export at `frontend-test` in
+`src/contacts/ContactTimeline.test.tsx` (correlation
+`854fb5aa-fe95-4ad8-86da-9472bede4712`); this is separate from web's duplicate
+Vitest IDs. Five isolated runs of that file passed; the CI test case and root
+cause remain unknown, not labelled flaky. Added bounded diagnostics that may
+emit only one of the fixed, reviewed timeline test titles if the failure recurs;
+raw assertions and arbitrary titles are never emitted. New diagnostic test failed
+before implementation; focused CI process suite passed 27/27 and Plan 3 scope
+suite passed 11/11 including eight nested checks after exact diagnostic hashes
+were updated. The new unique names in `crmClient.test.ts` are also exact-hash
+pinned; 168 focused Vitest results have zero duplicate IDs and all passed.
+Actual-base gate on these final pins is in progress; wait before pushing one
+candidate. Earlier real provider and contacts tests passed with JSON reporter;
+security remains FAIL, no waiver.
+
+Final actual-base gate after the unique-title fix and bounded timeline diagnostic
+returned `CONTRACT_BREAKING_REVIEWED`, correlation
+`25cccc85-8b38-4940-9155-308e4c209841`; both historical consumers and packaged
+contact checks passed, SDK surface breaks remain explicit. Focused web typecheck
+and ESLint passed. Scope tests passed 11/11 (eight nested Plan 9 cases) and safe
+CI process tests passed 27/27. Five isolated timeline runs passed; do not call
+the earlier hosted failure resolved without further evidence. Ready for one
+hosted candidate; security remains FAIL and user requested no overlapping runs.
