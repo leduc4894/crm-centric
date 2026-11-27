@@ -1,5 +1,7 @@
 # Wave 2 Plan 5 handoff — 2026-11-27
 
+## Historical planning session (superseded by implementation below)
+
 Objective: commit previously requested documentation and write the TanStack Query implementation plan. User approved separate Query/Table/Router/Form plans and moved Wave 2 exit to Plan 9. Previous documentation committed on `wave-2` as `904154d` (`docs: plan TanStack adoption and ETag handling`).
 
 Status: [Plan 5](../superpowers/plans/2026-11-27-wave-2-plan-5-tanstack-query.md) is drafted, not implemented; it follows [Wave 2 spec](../superpowers/specs/2026-11-27-wave-2-crm-contacts-design.md). Reviewed current frontend files, branch state and [Plan 4 handoff](2026-11-27-wave-2-plan-4-handoff.md): local final review completed, but actual-base compatibility review remains required and browser E2E predates final fix. Security remains FAIL/deferred; Wave 2/P0 OPEN. No approval to bypass gates or change public contract.
@@ -27,3 +29,9 @@ Independent Task 1–3 reviews found and verified fixes for cursor refetch/recon
 ### Task 4 review correction
 
 The real-browser test now also keeps a draft open in the second session while the first session creates a note, explicitly retries the second session's Query-backed timeline read, and checks the new note appears without an automatic note POST. Its subsequent explicit submission still receives HTTP 412 and retains the draft. The test injects one temporary 503 for the initial timeline read to expose the retry control; the retry and writes reach the real API/Keycloak/PostgreSQL stack. On `1fa73e8` plus the test edit, `CRM_REAL_OIDC_TEST=1 npm exec --workspace @crm-centric/crm-web -- playwright test tests/e2e/contacts.spec.ts` passed 1/1, zero skipped, 1.7 minutes. Targeted E2E ESLint, CRM web typecheck and `git diff --check` passed. The assertion was added after implementation; no RED is claimed. Local ignored log: `.local/plan5-browser-refetch.log`. Independent re-review and whole-candidate review remain pending; no hosted CI or wave-exit status changes.
+
+## Final review and next steps
+
+Independent Task 4 re-review accepted the browser refetch correction in `79ca09e`. An independent whole-candidate review of `e79a215..79ca09e` found no Critical or Important findings; the reviewer did not rerun tests. The prior planning status above is historical. Plan 5 implementation and focused verification are complete on `wave-2`; the implementation commits are `3c547f0`, `d444412`, `61a0fe2`, `ae54e21`, `10d630b`, `004386f`, `1fa73e8` and `79ca09e`. This final handoff is a documentation-only change; `git diff --check` is the relevant local check.
+
+The focused and real-browser results and their limitations are recorded above. Some tests were added after production changes and have no RED evidence; the browser retry case injects one initial 503. Hosted CI, full suite, benchmark, remote DemoModule E2E, concurrent duplicate, outage/recovery and restore drills remain NOT RUN. Actual-base compatibility remains `CONTRACT_POLICY_REVIEW_REQUIRED`, security FAIL/deferred, and Wave 2/P0 OPEN. Proceed to Plan 6 Table; Plan 9 must run hosted full CI and benchmark and address outstanding governance and acceptance gates.
