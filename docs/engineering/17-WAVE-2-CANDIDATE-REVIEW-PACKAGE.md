@@ -250,3 +250,76 @@ local suite or GitHub CI run was performed.
 On 2026-11-28 the user approved proceeding with the additional exact historical
 fixture delta above. This is authorization of that bounded candidate-owned scope,
 not independent enforcement or a security waiver.
+
+## Grouped CI follow-up draft — 2026-11-28
+
+The user approved the preceding exact five-file extension; it was committed and
+pushed as `d282ed3601df2342ef948e2de3a301b272bdf805`. GitHub tested merge
+`5689d54fca0b112604f6c491e819380a7d394d5a` has the same tree as that head.
+[Run 46106584020](https://github.com/leduc4894/crm-centric/actions/runs/46106584020)
+completed: backend PASS 424/424, Compose PASS 18/18, contracts-sdk PASS 137/137;
+all zero skips. The new `ci-tests` job failed one of 198 tests,
+`test_policy_transition.TransitionTests.test_real_plan3_semantics_under_both_immutable_policies`,
+while its 18/18 benchmark tests passed. Web-browser failed the `browser-contacts`
+command; its report did not preserve a narrower cause. Security FAIL/deferred:
+105 blocked Gitleaks, one blocked Trivy, and eight passing Trivy findings.
+Aggregate FAIL `CI_REPORT_INVALID`, correlation
+`37955b37-3158-4662-bd4e-b513e19491a5`.
+
+The CI policy test executes `npm ci --offline` in isolated semantic workers.
+A controlled clean-cache reproduction failed offline, then succeeded offline
+once the exact lockfile was installed online. The proposed `ci-tests` runner
+now runs locked `npm ci --ignore-scripts` and pulls the pinned .NET SDK image
+before invoking the two test suites. A test failed before this change and
+passed after it. This is a supported cause of the CI failure, but the precise
+hosted worker exception was not emitted; it must be verified by the next run.
+
+The contacts browser test passed 1/1 locally, and passed 1/1 again immediately
+after the real-provider test also passed 1/1. This did **not** reproduce the
+hosted failure; its root cause remains unknown. The draft adds bounded browser
+failure diagnostics: only fixed allowlisted fixture reason tokens and locations
+in `contacts.spec.ts` or `realOidcFixture.ts`, fixed command names and test
+status categories can be emitted, with no response,
+credential, payload, arbitrary path or assertion text. Tests cover redaction,
+structured locations and symlink rejection. This improves diagnosis if CI fails
+again; it is not proof that browser contacts is fixed. The CI inventory now
+requires 200 CI identities and 18 benchmark identities. The grouped focused
+suite passed 53/53, including the new scope and diagnostic regressions.
+
+Security comparison against run 46056853386: all 15 changed Gitleaks opaque IDs
+matched previous findings one-to-one by rule, path and value digest computed
+only in memory; zero unmatched/ambiguous findings. All nine Trivy finding
+IDs/verdicts were unchanged. This is no-new-finding evidence for that exact
+comparison, not security clearance; raw values and fingerprints were not saved.
+The default-list benchmark on `d282ed3` passed p95 109.16 ms with 241,163 valid
+samples and zero errors. Search diagnostic was 1598.77 ms with 13,699 valid
+samples and zero errors. Reports remain bound to that SHA.
+
+The following **uncommitted draft** adds exact hash-pinned overrides to the
+previously authorized candidate-owned scope; no scanner policy, waiver,
+security verdict, base or expiry is changed. It is a new review decision; the
+prior approval cannot automatically authorize this CI delta. Current SHA-256:
+
+| Draft file | SHA-256 |
+|---|---|
+| `scripts/contracts/compatibility.py` | `4c2325df898207b2aaff515dd1ba63d03f885c076e729a4bf1e2f148612ae361` |
+| `scripts/ci/jobs.py` | `e7ad13c71d13639fc537c99705896ce6868ed87b114b6d1600ace0723da74f50` |
+| `tests/CI/test_job_reports.py` | `6eec26648b1f452e29b83d9ad7353705dc5bc641e07aa7f283af66c22d2da4a2` |
+| `tests/CI/test_job_processes.py` | `edc98bfe08534f45446cb32e1ac956678911726558dd902ca95b783c1b17208a` |
+| `tests/Contract/plan9_next_review_cases.py` | `4ff7643404a391c9f5f18e39b069e1bf5dec45865b7d558512f494d4ba7cfb5c` |
+| `tests/Contract/test_wave2_plan3_review.py` | `cecc640728a159a2226e71965b25839ef430c28e8ec8be825dd4e891675edcb6` |
+| `tools/ci/coverage.json` | `3423d85a223e0089d5564bf7ab98ac27a79a620f317b83a9407d06f205116367` |
+
+An authorized reviewer should decide on this exact draft before commit/push;
+then freeze the new SHA, rerun affected benchmark evidence, push once and
+monitor the sole CI run. Candidate-owned approval is not independent enforcement.
+
+The final grouped uncommitted draft was tested against the actual base with the
+pinned local toolchain: `CONTRACT_BREAKING_REVIEWED`, consumer checks passed,
+SDK break explicit, correlation `97f89f14-775c-4955-bf06-4a02f5596faa`.
+This is a local execution of the unapproved candidate-owned scope, not a new
+approval, independent attestation or hosted result.
+
+On 2026-11-28 the user approved proceeding with the exact grouped CI follow-up
+scope above. This authorizes only that bounded candidate-owned scope; it is not
+independent enforcement or a security waiver.

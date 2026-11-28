@@ -322,6 +322,46 @@ def vitest_failure_files(command):
     except (OSError, ValueError, TypeError, KeyError, RecursionError):
         return ['OTHER']
 
+def browser_failure_diagnostic(env, stdout, stderr):
+    """Project only fixed fixture reasons and source locations, never payloads."""
+    allowed = {'E2E_CLEANUP_ID_INVALID','E2E_CLEANUP_IMAGE_INVALID','E2E_COMMAND_FAILED',
+               'E2E_FIXTURE_OPT_IN_REQUIRED','E2E_OWNED_DB_INVALID','E2E_OWNER_INVALID',
+               'E2E_PORT_INVALID','E2E_PRIVATE_OPERATION_FAILED','E2E_REPLAY_NAVIGATION_FAILED',
+               'E2E_USER_INVALID','E2E_WEB_START_FAILED','E2E_WEB_UNAVAILABLE',
+               'E2E_ADMIN_LOGIN_FAILED','E2E_USER_CREATE_FAILED','E2E_USER_READ_FAILED'}
+    texts = [part[:1024*1024].decode('utf-8','replace') for part in (stdout,stderr)]
+    locations = set(); statuses = set()
+    try:
+        path = Path((env or {}).get('PLAYWRIGHT_JSON_OUTPUT_NAME',''))
+        parent = path.parent
+        if (path.is_absolute() and path.name in ('contacts.json','provider.json') and not path.is_symlink()
+                and not parent.is_symlink() and parent.name.startswith('ci-job-')
+                and parent.parent.resolve() == Path(tempfile.gettempdir()).resolve()
+                and path.is_file() and path.stat().st_size <= 8*1024*1024):
+            content = path.read_text(); report = json.loads(content); texts.append(content)
+            pending = [report]; visited = 0
+            while pending and visited < 100000:
+                item = pending.pop(); visited += 1
+                if isinstance(item, dict):
+                    file, line = item.get('file'), item.get('line')
+                    if isinstance(file,str) and Path(file).name in ('contacts.spec.ts','realOidcFixture.ts') and type(line) is int and 1 <= line <= 5000:
+                        locations.add(Path(file).name+':'+str(line))
+                    status = item.get('status')
+                    if status in ('failed','timedOut','interrupted'): statuses.add(status)
+                    pending.extend(item.values())
+                elif isinstance(item, list):
+                    pending.extend(item)
+    except (OSError, ValueError, TypeError, RecursionError):
+        pass
+    text = '\n'.join(texts)
+    reasons = sorted(token for token in allowed if re.search(r'(?<![A-Z0-9_])'+token+r'(?![A-Z0-9_])',text))
+    for file, number in re.findall(r'\b(contacts\.spec\.ts|realOidcFixture\.ts):(\d{1,4}):\d{1,4}\b',text):
+        if 1 <= int(number) <= 5000: locations.add(file+':'+str(int(number)))
+    commands = sorted(set(re.findall(r'\bE2E_COMMAND_FAILED\s+(bash|docker|npm)\s+\d{1,3}\b',text)))
+    return {'browserReasons':reasons,'browserLocations':sorted(locations),
+            'browserCommands':commands,'browserStatuses':sorted(statuses)}
+
+
 def execute(command, timeout=3300, env=None):
     try:
         process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
@@ -387,6 +427,8 @@ def execute(command, timeout=3300, env=None):
             stage = browser_stages.get(tuple(command[5:8]), browser_stages.get(tuple(command[5:7]), stage))
         diagnostic={'reasonToken':'CI_COMMAND_FAILED','commandStage':stage}
         if stage == 'browser-vitest': diagnostic['vitestFailedFiles'] = vitest_failure_files(command)
+        if stage in ('browser-provider','browser-contacts'):
+            diagnostic.update(browser_failure_diagnostic(env,stdout,stderr))
         if stage == 'plan3': diagnostic.update(plan3_failure_diagnostic(stdout,stderr))
         elif stage == 'plan3-clean-export':
             nested = plan3_failure_diagnostic(stdout,stderr)
@@ -523,6 +565,14 @@ def publish_report(report, output, identity, mode="hardening"):
     return parsed
 
 
+def ci_tests_prerequisites():
+    image = json.loads(Path('tools/contracts/toolchain.json').read_text())['dotnetImage']
+    return [
+        ['npm','ci','--ignore-scripts','--no-audit','--no-fund'],
+        ['docker','pull',image],
+    ]
+
+
 def run_ci_python_suites(run):
     failures = []
     for name, directory in (('ci', 'tests/CI'), ('benchmark', 'tests/Benchmarks')):
@@ -576,6 +626,8 @@ def main():
                     if output.is_file():
                         report['suites'].append({'name':name,'tests':json.loads(output.read_text())})
             if args.job == 'ci-tests':
+                for command in ci_tests_prerequisites():
+                    execute(command)
                 run_ci_python_suites(py_suite)
             elif args.job in ('backend','compose'):
                 execute(['dotnet','restore','CrmPlatform.sln','--locked-mode'])

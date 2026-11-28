@@ -153,11 +153,14 @@ PLAN9_REVIEW_TREE = '6a7dda4d57c87565389ad125f750fe21be963f15'
 # Draft scope for human review; candidate-owned and not independent enforcement.
 PLAN9_NEXT_REVIEW_COMMIT = 'bc147e4dae9dbed662bd62a7c721774d34ca1e9f'
 PLAN9_NEXT_REVIEW_TREE = '75cecd22475b6f994efd027c3ec1c632923cd707'
-PLAN9_NEXT_COVERAGE_SHA256 = '1d1a7cd007e9f5e58c3c38abaabedeb9f53971d26289c2aabb20bb65a779f978'
-PLAN9_NEXT_HELPER_SHA256 = '7bdd7e0c856366449f264590ac2490339628113f559321dda41be28823c408e0'
+PLAN9_NEXT_COVERAGE_SHA256 = '3423d85a223e0089d5564bf7ab98ac27a79a620f317b83a9407d06f205116367'
+PLAN9_NEXT_HELPER_SHA256 = '4ff7643404a391c9f5f18e39b069e1bf5dec45865b7d558512f494d4ba7cfb5c'
 PLAN9_NEXT_CI_FIXTURES = {
     'tests/CI/test_mvp_active_policy.py': 'fb0e41c3350d72016c378253316857bc7df56141210fd1be610662b26a65494f',
     'tests/CI/test_mvp_history_review.py': 'be45b8043b75201df062610d8d9ef85066c99bf7333b59049d482571e41ad5a2',
+    'scripts/ci/jobs.py': 'e7ad13c71d13639fc537c99705896ce6868ed87b114b6d1600ace0723da74f50',
+    'tests/CI/test_job_reports.py': '6eec26648b1f452e29b83d9ad7353705dc5bc641e07aa7f283af66c22d2da4a2',
+    'tests/CI/test_job_processes.py': 'edc98bfe08534f45446cb32e1ac956678911726558dd902ca95b783c1b17208a',
 }
 # Exact reviewed frontend, test and diagnostic delta; other files remain tree-bound.
 PLAN9_DIAGNOSTIC_HASHES = {

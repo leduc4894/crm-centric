@@ -343,6 +343,31 @@ class ProcessTests(unittest.TestCase):
                 self.assertEqual(stage,result['commandStage'])
                 self.assertNotIn('private-sentinel',stream.getvalue())
 
+    def test_browser_contact_failure_exposes_only_reviewed_location_and_reason(self):
+        import contextlib,io,json,tempfile
+        from pathlib import Path
+        process=unittest.mock.Mock(returncode=1)
+        process.communicate.return_value=(b'private-sentinel',b'')
+        with tempfile.TemporaryDirectory(prefix='ci-job-') as directory:
+            report=Path(directory)/'contacts.json'
+            report.write_text(json.dumps({'errors':[{'message':'private-sentinel E2E_PRIVATE_OPERATION_FAILED E2E_COMMAND_FAILED docker 1 at contacts.spec.ts:147:8'}], 'status':'timedOut'}))
+            env={'PLAYWRIGHT_JSON_OUTPUT_NAME':str(report)}
+            command=['npm','exec','--workspace','apps/crm-web','--','playwright','test','tests/e2e/contacts.spec.ts']
+            stream=io.StringIO()
+            with contextlib.redirect_stdout(stream),patch('scripts.ci.jobs.subprocess.Popen',return_value=process):
+                with self.assertRaises(JobError):execute(command,env=env)
+            result=json.loads(stream.getvalue())
+            self.assertEqual(['E2E_COMMAND_FAILED','E2E_PRIVATE_OPERATION_FAILED'],result['browserReasons'])
+            self.assertEqual(['contacts.spec.ts:147'],result['browserLocations'])
+            self.assertEqual(['docker'],result['browserCommands'])
+            self.assertEqual(['timedOut'],result['browserStatuses'])
+            self.assertNotIn('private-sentinel',stream.getvalue())
+            from scripts.ci.jobs import browser_failure_diagnostic
+            report.write_text(json.dumps({'errors':[{'location':{'file':'/private/realOidcFixture.ts','line':202},'message':'private-sentinel'}]}))
+            self.assertEqual(['realOidcFixture.ts:202'],browser_failure_diagnostic(env,b'',b'')['browserLocations'])
+            report.unlink();report.symlink_to('/etc/hosts')
+            self.assertEqual({'browserReasons':[],'browserLocations':[],'browserCommands':[],'browserStatuses':[]},browser_failure_diagnostic(env,b'',b''))
+
     def test_browser_vitest_failure_exposes_only_approved_file(self):
         import contextlib,io,json,tempfile
         from pathlib import Path

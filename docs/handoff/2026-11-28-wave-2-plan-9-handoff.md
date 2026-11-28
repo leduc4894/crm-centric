@@ -534,3 +534,69 @@ the package; they matched. This authorizes the bounded candidate-owned change,
 not independent enforcement or a security waiver. Next: commit, run one hosted
 CI for the resulting SHA and monitor it, repeat the benchmark on that candidate,
 and investigate all non-security failures as a group before any rerun.
+
+## Hosted run 46106584020 and grouped follow-up
+
+User approved the five-file extension; committed and pushed
+`d282ed3601df2342ef948e2de3a301b272bdf805`. The sole hosted
+[run 46106584020](https://github.com/leduc4894/crm-centric/actions/runs/46106584020)
+tested merge `5689d54fca0b112604f6c491e819380a7d394d5a` against base
+`db04aeaecd7f4b6d083335a71418788d3c4561ca`; merge and head have identical tree
+`ec01f72beb2c28c946695580273848d2ccf4cbb6`. It finished: backend PASS 424/424,
+Compose PASS 18/18, contracts-sdk PASS 137/137, all zero skips. `ci-tests`
+FAIL 197/198 CI tests (only `test_policy_transition.TransitionTests.test_real_plan3_semantics_under_both_immutable_policies`
+failed), while benchmark tests passed 18/18. Security FAIL/deferred: 105 blocked
+Gitleaks, one blocked and eight passing Trivy. Aggregate FAIL `CI_REPORT_INVALID`,
+correlation `37955b37-3158-4662-bd4e-b513e19491a5`. Web-browser FAIL at
+`browser-contacts`; safe fallback correlation `ec1fd5ea-0a60-49f9-b57a-7ca7cc3d880a`.
+No narrower hosted error was published. Summaries are in
+`.local/plan9-run-46106584020/`.
+
+A controlled empty npm cache could not run `npm ci --offline`; online locked
+`npm ci` seeded that cache and the same offline command then passed. The job had
+not prepared npm cache or pulled the pinned SDK image. Draft fix runs these
+prerequisites before both suites; focused RED/GREEN and exact scope overrides
+were added. The precise hosted test exception is unavailable, so verify this
+hypothesis on the next hosted run. Browser contacts passed locally 1/1 and again
+1/1 after sequential real-provider 1/1, zero skips/flakes; this did not explain
+hosted failure. Draft adds a bounded Playwright diagnostic that emits only fixed
+reason tokens, fixed command/status categories and approved source locations;
+tests cover structured location and symlink rejection. Combined targeted CI and
+scope suite passed 53/53. New CI inventory is 200 required CI tests and 18
+benchmark tests. These changes are not yet committed, pushed, or approved; the
+seven exact hashes and review decision are in the candidate review package.
+
+Security comparison with run 46056853386 reproduced all 105 blocked Gitleaks
+findings each. The 15 changed IDs matched one-to-one by rule/path/value digest
+in memory, zero unmatched/ambiguous; Trivy's nine IDs/verdicts unchanged. No raw
+values or digests were printed/saved. No new finding in that exact comparison;
+security remains FAIL/deferred.
+
+Benchmark on exact head `d282ed3`: default PASS 241,163 valid samples, zero
+errors, p95 109.16 ms, correlation `a4002cdc-5ce4-4ad9-8384-66adc62837e8`;
+search diagnostic FAIL 13,699 valid samples, zero errors, p95 1598.77 ms,
+correlation `ed46c5f9-53bc-4691-8c38-a2a03d8d8c44`. Both had 50 users, 50,000
+contacts, 60-second warmup and 300-second measurement. Sanitized reports and
+manifest live under `.local/plan9-final2-runtime/`; private input/credentials,
+benchmark containers, two volumes and four images were removed after measuring.
+Do not transfer the result to a later candidate. The grouped draft actual-base
+contract gate is still running at this checkpoint. Await its result, update the
+review package and this handoff, obtain user approval for the exact new scope,
+then freeze, rerun affected evidence, push once and monitor. User authorized
+security deferral but no waiver or independent enforcement. Wave 2/P0 remain OPEN.
+
+The final seven-file grouped uncommitted draft was tested against the actual
+base with the pinned local toolchain and returned `CONTRACT_BREAKING_REVIEWED`,
+consumer checks passed with SDK break explicit, correlation
+`97f89f14-775c-4955-bf06-4a02f5596faa`. This is a draft local execution, not
+scope approval, independent attestation or hosted evidence. The final focused
+CI/contract suite passed 53/53. Exact hashes were verified against the review
+package. All jobs of run 46106584020 completed; no CI remains active. Await
+user approval of the new exact seven-file scope before committing or pushing,
+then freeze candidate, repeat affected SHA-bound benchmark and monitor one CI.
+
+The user replied "Làm đi" to the request to approve the exact grouped CI scope.
+All seven file hashes still matched the review package. The approval covers this
+bounded candidate-owned scope, not independent enforcement or a security waiver.
+Next: commit and push one candidate, monitor hosted CI, rerun affected benchmark
+on the candidate and compare security findings.

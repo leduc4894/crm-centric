@@ -353,7 +353,7 @@
       "required": []
     },
     "ci": {
-      "minimum": 198,
+      "minimum": 200,
       "required": [
         "test_aggregate.AggregateTests.test_cli_missing_evidence_exits_nonzero_with_safe_envelope",
         "test_aggregate.AggregateTests.test_cli_oversized_elapsed_integer_fails_without_traceback",
@@ -411,6 +411,7 @@
         "test_image_identity.SourceCliSecretTests.test_invalid_revision_cannot_leave_stale_uploadable_inventory",
         "test_image_identity.SourcePublicationSecretTests.test_known_sentinel_in_package_name_or_version_is_rejected",
         "test_image_identity.SourcePublicationSecretTests.test_missing_secret_scanner_leaves_no_uploadable_artifact",
+        "test_job_processes.ProcessTests.test_browser_contact_failure_exposes_only_reviewed_location_and_reason",
         "test_job_processes.ProcessTests.test_browser_followup_commands_report_fixed_stage_without_payload",
         "test_job_processes.ProcessTests.test_browser_vitest_failure_exposes_only_approved_file",
         "test_job_processes.ProcessTests.test_cancellation_cleans_group_before_propagating",
@@ -440,6 +441,7 @@
         "test_job_processes.ProcessTests.test_tls_stage_diagnostic_is_bounded_to_failing_test",
         "test_job_reports.BrowserProvisioningTests.test_privileged_dependencies_are_setup_and_runner_verifies_real_browser",
         "test_job_reports.JobReportTests.test_ci_python_suites_both_run_when_first_fails",
+        "test_job_reports.JobReportTests.test_ci_suite_prepares_offline_semantic_dependencies",
         "test_job_reports.JobReportTests.test_harnesses_receive_exact_identity_and_real_browser",
         "test_job_reports.JobReportTests.test_interruption_during_validation_cannot_publish_raw_native_payload",
         "test_job_reports.JobReportTests.test_valid_native_payload_is_normalized_before_atomic_publication",

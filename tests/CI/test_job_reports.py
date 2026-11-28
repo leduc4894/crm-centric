@@ -9,6 +9,14 @@ from unittest.mock import patch
 from scripts.ci.summary import RunIdentity, ReportError
 
 class JobReportTests(unittest.TestCase):
+    def test_ci_suite_prepares_offline_semantic_dependencies(self):
+        from scripts.ci.jobs import ci_tests_prerequisites
+        image=json.loads(Path('tools/contracts/toolchain.json').read_text())['dotnetImage']
+        self.assertEqual([
+            ['npm','ci','--ignore-scripts','--no-audit','--no-fund'],
+            ['docker','pull',image],
+        ],ci_tests_prerequisites())
+
     def test_ci_python_suites_both_run_when_first_fails(self):
         from scripts.ci.jobs import JobError, run_ci_python_suites
         calls=[]
