@@ -16,7 +16,7 @@ Changed file: this handoff only. Verification: `git status --short --branch` and
 
 User clarified that security is deferred and requested proceeding. Begin Wave 3 Plan 1 on the existing `wave-3` branch; this does not convert security or aggregate FAIL to PASS and does not establish outstanding P0 acceptance drills. Preliminary inventory identifies existing OpenAPI installation/approval operations and no publisher runtime or public registry operation. Candidate packages for Task 1: NSec.Cryptography 26.4.0 and Corvus.Text.Json.Validator 5.8.12; the latter must disable default file/HTTP resolution. `dotnet` is absent from PATH and the repo pins SDK 10.0.403. A contract gap was identified for Task 4: the callback contract requires event namespace matching but does not specify a mapping from publisher/module ID to namespace; the only example is insufficient to infer a general ownership rule. Per plan, obtain contract review at that boundary rather than inventing one. Tasks 1–3 are independently actionable.
 
-Task 1 of the linked manifest trust plan was implemented in `db15f71` on `wave-3`. Added deterministic publisher signature fixtures and contract tests, pinned NSec and Corvus in Infrastructure, and regenerated all four dependent locks. The focused Python contract suite first reported two missing-fixture errors and then passed all three tests. Pinned .NET SDK 10.0.403 restored Integration in locked mode successfully. No public contract changes. Next run Task 1 review and Task 2. Runtime verifier testing, full-suite results and acceptance drills remain pending. This handoff is uncommitted.
+Task 1 of the linked manifest trust plan was implemented in `db15f71` on `wave-3`. Added deterministic publisher signature fixtures and contract tests, pinned NSec.Cryptography 26.4.0 (MIT) and Corvus.Text.Json.Validator 5.8.12 (Apache-2.0) in Infrastructure, and regenerated all four dependent locks. The focused Python contract suite first reported two missing-fixture errors and then passed all three tests. Pinned .NET SDK 10.0.403 restored Integration in locked mode successfully. No public contract changes. Next run Task 1 review and Task 2. Runtime verifier testing, full-suite results and acceptance drills remain pending. This handoff is uncommitted.
 
 Task 2 of the linked plan was implemented on wave-3 in 1085c62. Added internal fetcher, immutable fetch models/policy and ManifestFetchTests. Disabled redirects, pinned each connection to the checked IP, preserved TLS origin, bounded response body and elapsed time. Focused dotnet test tests/Integration/Integration.csproj --filter 'FullyQualifiedName~ManifestFetchTests' initially failed with CS0234 as intended. Final focused runs with --no-restore passed 22/22 on both private and isolated public-address bridges. Staged whitespace check passed. NuGet vulnerability cache was inaccessible; no new audit evidence. Full suite and acceptance drills not run. Handoff edits remain uncommitted. Next: Task 2 review and Task 3 publisher verification.
 
@@ -68,3 +68,29 @@ Python passed 4/4 including independent OpenSSL verification. SDK 10.0.403 passe
 Focused evidence covers internal candidates. Current-trust enforcement at use, tenant installation and challenge, other outbound callers and Wave 3 exit remain open. Security FAIL/deferred, Wave 2 and P0 OPEN. No full suite, remote DemoModule E2E, event duplicate or tenant isolation acceptance, outage/recovery or restore drill ran in Task 6. Next review the documentation checkpoint and obtain the applicable work-order authorization before Plan 2.
 
 Task 6 review correction on wave-3 from 1620453 updates the operator guide. The shipped CLI applies forward migrations. Tests exercise downgrade through a separate migration-owner EF Core path. Future sidecar retrieval must pass the explicit 4 KiB limit. Source and documentation checks verified these statements and the staged whitespace check passed. Documentation only, no product tests rerun. Next return the correction for re-review.
+
+## Whole-branch review corrections
+
+The [Plan 1](../superpowers/plans/2026-11-28-wave-3-plan-1-manifest-trust.md) final review at `38a64d5` identified a missing candidate operation, isolated per-file schema resolution and missing package license evidence. The prior continuation decision and ADR-022 approval remain the basis for this work.
+
+- On `wave-3`, `d26debe` updates SchemaSnapshotLoader and ManifestValidationTests. The loader verifies every declared document's hash, indexes the pinned resource set and resolves references across it offline. Conflicting resource IDs, unresolved targets, cycles and excess depth close the operation.
+- `ab48e44` adds ManifestCandidateRegistration and a controlled HTTPS/PostgreSQL integration test. It updates SafeFetchClient, PublisherVerifier, registry/validation/verifier tests and the operator guide. The operation derives the detached sibling, enforces fixed byte limits and carries the stage, original failure reason and correlation ID through registration. The fixture asserts exact request paths, the successful 4096-byte sidecar and no persisted rows for each failure. [Operator procedure](../operations/12-MANIFEST-CANDIDATES.md)
+- Restored package manifests declare NSec.Cryptography 26.4.0 as MIT and Corvus.Text.Json.Validator 5.8.12 as Apache-2.0. Docker SDK image `212fe4cb7462` reported SDK 10.0.403 and both Microsoft.NETCore.App and Microsoft.AspNetCore.App 10.0.14.
+
+The schema graph regression was RED at 6/6 failures, then all 51 focused manifest validation cases passed. The registration test first failed to compile with CS0246 for the missing entry point and operation exception. A combined run then passed all eight new HTTPS/PostgreSQL cases and failed both direct envelope tests. The direct verifier fix brought the four focused classes to 123/123. Two final boundary regressions initially failed on an oversized manifest and a missing envelope buffer.
+
+Reproduce the four-class verification from the repository root with the restored package cache.
+
+```sh
+docker run --rm --network host -u "$(id -u):$(id -g)" \
+  --group-add "$(stat -c %g /var/run/docker.sock)" -e DOTNET_CLI_HOME=/tmp \
+  -e TESTCONTAINERS_HOST_OVERRIDE=127.0.0.1 -e CI_RESOURCE_OWNER=wave3-final-fix \
+  -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD:$PWD" \
+  -v "$HOME/.nuget/packages:$HOME/.nuget/packages:ro" -w "$PWD" 212fe4cb7462 \
+  dotnet test tests/Integration/Integration.csproj --no-restore \
+  --filter 'FullyQualifiedName~ManifestFetchTests|FullyQualifiedName~PublisherVerifierTests|FullyQualifiedName~ManifestValidationTests|FullyQualifiedName~ManifestRegistryTests'
+```
+
+At implementation candidate `3d2587f`, PublisherVerifier and PublisherVerifierTests close both direct boundary cases with the typed failure. The four-class command passed **125/125**, zero skipped. The Python contract command above passed **4/4**. The generated SDK command above returned `SDK_GENERATED_CURRENT`. The SDK emitted NU1900 for inaccessible vulnerability metadata. Staged whitespace checks passed for the implementation commits. The local SDD workspace contains the per-step commands, red failures and final results in `final-fix-report.md`.
+
+This documentation checkpoint updates the tracked handoff and acceptance matrix. No pending implementation edits at handoff. Next step is independent re-review of these changes before integrating Plan 1. Full-suite CI belongs to Plan 9. No deployment, remote DemoModule E2E, concurrent event duplicate, tenant isolation, outage/recovery or restore acceptance drills ran in this correction. Wave 2, Wave 3 exit and P0 remain OPEN and security remains FAIL/deferred.
