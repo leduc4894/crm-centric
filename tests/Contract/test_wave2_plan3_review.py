@@ -58,7 +58,7 @@ class Plan3ReviewTests(unittest.TestCase):
         import plan9_next_review_cases
         next_result = unittest.TestResult()
         unittest.defaultTestLoader.loadTestsFromTestCase(plan9_next_review_cases.Plan9NextReviewTests).run(next_result)
-        self.assertEqual(6, next_result.testsRun)
+        self.assertEqual(7, next_result.testsRun)
         self.assertEqual((0, 0, 0), (len(next_result.failures), len(next_result.errors), len(next_result.skipped)))
 
     def test_evidence_and_untracked_drift_are_rejected(self):

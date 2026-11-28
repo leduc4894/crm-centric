@@ -411,6 +411,16 @@ class ProcessTests(unittest.TestCase):
         self.assertEqual(['holds a timed-out note for explicit review without replay'],result['plan3TimelineCases'])
         self.assertNotIn('private-sentinel',str(result))
 
+    def test_frontend_failure_reports_only_reviewed_attribute_test_title(self):
+        from scripts.ci.jobs import plan3_failure_diagnostic
+        data=("===== frontend-test: npm run test (exit 1, 9s) =====\n"
+              " FAIL src/contacts/ContactAttributes.test.tsx > writes the exact boolean scalar and supports an optional null\n"
+              " FAIL src/contacts/ContactAttributes.test.tsx > private-sentinel\n"
+              "plan3 aggregate: FAIL at frontend-test (PLAN3_FRONTEND_STEP_FAILED)\n").encode()
+        result=plan3_failure_diagnostic(data,b'')
+        self.assertEqual(['writes the exact boolean scalar and supports an optional null'],result['plan3AttributeCases'])
+        self.assertNotIn('private-sentinel',str(result))
+
     def test_frontend_failure_reports_only_known_test_file(self):
         from scripts.ci.jobs import plan3_failure_diagnostic
         data = ("===== frontend-test: npm run test (exit 1, 9s) =====\n"

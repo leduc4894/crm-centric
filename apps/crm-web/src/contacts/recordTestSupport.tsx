@@ -1,4 +1,4 @@
-import { render, fireEvent, screen } from '@testing-library/react';
+import { render, fireEvent, screen, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
 import { createMemoryHistory, createRootRoute, createRoute, createRouter, RouterProvider } from '@tanstack/react-router';
 import { createCrmClient } from './crmClient';
@@ -28,5 +28,13 @@ export function setup(handler: (req: Request, path: string) => Response | Promis
   render(<RouterProvider router={router} />);
   return calls;
 }
-export const click = async (name: string) => fireEvent.click(await screen.findByRole('button', { name }));
-export const change = async (label: string, value: string) => fireEvent.change(await screen.findByLabelText(label), { target: { value } });
+export const click = async (name: string) => {
+  const button = await screen.findByRole('button', { name });
+  await waitFor(() => { if (button.matches(':disabled')) throw new Error('button not ready'); });
+  return fireEvent.click(button);
+};
+export const change = async (label: string, value: string) => {
+  const control = await screen.findByLabelText(label);
+  await waitFor(() => { if (control.matches(':disabled')) throw new Error('control not ready'); });
+  return fireEvent.change(control, { target: { value } });
+};

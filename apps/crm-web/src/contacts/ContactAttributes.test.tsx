@@ -65,6 +65,26 @@ it.each([['number', '9999999999999999999999999999.01'], ['string', 'xin chào'],
   await change('Amount', ''); await click('Lưu Amount'); await waitFor(() => expect(raw).toBe('null'));
   expect(calls.filter(r => r.method === 'PUT')).toHaveLength(2);
 });
+it('waits for the initial field read before the test helper edits a disabled control', async () => {
+  let release!: (response: Response) => void;
+  const pending = new Promise<Response>(resolve => { release = resolve; });
+  setup((req, path) => {
+    if (path.endsWith('/custom-fields')) return page([{ ...field, dataType: 'boolean' }]);
+    if (path.endsWith('/fields/' + itemId) && req.method === 'GET') return pending;
+  });
+  const control = await screen.findByLabelText('Amount') as HTMLSelectElement;
+  await waitFor(() => expect(control.disabled).toBe(true));
+  let edited = false;
+  const edit = change('Amount', 'false').then(() => { edited = true; });
+  try {
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 25)); });
+    expect(edited).toBe(false);
+  } finally {
+    await act(async () => { release(Response.json({ value: null })); });
+    await edit;
+  }
+  await waitFor(() => expect(control.value).toBe('false'));
+});
 it('shows the newly read field beside a conflicting draft and blocks a required null', async () => {
   let writes = 0;
   setup((req, path) => {

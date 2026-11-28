@@ -323,3 +323,72 @@ approval, independent attestation or hosted result.
 On 2026-11-28 the user approved proceeding with the exact grouped CI follow-up
 scope above. This authorizes only that bounded candidate-owned scope; it is not
 independent enforcement or a security waiver.
+
+## Web readiness follow-up — exact draft awaiting decision
+
+The user approved the preceding CI scope, committed and pushed as
+`4d0ab900dfeef2375504bda3de806b6f417d793a`. In
+[run 46109754682](https://github.com/leduc4894/crm-centric/actions/runs/46109754682),
+`ci-tests` passed 218/218 (200 CI, 18 benchmark), zero skips; web-browser
+failed in Plan 3 `frontend-test` at `src/contacts/ContactAttributes.test.tsx`.
+No specific case was published. Five isolated local runs each passed 36/36, so
+the exact hosted failure is still unknown. Backend and Compose passed;
+contracts-sdk was running when this section was prepared; security FAIL/deferred.
+
+The existing test helper could dispatch a change or click while a control was
+still disabled. A deterministic delayed-initial-read regression demonstrated
+this behavior (RED). The draft makes the test helper wait for the control or
+button to be enabled before dispatching, matching real user interaction, and
+retains an explicit delayed-read regression (GREEN). This changes test support
+only, not product UI. Three affected frontend test files passed 60/60, zero
+skips; targeted typecheck and lint passed. This proves the isolated readiness
+issue and fix but does **not** establish that it caused the hosted failure.
+
+A bounded diagnostic now identifies only source-reviewed ContactAttributes
+test titles if Plan 3 fails again. CI coverage explicitly requires the boolean
+scalar case and the delayed-read regression, plus the new diagnostic test.
+The grouped CI/contract focused suite passed 55/55; tests reject tampering of
+each exact UI fixture, CI job, coverage inventory and review helper. This
+section's changes are a new uncommitted candidate-owned scope draft; they do
+not waive security or alter the contract, and the earlier exact approval does
+not automatically authorize these additional changes.
+
+Benchmark on `4d0ab90`: default PASS p95 141.28 ms, 194,437 valid responses,
+zero errors; search diagnostic p95 1913.41 ms, 12,310 valid responses, zero
+errors. Both used 50 users/50,000 contacts, warmup 60s and measurement 300s.
+The GitHub merge and head had the same tree. Security comparison against run
+46106584020 found 15 changed opaque Gitleaks IDs matched one-to-one to prior
+findings by rule/path/value digest in memory, zero unmatched; all Trivy IDs and
+verdicts unchanged. No secret values or digests were saved; security remains
+FAIL/deferred. Reports and environment are retained in `.local/plan9-final3-runtime/`.
+
+Exact SHA-256 of the proposed changed files:
+
+| Draft file | SHA-256 |
+|---|---|
+| `apps/crm-web/src/contacts/ContactAttributes.test.tsx` | `63c3236ec4ef6a36c456b0096bddb38845507e62c63262b916e1281914850f93` |
+| `apps/crm-web/src/contacts/recordTestSupport.tsx` | `7c3a67e972b2d2c53a60fa6a34b9eb32c923be8b9357c3cea09fc5e305b7a173` |
+| `scripts/ci/jobs.py` | `80b4d6a0c5e703389cfd3a89e2cf985bb1a4d5dd10f2efcdba0f075edce43022` |
+| `scripts/contracts/compatibility.py` | `3edc388675cc923d66e309da626108e6349a4401d77f05642f56a133a6c7bd15` |
+| `tests/CI/test_job_processes.py` | `d31ffd3f0d1595a9f249de603a59e35ff795c8cf4b0eed34a06deaab19f5f012` |
+| `tests/Contract/plan9_next_review_cases.py` | `e8ed52733e12cbcb530e1f8d064d7186da6eb10369b4e5706ddf873c89b352f0` |
+| `tests/Contract/test_wave2_plan3_review.py` | `010ebc1cfe359363459f2760f642e7f3d58e6dc7088b64d2a548014f667716c1` |
+| `tools/ci/coverage.json` | `18c5a2aac67e04fd2b173386d8c7860345f532586345ba4757a7acd97eb25974` |
+
+An authorized reviewer should approve or reject this exact new scope before commit or push; candidate-owned enforcement is not independent.
+
+Run 46109754682 subsequently completed: backend PASS 424/424, Compose PASS
+18/18, contracts-sdk PASS 137/137, `ci-tests` PASS 218/218, all zero skips;
+web-browser FAIL at Plan 3 frontend-test in `ContactAttributes.test.tsx` and
+security FAIL/deferred. Aggregate FAIL `CI_REPORT_INVALID`, correlation
+`4ee0f383-9603-4406-9379-b6ef7d1f359b`. No additional hosted job remains active.
+
+The final draft's actual-base local gate completed as
+`CONTRACT_BREAKING_REVIEWED`; consumer checks passed and the SDK break remained
+explicit (correlation `a7823b80-9e2c-407a-aa33-92b4e4def930`). This is a
+candidate-owned draft evaluation, not authorization or independent enforcement.
+
+On 2026-11-28 the user instructed proceeding until non-security CI is green,
+with security deferred, in response to the exact web-readiness draft above. The
+user's decision authorizes proceeding with this bounded candidate-owned scope;
+it is not independent enforcement or a security waiver.

@@ -281,7 +281,7 @@
       ]
     },
     "vitest": {
-      "minimum": 54,
+      "minimum": 56,
       "required": [
         "apps/crm-web/config/devServer.test.ts::createWebConfig > binds the dev server to localhost on the pinned port with a strict port",
         "apps/crm-web/config/devServer.test.ts::createWebConfig > does not enable a wildcard CORS origin",
@@ -305,6 +305,8 @@
         "apps/crm-web/config/healthProxy.test.ts::resolveProxyTarget > rejects a non-loopback host with a reason token and correlation id",
         "apps/crm-web/config/healthProxy.test.ts::resolveProxyTarget > uses a valid explicit port",
         "apps/crm-web/config/healthProxy.test.ts::resolveProxyTarget > uses the default loopback port when LOCAL_API_PORT is not set",
+        "apps/crm-web/src/contacts/ContactAttributes.test.tsx::waits for the initial field read before the test helper edits a disabled control",
+        "apps/crm-web/src/contacts/ContactAttributes.test.tsx::writes the exact boolean scalar and supports an optional null",
         "apps/crm-web/src/health/HealthStatus.test.tsx::HealthStatus > announces the state change in an aria-live region",
         "apps/crm-web/src/health/HealthStatus.test.tsx::HealthStatus > cancels the pending request when the check is repeated",
         "apps/crm-web/src/health/HealthStatus.test.tsx::HealthStatus > cancels the pending request when the component is unmounted",
@@ -353,7 +355,7 @@
       "required": []
     },
     "ci": {
-      "minimum": 200,
+      "minimum": 201,
       "required": [
         "test_aggregate.AggregateTests.test_cli_missing_evidence_exits_nonzero_with_safe_envelope",
         "test_aggregate.AggregateTests.test_cli_oversized_elapsed_integer_fails_without_traceback",
@@ -429,6 +431,7 @@
         "test_job_processes.ProcessTests.test_failed_compose_command_does_not_echo_private_output",
         "test_job_processes.ProcessTests.test_failed_native_command_retains_discovered_report",
         "test_job_processes.ProcessTests.test_frontend_failure_reports_only_known_test_file",
+        "test_job_processes.ProcessTests.test_frontend_failure_reports_only_reviewed_attribute_test_title",
         "test_job_processes.ProcessTests.test_frontend_failure_reports_only_reviewed_timeline_test_title",
         "test_job_processes.ProcessTests.test_interrupt_calls_group_cleanup_and_propagates",
         "test_job_processes.ProcessTests.test_plan3_duplicate_keys_and_oversized_streams_are_unknown",

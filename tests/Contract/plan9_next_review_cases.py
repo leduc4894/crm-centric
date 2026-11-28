@@ -21,7 +21,8 @@ class Plan9NextReviewTests(unittest.TestCase):
         (cls.repo/'tests/Contract/plan9_next_review_cases.py').write_bytes((ROOT/'tests/Contract/plan9_next_review_cases.py').read_bytes())
         for name in ('tests/CI/test_mvp_active_policy.py','tests/CI/test_mvp_history_review.py',
                      'scripts/ci/jobs.py','tests/CI/test_job_reports.py','tests/CI/test_job_processes.py',
-                     'tools/ci/coverage.json'):
+                     'tools/ci/coverage.json','apps/crm-web/src/contacts/ContactAttributes.test.tsx',
+                     'apps/crm-web/src/contacts/recordTestSupport.tsx'):
             (cls.repo/name).write_bytes((ROOT/name).read_bytes())
     @classmethod
     def tearDownClass(cls): cls.tmp.cleanup()
@@ -65,6 +66,19 @@ class Plan9NextReviewTests(unittest.TestCase):
             for name,value in original.items(): (self.repo/name).write_bytes(value)
     def test_ci_prerequisite_changes_require_exact_review(self):
         names=('scripts/ci/jobs.py','tests/CI/test_job_reports.py','tests/CI/test_job_processes.py')
+        original={name:(self.repo/name).read_bytes() for name in names}
+        try:
+            for name in names:(self.repo/name).write_bytes((ROOT/name).read_bytes())
+            self.assertTrue(self.approved())
+            for name in names:
+                path=self.repo/name;saved=path.read_bytes()
+                try:path.write_bytes(saved+b'\n');self.assertFalse(self.approved())
+                finally:path.write_bytes(saved)
+        finally:
+            for name,value in original.items():(self.repo/name).write_bytes(value)
+    def test_ui_readiness_fixture_requires_exact_review(self):
+        names=('apps/crm-web/src/contacts/ContactAttributes.test.tsx',
+               'apps/crm-web/src/contacts/recordTestSupport.tsx')
         original={name:(self.repo/name).read_bytes() for name in names}
         try:
             for name in names:(self.repo/name).write_bytes((ROOT/name).read_bytes())

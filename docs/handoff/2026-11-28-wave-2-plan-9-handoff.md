@@ -600,3 +600,68 @@ All seven file hashes still matched the review package. The approval covers this
 bounded candidate-owned scope, not independent enforcement or a security waiver.
 Next: commit and push one candidate, monitor hosted CI, rerun affected benchmark
 on the candidate and compare security findings.
+
+## Hosted run 46109754682 and web readiness draft
+
+User approved the previous exact seven-file scope, committed/pushed as
+`4d0ab900dfeef2375504bda3de806b6f417d793a`. The sole hosted
+[run 46109754682](https://github.com/leduc4894/crm-centric/actions/runs/46109754682)
+tested merge `1613ed0e7b2a23e4cec4cd2daadfbf5324b6df17` against base
+`db04aeaecd7f4b6d083335a71418788d3c4561ca`; head and merge share tree
+`ac13d74d5d4bb339774c2e376eac5eee343b6c57`. Results: backend PASS 424/424,
+Compose PASS 18/18, contracts-sdk PASS 137/137, `ci-tests` PASS 218/218 (200 CI,
+18 benchmark), all zero skips. Security FAIL/deferred: 105 blocked Gitleaks,
+one blocked and eight passing Trivy; aggregate FAIL `CI_REPORT_INVALID`,
+correlation `4ee0f383-9603-4406-9379-b6ef7d1f359b`. Web-browser FAIL during
+Plan 3 `frontend-test`, file `src/contacts/ContactAttributes.test.tsx`, fallback
+correlation `c1a31594-6e72-4cb9-93a7-30a09a367189`; the specific case was not
+published. All hosted jobs are complete. Summaries and sanitized logs are in
+`.local/plan9-run-46109754682/`.
+
+Five isolated local runs of the file passed 36/36 each; therefore the exact
+hosted failure is not established. A separate deterministic delayed-read test
+proved the shared test helper dispatched change while a UI control was disabled
+(RED); the draft helper now waits for an enabled control/button (GREEN), matching
+real user interaction. This is test support only and cannot be asserted as the
+hosted failure's cause. The three affected frontend files passed 60/60 with zero
+skips, targeted typecheck and lint passed. A test-first bounded diagnostic for
+known ContactAttributes test titles was added, and coverage explicitly requires
+the boolean case and delayed-read case. Combined CI/contract focused suite
+passed 55/55. The exact new eight-file scope draft and hashes are in the review
+package; it is uncommitted and not authorized by the previous exact approval.
+
+Benchmark on `4d0ab90`: default PASS, 194,437 valid samples, zero errors, p95
+141.28 ms, correlation `35c12472-19cb-426e-a932-3c7fefcd653c`. Search
+(diagnostic) FAIL, 12,310 valid samples, zero errors, p95 1913.41 ms,
+correlation `251c7f88-d85f-445e-a735-d40b87a4930f`.
+Both used 50 identities, 50,000 contacts, 60s warmup and 300s measurement.
+Environment, plans and reports are under `.local/plan9-final3-runtime/`; private
+credentials, owned stack, two volumes and four images were removed. Do not
+transfer results to a later candidate.
+
+Security comparison versus run 46106584020 reproduced 105 blocked findings each;
+all 15 changed Gitleaks IDs matched previous findings by rule/path/value digest
+in memory, zero unmatched; all nine Trivy IDs and verdicts unchanged. No values
+or digests printed/saved. No new finding in that exact comparison; no clearance.
+The draft actual-base gate was still running at this checkpoint; update its
+result before ending. Next: obtain authorized review of the exact additional
+scope, commit/freeze, rerun affected benchmark, push one CI and monitor it. No
+independent enforcement or P0 acceptance claim.
+
+The final exact eight-file uncommitted web-readiness draft completed an
+actual-base local contract gate: `CONTRACT_BREAKING_REVIEWED`, consumer checks
+passed, SDK break explicit, correlation `a7823b80-9e2c-407a-aa33-92b4e4def930`.
+This is a candidate-owned draft evaluation, not authorization, independent
+attestation or hosted evidence. All jobs of run 46109754682 are complete and
+no benchmark containers remain. The exact draft hashes and review request are in
+`docs/engineering/17-WAVE-2-CANDIDATE-REVIEW-PACKAGE.md`. Await an authorized
+review of this additional scope before committing/pushing; after approval freeze
+the new SHA, rerun affected benchmark and one hosted CI, then monitor and compare
+security. This supersedes the earlier note that the draft gate was still running.
+
+The user subsequently instructed "Làm cho đến khi xanh là được, security
+deffer" in response to the exact eight-file scope request. Verified all eight
+file hashes against the package before committing. The user authorizes continued
+CI fixes and monitoring until non-security jobs are green, with security deferred;
+this does not establish independent enforcement or security clearance. Avoid
+overlapping workflows; group failures from each completed run before rerunning.

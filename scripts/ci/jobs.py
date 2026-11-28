@@ -164,6 +164,36 @@ def plan3_failure_diagnostic(stdout, stderr):
                 if match and match.group(1) in allowed_cases:
                     cases.add(match.group(1))
             result['plan3TimelineCases'] = sorted(cases) if cases else ['OTHER']
+        if 'src/contacts/ContactAttributes.test.tsx' in found:
+            allowed_cases = {
+                'stores contact and attribute reads in the scoped query cache',
+                'keeps the reviewed version when the query cache receives a newer contact during editing',
+                'collects all tag and field pages through scoped queries',
+                'creates a tag, attaches and removes it with the latest contact version',
+                'waits for the initial field read before the test helper edits a disabled control',
+                'shows the newly read field beside a conflicting draft and blocks a required null',
+                'preserves the server ETag on an idempotent tag attachment',
+                'does not send an unchanged field when its form is submitted directly',
+                'prevents duplicate tag creation while a request is pending',
+                'retains field draft if refresh fails after a successful write',
+                'serializes simultaneous submissions from different attribute forms',
+                'keeps tag selection and requires review after an attachment returns no ETag',
+                'keeps a tag draft after a literal timeout without retrying',
+                'retains and locks an existing field draft when definition refresh fails, then recovers',
+            }
+            allowed_cases.update('writes the exact '+kind+' scalar and supports an optional null' for kind in ('number','string','boolean','date'))
+            allowed_cases.update('handles forbidden and missing tag writes without replay ('+str(status)+')' for status in (403,404))
+            allowed_cases.update('reviews a changed record and sibling values before an unversioned '+action+' action' for action in ('field','delete'))
+            allowed_cases.update('retains a tag draft and write lock after 412 when sibling refresh returns '+str(status) for status in (403,404,500))
+            allowed_cases.update('keeps write locked and draft after successful field write followed by refresh '+str(status) for status in (403,404,409,500))
+            allowed_cases.update('keeps field draft and requires review on a '+mode+' ETag write response' for mode in ('missing','invalid'))
+            allowed_cases.update('leaves existing optional string '+value+' unchanged until edited' for value in ('null','""'))
+            allowed_cases.update('preserves numeric token '+value+' through the field form and wire' for value in ('1e131072','1e-16384','123456789012345678901234567890123','1.00E+0'))
+            cases = set()
+            for line in sections[0].splitlines():
+                match = re.fullmatch(r'\s*FAIL\s+src/contacts/ContactAttributes\.test\.tsx\s+>\s+(.+?)\s*', line)
+                if match and match.group(1) in allowed_cases: cases.add(match.group(1))
+            result['plan3AttributeCases'] = sorted(cases) if cases else ['OTHER']
     return result
 
 # These public identifiers are reviewed source names, not arbitrary test output.
