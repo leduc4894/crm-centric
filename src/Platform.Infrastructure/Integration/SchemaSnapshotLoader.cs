@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Corvus.Text.Json.Validator;
 using Corvus.Text.Json.RuntimeEvaluator;
 
@@ -19,6 +20,7 @@ internal sealed class SchemaSnapshotLoader(Func<Uri, FetchPolicy, CancellationTo
         policy = policy.WithBaseOrigin(manifest.BaseUrl);
         foreach (var reference in manifest.SchemaReferences) policy.Validate(reference.Uri);
         var snapshots = ImmutableArray.CreateBuilder<SchemaSnapshot>();
+        var documents = new Dictionary<string, ReadOnlyMemory<byte>>(StringComparer.Ordinal);
         foreach (var reference in manifest.SchemaReferences)
         {
             ct.ThrowIfCancellationRequested();
@@ -27,28 +29,33 @@ internal sealed class SchemaSnapshotLoader(Func<Uri, FetchPolicy, CancellationTo
             if (result.Bytes.Length > SafeFetchClient.SchemaLimit) throw new ManifestValidationException(ManifestFailure.SchemaSize);
             if (Convert.ToHexStringLower(SHA256.HashData(result.Bytes.AsSpan())) != reference.Sha256)
                 throw new ManifestValidationException(ManifestFailure.SchemaHash);
-            ValidateSchema(result.Bytes, reference.Uri);
+            if (documents.TryGetValue(reference.Uri.AbsoluteUri, out var previous) && !previous.Span.SequenceEqual(result.Bytes.AsSpan()))
+                throw Invalid();
+            documents[reference.Uri.AbsoluteUri] = result.Bytes.AsMemory();
             snapshots.Add(new(reference, result.Bytes));
         }
+        ValidateSchemas(documents);
         return snapshots.ToImmutable();
     }
 
-    private static void ValidateSchema(ImmutableArray<byte> bytes, Uri retrievalUri)
+    private static void ValidateSchemas(Dictionary<string, ReadOnlyMemory<byte>> documents)
     {
         try
         {
-            using var doc = JsonDocument.Parse(bytes.AsMemory(), new JsonDocumentOptions { AllowDuplicateProperties = false, MaxDepth = 8 });
-            var root = doc.RootElement;
-            var text = root.GetRawText();
-            if (!MetaSchema.Value.Validate(text)) throw Invalid();
             // Traverse only schema positions. Property names and instance data in const/enum are opaque.
             var children = new Dictionary<string, List<string>>(StringComparer.Ordinal);
-            var resources = new Dictionary<string, string>(StringComparer.Ordinal) { [retrievalUri.AbsoluteUri] = "#" };
+            var resources = documents.Keys.ToDictionary(uri => uri, uri => uri + "#", StringComparer.Ordinal);
+            var resolverBytes = new Dictionary<string, ReadOnlyMemory<byte>>(documents, StringComparer.Ordinal);
             var references = new List<(string Path, Uri Target, bool Dynamic)>();
             var anchors = new Dictionary<(string Resource, string Name), (string Path, bool Dynamic)>();
             var owningResources = new Dictionary<string, string>(StringComparer.Ordinal);
             var dynamicReferences = new Dictionary<string, (string Name, string Fallback)>(StringComparer.Ordinal);
-            Index(root, "#", retrievalUri);
+            foreach (var (uri, bytes) in documents)
+            {
+                using var doc = JsonDocument.Parse(bytes, new JsonDocumentOptions { AllowDuplicateProperties = false, MaxDepth = 8 });
+                if (!MetaSchema.Value.Validate(doc.RootElement.GetRawText())) throw Invalid();
+                Index(doc.RootElement, resources[uri], new Uri(uri));
+            }
             foreach (var (path, target, isDynamic) in references)
             {
                 var resource = target.AbsoluteUri.Split('#')[0];
@@ -70,14 +77,17 @@ internal sealed class SchemaSnapshotLoader(Func<Uri, FetchPolicy, CancellationTo
             var visiting = new HashSet<(string Path, DynamicScope? Scope)>();
             int remainingVisits = 8 * SafeFetchClient.SchemaLimit;
             foreach (var path in children.Keys) Depth(path, null, 1);
-            // Compile untrusted schema bytes without the global canonical-URI cache.
-            JsonSchemaEvaluator.Compile(bytes.AsMemory(), new JsonSchemaEvaluatorOptions
+            // Compile against only this candidate's checked bytes. Canonical IDs never enter a global cache.
+            foreach (var (uri, bytes) in documents)
             {
-                BaseUri = retrievalUri.AbsoluteUri,
-                DefaultDialect = JsonSchemaDialect.Draft202012,
-                DocumentResolver = null,
-                FallbackDocumentResolver = null
-            });
+                JsonSchemaEvaluator.Compile(bytes, new JsonSchemaEvaluatorOptions
+                {
+                    BaseUri = uri,
+                    DefaultDialect = JsonSchemaDialect.Draft202012,
+                    DocumentResolver = resolverBytes.TryGetValue,
+                    FallbackDocumentResolver = null
+                });
+            }
 
             void Index(JsonElement node, string path, Uri resource)
             {
@@ -90,6 +100,10 @@ internal sealed class SchemaSnapshotLoader(Func<Uri, FetchPolicy, CancellationTo
                     if (resource.Fragment.Length > 0 || (resources.TryGetValue(resource.AbsoluteUri, out var existing) && existing != path))
                         throw Invalid();
                     resources[resource.AbsoluteUri] = path;
+                    // When compiled as a peer, an embedded relative ID needs its original enclosing base.
+                    var standalone = JsonNode.Parse(node.GetRawText())!;
+                    standalone["$id"] = resource.AbsoluteUri;
+                    resolverBytes[resource.AbsoluteUri] = JsonSerializer.SerializeToUtf8Bytes(standalone);
                     owningResources[path] = path;
                 }
                 foreach (var p in node.EnumerateObject())

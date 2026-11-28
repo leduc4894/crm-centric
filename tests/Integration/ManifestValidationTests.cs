@@ -142,6 +142,59 @@ public class ManifestValidationTests
     }
 
     [Theory]
+    [InlineData("peer")]
+    [InlineData("embedded-peer")]
+    [InlineData("unlisted")]
+    [InlineData("cycle")]
+    [InlineData("too-deep")]
+    [InlineData("ambiguous-id")]
+    public async Task ResolvesOnlyTheCompletePinnedSchemaGraph(string scenario)
+    {
+        var demo = Demo();
+        var eventRef = demo["events"]![0]!["schema"]!;
+        var inputRef = demo["actions"]![0]!["inputSchema"]!;
+        string target = scenario switch
+        {
+            "embedded-peer" => "shared#name",
+            "unlisted" => "unlisted.json",
+            _ => "demo-echo-input.schema.json"
+        };
+        var eventSchema = Encoding.UTF8.GetBytes(new JsonObject { ["$ref"] = target }.ToJsonString());
+        string input = scenario switch
+        {
+            "embedded-peer" => """{"$defs":{"shared":{"$id":"shared","$anchor":"name","type":"string"}}}""",
+            "cycle" => """{"$ref":"demo-event.schema.json"}""",
+            "too-deep" => string.Concat(Enumerable.Repeat("""{"not":""", 7)) + "true" + new string('}', 7),
+            "ambiguous-id" => """{"$id":"demo-event.schema.json"}""",
+            _ => """{"type":"string"}"""
+        };
+        var inputSchema = Encoding.UTF8.GetBytes(input);
+        eventRef["sha256"] = Hash(eventSchema);
+        inputRef["sha256"] = Hash(inputSchema);
+        var manifest = Validate(demo);
+        var calls = new List<Uri>();
+        var loader = new SchemaSnapshotLoader((uri, _, _) =>
+        {
+            calls.Add(uri);
+            string filename = Path.GetFileName(uri.AbsolutePath);
+            byte[] bytes = filename switch
+            {
+                "demo-event.schema.json" => eventSchema,
+                "demo-echo-input.schema.json" => inputSchema,
+                _ => File.ReadAllBytes(Path.Combine(Root, "docs/contracts", filename))
+            };
+            return Task.FromResult(new FetchResult([.. bytes], uri));
+        });
+
+        if (scenario is "peer" or "embedded-peer")
+            Assert.Equal(4, (await loader.LoadAsync(manifest, new(Origin), default)).Count);
+        else
+            Assert.Equal(ManifestFailure.InvalidSchema, (await Assert.ThrowsAsync<ManifestValidationException>(
+                () => loader.LoadAsync(manifest, new(Origin), default))).Reason);
+        Assert.Equal(manifest.SchemaReferences.Select(r => r.Uri).ToArray(), calls.ToArray());
+    }
+
+    [Theory]
     [InlineData("unrelated")] [InlineData("overrideCycle")]
     [InlineData("inert")] [InlineData("dynamicRemote")] [InlineData("dynamicCycle")]
     [InlineData("resources")] [InlineData("dynamic")] [InlineData("resourceCycle")]
