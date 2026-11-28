@@ -2,7 +2,7 @@
 import re
 import json
 
-JOBS = {'backend', 'compose', 'contracts-sdk', 'web-browser', 'security'}
+JOBS = {'backend', 'compose', 'contracts-sdk', 'web-browser', 'ci-tests', 'security'}
 ARTIFACT_ACTION_PINS = {
     'actions/upload-artifact': 'cf430e030ddbb5b0abf93d22962f4752f3646cd9',
     'actions/download-artifact': '9000827ccba6bdab643e8b6fd33ac0654aef8333',

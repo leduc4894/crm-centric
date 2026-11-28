@@ -8,6 +8,17 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 
 class WorkflowTests(unittest.TestCase):
+    def test_ci_and_benchmark_suites_are_required_in_hosted_inventory(self):
+        import json
+        from scripts.ci.aggregate import INVENTORY
+        workflow = yaml.safe_load((ROOT / '.github/workflows/wave0.yml').read_text())
+        policy = json.loads((ROOT / 'tools/ci/coverage.json').read_text())
+        self.assertIn('ci-tests', INVENTORY)
+        self.assertIn('ci-tests', workflow['jobs']['wave0-required']['needs'])
+        self.assertEqual(['ci', 'benchmark'], policy['jobs']['ci-tests'])
+        gate = next(s for s in workflow['jobs']['ci-tests']['steps'] if s.get('id') == 'gate')
+        self.assertIn('scripts.ci.jobs ci-tests', gate['run'])
+
     def test_artifact_actions_use_reviewed_node24_pins(self):
         workflow = yaml.safe_load((ROOT / '.github/workflows/wave0.yml').read_text())
         expected = {

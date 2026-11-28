@@ -64,7 +64,7 @@ def main():
     class SafeParser(argparse.ArgumentParser):
         def error(self,message): raise ValueError()
     parser=SafeParser()
-    parser.add_argument('job',choices=['backend','compose','contracts-sdk','web-browser','security'])
+    parser.add_argument('job',choices=['backend','compose','contracts-sdk','web-browser','ci-tests','security'])
     parser.add_argument('--mode',choices=['mvp','hardening'],default='hardening')
     parser.add_argument('--output',type=Path,required=True)
     try: args=parser.parse_args()

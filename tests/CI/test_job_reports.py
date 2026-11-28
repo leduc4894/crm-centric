@@ -9,6 +9,15 @@ from unittest.mock import patch
 from scripts.ci.summary import RunIdentity, ReportError
 
 class JobReportTests(unittest.TestCase):
+    def test_ci_python_suites_both_run_when_first_fails(self):
+        from scripts.ci.jobs import JobError, run_ci_python_suites
+        calls=[]
+        def run(name, directory):
+            calls.append((name, directory))
+            if name == 'ci': raise JobError('CI_COMMAND_FAILED')
+        with self.assertRaises(JobError): run_ci_python_suites(run)
+        self.assertEqual([('ci','tests/CI'),('benchmark','tests/Benchmarks')], calls)
+
     def test_harnesses_receive_exact_identity_and_real_browser(self):
         from scripts.ci.jobs import plan3_commands
         identity=RunIdentity('run','1','a'*40,'b'*40,None)

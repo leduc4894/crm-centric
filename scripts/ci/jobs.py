@@ -523,9 +523,20 @@ def publish_report(report, output, identity, mode="hardening"):
     return parsed
 
 
+def run_ci_python_suites(run):
+    failures = []
+    for name, directory in (('ci', 'tests/CI'), ('benchmark', 'tests/Benchmarks')):
+        try:
+            run(name, directory)
+        except JobError as failure:
+            failures.append(failure)
+    if failures:
+        raise failures[0]
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('job', choices=['backend','compose','contracts-sdk','web-browser'])
+    parser.add_argument('job', choices=['backend','compose','contracts-sdk','web-browser','ci-tests'])
     parser.add_argument('--mode', choices=['mvp','hardening'], default='hardening')
     parser.add_argument('--revision', required=True, type=Path)
     parser.add_argument('--output', required=True, type=Path)
@@ -564,7 +575,9 @@ def main():
                 finally:
                     if output.is_file():
                         report['suites'].append({'name':name,'tests':json.loads(output.read_text())})
-            if args.job in ('backend','compose'):
+            if args.job == 'ci-tests':
+                run_ci_python_suites(py_suite)
+            elif args.job in ('backend','compose'):
                 execute(['dotnet','restore','CrmPlatform.sln','--locked-mode'])
                 execute(['dotnet','build','CrmPlatform.sln','-c','Release','--no-restore'])
                 category = 'Category=Compose' if args.job == 'compose' else 'Category!=Compose'
