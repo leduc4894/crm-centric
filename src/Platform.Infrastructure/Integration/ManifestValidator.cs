@@ -5,7 +5,7 @@ using Corvus.Text.Json.Validator;
 
 namespace Platform.Infrastructure.Integration;
 
-internal enum ManifestFailure { InvalidManifest, InvalidDescriptor, NamespaceConflict, NamespaceDenied, OriginDenied, InvalidSchema, SchemaHash, SchemaSize }
+internal enum ManifestFailure { InvalidManifest, InvalidDescriptor, NamespaceConflict, NamespaceDenied, OriginDenied, InvalidSchema, SchemaHash, SchemaSize, SchemaComplexity }
 internal sealed class ManifestValidationException(ManifestFailure reason) : Exception(reason.ToString())
 {
     public ManifestFailure Reason { get; } = reason;

@@ -144,6 +144,40 @@ public class ManifestValidationTests
     }
 
     [Theory]
+    [InlineData(32_768, true)]
+    [InlineData(2_048, false)]
+    public async Task BudgetsThePinnedSchemaIndexDuringConstruction(int bytesPerDocument, bool fits)
+    {
+        var demo = Demo();
+        var properties = new JsonObject();
+        for (var i = 0; i < 60; i++)
+            properties[$"field{i}"] = new JsonObject { ["type"] = "string" };
+        var bytes = Encoding.UTF8.GetBytes(new JsonObject { ["properties"] = properties }.ToJsonString());
+        var hash = Hash(bytes);
+        JsonNode[] declared = [demo["events"]![0]!["schema"]!, demo["actions"]![0]!["inputSchema"]!,
+            demo["actions"]![0]!["outputSchema"]!, demo["panels"]![0]!["outputSchema"]!];
+        foreach (var schema in declared)
+        {
+            schema["sha256"] = hash;
+            var filename = Path.GetFileName(new Uri(schema["uri"]!.GetValue<string>()).AbsolutePath);
+            schema["uri"] = new Uri(Origin, new string('a', 300) + "/" + filename).AbsoluteUri;
+        }
+        // A later malformed document distinguishes early construction rejection from a post-index check.
+        var lastBytes = fits ? bytes : """{"type":42}"""u8.ToArray();
+        declared[^1]["sha256"] = Hash(lastBytes);
+        var lastUri = new Uri(declared[^1]["uri"]!.GetValue<string>());
+        var loader = new SchemaSnapshotLoader((uri, _, _) =>
+            Task.FromResult(new FetchResult([.. (uri == lastUri ? lastBytes : bytes)], uri)), bytesPerDocument);
+        var manifest = Validate(demo);
+        if (fits) Assert.Equal(4, (await loader.LoadAsync(manifest, new(Origin), default)).Count);
+        else
+        {
+            var error = await Assert.ThrowsAsync<ManifestValidationException>(() => loader.LoadAsync(manifest, new(Origin), default));
+            Assert.Equal(ManifestFailure.SchemaComplexity, error.Reason);
+        }
+    }
+
+    [Theory]
     [InlineData("peer")]
     [InlineData("embedded-peer")]
     [InlineData("unlisted")]
@@ -197,6 +231,7 @@ public class ManifestValidationTests
     }
 
     [Theory]
+    [InlineData("ambiguous-fragment")] [InlineData("escaped-pointer")]
     [InlineData("unrelated")] [InlineData("overrideCycle")]
     [InlineData("inert")] [InlineData("dynamicRemote")] [InlineData("dynamicCycle")]
     [InlineData("resources")] [InlineData("dynamic")] [InlineData("resourceCycle")]
@@ -208,6 +243,8 @@ public class ManifestValidationTests
         var demo = Demo();
         var schema = demo["events"]![0]!["schema"]!;
         var payload = change switch {
+            "ambiguous-fragment" => """{"$defs":{"child":{"$anchor":"value","type":"string"}},"$ref":"##value"}""",
+            "escaped-pointer" => """{"$defs":{"a/b~c":{"items":{"type":"string"}}},"$ref":"#/$defs/a~1b~0c/items"}""",
             "unrelated" => """
                 {"$ref":"a","$defs":{
                     "a":{"$id":"a","$dynamicAnchor":"x","$dynamicRef":"#y","$defs":{"leaf":{"$dynamicAnchor":"y"}}},
@@ -250,7 +287,7 @@ public class ManifestValidationTests
             return Task.FromResult(new FetchResult([..result], uri));
         });
         async Task Run() => await loader.LoadAsync(manifest, new(Origin), default);
-        if (change is "limit" or "local" or "resources" or "dynamic" or "inert" or "unrelated") await Run();
+        if (change is "limit" or "local" or "resources" or "dynamic" or "inert" or "unrelated" or "escaped-pointer") await Run();
         else if (change is "cross" or "missing") await Assert.ThrowsAsync<ManifestFetchException>(Run);
         else await Assert.ThrowsAsync<ManifestValidationException>(Run);
         Assert.All(calls, uri => Assert.Equal(Origin.Host, uri.Host));
