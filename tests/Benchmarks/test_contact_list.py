@@ -3,6 +3,11 @@ import unittest
 
 from scripts.benchmarks import contact_list as bench
 
+def valid_page(name='Name'):
+    return {'items':[{'id':str(i),'displayName':name,'version':1,
+                      'createdAt':'2026-01-01T00:00:00Z','updatedAt':'2026-01-01T00:00:00Z'}
+                     for i in range(20)], 'nextCursor':'opaque-cursor'}
+
 class ContactListBenchmarkTests(unittest.TestCase):
     def test_p95_nearest_rank(self):
         self.assertEqual(19, bench.nearest_rank(list(range(1, 21)), .95))
@@ -48,11 +53,36 @@ class ContactListBenchmarkTests(unittest.TestCase):
         self.assertNotEqual('PASS',report['verdict'])
 
     def test_response_requires_known_tenant_ids_and_valid_shape(self):
-        page = {'items': [{'id': 'A', 'displayName': 'Name', 'version': 1, 'createdAt': '2026-01-01T00:00:00Z', 'updatedAt': '2026-01-01T00:00:00Z'}], 'nextCursor': None}
-        self.assertTrue(bench.validate_page(page, {'A'}))
+        page = valid_page()
+        self.assertTrue(bench.validate_page(page, {str(i) for i in range(20)}))
         self.assertFalse(bench.validate_page(page, {'B'}))
         self.assertFalse(bench.validate_page({'items': [], 'nextCursor': None, 'private': 'x'}, {'A'}))
-        self.assertFalse(bench.validate_page({'items': [{'id': 'A', 'displayName': 'Name', 'version': True, 'createdAt': '2026-01-01T00:00:00Z', 'updatedAt': '2026-01-01T00:00:00Z'}], 'nextCursor': None}, {'A'}))
+        bad=valid_page();bad['items'][0]['version']=True
+        self.assertFalse(bench.validate_page(bad, {str(i) for i in range(20)}))
+
+    def test_full_first_page_and_nonempty_cursor_are_required(self):
+        item={'id':'A','displayName':'Name','version':1,'createdAt':'2026-01-01T00:00:00Z','updatedAt':'2026-01-01T00:00:00Z'}
+        items=[dict(item,id=str(i)) for i in range(20)]
+        ids={str(i) for i in range(20)}
+        self.assertTrue(bench.validate_page({'items':items,'nextCursor':'opaque-cursor'},ids))
+        self.assertFalse(bench.validate_page({'items':items[:-1],'nextCursor':'opaque-cursor'},ids))
+        self.assertFalse(bench.validate_page({'items':items,'nextCursor':None},ids))
+        self.assertFalse(bench.validate_page({'items':items,'nextCursor':''},ids))
+
+    def test_truncated_http_and_invalid_status_are_classified_without_payload(self):
+        import http.client
+        from unittest.mock import MagicMock
+        opener=MagicMock()
+        response=opener.open.return_value.__enter__.return_value
+        response.status=200
+        response.headers.get_content_type.return_value='application/json'
+        response.read.side_effect=http.client.IncompleteRead(b'private-payload')
+        sample=bench.http_sample('http://localhost/','secret-token','tenant',set(),opener=opener)
+        self.assertEqual((200,False,'invalid_body'),(sample.status,sample.valid,sample.reason))
+        opener.open.side_effect=http.client.BadStatusLine('private-payload')
+        sample=bench.http_sample('http://localhost/','secret-token','tenant',set(),opener=opener)
+        self.assertEqual((None,False,'transport'),(sample.status,sample.valid,sample.reason))
+        self.assertNotIn('private-payload',repr(sample))
 
     def test_http_response_and_timeout_are_classified_without_payload(self):
         import http.server, json
@@ -61,13 +91,13 @@ class ContactListBenchmarkTests(unittest.TestCase):
             def do_GET(self):
                 if self.path == '/bad':
                     self.send_response(403); self.end_headers(); return
-                body=json.dumps({'items':[{'id':'A','displayName':'Name','version':1,'createdAt':'2026-01-01T00:00:00Z','updatedAt':'2026-01-01T00:00:00Z'}], 'nextCursor':None}).encode()
+                body=json.dumps(valid_page()).encode()
                 self.send_response(200); self.send_header('Content-Type','application/json'); self.end_headers(); self.wfile.write(body)
         server=http.server.ThreadingHTTPServer(('127.0.0.1',0),Handler)
         thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
         try:
             url='http://127.0.0.1:'+str(server.server_port)
-            good=bench.http_sample(url+'/', 'token-123', 'tenant', {'A'})
+            good=bench.http_sample(url+'/', 'token-123', 'tenant', {str(i) for i in range(20)})
             self.assertEqual((200, True), (good.status,good.valid))
             bad=bench.http_sample(url+'/bad', 'token-123', 'tenant', {'A'})
             self.assertEqual(403,bad.status)
@@ -110,16 +140,19 @@ class ContactListBenchmarkTests(unittest.TestCase):
             self.assertEqual('BENCHMARK_CONFIG_INVALID',json.loads(output.read_text())['reason_token'])
 
     def test_invalid_or_duplicate_contact_values_are_rejected(self):
-        item={'id':'A','displayName':'Name','version':1,'createdAt':'2026-01-01T00:00:00Z','updatedAt':'2026-01-01T00:00:00Z'}
-        self.assertFalse(bench.validate_page({'items':[item,item],'nextCursor':None},{'A'}))
-        self.assertFalse(bench.validate_page({'items':[dict(item,email=7)],'nextCursor':None},{'A'}))
-        self.assertFalse(bench.validate_page({'items':[dict(item,createdAt='invalid')],'nextCursor':None},{'A'}))
+        ids={str(i) for i in range(20)}
+        page=valid_page();page['items'][1]=dict(page['items'][0])
+        self.assertFalse(bench.validate_page(page,ids))
+        page=valid_page();page['items'][0]['email']=7
+        self.assertFalse(bench.validate_page(page,ids))
+        page=valid_page();page['items'][0]['createdAt']='invalid'
+        self.assertFalse(bench.validate_page(page,ids))
 
     def test_search_response_must_match_requested_filter(self):
-        item={'id':'A','displayName':'Bench segment-07 contact 7','version':1,'createdAt':'2026-01-01T00:00:00Z','updatedAt':'2026-01-01T00:00:00Z'}
-        page={'items':[item],'nextCursor':None}
-        self.assertTrue(bench.validate_page(page, {'A'}, 'segment-07'))
-        self.assertFalse(bench.validate_page(page, {'A'}, 'segment-08'))
+        page=valid_page('Bench segment-07 contact')
+        ids={str(i) for i in range(20)}
+        self.assertTrue(bench.validate_page(page, ids, 'segment-07'))
+        self.assertFalse(bench.validate_page(page, ids, 'segment-08'))
 
     def test_timeout_and_redirect_never_count_as_success(self):
         from unittest.mock import patch

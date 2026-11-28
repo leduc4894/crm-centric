@@ -153,13 +153,15 @@ PLAN9_REVIEW_TREE = '6a7dda4d57c87565389ad125f750fe21be963f15'
 # Draft scope for human review; candidate-owned and not independent enforcement.
 PLAN9_NEXT_REVIEW_COMMIT = 'bc147e4dae9dbed662bd62a7c721774d34ca1e9f'
 PLAN9_NEXT_REVIEW_TREE = '75cecd22475b6f994efd027c3ec1c632923cd707'
-PLAN9_NEXT_COVERAGE_SHA256 = '18c5a2aac67e04fd2b173386d8c7860345f532586345ba4757a7acd97eb25974'
-PLAN9_NEXT_HELPER_SHA256 = 'e8ed52733e12cbcb530e1f8d064d7186da6eb10369b4e5706ddf873c89b352f0'
+PLAN9_NEXT_COVERAGE_SHA256 = '10986dddabc2442b8796747f6aa7672a824587be90d5f146390c77bdc506bbf5'
+PLAN9_NEXT_HELPER_SHA256 = '9a640f041838cc83a7f00cba1794fee828c3b040370c4f9553219c05f67cbfb9'
 PLAN9_NEXT_CI_FIXTURES = {
+    'scripts/benchmarks/contact_list.py': 'eead4e952aac5f6e9f716233024345e8c2cae1bbc8e605aa157e1111c450baab',
+    'tests/Benchmarks/test_contact_list.py': '622a6cbe2cffeae96e9bd2ee4ddbde48e75a3a3b3089009e0a2d51c22c4959e3',
     'tests/CI/test_mvp_active_policy.py': 'fb0e41c3350d72016c378253316857bc7df56141210fd1be610662b26a65494f',
     'tests/CI/test_mvp_history_review.py': 'be45b8043b75201df062610d8d9ef85066c99bf7333b59049d482571e41ad5a2',
     'scripts/ci/jobs.py': '80b4d6a0c5e703389cfd3a89e2cf985bb1a4d5dd10f2efcdba0f075edce43022',
-    'tests/CI/test_job_reports.py': '6eec26648b1f452e29b83d9ad7353705dc5bc641e07aa7f283af66c22d2da4a2',
+    'tests/CI/test_job_reports.py': 'ff9bd63e2236020576970ef1d58f8782576257cb58cb7471f8a48cf8f65cebc9',
     'tests/CI/test_job_processes.py': 'd31ffd3f0d1595a9f249de603a59e35ff795c8cf4b0eed34a06deaab19f5f012',
     'apps/crm-web/src/contacts/ContactAttributes.test.tsx': '63c3236ec4ef6a36c456b0096bddb38845507e62c63262b916e1281914850f93',
     'apps/crm-web/src/contacts/recordTestSupport.tsx': '7c3a67e972b2d2c53a60fa6a34b9eb32c923be8b9357c3cea09fc5e305b7a173',

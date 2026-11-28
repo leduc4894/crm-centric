@@ -4,6 +4,7 @@ import base64
 import concurrent.futures
 from dataclasses import dataclass
 from datetime import datetime
+import http.client
 import json
 import math
 import subprocess
@@ -112,9 +113,9 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 
 
 def validate_page(body, expected_ids, search_term=None):
-    if not isinstance(body, dict) or set(body) != {'items', 'nextCursor'} or not isinstance(body['items'], list) or not 1 <= len(body['items']) <= 20:
+    if not isinstance(body, dict) or set(body) != {'items', 'nextCursor'} or not isinstance(body['items'], list) or len(body['items']) != 20:
         return False
-    if body['nextCursor'] is not None and not isinstance(body['nextCursor'], str):
+    if not isinstance(body['nextCursor'], str) or not 1 <= len(body['nextCursor']) <= 2048:
         return False
     seen = set()
     for item in body['items']:
@@ -167,6 +168,8 @@ def http_sample(url, token, tenant, expected_ids, search_term=None, *, opener=No
         return Sample(None, False, time.monotonic() - started, reason)
     except TimeoutError:
         return Sample(None, False, time.monotonic() - started, 'timeout')
+    except http.client.HTTPException:
+        return Sample(status, False, time.monotonic() - started, 'invalid_body' if status is not None else 'transport')
     except (OSError, ValueError, TypeError, UnicodeError):
         return Sample(status, False, time.monotonic() - started, 'transport' if status is None else 'invalid_body')
     return Sample(status, valid, time.monotonic() - started)

@@ -9,6 +9,24 @@ from unittest.mock import patch
 from scripts.ci.summary import RunIdentity, ReportError
 
 class JobReportTests(unittest.TestCase):
+    def test_backend_discovery_requires_every_wave2_integration_class(self):
+        from scripts.ci.summary import validate_coverage
+        policy=json.loads(Path('tools/ci/coverage.json').read_text())
+        required=policy['suites']['non-compose']['required']
+        classes=('BenchmarkSeedTests','ContactCursorTests','ContactEmailSchemaTests',
+                 'ContactEndpointsTests','ContactListTests','ContactSchemaTests',
+                 'ContactTagFoundationTests','CrmCollectionCursorTests',
+                 'CustomFieldEndpointsTests','CustomFieldSchemaTests','TagEndpointsTests',
+                 'TagFieldConcurrencyTests','TimelineConcurrencyTests','TimelineEndpointsTests',
+                 'TimelineSchemaTests')
+        cases=[{'id':name,'outcome':'passed'} for name in required]
+        for name in classes:
+            prefix='Integration.'+name+'.'
+            with self.subTest(integration_class=name):
+                self.assertTrue(any(row['id'].startswith(prefix) for row in cases))
+                with self.assertRaises(ReportError):
+                    validate_coverage('non-compose',[row for row in cases if not row['id'].startswith(prefix)],policy)
+
     def test_ci_suite_prepares_offline_semantic_dependencies(self):
         from scripts.ci.jobs import ci_tests_prerequisites
         image=json.loads(Path('tools/contracts/toolchain.json').read_text())['dotnetImage']

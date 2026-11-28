@@ -22,7 +22,8 @@ class Plan9NextReviewTests(unittest.TestCase):
         for name in ('tests/CI/test_mvp_active_policy.py','tests/CI/test_mvp_history_review.py',
                      'scripts/ci/jobs.py','tests/CI/test_job_reports.py','tests/CI/test_job_processes.py',
                      'tools/ci/coverage.json','apps/crm-web/src/contacts/ContactAttributes.test.tsx',
-                     'apps/crm-web/src/contacts/recordTestSupport.tsx'):
+                     'apps/crm-web/src/contacts/recordTestSupport.tsx',
+                     'scripts/benchmarks/contact_list.py','tests/Benchmarks/test_contact_list.py'):
             (cls.repo/name).write_bytes((ROOT/name).read_bytes())
     @classmethod
     def tearDownClass(cls): cls.tmp.cleanup()
@@ -89,6 +90,16 @@ class Plan9NextReviewTests(unittest.TestCase):
                 finally:path.write_bytes(saved)
         finally:
             for name,value in original.items():(self.repo/name).write_bytes(value)
+    def test_benchmark_review_fixes_require_exact_review(self):
+        for name in ('scripts/benchmarks/contact_list.py', 'tests/Benchmarks/test_contact_list.py'):
+            path = self.repo / name
+            saved = path.read_bytes()
+            try:
+                self.assertTrue(self.approved())
+                path.write_bytes(saved + b'\n')
+                self.assertFalse(self.approved())
+            finally:
+                path.write_bytes(saved)
     def test_ci_revision_must_be_bound_to_exact_checkout(self):
         path=self.repo/'revision.json';head=gate.git(self.repo,'rev-parse','HEAD').decode().strip()
         revision={'candidate_sha':head,'base_sha':BASE,'head_sha':head,'merge_sha':None,'merge_base_sha':BASE}
