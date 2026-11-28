@@ -556,11 +556,12 @@
       ]
     },
     "benchmark": {
-      "minimum": 17,
+      "minimum": 18,
       "required": [
         "test_contact_list.ContactListBenchmarkTests.test_50_independent_users_start_together",
         "test_contact_list.ContactListBenchmarkTests.test_cli_failure_has_reason_and_correlation_without_secrets",
         "test_contact_list.ContactListBenchmarkTests.test_configuration_requires_isolated_tenants_and_large_unique_dataset",
+        "test_contact_list.ContactListBenchmarkTests.test_each_worker_reuses_its_prepared_http_opener",
         "test_contact_list.ContactListBenchmarkTests.test_empty_or_short_run_cannot_pass",
         "test_contact_list.ContactListBenchmarkTests.test_http_errors_timeouts_and_wrong_tenant_fail_run",
         "test_contact_list.ContactListBenchmarkTests.test_http_response_and_timeout_are_classified_without_payload",

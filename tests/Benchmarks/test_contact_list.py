@@ -131,6 +131,18 @@ class ContactListBenchmarkTests(unittest.TestCase):
         self.assertFalse(sample.valid)
         self.assertIsNone(bench.NoRedirect().redirect_request(None, None, 302, '', {}, 'http://other/'))
 
+    def test_each_worker_reuses_its_prepared_http_opener(self):
+        from unittest.mock import patch
+        with patch('scripts.benchmarks.contact_list.urllib.request.build_opener') as make, \
+             patch('scripts.benchmarks.contact_list.http_sample', return_value=bench.Sample(200, True, .001)) as sample:
+            request=bench.make_request('http://localhost/', 'tenant', {'A'}, None)
+            request({'token':'first'}); request({'token':'second'})
+            self.assertEqual(1,make.call_count)
+            self.assertIs(sample.call_args.kwargs['opener'],make.return_value)
+            worker=threading.Thread(target=request,args=({'token':'third'},))
+            worker.start(); worker.join()
+            self.assertEqual(2,make.call_count)
+
     def test_preflight_rejects_wrong_tenant_and_unauthenticated_success(self):
         ok = bench.Sample(200, True, .01)
         denied = bench.Sample(403, False, .01)

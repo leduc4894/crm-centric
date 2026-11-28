@@ -397,3 +397,36 @@ and an old CRM test workspace after checking process cwd/executable/open file
 references; no matching process was found. `/tmp` decreased from about 18.2 to
 2.5 GiB, and filesystem free space rose from 20 to 36 GiB. Retained remaining
 unidentified/current temporary files and existing benchmark/CI evidence.
+
+## Real benchmark and harness timing diagnosis
+
+A disposable local real API/PostgreSQL/Keycloak stack on candidate
+`ded5bfc34ae63545b6f060f612c1bb7f0780fd41` was provisioned with 50 distinct
+IdP users, 50,000 tenant-A contacts, 50,000 tag assignments and one tenant-B
+marker. Restricted app role has neither superuser nor BYPASSRLS; tenant-scoped
+counts matched, 50/50 users passed preflight, wrong tenant returned 403 and
+invalid bearer 401. Sanitized environment, resource samples and query plans are
+under `.local/plan9-benchmark-runtime/`. Default full measurement FAIL: 13,406
+valid samples, zero errors, p95 1790.75 ms, correlation
+`396a904f-511b-496b-8947-15dd23a5d1d6`. Search diagnostic full measurement FAIL:
+8,816 valid samples, zero errors, p95 2639.33 ms, correlation
+`56234acf-3872-4f35-a38f-8e270f80a65d`. Both failures are retained and apply
+only to the SHA and harness used; default is the proposed exit workload.
+
+Root cause of inflated reported latencies was the harness creating a new
+urllib opener on every sample: a controlled breakdown of 50 users measured
+p95 opener/request setup 1362 ms, network open 170 ms, body read 14 ms, and
+validation below 1 ms. Independent short curl diagnostic gave 50-user p95
+41.3 ms. These short diagnostics are not acceptance measurements. Harness
+now prepares one opener per worker before timing and reuses it; the focused
+regression failed before the fix and benchmark unit tests passed 18/18 after.
+A short 50-user preflight reported p95 79.1 ms, also not acceptance evidence.
+CI benchmark discovery inventory was updated for the added regression.
+
+Next: commit/freeze the corrected candidate, bind a fresh sanitized environment
+manifest and API build to that exact tree, refresh expired synthetic credentials,
+rerun both full 60s warmup/300s measurements and retain all results. Investigate
+any failures. Do not transfer old results to the corrected candidate. Then
+complete exact-candidate CI/trust review, run one hosted CI and compare security
+findings. User explicitly defers security; do not represent security or aggregate
+as passing. No hosted CI or push was performed for these changes.

@@ -140,13 +140,15 @@ def validate_page(body, expected_ids, search_term=None):
     return True
 
 
-def http_sample(url, token, tenant, expected_ids, search_term=None):
+def http_sample(url, token, tenant, expected_ids, search_term=None, *, opener=None):
+    if opener is None:
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
     started = time.monotonic()
     status = None
     valid = False
     try:
         request = urllib.request.Request(url, headers={'Authorization':'Bearer '+token, 'X-Tenant-Id':tenant, 'Accept':'application/json'})
-        with urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect()).open(request, timeout=TIMEOUT_SECONDS) as response:
+        with opener.open(request, timeout=TIMEOUT_SECONDS) as response:
             status = response.status
             raw = response.read(1024 * 1024 + 1)
             if status == 200 and response.headers.get_content_type() == 'application/json' and len(raw) <= 1024 * 1024:
@@ -173,6 +175,15 @@ def http_sample(url, token, tenant, expected_ids, search_term=None):
 def preflight_valid(users, wrong_tenant, unauthorized):
     return (len(users) == WORKERS and all(s.status == 200 and s.valid for s in users)
             and wrong_tenant.status in (403, 404) and unauthorized.status in (401, 403))
+
+
+def make_request(url, tenant, expected_ids, search_term):
+    state = threading.local()
+    def request(user):
+        if not hasattr(state, 'opener'):
+            state.opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
+        return http_sample(url, user['token'], tenant, expected_ids, search_term, opener=state.opener)
+    return request
 
 
 def run_benchmark(users, request, warmup=WARMUP_SECONDS, duration=MEASURE_SECONDS):
@@ -238,7 +249,7 @@ def main():
         allowed = frozenset(config['allowed_ids'])
         tenant = config['tenant_id']
         search_term = config['search_term'] if args.scenario == 'search' else None
-        def request(user): return http_sample(url, user['token'], tenant, allowed, search_term)
+        request = make_request(url, tenant, allowed, search_term)
         checks = run_once_per_user(users, request)
         wrong = http_sample(url, users[0]['token'], config['other_tenant_id'], allowed)
         unauthorized = http_sample(url, 'invalid', tenant, allowed)
