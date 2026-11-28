@@ -1,0 +1,7 @@
+# ADR-022 Operator-managed module event namespaces
+
+Wave 3 Plan 1 requires the installer to verify the event namespace of a signed manifest. The module ID and signing key alone cannot establish ownership. The user approved operator-assigned ownership per module and rejection of conflicting assignments on 2026-11-28. The normative matching and revision rules are in [MODULE-CALLBACKS.md](../contracts/MODULE-CALLBACKS.md#event-namespace-ownership-manifest-v2).
+
+The manifest v2 wire format, signed bytes and sidecar stay compatible. Semantic validation can reject documents previously accepted by shape-only consumers. Before enabling the validator, inventory existing event declarations, provision assignments (including `demo.` for `com.example.demo`), and validate each manifest against the proposed policy. Resolve conflicts before rollout. A publisher changing a declared event type must coordinate consumer migration and sign a new release. Do not rewrite an immutable snapshot. Roll back an incorrect assignment through a new audited trust revision, checking revocations before activation.
+
+Task 4 consumer tests cover successful validation of the signed fixture and rejection of missing ownership, collisions and invalid event names. Task 5 covers the candidate snapshot's recorded revision. Plan 2 must test that revocation or reassignment between registration and use blocks the original owner.

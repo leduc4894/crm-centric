@@ -11,6 +11,16 @@ Manifest trust P0: không public marketplace. Operator cấu hình publisher tru
 
 Signature nằm ngoài manifest để không self-sign. Lookup untrusted moduleId/keyId chỉ chọn public trust entry; phải verify signature trước register/approve. Unknown publisher/key/hash/signature fail closed; key rotation/revocation do operator quản lý và audit. Manifest upgrade chỉ chấp nhận module release version tăng, snapshot/hash mới cần approval khi scopes/origins thay đổi; không replay downgrade manifest cũ. Tenant approval không thay publisher verification; handshake chỉ chứng minh endpoint giữ credential. Wave 3 phải pin supported Ed25519 library và chạy real verifier consumer tests, không tự implement crypto.
 
+## Event namespace ownership (manifest v2)
+
+Operator gán một prefix cho mỗi `moduleId` có khai báo events. Assignment áp dụng toàn platform, dùng chung cho mọi key, release và tenant của module. Manifest, scope, tenant approval và hostname không cấp ownership. Ví dụ operator gán `demo.` cho `com.example.demo`; signed fixture khai báo `demo.activity.created.v1`. Không suy prefix từ moduleId.
+
+Prefix gồm một hoặc nhiều segment phân cách bằng dấu chấm ASCII và kết thúc bằng đúng một dấu chấm. Segment đầu khớp `[a-z][a-zA-Z0-9-]*`, các segment tiếp theo khớp `[a-zA-Z0-9-]+` (full match). So sánh ordinal, case-sensitive, không trim hay normalize. Mỗi `events[].type` phải thỏa schema v2 và bắt đầu bằng toàn bộ prefix, gồm dấu chấm cuối. Giữa prefix và segment version cuối phải có ít nhất một segment tên event; không chấp nhận segment rỗng. Với `demo.`, từ chối `demox.created.v1`, `demo.v1` và `demo..created.v1`. Manifest không khai báo event không cần assignment.
+
+Trong mỗi trust snapshot, từ chối toàn bộ cấu hình mới nếu hai module có prefix trùng, hoặc prefix này bắt đầu bằng toàn bộ prefix kia (ví dụ `demo.` và `demo.activity.`). Kiểm tra cả hai chiều, độc lập thứ tự cấu hình. Giữ nguyên snapshot hợp lệ trước đó khi reload lỗi; nếu chưa có snapshot hợp lệ thì fail closed. Prefix `crm.` dành cho platform và tham gia cùng phép kiểm tra xung đột. Nhiều key của cùng module dùng chung một assignment; từ chối assignments mâu thuẫn cho cùng module.
+
+Verify signature và kiểm tra event ownership bằng cùng một immutable operator trust snapshot. Thay đổi, xóa hoặc chuyển assignment phải tạo trust revision mới và được audit như key revocation. Candidate lưu revision đã verify. Trước installation/use, kiểm tra lại key, status, origins và ownership theo revision hiện hành; nếu assignment thiếu, bị thu hồi hoặc không còn bao phủ event đã khai báo thì fail closed. Chuyển ownership không chuyển grants hay installation giữa hai module.
+
 ## Remote action request/response
 Action descriptor endpoint nhận POST HTTPS; OAuth client credentials token audience của DemoModule, credential bind đúng tenant/installation, least scopes. Không forward end-user token. Trước claim và ngay trước send, kiểm tra installation active/degraded, rule status và action grants. Không gọi network trong DB transaction.
 
