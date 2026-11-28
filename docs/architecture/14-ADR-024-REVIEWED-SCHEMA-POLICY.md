@@ -1,0 +1,48 @@
+# ADR-024 — Independently reviewed schema changes
+
+**Status:** architecture direction selected; design and policy implementation require independent review. **`authority_status: UNAVAILABLE`**. **Rollout owner: UNVERIFIED.** No real candidate review, security clearance, CI exception, deployment authorization or signed attestation has been established.
+
+The user authorized planning and implementation of the reviewed-schema-policy direction, not a fabricated exact-candidate approval. [Policy design](../superpowers/specs/2026-11-28-reviewed-schema-policy-design.md) · [Implementation plan](../superpowers/plans/2026-11-28-reviewed-schema-policy.md) · [Wave 3 design](../superpowers/specs/2026-11-28-wave-3-integration-kernel-design.md).
+
+## Context and source inventory
+
+| Boundary | Evidence in source at Task 0 | What it does not establish |
+| --- | --- | --- |
+| Event and checkout | `.github/workflows/wave0.yml` runs on PR and push to main with `contents: read`, pinned checkout and `fetch-depth: 0`. `scripts/ci/revision.py` verifies event candidate, base, head, merge parents and merge-base. | A separate protected workflow, signer, external verifier or real approval. Source does not prove repository environment protection, branch rules or who controls them. |
+| Contract job | `contracts-sdk` invokes `scripts.ci.jobs` after checkout; jobs runs contract tests, generated SDK check, packaged consumers and compatibility gate with event base. | Candidate checkout's scripts/workflow alone cannot attest to themselves. Repo source does not prove which check is enforced by remote branch protection. |
+| Existing compatibility policy | `compatibility.py` hashes complete schema/OpenAPI inputs and local ref closure, returns `SCHEMA_COMPATIBILITY_REVIEW_REQUIRED` for new schema absent a narrow contact-review case, and returns early before later semantic checks. CLI `baseSha` is merge-base and `targetSha` is the resolved **base ref**, not candidate HEAD. It currently exits 0 for `CONTRACT_BREAKING_REVIEWED`. | A general reviewed-schema authority or a safe new exit-0 exception. The prior candidate-owned contact exception records `independentVerification: false`; user approval of design or security deferral is not independent attestation. |
+| Transition seam | `scripts/ci/policy_transition.py` accepts a verifier and immutable Git snapshots injected by a trusted caller; `Plan3SnapshotEvaluator` and `semantic_worker.py` isolate semantic workers. Current `evaluate_transition` accepts both policies as compatible only. | That a trusted caller or verifier is deployed, that credentials are protected from PR code, or that a breaking result is authorized. A local synthetic test capability is not a production verifier. |
+
+At preflight, branch `wave-3` was at `60136693c24886f8fa65826185e8a6b80f3f45d8`; Plan 2 has extensive uncommitted contract/SDK changes and is **not** an immutable reviewed candidate. The last documented local compatibility invocation against `6013669` returned nonzero `SCHEMA_COMPATIBILITY_REVIEW_REQUIRED`; Task 0 does not assert a new test, CI result or a base for any future event. The real event's base, head and candidate must be recomputed from immutable event proof. Security/aggregate FAIL/deferred, Wave 2 and P0 remain OPEN.
+
+## Decision
+
+Design a fail-closed, independently controlled coordinator for exact-candidate review. It consumes a **detached** attestation from an externally provisioned trusted authority; reviewers cannot use candidate-controlled code, files, flags or environment variables to declare their own work approved. The candidate commit and tree are fixed before attestation; a later separately controlled artifact refers to that immutable candidate, avoiding self-referential commit hashes. A synthetic test capability tests the seam but grants no live authorization. No production algorithm or new unpinned cryptography dependency is selected by this ADR.
+
+The signed review identity must bind all of the following:
+
+- Actual immutable event base, head and candidate commit SHA, candidate tree, event and merge method; both PR merge and push semantics are verified. `targetSha` retains its existing base-ref meaning; candidate identity is reported separately. Dirty local inputs, moved refs, missing Git objects, replacement objects and candidate drift fail closed.
+- Exact complete sorted path-to-SHA-256 maps of all base/candidate OpenAPI, JSON Schema and local reference closure, with no missing, added, duplicate, traversing, nonlocal or symlink path. Immutable Git bytes are read without lazy fetch or candidate code execution. Include exact policy/toolchain/generator, ADR/migration, generated SDK, consumer evidence and test result digests required by scope.
+- Named reviewer identity and authorized scopes for each schema addition, each breaking API/SDK finding, each security change and each policy-source change; issue time, expiration, revocation state and signature. Use strict duplicate/unknown-key rejection and deterministic UTF-8 JSON encoding as specified in the plan. Approval of one scope never silently approves another. Authority absence, unavailable revocation, expired or mismatched record, unexpected finding or evaluation error remain nonzero.
+
+The verifier and key/issuer, role mapping and revocation authority must come from a coordinator protected independently of the candidate and be verified by an authorized operator. The separately trusted coordinator must never execute PR code with approval credentials. Candidate-authored policy changes cannot authorize themselves: establish their own exact-digest review and evaluate old and new immutable policy independently against the same real snapshots. Synthetic keys, repo fixtures and an `independentVerification: false` record are not production evidence. These controls do not yet exist in the verified workspace; keep `authority_status: UNAVAILABLE` and the existing mandatory gate fail-closed until they are independently demonstrated.
+
+Schema review is a prerequisite to continue evaluation, not permission to stop it. Run the full pinned schema/ref validation, security checks, oasdiff, SDK comparison and independent old/new consumers on the exact snapshots; record complete findings and actual outcomes. Unreviewed security change, additional breaking diff, invalid schema, unavailable tool, failure, timeout or skipped mandatory test stays nonzero with a safe reason token and correlation ID. Do not suppress any scanner, required job or aggregate. Only independently authorized evidence covering each discovered finding and all successful mandatory checks can be eligible for a `reviewed-breaking` classification; never call it compatible. Whether this classification may satisfy the existing exit-0 required check is a **separate policy and rollout decision**, not authorized or implemented here. A reviewed contract is not production receiver/provider enforcement, remote DemoModule E2E, security clearance or P0 acceptance.
+
+## Required negative verification
+
+Use synthetic isolated Git repositories, explicitly public test keys and independent test consumers. Tests must show nonzero failure for:
+
+1. One-byte mutation, add/remove/rename or symlink substitution of any schema, OpenAPI, local reference, ADR, generator, policy, SDK or consumer-evidence input; extra/missing paths or duplicate JSON properties.
+2. Wrong PR base/head/merge candidate/tree, wrong push identity, dirty input, replaced Git object, missing object, expired/revoked record, replay against another candidate, unavailable authority or ambiguous time.
+3. Missing/forged signature, wrong reviewer/issuer/role/scope, candidate-selected verifier, candidate-authorized policy self-change or security finding without separate authorization.
+4. Unreviewed oasdiff finding, changed token/mTLS requirement, invalid schema, skipped/failing consumer, SDK surface mismatch, evaluator timeout or missing pinned tool. These remain nonzero even if a schema change was reviewed.
+5. Candidate workflow attempting to expose review credentials, execute PR code in a privileged coordinator, change required checks or turn `reviewed-breaking` into compatibility/security/P0 success. Verify structured reports preserve base/head/candidate, individual outcomes, correlation ID and actual failure.
+
+A positive synthetic case proves only the isolated test path. Exact materialized candidate bytes, trusted protected authority and authorized separate review remain necessary before any live reviewed result.
+
+## Rollout and rollback
+
+First implement and independently review disabled-by-default seams and tests in the [plan](../superpowers/plans/2026-11-28-reviewed-schema-policy.md). Separately establish and audit the external coordinator, authority, signing/key rotation, role assignment, revocation and protected CI event binding. Identify an accountable rollout owner and document required-job semantics before integrating a real attestation. If any prerequisite is absent, preserve the present nonzero gate. Do not deploy, merge or publish as a consequence of this ADR.
+
+If the trusted authority, review record, evaluator or policy is found invalid, disable the reviewed path and retain the normal nonzero compatibility/security checks; preserve evidence and original classification, revoke compromised review authority through its independently controlled mechanism, and forward-fix under a fresh exact-candidate review. Do not silently relabel prior breaking, security or aggregate failures as success.
