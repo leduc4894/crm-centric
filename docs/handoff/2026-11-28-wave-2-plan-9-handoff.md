@@ -307,3 +307,93 @@ outage/recovery and restore drills remain OPEN. Wave 2/P0 exit therefore OPEN.
 No merge or deployment. This handoff is documentation-only and does not move
 verdicts to a different SHA. Next: continue Plan 9 discovery coverage/benchmark
 and acceptance evidence if requested; preserve the exact original run artifacts.
+
+## Benchmark implementation checkpoint
+
+User asked to continue Plan 9. Started benchmark preparation; this is **work
+in progress**, not a measurement or Wave 2 exit. Existing hosted non-security
+results above remain bound only to the named run and merge. No CI was started
+this session, no push/merge/deployment, no full local suite and no new security
+comparison. `tests/CI` is absent from the workflow/aggregate inventory and
+`coverage.json`; benchmark unit tests are also not hosted. Adding required CI
+coverage changes the reviewed trust inventory and needs the existing review path;
+do not silently reuse the earlier candidate-owned approval for this new tree.
+
+Uncommitted new files: `scripts/benchmarks/contact_list.py`,
+`scripts/benchmarks/seed_contacts.sql`, `tests/Benchmarks/test_contact_list.py`,
+`tests/Integration/BenchmarkSeedTests.cs`, and
+`docs/operations/11-CONTACT-BENCHMARK.md`; this handoff is also modified.
+The harness has bounded 50-worker closed-loop HTTP, preflight checks, aggregate
+latencies/errors, strict p95 threshold and sanitized non-overwriting reports.
+The seed targets a disposable named database, creates 50,000 deterministic
+contacts, ten tags and 50,000 tag links plus a second-tenant marker. The
+runbook explicitly records that real provisioning and measurement remain open.
+Do not run the harness as acceptance evidence until its remaining integration,
+identity provisioning, environment manifest and candidate binding are reviewed.
+
+Verification (focused only): `python3 -m unittest discover -s tests/Benchmarks
+-p 'test_contact_list.py' -v` PASS 17/17. `dotnet test
+tests/Integration/Integration.csproj -c Release --no-restore --filter
+'FullyQualifiedName~BenchmarkSeedTests' --logger 'console;verbosity=minimal'`
+PASS 1/1 with real Testcontainers PostgreSQL; this tests repeat seed, refusal
+of a non-benchmark database and invalid confirmation, contact/tag counts, and
+marker. The initial test exposed a container resource path error, fixed by
+mapping the script to its actual container path. The invalid-confirmation test
+was RED because psql ignored `\\quit 1`; replacing it with an SQL error made it
+GREEN. Tag counts and search-filter validation also had focused RED then GREEN.
+Raw credentials were not printed. Testcontainers' privileged seed connection
+is not evidence of application-role RLS or real API/IdP behavior.
+
+Remaining: implement and verify real disposable API/IdP plus 50 independent
+active identities, create private configuration safely, validate actual DB/tenant
+state and restricted application role, capture a reproducible environment
+manifest and utilization/query plans, review response validation and coordinated
+measurement, then run both 60s warmup/300s scenarios against the same frozen
+candidate. Audit and implement fail-closed hosted `tests/CI` and benchmark test
+coverage without relaxing policy; prepare review of the exact candidate and
+all CI/trust changes. Run one hosted CI only after candidate/review readiness,
+monitor to completion and compare security findings again. Wave 2/P0 exit,
+benchmark, independent review and acceptance drills remain OPEN. Local branch
+HEAD before these uncommitted changes is `c1eacf9` (ahead of origin by one
+handoff-only commit); check `git status` and exact SHA before resuming.
+
+## Continuation and machine cleanup
+
+User requested Wave 2 completion with security deferred, then paused work to
+clean unused containers/volumes/images and inspect disk usage. Benchmark work
+was committed as `30672a6`; CI coverage candidate as `5befc48`, both local only.
+The new `ci-tests` required job runs the inventoried `tests/CI` and benchmark
+suites and retains fail-closed aggregate behavior. It provisions the pinned
+Gitleaks binary required by existing CI tests; both Python suites are attempted
+before reporting failure. Targeted workflow/job tests passed 18/18 and focused
+aggregate/completion/job tests passed 23/23. The new exact candidate and CI
+trust inventory require review; earlier candidate approval does not cover them.
+No full local suite, hosted run, benchmark measurement, push, or new security
+comparison was performed. Security is deferred by user decision, while its CI
+verdict and aggregate must remain factual. Wave 2 exit is still OPEN.
+
+At user request, stopped the nine old CRM test containers and then removed 16
+old CRM test containers, six named CRM test volumes, and 40 CRM test image
+tags; removed two regenerable Trivy caches. No current project source or base
+build images were intentionally removed. Disk free increased to about 20 GiB;
+test volume data is deleted. Six unlabeled/anonymous volumes remain because
+ownership was not established. Running containers were empty after cleanup.
+
+The subsequent read-only system audit found approximately 64.3 GiB allocated:
+`/tmp` 18.2 GiB (including old UID-1001 test workspace 13.1 GiB), `/var` 21.2
+GiB (containerd 17.6 GiB and journal 2.3 GiB), `/home` 19.1 GiB, `/root`
+2.7 GiB, `/usr` 3.0 GiB. Docker's image/cache figures overlap containerd and
+must not be added to that total. No process matching the large UID-1001 test
+workspace was found at inspection; that is not proof it can never be needed.
+No further cleanup was performed after the user requested the disk inspection.
+Continue only after addressing the current inspection request; do not erase
+containerd files directly. The earlier handoff's uncommitted-file status is
+superseded by commits above. Current working changes include this handoff; check
+`git status` and fresh candidate SHA before resuming.
+
+User subsequently authorized cleaning `/tmp`. Removed old temporary UID-1001
+CRM test workspace and home, three duplicate temporary .NET SDK directories,
+and an old CRM test workspace after checking process cwd/executable/open file
+references; no matching process was found. `/tmp` decreased from about 18.2 to
+2.5 GiB, and filesystem free space rose from 20 to 36 GiB. Retained remaining
+unidentified/current temporary files and existing benchmark/CI evidence.
