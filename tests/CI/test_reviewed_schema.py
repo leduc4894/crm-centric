@@ -6,11 +6,11 @@ import hmac
 import importlib
 import json
 import os
-import signal
+import pickle
 from pathlib import Path
 import subprocess
 import tempfile
-import time
+import threading
 import unittest
 from unittest.mock import patch
 
@@ -101,82 +101,47 @@ class ReviewSnapshotTests(unittest.TestCase):
         proof = authority.proof(revision, kind, method)
         return subject.wrap_verified_event(revision, kind, method, proof, authority)
 
-    def test_total_deadline_bounds_slow_authority(self):
+    def test_capture_requires_protected_owner_without_forking_host(self):
         event = self.verified()
-        original = event.authority.verify_event
-
-        def slow_verify(*args):
-            time.sleep(0.2)
-            return original(*args)
-
-        self.assertTrue(hasattr(subject, '_CAPTURE_TIMEOUT_SECONDS'), 'total capture deadline is missing')
-        with patch.object(subject, '_CAPTURE_TIMEOUT_SECONDS', 0.05), \
-                patch.object(event.authority, 'verify_event', side_effect=slow_verify):
-            started = time.monotonic()
-            with self.assertRaises(subject.ReviewSnapshotError):
+        with patch.object(subject.os, 'fork', side_effect=AssertionError('unsafe fork')) as fork:
+            with self.assertRaises(subject.ReviewSnapshotError) as failure:
                 subject.capture_review_snapshot(self.repo, event, self.tree)
-            self.assertLess(time.monotonic() - started, 0.18)
+        self.assertEqual('CI_REVIEW_SUPERVISOR_UNAVAILABLE', failure.exception.reason_token)
+        fork.assert_not_called()
 
-    def test_total_deadline_kills_and_reaps_blocked_worker_descendant(self):
+    def test_capture_fails_closed_from_multithreaded_host_without_invoking_fixture(self):
         event = self.verified()
-        self.assertTrue(hasattr(subject, '_CAPTURE_TIMEOUT_SECONDS'), 'total capture deadline is missing')
-        marker = self.repo.parent / (self.repo.name + '-descendant-pid')
-
-        def blocked_read(*args):
-            child = subprocess.Popen(['/bin/sleep', '30'], start_new_session=True)
-            marker.write_text(str(child.pid), encoding='ascii')
-            read_fd, write_fd = os.pipe()
+        failures = []
+        def run():
             try:
-                os.read(read_fd, 1)
-            finally:
-                os.close(read_fd)
-                os.close(write_fd)
+                subject.capture_review_snapshot(self.repo, event, self.tree)
+            except subject.ReviewSnapshotError as error:
+                failures.append(error.reason_token)
+        with patch.object(subject, '_capture_with_guard', side_effect=AssertionError('private fixture called')):
+            thread = threading.Thread(target=run)
+            thread.start()
+            thread.join(timeout=1)
+        self.assertFalse(thread.is_alive())
+        self.assertEqual(['CI_REVIEW_SUPERVISOR_UNAVAILABLE'], failures)
 
+    def test_capture_never_executes_untrusted_pickle_payload(self):
+        event = self.verified()
+        marker = self.repo.parent / (self.repo.name + '-pickle-executed')
+        class Malicious:
+            def __reduce__(self):
+                return (os.open, (str(marker), os.O_CREAT | os.O_WRONLY, 0o600))
+        payload = pickle.dumps(Malicious())
         try:
-            with patch.object(subject, '_CAPTURE_TIMEOUT_SECONDS', 1), \
-                    patch.object(subject, '_read_worktree_file', side_effect=blocked_read):
+            with patch.object(pickle, 'dumps', return_value=payload):
                 with self.assertRaises(subject.ReviewSnapshotError):
                     subject.capture_review_snapshot(self.repo, event, self.tree)
-            self.assertTrue(marker.exists(), 'blocked read was not reached')
-            pid = int(marker.read_text(encoding='ascii'))
-            self.assertFalse(Path('/proc', str(pid)).exists(), 'descendant not terminated and reaped')
+            self.assertFalse(marker.exists(), 'worker payload executed in coordinator')
         finally:
-            if marker.exists():
-                pid = int(marker.read_text(encoding='ascii'))
-                try:
-                    os.kill(pid, signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
-                marker.unlink()
-
-    def test_total_deadline_limits_many_individually_fast_git_calls(self):
-        event = self.verified()
-        original_git = subject._git
-        def slow_git(*args, **kwargs):
-            time.sleep(0.02)
-            return original_git(*args, **kwargs)
-        with patch.object(subject, '_CAPTURE_TIMEOUT_SECONDS', 0.15), \
-                patch.object(subject, '_git', side_effect=slow_git):
-            started = time.monotonic()
-            with self.assertRaises(subject.ReviewSnapshotError):
-                subject.capture_review_snapshot(self.repo, event, self.tree)
-            self.assertLess(time.monotonic() - started, 1)
-
-    def test_supervisor_unavailable_and_authority_exception_fail_closed(self):
-        event = self.verified()
-        with patch.object(subject.ctypes, 'CDLL', side_effect=OSError('unavailable')):
-            with self.assertRaises(subject.ReviewSnapshotError) as failure:
-                subject.capture_review_snapshot(self.repo, event, self.tree)
-            self.assertEqual('CI_REVIEW_SUPERVISOR_UNAVAILABLE', failure.exception.reason_token)
-        with patch.object(event.authority, 'verify_event', side_effect=RuntimeError('private')):
-            with self.assertRaises(subject.ReviewSnapshotError) as failure:
-                subject.capture_review_snapshot(self.repo, event, self.tree)
-            self.assertEqual('CI_REVIEW_EVENT_UNTRUSTED', failure.exception.reason_token)
-            self.assertNotIn('private', str(failure.exception))
+            marker.unlink(missing_ok=True)
 
     def test_exact_git_snapshot_and_dirty_input_fail_closed(self):
         event = self.verified()
-        result = subject.capture_review_snapshot(self.repo, event, self.tree)
+        result = subject._capture_with_guard(self.repo, event, self.tree)
         base = dict(result.base_inputs)
         current = dict(result.candidate_inputs)
         self.assertEqual(b'{"$defs":{"Item":{"$ref":"deep.json"}}}', current['docs/contracts/defs.json'])
@@ -189,15 +154,15 @@ class ReviewSnapshotTests(unittest.TestCase):
         self.assertIn('tests/Contract/consumer.py', dict(result.candidate_consumers))
         self.write('docs/contracts/defs.json', '{}')
         with self.assertRaises(subject.ReviewSnapshotError):
-            subject.capture_review_snapshot(self.repo, event, self.tree)
+            subject._capture_with_guard(self.repo, event, self.tree)
         self.git('add', 'docs/contracts/defs.json')
         with self.assertRaises(subject.ReviewSnapshotError):
-            subject.capture_review_snapshot(self.repo, event, self.tree)
+            subject._capture_with_guard(self.repo, event, self.tree)
         self.git('reset', '-q', 'HEAD', '--', 'docs/contracts/defs.json')
         self.git('checkout', '--', 'docs/contracts/defs.json')
         self.write('docs/contracts/new.schema.json', '{}')
         with self.assertRaises(subject.ReviewSnapshotError):
-            subject.capture_review_snapshot(self.repo, event, self.tree)
+            subject._capture_with_guard(self.repo, event, self.tree)
 
     def test_dirty_status_change_during_capture_fails_closed(self):
         event = self.verified()
@@ -215,24 +180,24 @@ class ReviewSnapshotTests(unittest.TestCase):
 
         with patch.object(subject, '_check_worktree', side_effect=racing_check):
             with self.assertRaises(subject.ReviewSnapshotError):
-                subject.capture_review_snapshot(self.repo, event, self.tree)
+                subject._capture_with_guard(self.repo, event, self.tree)
 
     def test_replaced_git_object_is_not_accepted(self):
         event = self.verified()
         self.git('replace', self.base, self.head)
         with self.assertRaises(subject.ReviewSnapshotError):
-            subject.capture_review_snapshot(self.repo, event, self.tree)
+            subject._capture_with_guard(self.repo, event, self.tree)
 
     def test_git_alternates_and_promisor_configuration_fail_closed(self):
         event = self.verified()
         alternates = self.repo / '.git/objects/info/alternates'
         alternates.write_text(str(self.repo / '.git/objects') + '\n', encoding='utf-8')
         with self.assertRaises(subject.ReviewSnapshotError):
-            subject.capture_review_snapshot(self.repo, event, self.tree)
+            subject._capture_with_guard(self.repo, event, self.tree)
         alternates.unlink()
         self.git('config', 'remote.synthetic.promisor', 'true')
         with self.assertRaises(subject.ReviewSnapshotError):
-            subject.capture_review_snapshot(self.repo, event, self.tree)
+            subject._capture_with_guard(self.repo, event, self.tree)
 
     def test_replace_ref_added_during_capture_fails_closed(self):
         event = self.verified()
@@ -249,14 +214,14 @@ class ReviewSnapshotTests(unittest.TestCase):
 
         with patch.object(subject, '_check_worktree', side_effect=racing_check):
             with self.assertRaises(subject.ReviewSnapshotError):
-                subject.capture_review_snapshot(self.repo, event, self.tree)
+                subject._capture_with_guard(self.repo, event, self.tree)
 
     def test_missing_base_object_is_rejected_even_with_bound_test_proof(self):
         missing_base = 'f' * 40
         revision = replace(self.pr, base_sha=missing_base, merge_base_sha=missing_base)
         event = self.verified(revision)
         with self.assertRaises(subject.ReviewSnapshotError):
-            subject.capture_review_snapshot(self.repo, event, self.tree)
+            subject._capture_with_guard(self.repo, event, self.tree)
 
     def test_oversize_tracked_file_fails_closed(self):
         oversized = self.repo / 'docs/contracts/large.json'
@@ -268,7 +233,7 @@ class ReviewSnapshotTests(unittest.TestCase):
         revision = resolve_event({'event_name': 'push', 'before': self.candidate, 'after': candidate, 'forced': False},
                                  candidate, GitReader(self.repo))
         with self.assertRaises(subject.ReviewSnapshotError):
-            subject.capture_review_snapshot(self.repo, self.verified(revision, 'push', None), tree)
+            subject._capture_with_guard(self.repo, self.verified(revision, 'push', None), tree)
 
     def test_oversize_git_blob_is_not_read_when_worktree_file_is_smaller(self):
         self.write('docs/contracts/large.json', 'x' * (16 * 1024 * 1024 + 1))
@@ -291,7 +256,7 @@ class ReviewSnapshotTests(unittest.TestCase):
 
         with patch.object(subject, '_git', side_effect=recording_git):
             with self.assertRaises(subject.ReviewSnapshotError):
-                subject.capture_review_snapshot(self.repo, event, tree)
+                subject._capture_with_guard(self.repo, event, tree)
         self.assertEqual([], oversized_reads, 'oversized Git object was read into memory')
 
     def test_status_does_not_execute_repo_configured_fsmonitor(self):
@@ -301,7 +266,7 @@ class ReviewSnapshotTests(unittest.TestCase):
         hook.write_text(f'#!/bin/sh\ntouch "{marker}"\nexit 0\n', encoding='utf-8')
         hook.chmod(0o755)
         self.git('config', 'core.fsmonitor', str(hook))
-        subject.capture_review_snapshot(self.repo, event, self.tree)
+        subject._capture_with_guard(self.repo, event, self.tree)
         self.assertFalse(marker.exists(), 'capture executed repository-configured fsmonitor')
 
     def test_status_does_not_execute_repo_configured_clean_filter(self):
@@ -324,7 +289,7 @@ class ReviewSnapshotTests(unittest.TestCase):
         event = self.verified(revision, 'push', None)
         self.write('docs/contracts/filtered.json', '[]')
         with self.assertRaises(subject.ReviewSnapshotError):
-            subject.capture_review_snapshot(self.repo, event, tree)
+            subject._capture_with_guard(self.repo, event, tree)
         self.assertFalse(marker.exists(), 'capture executed repository-configured clean filter')
 
     def test_semantically_noncanonical_eol_attributes_fail_closed(self):
@@ -336,7 +301,7 @@ class ReviewSnapshotTests(unittest.TestCase):
         revision = resolve_event({'event_name': 'push', 'before': self.candidate, 'after': candidate, 'forced': False},
                                  candidate, GitReader(self.repo))
         with self.assertRaises(subject.ReviewSnapshotError):
-            subject.capture_review_snapshot(self.repo, self.verified(revision, 'push', None), tree)
+            subject._capture_with_guard(self.repo, self.verified(revision, 'push', None), tree)
 
     def test_safe_lf_auto_attributes_allow_unchanged_binary_and_text(self):
         self.write('.gitattributes', '* text=auto eol=lf\n')
@@ -347,7 +312,7 @@ class ReviewSnapshotTests(unittest.TestCase):
         tree = self.git('rev-parse', 'HEAD^{tree}').strip()
         revision = resolve_event({'event_name': 'push', 'before': self.candidate, 'after': candidate, 'forced': False},
                                  candidate, GitReader(self.repo))
-        result = subject.capture_review_snapshot(self.repo, self.verified(revision, 'push', None), tree)
+        result = subject._capture_with_guard(self.repo, self.verified(revision, 'push', None), tree)
         self.assertEqual(b'\x00\r\n', dict(result.candidate_sdk)['sdks/client/image.bin'])
 
     def test_symlinked_worktree_parent_fails_closed(self):
@@ -357,10 +322,10 @@ class ReviewSnapshotTests(unittest.TestCase):
         source.rename(relocated)
         source.symlink_to(relocated, target_is_directory=True)
         with self.assertRaises(subject.ReviewSnapshotError):
-            subject.capture_review_snapshot(self.repo, event, self.tree)
+            subject._capture_with_guard(self.repo, event, self.tree)
 
     def test_complete_tracked_tree_binds_root_and_workflow_dependencies(self):
-        result = subject.capture_review_snapshot(self.repo, self.verified(), self.tree)
+        result = subject._capture_with_guard(self.repo, self.verified(), self.tree)
         self.assertTrue(hasattr(result, 'candidate_repository'), 'complete repository inventory is missing')
         repository = dict(result.candidate_repository)
         for name in ('global.json', '.node-version', 'Directory.Build.props', 'Directory.Packages.props',
@@ -370,7 +335,7 @@ class ReviewSnapshotTests(unittest.TestCase):
                 self.assertEqual(hashlib.sha256(repository[name]).hexdigest(), dict(result.candidate_repository_hashes)[name])
         self.write('global.json', '{"sdk":{"version":"forged"}}')
         with self.assertRaises(subject.ReviewSnapshotError):
-            subject.capture_review_snapshot(self.repo, self.verified(), self.tree)
+            subject._capture_with_guard(self.repo, self.verified(), self.tree)
 
     def test_committed_root_mutation_and_action_addition_change_repository_digest_set(self):
         self.write('global.json', '{"sdk":{"version":"10.0.404"}}')
@@ -381,7 +346,7 @@ class ReviewSnapshotTests(unittest.TestCase):
         tree = self.git('rev-parse', 'HEAD^{tree}').strip()
         revision = resolve_event({'event_name': 'push', 'before': self.candidate, 'after': candidate, 'forced': False},
                                  candidate, GitReader(self.repo))
-        result = subject.capture_review_snapshot(self.repo, self.verified(revision, 'push', None), tree)
+        result = subject._capture_with_guard(self.repo, self.verified(revision, 'push', None), tree)
         before, after = dict(result.base_repository_hashes), dict(result.candidate_repository_hashes)
         self.assertNotEqual(before['global.json'], after['global.json'])
         self.assertNotIn('.github/actions/example/added.yml', before)
@@ -393,7 +358,7 @@ class ReviewSnapshotTests(unittest.TestCase):
                 return True
         unguarded = subject.wrap_verified_event(self.pr, 'pull_request', 'merge', b'public-test-proof', NoGuardAuthority())
         with self.assertRaises(subject.ReviewSnapshotError) as failure:
-            subject.capture_review_snapshot(self.repo, unguarded, self.tree)
+            subject._capture_with_guard(self.repo, unguarded, self.tree)
         self.assertEqual('CI_REVIEW_CONFINEMENT_UNAVAILABLE', failure.exception.reason_token)
 
         class RevokedAuthority(SyntheticEventAuthority):
@@ -409,7 +374,7 @@ class ReviewSnapshotTests(unittest.TestCase):
         proof = authority.proof(self.pr, 'pull_request', 'merge')
         event = subject.wrap_verified_event(self.pr, 'pull_request', 'merge', proof, authority)
         with self.assertRaises(subject.ReviewSnapshotError) as failure:
-            subject.capture_review_snapshot(self.repo, event, self.tree)
+            subject._capture_with_guard(self.repo, event, self.tree)
         self.assertEqual('CI_REVIEW_CONFINEMENT_UNAVAILABLE', failure.exception.reason_token)
 
     def test_transient_restored_worktree_change_is_rejected_when_guard_detects_it(self):
@@ -441,7 +406,7 @@ class ReviewSnapshotTests(unittest.TestCase):
 
         with patch.object(subject, '_inventory', side_effect=mutate_and_restore):
             with self.assertRaises(subject.ReviewSnapshotError) as failure:
-                subject.capture_review_snapshot(self.repo, event, self.tree)
+                subject._capture_with_guard(self.repo, event, self.tree)
         self.assertEqual('CI_REVIEW_CONFINEMENT_UNAVAILABLE', failure.exception.reason_token)
 
     def test_ignored_untracked_root_dependency_fails_closed(self):
@@ -455,7 +420,7 @@ class ReviewSnapshotTests(unittest.TestCase):
                                  candidate, GitReader(self.repo))
         self.write('global.json', '{"sdk":{"version":"forged"}}')
         with self.assertRaises(subject.ReviewSnapshotError):
-            subject.capture_review_snapshot(self.repo, self.verified(revision, 'push', None), tree)
+            subject._capture_with_guard(self.repo, self.verified(revision, 'push', None), tree)
 
     def test_invalid_json_pointer_and_unsupported_schema_scope_fail_closed(self):
         bad_documents = (
@@ -479,7 +444,7 @@ class ReviewSnapshotTests(unittest.TestCase):
                 revision = resolve_event({'event_name': 'push', 'before': previous, 'after': candidate, 'forced': False},
                                          candidate, GitReader(self.repo))
                 with self.assertRaises(subject.ReviewSnapshotError):
-                    subject.capture_review_snapshot(self.repo, self.verified(revision, 'push', None), tree)
+                    subject._capture_with_guard(self.repo, self.verified(revision, 'push', None), tree)
                 previous = candidate
 
     def test_valid_escaped_json_pointer_and_array_reference(self):
@@ -491,7 +456,7 @@ class ReviewSnapshotTests(unittest.TestCase):
         tree = self.git('rev-parse', 'HEAD^{tree}').strip()
         revision = resolve_event({'event_name': 'push', 'before': self.candidate, 'after': candidate, 'forced': False},
                                  candidate, GitReader(self.repo))
-        result = subject.capture_review_snapshot(self.repo, self.verified(revision, 'push', None), tree)
+        result = subject._capture_with_guard(self.repo, self.verified(revision, 'push', None), tree)
         self.assertIn('docs/contracts/defs.json', dict(result.candidate_inputs))
 
     def test_git_output_and_total_inventory_limits_apply_before_read(self):
@@ -523,11 +488,11 @@ class ReviewSnapshotTests(unittest.TestCase):
         event = self.verified(revision, 'push', None)
         self.write('tests/CI/__pycache__/security_test.pyc', 'test-cache')
         self.write('sdks/client/obj/build.bin', 'test-output')
-        result = subject.capture_review_snapshot(self.repo, event, tree)
+        result = subject._capture_with_guard(self.repo, event, tree)
         self.assertIn('tests/CI/security_test.py', dict(result.candidate_consumers))
         self.write('docs/contracts/untracked.schema.json', '{}')
         with self.assertRaises(subject.ReviewSnapshotError):
-            subject.capture_review_snapshot(self.repo, event, tree)
+            subject._capture_with_guard(self.repo, event, tree)
 
     def test_pr_merge_and_push_identity_are_not_interchangeable(self):
         with self.assertRaises(subject.ReviewSnapshotError):
@@ -562,9 +527,9 @@ class ReviewSnapshotTests(unittest.TestCase):
     def test_missing_extra_symlink_path_and_ref_fail_closed(self):
         event = self.verified()
         with self.assertRaises(subject.ReviewSnapshotError):
-            subject.capture_review_snapshot(self.repo, event, '0' * 40)
+            subject._capture_with_guard(self.repo, event, '0' * 40)
         with self.assertRaises(subject.ReviewSnapshotError):
-            subject.capture_review_snapshot(self.repo, replace(event, revision=replace(self.pr, candidate_sha='f' * 40)), self.tree)
+            subject._capture_with_guard(self.repo, replace(event, revision=replace(self.pr, candidate_sha='f' * 40)), self.tree)
         self.git('checkout', '-q', '-b', 'invalid')
         self.write('docs/contracts/api.openapi.yaml', 'openapi: 3.1.0\ncomponents:\n  schemas:\n    Item:\n      $ref: https://outside.example/schema.json\n')
         self.git('add', '.')
@@ -573,7 +538,7 @@ class ReviewSnapshotTests(unittest.TestCase):
         bad_tree = self.git('rev-parse', 'HEAD^{tree}').strip()
         bad_rev = resolve_event({'event_name': 'push', 'before': self.candidate, 'after': bad, 'forced': False}, bad, GitReader(self.repo))
         with self.assertRaises(subject.ReviewSnapshotError):
-            subject.capture_review_snapshot(self.repo, self.verified(bad_rev, 'push', None), bad_tree)
+            subject._capture_with_guard(self.repo, self.verified(bad_rev, 'push', None), bad_tree)
         self.write('docs/contracts/api.openapi.yaml', 'openapi: 3.1.0\ncomponents:\n  schemas:\n    Item:\n      $ref: missing.json\n')
         self.git('add', '.')
         self.git('commit', '-qm', 'missing ref')
@@ -581,7 +546,7 @@ class ReviewSnapshotTests(unittest.TestCase):
         missing_tree = self.git('rev-parse', 'HEAD^{tree}').strip()
         missing_rev = resolve_event({'event_name': 'push', 'before': bad, 'after': missing, 'forced': False}, missing, GitReader(self.repo))
         with self.assertRaises(subject.ReviewSnapshotError):
-            subject.capture_review_snapshot(self.repo, self.verified(missing_rev, 'push', None), missing_tree)
+            subject._capture_with_guard(self.repo, self.verified(missing_rev, 'push', None), missing_tree)
         self.write('docs/contracts/api.openapi.yaml', 'openapi: 3.1.0\ncomponents:\n  schemas:\n    Item:\n      $ref: defs.json#/$defs/Item\n')
         (self.repo / 'docs/contracts/link.json').symlink_to('defs.json')
         self.git('add', '.')
@@ -590,7 +555,7 @@ class ReviewSnapshotTests(unittest.TestCase):
         link_tree = self.git('rev-parse', 'HEAD^{tree}').strip()
         link_rev = resolve_event({'event_name': 'push', 'before': missing, 'after': link, 'forced': False}, link, GitReader(self.repo))
         with self.assertRaises(subject.ReviewSnapshotError):
-            subject.capture_review_snapshot(self.repo, self.verified(link_rev, 'push', None), link_tree)
+            subject._capture_with_guard(self.repo, self.verified(link_rev, 'push', None), link_tree)
 
 
 if __name__ == '__main__':
