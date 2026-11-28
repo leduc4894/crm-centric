@@ -15,6 +15,7 @@ internal sealed class SchemaSnapshotLoader(Func<Uri, FetchPolicy, CancellationTo
 
     public async Task<IReadOnlyList<SchemaSnapshot>> LoadAsync(ValidatedManifest manifest, FetchPolicy policy, CancellationToken ct)
     {
+        policy = policy.WithBaseOrigin(manifest.BaseUrl);
         foreach (var reference in manifest.SchemaReferences) policy.Validate(reference.Uri);
         var snapshots = ImmutableArray.CreateBuilder<SchemaSnapshot>();
         foreach (var reference in manifest.SchemaReferences)
@@ -25,13 +26,13 @@ internal sealed class SchemaSnapshotLoader(Func<Uri, FetchPolicy, CancellationTo
             if (result.Bytes.Length > SafeFetchClient.SchemaLimit) throw new ManifestValidationException(ManifestFailure.SchemaSize);
             if (Convert.ToHexStringLower(SHA256.HashData(result.Bytes.AsSpan())) != reference.Sha256)
                 throw new ManifestValidationException(ManifestFailure.SchemaHash);
-            ValidateSchema(result.Bytes);
+            ValidateSchema(result.Bytes, reference.Uri);
             snapshots.Add(new(reference, result.Bytes));
         }
         return snapshots.ToImmutable();
     }
 
-    private static void ValidateSchema(ImmutableArray<byte> bytes)
+    private static void ValidateSchema(ImmutableArray<byte> bytes, Uri retrievalUri)
     {
         try
         {
@@ -41,24 +42,50 @@ internal sealed class SchemaSnapshotLoader(Func<Uri, FetchPolicy, CancellationTo
             if (!MetaSchema.Value.Validate(text)) throw Invalid();
             // Traverse only schema positions. Property names and instance data in const/enum are opaque.
             var children = new Dictionary<string, List<string>>(StringComparer.Ordinal);
-            var references = new Dictionary<string, string>(StringComparer.Ordinal);
-            var anchors = new Dictionary<string, string>(StringComparer.Ordinal);
-            Index(root, "#");
+            var resources = new Dictionary<string, string>(StringComparer.Ordinal) { [retrievalUri.AbsoluteUri] = "#" };
+            var references = new List<(string Path, Uri Target, bool Dynamic)>();
+            var anchors = new Dictionary<(string Resource, string Name), (string Path, bool Dynamic)>();
+            Index(root, "#", retrievalUri);
+            foreach (var (path, target, isDynamic) in references)
+            {
+                var resource = target.AbsoluteUri.Split('#')[0];
+                if (!resources.TryGetValue(resource, out var resourcePath)) throw Invalid();
+                var fragment = Uri.UnescapeDataString(target.Fragment.Length == 0 ? "" : target.Fragment[1..]);
+                if (fragment.Length == 0 || fragment.StartsWith('/'))
+                    children[path].Add(resourcePath + fragment);
+                else
+                {
+                    if (!anchors.TryGetValue((resourcePath, fragment), out var anchor)) throw Invalid();
+                    children[path].Add(anchor.Path);
+                    // A dynamic reference can select an outer resource's dynamic anchor.
+                    if (isDynamic && anchor.Dynamic)
+                        foreach (var candidate in anchors.Where(a => a.Key.Name == fragment && a.Value.Dynamic))
+                            children[path].Add(candidate.Value.Path);
+                }
+            }
             var depths = new Dictionary<string, int>(StringComparer.Ordinal);
             var visiting = new HashSet<string>(StringComparer.Ordinal);
             foreach (var path in children.Keys) Depth(path, 1);
             // Compile untrusted schema bytes without the global canonical-URI cache.
             JsonSchemaEvaluator.Compile(bytes.AsMemory(), new JsonSchemaEvaluatorOptions
             {
+                BaseUri = retrievalUri.AbsoluteUri,
                 DefaultDialect = JsonSchemaDialect.Draft202012,
                 DocumentResolver = null,
                 FallbackDocumentResolver = null
             });
 
-            void Index(JsonElement node, string path)
+            void Index(JsonElement node, string path, Uri resource)
             {
                 children[path] = [];
                 if (node.ValueKind != JsonValueKind.Object) return;
+                if (node.TryGetProperty("$id"u8, out var id))
+                {
+                    resource = new Uri(resource, id.GetString()!);
+                    if (resource.Fragment.Length > 0 || (resources.TryGetValue(resource.AbsoluteUri, out var existing) && existing != path))
+                        throw Invalid();
+                    resources[resource.AbsoluteUri] = path;
+                }
                 foreach (var p in node.EnumerateObject())
                 {
                     string child = path + "/" + p.Name;
@@ -67,18 +94,12 @@ internal sealed class SchemaSnapshotLoader(Func<Uri, FetchPolicy, CancellationTo
                         case "$schema":
                             if (p.Value.GetString() != Dialect) throw Invalid();
                             break;
-                        case "$id":
-                            // Nested resources change fragment resolution and are outside the single-document profile.
-                            if (path != "#") throw Invalid();
+                        case "$ref": case "$dynamicRef":
+                            references.Add((path, new Uri(resource, p.Value.GetString()!), p.Name == "$dynamicRef"));
                             break;
-                        case "$dynamicRef": case "$dynamicAnchor": throw Invalid();
-                        case "$ref":
-                            var target = p.Value.GetString()!;
-                            if (!target.StartsWith('#')) throw Invalid();
-                            references.Add(path, Uri.UnescapeDataString(target));
-                            break;
-                        case "$anchor":
-                            if (!anchors.TryAdd("#" + p.Value.GetString(), path)) throw Invalid();
+                        case "$anchor": case "$dynamicAnchor":
+                            if (!anchors.TryAdd((resources[resource.AbsoluteUri], p.Value.GetString()!), (path, p.Name == "$dynamicAnchor")))
+                                throw Invalid();
                             break;
                         case "properties": case "patternProperties": case "dependentSchemas": case "$defs": case "definitions":
                             foreach (var member in p.Value.EnumerateObject())
@@ -98,7 +119,7 @@ internal sealed class SchemaSnapshotLoader(Func<Uri, FetchPolicy, CancellationTo
                 void Add(JsonElement schema, string key, bool evaluated)
                 {
                     if (evaluated) children[path].Add(key);
-                    Index(schema, key);
+                    Index(schema, key, resource);
                 }
             }
 
@@ -108,8 +129,6 @@ internal sealed class SchemaSnapshotLoader(Func<Uri, FetchPolicy, CancellationTo
                 if (!depths.TryGetValue(path, out var depth))
                 {
                     depth = 1;
-                    if (references.TryGetValue(path, out var target))
-                        children[path].Add(anchors.GetValueOrDefault(target, target));
                     foreach (var child in children[path]) depth = Math.Max(depth, 1 + Depth(child, level + 1));
                     depths.Add(path, depth);
                 }

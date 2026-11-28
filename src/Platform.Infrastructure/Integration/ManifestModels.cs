@@ -18,7 +18,8 @@ internal sealed record FetchResult(ImmutableArray<byte> Bytes, Uri FinalUri);
 
 internal sealed class FetchPolicy
 {
-    private readonly ImmutableHashSet<string> origins;
+    private readonly string implicitOrigin;
+    private readonly ImmutableHashSet<string> approvedOrigins;
     private readonly ImmutableArray<IPNetwork> privateNetworks;
     private static readonly IPNetwork[] Private = Networks("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "fc00::/7");
     private static readonly IPNetwork[] Reserved = Networks(
@@ -29,13 +30,24 @@ internal sealed class FetchPolicy
 
     public FetchPolicy(Uri baseOrigin, IEnumerable<Uri>? approvedOrigins = null, IEnumerable<IPNetwork>? operatorPrivateNetworks = null)
     {
-        origins = (approvedOrigins ?? []).Prepend(baseOrigin).Select(Origin).ToImmutableHashSet(StringComparer.Ordinal);
+        implicitOrigin = Origin(baseOrigin);
+        this.approvedOrigins = (approvedOrigins ?? []).Select(Origin).ToImmutableHashSet(StringComparer.Ordinal);
         privateNetworks = (operatorPrivateNetworks ?? []).Select(n => IPNetwork.Parse(n.ToString())).ToImmutableArray();
     }
 
+    private FetchPolicy(Uri baseOrigin, FetchPolicy existing)
+    {
+        implicitOrigin = Origin(baseOrigin);
+        approvedOrigins = existing.approvedOrigins;
+        privateNetworks = existing.privateNetworks;
+    }
+
+    public FetchPolicy WithBaseOrigin(Uri baseOrigin) => new(baseOrigin, this);
+
     public void Validate(Uri uri)
     {
-        if (!origins.Contains(Origin(uri))) throw new ManifestFetchException(FetchFailure.OriginDenied);
+        var origin = Origin(uri);
+        if (origin != implicitOrigin && !approvedOrigins.Contains(origin)) throw new ManifestFetchException(FetchFailure.OriginDenied);
     }
 
     internal static string Origin(Uri uri)

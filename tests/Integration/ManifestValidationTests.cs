@@ -115,6 +115,35 @@ public class ManifestValidationTests
     }
 
     [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task CatalogOriginRequiresExplicitApproval(bool approved)
+    {
+        var catalog = new Uri("https://catalog.example/");
+        var demo = Demo();
+        demo["capabilities"] = new JsonArray("event.trigger");
+        foreach (var field in new[] { "navigationUrl", "healthUrl", "panels", "actions" }) demo.AsObject().Remove(field);
+        demo["events"]![0]!["schema"]!["uri"] = new Uri(catalog, "demo-event.schema.json").AbsoluteUri;
+        var calls = new List<Uri>();
+        var loader = new SchemaSnapshotLoader((uri, policy, _) => {
+            calls.Add(uri);
+            policy.Validate(uri);
+            return Task.FromResult(new FetchResult([.. File.ReadAllBytes(Path.Combine(Root, "docs/contracts",
+                Path.GetFileName(uri.AbsolutePath)))], uri));
+        });
+        var policy = new FetchPolicy(catalog, approved ? [catalog] : []);
+        var manifest = Validate(demo);
+        if (approved) Assert.Single(await loader.LoadAsync(manifest, policy, default));
+        else
+        {
+            var error = await Assert.ThrowsAsync<ManifestFetchException>(() => loader.LoadAsync(manifest, policy, default));
+            Assert.Equal(FetchFailure.OriginDenied, error.Reason);
+            Assert.Empty(calls);
+        }
+    }
+
+    [Theory]
+    [InlineData("inert")] [InlineData("dynamicRemote")] [InlineData("dynamicCycle")]
+    [InlineData("resources")] [InlineData("dynamic")] [InlineData("resourceCycle")]
     [InlineData("local")] [InlineData("refdepth")] [InlineData("badpattern")]
     [InlineData("external")] [InlineData("cycle")] [InlineData("depth")] [InlineData("invalid")]
     [InlineData("oversize")] [InlineData("limit")] [InlineData("hash")] [InlineData("missing")] [InlineData("cross")]
@@ -123,6 +152,12 @@ public class ManifestValidationTests
         var demo = Demo();
         var schema = demo["events"]![0]!["schema"]!;
         var payload = change switch {
+            "inert" => """{"properties":{"value":{"$id":"nested","$dynamicAnchor":"value","type":"integer"}}}""",
+            "dynamicRemote" => """{"$dynamicRef":"https://forbidden.test/schema#name"}""",
+            "dynamicCycle" => """{"$dynamicAnchor":"here","$dynamicRef":"#here"}""",
+            "resources" => """{"$defs":{"child":{"$id":"child.json","type":"string","$dynamicAnchor":"name"}},"$ref":"child.json#name"}""",
+            "dynamic" => """{"$defs":{"child":{"$dynamicAnchor":"name","type":"string"}},"$dynamicRef":"#name"}""",
+            "resourceCycle" => """{"$defs":{"child":{"$id":"child.json","$ref":"#"}},"$ref":"child.json"}""",
             "local" => """{"$defs":{"name":{"type":"string"}},"properties":{"name":{"$ref":"#/$defs/name"}}}""",
             "badpattern" => """{"pattern":"("}""",
             "refdepth" => "{\"$ref\":\"#/$defs/s1\",\"$defs\":{" +
@@ -148,7 +183,7 @@ public class ManifestValidationTests
             return Task.FromResult(new FetchResult([..result], uri));
         });
         async Task Run() => await loader.LoadAsync(manifest, new(Origin), default);
-        if (change is "limit" or "local") await Run();
+        if (change is "limit" or "local" or "resources" or "dynamic" or "inert") await Run();
         else if (change is "cross" or "missing") await Assert.ThrowsAsync<ManifestFetchException>(Run);
         else await Assert.ThrowsAsync<ManifestValidationException>(Run);
         Assert.All(calls, uri => Assert.Equal(Origin.Host, uri.Host));
