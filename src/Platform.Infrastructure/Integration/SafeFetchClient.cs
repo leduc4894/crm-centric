@@ -22,6 +22,14 @@ internal sealed class SafeFetchClient
         this.trustRoot = trustRoot;
     }
 
+    internal static Uri SidecarUri(Uri manifestUrl)
+    {
+        FetchPolicy.Origin(manifestUrl);
+        if (manifestUrl.Query.Length != 0 || !Uri.TryCreate(manifestUrl.AbsoluteUri + ".sig.json", UriKind.Absolute, out var uri))
+            throw new ManifestFetchException(FetchFailure.InvalidTarget);
+        return uri;
+    }
+
     public Task<FetchResult> FetchAsync(Uri uri, FetchPolicy policy, int maxBytes, CancellationToken ct)
     {
         policy.Validate(uri);

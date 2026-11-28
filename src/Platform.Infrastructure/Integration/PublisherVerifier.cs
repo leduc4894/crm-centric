@@ -10,6 +10,7 @@ internal static class PublisherVerifier
 {
     public static VerifiedPublisher Verify(FetchResult manifest, FetchResult sidecar, PublisherTrustSnapshot trust)
     {
+        if (sidecar.Bytes.Length > SafeFetchClient.SidecarLimit) throw new PublisherVerificationException(PublisherFailure.InvalidSidecar);
         using var body = Parse(manifest.Bytes, PublisherFailure.InvalidManifest);
         string moduleId = Field(body.RootElement, "moduleId", PublisherFailure.InvalidManifest);
         using var envelope = Parse(sidecar.Bytes, PublisherFailure.InvalidSidecar);
@@ -34,6 +35,8 @@ internal static class PublisherVerifier
             string origin = FetchPolicy.Origin(manifest.FinalUri);
             if (FetchPolicy.Origin(sidecar.FinalUri) != origin || !entry.AllowedOrigins.Any(u => FetchPolicy.Origin(u) == origin))
                 throw new PublisherVerificationException(PublisherFailure.OriginDenied);
+            if (sidecar.FinalUri != SafeFetchClient.SidecarUri(manifest.FinalUri))
+                throw new PublisherVerificationException(PublisherFailure.InvalidSidecar);
         }
         catch (ManifestFetchException)
         {

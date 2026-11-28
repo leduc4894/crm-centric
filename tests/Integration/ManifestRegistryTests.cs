@@ -13,7 +13,7 @@ using Xunit;
 
 namespace Integration;
 
-public sealed class ManifestRegistryTests : IAsyncLifetime
+public sealed partial class ManifestRegistryTests : IAsyncLifetime
 {
     private const string Previous = "20261127041000_AtomicContactNote";
     private readonly PostgresFixture db = new();
@@ -192,8 +192,8 @@ public sealed class ManifestRegistryTests : IAsyncLifetime
         var key = PublicKey.Import(SignatureAlgorithm.Ed25519, Read("public.pem"), KeyBlobFormat.PkixPublicKeyText);
         var entry = new PublisherTrustEntry(Module, KeyId, [.. key.Export(KeyBlobFormat.RawPublicKey)], [Origin], PublisherKeyStatus.Active);
         var current = new PublisherTrustSnapshot(1, [entry], [new(Module, "demo.")]);
-        var manifest = new FetchResult([.. Read("manifest.json")], Origin);
-        var signature = new FetchResult([.. Read("manifest.json.sig.json")], Origin);
+        var manifest = new FetchResult([.. Read("manifest.json")], new Uri(Origin, "manifest.json"));
+        var signature = new FetchResult([.. Read("manifest.json.sig.json")], new Uri(Origin, "manifest.json.sig.json"));
         var candidate = ManifestValidator.Validate(manifest.Bytes.AsMemory(), PublisherVerifier.Verify(manifest, signature, current));
         current = new(2, [entry with { Status = PublisherKeyStatus.Revoked }], [new(Module, "demo.")]);
         Assert.Equal(RegistryResult.Inserted, await Store(candidate));

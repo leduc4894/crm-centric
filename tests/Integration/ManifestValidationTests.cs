@@ -32,7 +32,9 @@ public class ManifestValidationTests
                 .Export(KeyBlobFormat.RawPublicKey)], [Origin], PublisherKeyStatus.Active);
         var trust = new PublisherTrustSnapshot(1, [entry], [new(Module, "demo.")]);
         var bytes = Read("manifest.json");
-        var proof = PublisherVerifier.Verify(new([.. bytes], Origin), new([.. Read("manifest.json.sig.json")], Origin), trust);
+        var body = new FetchResult([.. bytes], new Uri(Origin, "manifest.json"));
+        var sidecar = new FetchResult([.. Read("manifest.json.sig.json")], new Uri(Origin, "manifest.json.sig.json"));
+        var proof = PublisherVerifier.Verify(body, sidecar, trust);
         var manifest = ManifestValidator.Validate(bytes, proof);
         Assert.Equal(bytes, manifest.Bytes.ToArray());
         Assert.Equal(trust.Revision, manifest.Publisher.TrustRevision);
@@ -42,7 +44,7 @@ public class ManifestValidationTests
         Assert.Equal(4, snapshots.Count);
         Assert.All(snapshots, s => Assert.Equal(s.Reference.Sha256, Hash(s.Bytes.ToArray())));
         var revoked = new PublisherTrustSnapshot(2, [entry]);
-        var current = PublisherVerifier.Verify(new([.. bytes], Origin), new([.. Read("manifest.json.sig.json")], Origin), revoked);
+        var current = PublisherVerifier.Verify(body, sidecar, revoked);
         Assert.Throws<ManifestValidationException>(() => ManifestValidator.Validate(bytes, current));
     }
 

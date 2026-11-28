@@ -11,9 +11,9 @@ Wave 3 Plan 1 provides internal components for verifying and recording a platfor
 
 ## Fetch and persistence
 
-Each HTTPS fetch resolves and checks every returned address, then connects directly to a checked numeric IP with TLS hostname and chain verification against the requested host. Redirects and proxies are disabled. TLS chain building uses local trust and cached revocation evidence and tolerates unavailable revocation information. The five-second deadline includes body reads. FetchAsync enforces its caller-supplied limit up to 256 KiB. The installation caller still needs to be wired and must pass SidecarLimit (4 KiB) explicitly for detached signatures. FetchSchemaAsync enforces 64 KiB. A signed module base and explicit operator approvals constrain schema fetches.
+Each HTTPS fetch resolves and checks every returned address, then connects directly to a checked numeric IP with TLS hostname and chain verification against the requested host. Redirects and proxies are disabled. TLS chain building uses local trust and cached revocation evidence and tolerates unavailable revocation information. The five-second deadline includes body reads. The internal candidate registration operation accepts a queryless, fragmentless manifest URL. It fetches at most 256 KiB from that URL and at most 4 KiB from its derived sibling at `manifestUrl + ".sig.json"`. Each declared schema fetch is limited to 64 KiB. A signed module base and explicit operator approvals constrain schema fetches.
 
-Ed25519 covers the exact manifest response bytes. The validator checks schema hashes before offline compilation, limiting references to the pinned resource graph. Registration submits the signed manifest, descriptor evidence and all schema snapshots atomically. The application role can execute the registration function and lacks direct table write privileges. A concurrent identical latest release reuses its candidate. Changed bytes at the same version conflict, and replay of an older version is a downgrade.
+Ed25519 covers the exact manifest response bytes. The validator hash-checks the declared documents before resolving references across their resources in memory. Unlisted references, ambiguous resource IDs, cycles and paths deeper than eight fail validation. Registration submits the signed manifest, descriptor evidence and all schema snapshots atomically. The application role can execute the registration function and lacks direct table write privileges. A concurrent identical latest release reuses its candidate. Changed bytes at the same version conflict, and replay of an older version is a downgrade.
 
 ## Migration and recovery
 
@@ -23,7 +23,7 @@ For application rollback, stop candidate writers and retain both migrations and 
 
 ## Diagnosing failures
 
-Carry the operation correlation ID through the calling boundary. Registry exceptions carry the caller-supplied ID. Fetch, publisher and validation exceptions currently supply only a typed reason, so the future entry point must associate the ID there. Record reason, stage, revision and correlation ID without response bodies, URL queries or credentials.
+Pass the correlation ID to `ManifestCandidateRegistration.RegisterAsync`. On failure, `CandidateRegistrationException` carries the failing stage, its typed reason and the supplied correlation ID. Record reason, stage, revision and correlation ID without response bodies, URL queries or credentials.
 
 | Reason | Operator action |
 | --- | --- |

@@ -30,6 +30,16 @@ public class PublisherVerifierTests
     }
 
     [Theory]
+    [InlineData("other-path")]
+    [InlineData("oversize")]
+    public void RequiresTheBoundedDetachedSibling(string scenario)
+    {
+        var sig = scenario == "other-path" ? sidecar with { FinalUri = manifest.FinalUri }
+            : Fetch(Encoding.UTF8.GetBytes(Encoding.UTF8.GetString(sidecar.Bytes.AsSpan()).PadRight(4097)), "manifest.json.sig.json");
+        Assert.Equal(PublisherFailure.InvalidSidecar, Assert.Throws<PublisherVerificationException>(() => Verify(sig: sig)).Reason);
+    }
+
+    [Theory]
     [InlineData("whitespace")]
     [InlineData("one-byte")]
     [InlineData("duplicate")]
