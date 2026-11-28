@@ -11,6 +11,25 @@
           "Microsoft.IdentityModel.Protocols.OpenIdConnect": "8.19.2"
         }
       },
+      "Corvus.Regex.Ecma262": {
+        "type": "Transitive",
+        "resolved": "1.0.15",
+        "contentHash": "wDC21MqsPI9L8PBs3dst8kebfY0rxE9KFiacCuk2Zwju6q3+DO49JFnQ61SwBBJgVUh2xSx2L6NQ4C6LXL6Vrg=="
+      },
+      "Corvus.Text.Json": {
+        "type": "Transitive",
+        "resolved": "5.8.12",
+        "contentHash": "B5aJHueyITHTh85+zy61ceTRXPm9PqZSAm+h5OiY5BvSXIzUY2Vj/StOnta2a20neaVcJumfQtmEXeEcA4ED+g==",
+        "dependencies": {
+          "Corvus.Regex.Ecma262": "1.0.15",
+          "NodaTime": "3.3.1"
+        }
+      },
+      "libsodium": {
+        "type": "Transitive",
+        "resolved": "1.0.22",
+        "contentHash": "KPD9SloJFclrsjnhABu7dzWrcyYkwPbvx5l1gRSPAX/0n+OBtSiVCKtGFv4n+ecWUHU0tCG9LSSwoZZx673zBQ=="
+      },
       "Microsoft.Bcl.Cryptography": {
         "type": "Transitive",
         "resolved": "10.0.2",
@@ -65,6 +84,11 @@
           "Microsoft.IdentityModel.Logging": "8.19.2"
         }
       },
+      "NodaTime": {
+        "type": "Transitive",
+        "resolved": "3.3.1",
+        "contentHash": "7zkTEqmakybTTuDuifpnzl5s8MkmpAdyvoqIPIO2+M2ThF8ixavPcPt1afPfFyCI+A6t3ySujgpGq/5iWc4/RQ=="
+      },
       "Npgsql": {
         "type": "Transitive",
         "resolved": "10.0.3",
@@ -82,9 +106,20 @@
       "platform.infrastructure": {
         "type": "Project",
         "dependencies": {
+          "Corvus.Text.Json.Validator": "[5.8.12, )",
           "Microsoft.EntityFrameworkCore": "[10.0.14, )",
           "Microsoft.EntityFrameworkCore.Relational": "[10.0.14, )",
+          "NSec.Cryptography": "[26.4.0, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )"
+        }
+      },
+      "Corvus.Text.Json.Validator": {
+        "type": "CentralTransitive",
+        "requested": "[5.8.12, )",
+        "resolved": "5.8.12",
+        "contentHash": "yXDiNmAw+6ycu0ss7xu7/xL5NUbyd2y0HnnHVBwSXzrxWkQkNq5asUH+FPmAgDAESHA7XXxV0zn6Htv4r8tcXQ==",
+        "dependencies": {
+          "Corvus.Text.Json": "5.8.12"
         }
       },
       "Microsoft.EntityFrameworkCore": {
@@ -124,6 +159,15 @@
           "Microsoft.EntityFrameworkCore": "[10.0.4, 11.0.0)",
           "Microsoft.EntityFrameworkCore.Relational": "[10.0.4, 11.0.0)",
           "Npgsql": "10.0.3"
+        }
+      },
+      "NSec.Cryptography": {
+        "type": "CentralTransitive",
+        "requested": "[26.4.0, )",
+        "resolved": "26.4.0",
+        "contentHash": "0vsCtY5f+YgQROiWNqzgWp+l2pddfk9FkWoGV/bEo0MuEYPKlJWuoA8aOfO6qp3f+EnObKE3zSJhn1PspJeJVg==",
+        "dependencies": {
+          "libsodium": "[1.0.22, 1.0.23)"
         }
       }
     }

@@ -5,6 +5,8 @@
     <ManagePackageVersionsCentrally Condition="'$(MSBuildProjectDirectory)' == '$(MSBuildThisFileDirectory)sdks/dotnet/Crm.Client'">false</ManagePackageVersionsCentrally>
   </PropertyGroup>
   <ItemGroup>
+    <PackageVersion Include="Corvus.Text.Json.Validator" Version="5.8.12" />
+    <PackageVersion Include="NSec.Cryptography" Version="26.4.0" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.14" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.14" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.14" />
