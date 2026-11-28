@@ -22,6 +22,7 @@ public sealed class ManifestFetchTests
     [InlineData("https://name@manifest.test/")]
     [InlineData("https://@manifest.test/")]
     [InlineData("https://manifest.test/a?x")]
+    [InlineData("https://manifest.test/a.sig.json?x")]
     [InlineData("https://manifest.test/a#fragment")]
     [InlineData("https://manifest.test/a?")]
     [InlineData("https://manifest.test/a#")]
@@ -32,6 +33,25 @@ public sealed class ManifestFetchTests
         var client = new SafeFetchClient((_, _) => throw new InvalidOperationException("Unexpected DNS"));
         await Assert.ThrowsAsync<ManifestFetchException>(() =>
             client.FetchAsync(new Uri(target), new FetchPolicy(Origin), 1024, default));
+    }
+
+    [Theory]
+    [InlineData("https://0.0.0.0/")]
+    [InlineData("https://[::]/")]
+    public async Task Wildcard_literal_returns_address_denied(string target)
+    {
+        var uri = new Uri(target);
+        var error = await Assert.ThrowsAsync<ManifestFetchException>(() =>
+            new SafeFetchClient().FetchAsync(uri, new FetchPolicy(uri), 1024, default));
+        Assert.Equal(FetchFailure.AddressDenied, error.Reason);
+    }
+
+    [Theory]
+    [InlineData("8.8.8.8", true)]
+    [InlineData("172.16.0.20", false)]
+    public void Default_policy_allows_only_public_addresses(string address, bool expected)
+    {
+        Assert.Equal(expected, new FetchPolicy(Origin).Allows(IPAddress.Parse(address)));
     }
 
     [Theory]
@@ -90,6 +110,9 @@ public sealed class ManifestFetchTests
                 case "/redirect": ctx.Response.Redirect(forbiddenUri); return;
                 case "/loop": ctx.Response.Redirect("/loop"); return;
                 case "/error": ctx.Response.StatusCode = 503; return;
+                case "/schema" when ctx.Request.QueryString.Value != "?version=1":
+                    ctx.Response.StatusCode = 400;
+                    return;
                 case "/slow":
                     await ctx.Response.StartAsync();
                     await Task.Delay(Timeout.Infinite, ctx.RequestAborted);
@@ -102,9 +125,16 @@ public sealed class ManifestFetchTests
         var origin = new UriBuilder(app.Urls.Single()) { Host = "manifest.test" }.Uri;
         using var rebound = new TcpListener(IPAddress.Loopback, origin.Port);
         rebound.Start();
-        var policy = new FetchPolicy(origin, operatorPrivateNetworks: [new System.Net.IPNetwork(address, 32)]);
+        var policy = new FetchPolicy(origin);
         var answer = address;
         var client = new SafeFetchClient((_, _) => Task.FromResult(new[]{answer}), cert);
+        var privateRanges = new[] { "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16" };
+        if (privateRanges.Select(System.Net.IPNetwork.Parse).Any(network => network.Contains(address)))
+        {
+            await Check(origin, policy, FetchFailure.AddressDenied);
+            Assert.Equal(0, requests);
+            policy = new FetchPolicy(origin, operatorPrivateNetworks: [new System.Net.IPNetwork(address, 32)]);
+        }
         var result = await client.FetchAsync(origin, policy, Payload.Length, default);
         Assert.Equal(Payload, result.Bytes.ToArray());
         Assert.Equal(origin, result.FinalUri);
@@ -121,7 +151,11 @@ public sealed class ManifestFetchTests
         await Check(new Uri(origin, "error"), policy, FetchFailure.HttpStatus);
         await Check(origin, policy, FetchFailure.TooLarge, Payload.Length - 1);
         await Check(new Uri(origin, "slow"), policy, FetchFailure.Timeout);
-        Assert.Equal(6, requests);
+        var schema = new Uri(origin, "schema?version=1");
+        var snapshot = await client.FetchSchemaAsync(schema, policy, default);
+        Assert.Equal(schema, snapshot.FinalUri);
+        Assert.Equal(Payload, snapshot.Bytes.ToArray());
+        Assert.Equal(7, requests);
         Assert.False(forbidden.Pending());
         Assert.False(rebound.Pending());
 

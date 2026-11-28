@@ -41,7 +41,7 @@ internal sealed class FetchPolicy
     private static string Origin(Uri uri)
     {
         if (!uri.IsAbsoluteUri || uri.Scheme != Uri.UriSchemeHttps || uri.Host.Length == 0 ||
-            uri.UserInfo.Length != 0 || uri.Query.Length != 0 || uri.Fragment.Length != 0 ||
+            uri.UserInfo.Length != 0 || uri.Fragment.Length != 0 ||
             uri.OriginalString.Contains('\\') || HasUserInfoDelimiter(uri))
             throw new ManifestFetchException(FetchFailure.InvalidTarget);
         return uri.IdnHost.ToLowerInvariant() + ":" + uri.Port;

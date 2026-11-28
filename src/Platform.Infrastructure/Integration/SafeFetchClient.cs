@@ -22,9 +22,21 @@ internal sealed class SafeFetchClient
         this.trustRoot = trustRoot;
     }
 
-    public async Task<FetchResult> FetchAsync(Uri uri, FetchPolicy policy, int maxBytes, CancellationToken ct)
+    public Task<FetchResult> FetchAsync(Uri uri, FetchPolicy policy, int maxBytes, CancellationToken ct)
     {
         policy.Validate(uri);
+        if (uri.Query.Length != 0) throw new ManifestFetchException(FetchFailure.InvalidTarget);
+        return FetchValidatedAsync(uri, policy, maxBytes, ct);
+    }
+
+    public Task<FetchResult> FetchSchemaAsync(Uri uri, FetchPolicy policy, CancellationToken ct)
+    {
+        policy.Validate(uri);
+        return FetchValidatedAsync(uri, policy, SchemaLimit, ct);
+    }
+
+    private async Task<FetchResult> FetchValidatedAsync(Uri uri, FetchPolicy policy, int maxBytes, CancellationToken ct)
+    {
         if (maxBytes is <= 0 or > ManifestLimit) throw new ManifestFetchException(FetchFailure.TooLarge);
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
         deadline.CancelAfter(TimeSpan.FromSeconds(5));
@@ -87,7 +99,7 @@ internal sealed class SafeFetchClient
 
     private async ValueTask<Stream> ConnectAsync(DnsEndPoint endpoint, FetchPolicy policy, CancellationToken ct)
     {
-        var answers = await resolve(endpoint.Host, ct);
+        IPAddress[] answers = IPAddress.TryParse(endpoint.Host, out var literal) ? [literal] : await resolve(endpoint.Host, ct);
         if (answers.Length == 0 || answers.Any(address => !policy.Allows(address)))
             throw new ManifestFetchException(FetchFailure.AddressDenied);
         var address = answers[0];
