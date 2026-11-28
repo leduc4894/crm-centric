@@ -42,3 +42,53 @@ actual-base compatibility verdict and independent review for the final candidate
 benchmark environment and measurement, hosted suite, and deployed SPA fallback all
 remain open. P0 additionally requires the remote DemoModule, concurrent duplicate,
 tenant/worker/replay isolation, outage/recovery and restore drills.
+
+## Plan 9 benchmark and CI checkpoint — 2026-11-28
+
+The benchmark was run against local candidate
+`f5a34ed75fedf83a4651742e13e6aed5d0f8fb14`; documentation added after that
+run does not transfer its verdict to another SHA. The measured API image was
+rebuilt from that candidate. Both scenarios used a disposable real PostgreSQL,
+Keycloak and API with 50,000 synthetic active contacts, 10 tags, 50,000 tag
+assignments and 50 distinct authenticated users. Application-role checks
+confirmed tenant-scoped counts and no superuser/BYPASSRLS; all 50 users passed
+preflight, wrong tenant was 403 and invalid bearer was 401. The host had five
+visible vCPUs and 7.75 GiB RAM; full sanitized configuration and artifacts are
+in [benchmark evidence](../evidence/wave2-plan9-benchmark/).
+
+| Workload | Result | Valid samples | p50 / p95 / p99 | Errors |
+|---|---|---:|---|---:|
+| Default list, proposed RT-PERF-01 exit workload | PASS | 247,518 | 56.3 / 105.3 / 145.0 ms | 0 |
+| `q=segment-07`, 500 matches, diagnostic only | FAIL against 400 ms | 11,910 | 1303.1 / 1979.5 / 2265.2 ms | 0 |
+
+Each scenario ran with 60 seconds of warmup and 300 seconds of measurement,
+50 workers and a 10-second timeout. These results do not establish that all
+filters meet the default-list threshold. For search, the recorded plan uses a
+sequential scan and PostgreSQL averaged approximately 426% CPU across 24 samples
+(one CPU is 100%); optimization is a follow-up, not a changed exit criterion.
+The first two runs on `ded5bfc34ae63545b6f060f612c1bb7f0780fd41` remain in the
+artifact directory: the measured Python client rebuilt its TLS opener on every
+request, inflating latency. A focused regression and independent short curl
+comparison established that issue; the harness was corrected before the full
+runs above. Both original failures remain recorded, not replaced.
+
+The new `ci-tests` job and 198 CI/18 benchmark required test identities are in
+candidate `f5a34ed`; focused tests passed locally, but **the job has not run on
+GitHub**. The actual-base compatibility probe returned
+`CONTRACT_POLICY_REVIEW_REQUIRED`, correlation
+`fdabbfbf-d411-43ac-8243-67b320b487e5`; the earlier candidate-owned approval does
+not cover this CI/inventory change. [Review package](17-WAVE-2-CANDIDATE-REVIEW-PACKAGE.md).
+Latest hosted non-security results still belong to
+[run 46056853386](https://github.com/leduc4894/crm-centric/actions/runs/46056853386),
+not this candidate. Security is deferred at user request; its last observed
+verdict and aggregate were FAIL. No new security scan has been run. Wave 2
+remains OPEN until candidate review and final hosted evidence are complete; P0
+also remains OPEN for the separately required integration and recovery drills.
+
+After this measurement, commit `b19189798c79230baf1f77c39ecc136977941d43`
+changed only the historical contract-review test fixture. The fixture now uses
+its immutable prior snapshot rather than the new live CI inventory; its focused
+suite went from six failures/two errors to 11/11 passing. That test change makes
+`b191897` a new candidate. The benchmark above remains evidence for `f5a34ed`
+only; repeat affected candidate-bound evidence after the final scope is settled.
+The actual-base review decision and hosted run for `b191897` remain outstanding.

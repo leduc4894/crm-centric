@@ -430,3 +430,26 @@ any failures. Do not transfer old results to the corrected candidate. Then
 complete exact-candidate CI/trust review, run one hosted CI and compare security
 findings. User explicitly defers security; do not represent security or aggregate
 as passing. No hosted CI or push was performed for these changes.
+
+The corrected full measurements on candidate
+`f5a34ed75fedf83a4651742e13e6aed5d0f8fb14` produced default PASS p95 105.26 ms
+(247,518 valid, zero errors, correlation `cc2244c0-c1cf-40f1-a356-aec1a0363a8d`)
+and search diagnostic FAIL p95 1979.50 ms (11,910 valid, zero errors,
+correlation `a347c3d9-3778-47fb-a202-459e2f802cc1`). Environment and retained
+original/corrected reports are under `docs/evidence/wave2-plan9-benchmark/`.
+Search plan was a sequential scan, DB CPU mean ~426% across 24 measured samples
+on five visible vCPUs. User defer applies to security, not this diagnostic.
+The unique benchmark-owned stack was removed with its two volumes and four
+images after the measurements, and private token/state files were removed.
+
+Actual-base compatibility on `f5a34ed` returned
+`CONTRACT_POLICY_REVIEW_REQUIRED`, correlation `fdabbfbf-d411-43ac-8243-67b320b487e5`.
+A focused old-scope regression suite exposed six failures and two errors because
+its fixture copied the now-changed live CI coverage and job runner. Commit
+`b19189798c79230baf1f77c39ecc136977941d43` binds those existing regression
+fixtures to immutable previously reviewed `51a75d48...`; rerun passed 11/11.
+That is a new candidate; do not transfer the `f5a34ed` benchmark verdict to its
+SHA. Updated candidate review package pins the exact proposed files and records
+that no fresh policy approval or hosted CI has occurred. Review the final scope,
+rerun affected candidate-bound evidence, and run one hosted CI after review;
+security and aggregate retain factual results. No push/merge/deployment yet.

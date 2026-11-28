@@ -19,3 +19,15 @@ Record **before** running: UTC time and exact candidate SHA; API build and runti
 ## Remaining work
 
 Automated provisioning of the disposable real API/IdP and 50 identities, safe generation of the private input, an environment manifest, repeatability review, and hosted coverage for benchmark tests remain to be completed. No measurement has been run on a qualifying environment. Do not treat a unit or seed integration test as benchmark evidence.
+
+## Recorded run — 2026-11-28
+
+Candidate `f5a34ed75fedf83a4651742e13e6aed5d0f8fb14` was measured on a
+five-vCPU Linux host using the real isolated stack; see the
+[sanitized reports, environment, resource summary and query plans](../evidence/wave2-plan9-benchmark/)
+and [exit verification](../engineering/16-WAVE-2-EXIT-VERIFICATION.md).
+The default scenario passed with p95 105.3 ms and no errors; the separate
+search scenario was 1979.5 ms and is recorded as a diagnostic failure. Earlier
+failed measurements caused by per-request client opener setup remain preserved.
+The private input and provisioner are environment-local, not a complete
+published provisioning workflow; recreate and verify them for a new candidate.

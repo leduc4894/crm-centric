@@ -227,3 +227,16 @@ Legal JSON numbers outside PostgreSQL JSONB numeric range receive `FIELD_VALUE_U
 On `wave-2` implementation `e2fdb3a`, the real Chromium, Keycloak, API and PostgreSQL contact journey passed 1/1 with zero skips. An owner created and searched a contact, opened its dedicated profile, attached a tag, defined and saved a high-precision numeric field and added a note containing literal markup. The persisted values survived reload and SSO sign-in. A second session received HTTP 412 and retained its draft. Delaying the actual tenant A search response across a switch to tenant B left B's list empty. The record also passed a 390-pixel width check and keyboard note-navigation check. The focused timeline schema, endpoint and concurrency tests passed 19/19, timeline contract 1/1 and web/fixture unit tests 90/90. [Commands and handoff](../handoff/2026-11-27-wave-2-plan-4-handoff.md)
 
 US-03, US-04, US-05, RT-CRM-01/02, RT-PERF-01, Wave 2 and P0 remain OPEN. RT-EVT-01 requires the external ingestion pipeline. Actual-base compatibility requires candidate-specific review. Security remains FAIL/deferred. Full GitHub CI, benchmark and acceptance drills remain pending.
+
+### Plan 9 benchmark checkpoint — 2026-11-28
+
+Default contact listing on candidate `f5a34ed75fedf83a4651742e13e6aed5d0f8fb14`
+met the proposed RT-PERF-01 workload: 50,000 active contacts, 50 authenticated
+users, 300 measured seconds, 247,518 valid responses and p95 105.3 ms, zero
+errors. A separate 500-match search diagnostic returned p95 1979.5 ms; no
+claim is made that all filters meet the default workload threshold. Earlier
+failed client-inflated runs and the corrected results are retained in the
+[verification and evidence](16-WAVE-2-EXIT-VERIFICATION.md). This does not close
+Wave 2 or transfer the measurement to another candidate; the new CI inventory,
+actual-base review and final hosted verification remain open. Security is
+deferred by user decision and P0 remains open.

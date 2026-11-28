@@ -102,3 +102,61 @@ asset loading and must be included in review; it does not change the contact API
 contract. Local leak scan and browser stylesheet loading passed. The final hosted
 candidate must still be tested; this is not an independent review or security
 clearance.
+
+## Exact candidate for renewed review — 2026-11-28
+
+**Review required; no new approval has been applied.** Candidate
+`b19189798c79230baf1f77c39ecc136977941d43`, actual base
+`db04aeaecd7f4b6d083335a71418788d3c4561ca`. Since hosted head
+`51a75d48bf1ae32fd46cecc886cf841a53aaea15`, there are no OpenAPI, schema,
+SDK, migration or application-runtime changes. The delta adds the benchmark
+harness, deterministic seed, a PostgreSQL integration test and runbook; adds
+`ci-tests` to the workflow and aggregate; inventories 198 CI and 18 benchmark
+test identities; and provisions the pinned scanner required by existing CI
+tests. Both Python suites are attempted even if the first fails. The new job
+requires zero skips and missing/failed jobs remain aggregate failures. A historical contract-review fixture was subsequently bound to its old
+immutable snapshot so the new CI inventory does not break old-scope regression
+tests. The
+seed test is also included in backend's non-Compose integration selection.
+
+The existing candidate-owned scope pins the earlier tree and coverage hash.
+Actual-base evaluation of preceding candidate `f5a34ed` returned
+`CONTRACT_POLICY_REVIEW_REQUIRED` (correlation
+`fdabbfbf-d411-43ac-8243-67b320b487e5`); no prior approval was extended.
+An authorized independent reviewer must assess the exact delta, test discovery,
+setup and reporting, contract/consumer evidence and these hashes. Any scope
+update must retain the earlier base, expiry, fail-closed drift behavior, both
+SDK surface checks and the explicit `CONTRACT_BREAKING_REVIEWED` designation;
+it must not treat a reviewed break as compatible or change security outcome.
+The candidate-owned mechanism itself is not independent enforcement. This
+package does not authorize a self-approval, and later product/CI/test changes
+require a fresh scope.
+
+Focused evidence: workflow/job tests 18/18, aggregate/completion/job tests
+23/23, benchmark unit tests 18/18 and real PostgreSQL seed test 1/1; the historical
+contract-review fixture passed 11/11 after a 6-failure/2-error RED. The
+[benchmark report](16-WAVE-2-EXIT-VERIFICATION.md) records the candidate-bound
+default PASS and separate slow search diagnostic; the newly added hosted job
+has not run. Latest earlier hosted non-security jobs passed, while security and
+aggregate failed; security has since been deferred by user request, with no
+new scan. Plan 8's prior boolean timing failure remains unexplained despite
+subsequent focused and hosted passes.
+
+SHA-256 for the exact changed code, tests and CI policy at this candidate:
+
+| Path | SHA-256 |
+|---|---|
+| `.github/workflows/wave0.yml` | `10b93b9e445d0775424b2986359b4e8212c043331c7ff9164075e52c03892b5b` |
+| `scripts/ci/aggregate.py` | `d204ec6f2cfaacf912eac0fb173ea5f347307c3d44987ac80bcb2499dd388395` |
+| `scripts/ci/completion.py` | `ee49fd59986061271919b6798c981c63ab5e730a1f9c605b90e5a7d54612a5e6` |
+| `scripts/ci/jobs.py` | `9f3c29d5fc085f1c0b754efd1620e42a6f104589eb95a55875517115368deda0` |
+| `scripts/ci/setup.sh` | `68780c167d6269020063184a25a5299c0cf393a3a3d41fc7cb8feb3f18a8a81f` |
+| `scripts/ci/workflow.py` | `21cdd9b9b4677b20c0bb3ccc315d8320c1ed58cf386c3bbb95189472019b1257` |
+| `tests/CI/test_job_reports.py` | `0a0f1f88799caa656cf1067417fe4f080a79dd8709885351508e0a9f6e034a76` |
+| `tests/CI/test_workflow.py` | `8fdabde8901b182d8a73736d2c86f4cedc88649899b79e3652bc37052091e6d2` |
+| `tools/ci/coverage.json` | `1d1a7cd007e9f5e58c3c38abaabedeb9f53971d26289c2aabb20bb65a779f978` |
+| `scripts/benchmarks/contact_list.py` | `78b948a06b06d8570734bee12cee3df1119ce7f3c5470e2ea0003e03ed52e4a4` |
+| `scripts/benchmarks/seed_contacts.sql` | `3e6d58553c9376ca60d55ac9122259eb26036c98f6d10e2131654c4e28a0a4ee` |
+| `tests/Benchmarks/test_contact_list.py` | `9e5458f7a542cb1b9226f73a1a0cd5ff4b9d9ba017ac7a2e6565513f8d3957d8` |
+| `tests/Integration/BenchmarkSeedTests.cs` | `55abe873166a7ef62834f71d20e1958845bb8a1cc3878bd9a189355955473f3d` |
+| `tests/Contract/test_wave2_plan3_review.py` | `b81e90bf6c991ce4bfecada5c72a2ecefcf295d2d8372eb8b52bcd2072d22f55` |
