@@ -18,16 +18,27 @@ class BrowserEvidenceTests(unittest.TestCase):
         regular = report('regular')
         provider = report('real provider signs in isolated tenants and terminates provider session',
                           'browser-oidc.spec.ts')
-        combined = merge(regular, provider)
+        contacts = report('contact persists across sessions, rejects stale notes and isolates delayed tenant reads', 'contacts.spec.ts')
+        combined = merge(regular, provider, contacts)
         self.assertIsNotNone(combined)
-        self.assertEqual(2, len(parse_cases('playwright', combined)))
+        self.assertEqual(3, len(parse_cases('playwright', combined)))
 
     def test_rejects_missing_provider_and_any_skips(self):
         merge = getattr(jobs, 'merge_browser_evidence', lambda *args: None)
         regular = report('regular')
         provider = report('real provider signs in isolated tenants and terminates provider session',
                           'browser-oidc.spec.ts')
+        contacts = report('contact persists across sessions, rejects stale notes and isolates delayed tenant reads', 'contacts.spec.ts')
         invalid = copy.deepcopy(provider)
         invalid['stats']['skipped'] = 1
         for bad in (invalid, report('unrelated', 'browser-oidc.spec.ts')):
-            with self.subTest(bad=bad), self.assertRaises(ReportError): merge(regular, bad)
+            with self.subTest(bad=bad), self.assertRaises(ReportError): merge(regular, bad, contacts)
+
+    def test_rejects_missing_or_skipped_contacts(self):
+        provider = report('real provider signs in isolated tenants and terminates provider session', 'browser-oidc.spec.ts')
+        contacts = report('contact persists across sessions, rejects stale notes and isolates delayed tenant reads', 'contacts.spec.ts')
+        skipped = copy.deepcopy(contacts)
+        skipped['stats']['skipped'] = 1
+        for bad in (skipped, report('unrelated', 'contacts.spec.ts')):
+            with self.subTest(bad=bad), self.assertRaises(ReportError):
+                jobs.merge_browser_evidence(report('regular'), provider, bad)

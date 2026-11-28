@@ -2,8 +2,22 @@
 import json
 from pathlib import Path
 import unittest
+from contextlib import contextmanager
 from scripts.ci import finding_adjudication as kernel
 ROOT=Path(__file__).resolve().parents[2]
+REVIEWED_CANDIDATE='788f7605ee962071b6ecdbd035a6a2e6351fda6d'
+
+@contextmanager
+def reviewed_repo():
+    import subprocess,tempfile
+    with tempfile.TemporaryDirectory() as temporary:
+        repo=Path(temporary)/'repo'
+        subprocess.run(['git','clone','--shared','--no-checkout',str(ROOT),str(repo)],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+        # Gitleaks history IDs include the public repository link. A local
+        # clone's filesystem origin would change every reviewed identity.
+        subprocess.run(['git','-C',str(repo),'remote','set-url','origin','https://github.com/leduc4894/crm-centric.git'],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+        subprocess.run(['git','-C',str(repo),'checkout','--detach',REVIEWED_CANDIDATE],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+        yield repo
 
 class HistoryReviewTests(unittest.TestCase):
     def test_inventory_is_exact_authorized_mapping(self):
@@ -44,9 +58,9 @@ class HistoryReviewTests(unittest.TestCase):
         self.assertEqual(64,sum(r['decision']=='verified-metadata' for r in run()))
         from scripts.ci.scan import ScannerConfig,ScanInput,run_scanner
         from scripts.ci.summary import RunIdentity
-        main_candidate='788f7605ee962071b6ecdbd035a6a2e6351fda6d'
-        actual=run_scanner(ScannerConfig('gitleaks',exe,context.binary,context.scanner,config),ScanInput(ROOT),
-            RunIdentity('regression','1',main_candidate,'df993ae4ff44510a2ecfc861bb277a3f9418577f',None),mode='mvp')
+        with reviewed_repo() as repo:
+            actual=run_scanner(ScannerConfig('gitleaks',exe,context.binary,context.scanner,config),ScanInput(repo),
+                RunIdentity('regression','1',REVIEWED_CANDIDATE,'df993ae4ff44510a2ecfc861bb277a3f9418577f',None),mode='mvp')
         self.assertEqual('pass',actual.status)
         self.assertEqual(132,len(actual.reviewed_metadata))
 
@@ -100,9 +114,9 @@ class HistoryReviewTests(unittest.TestCase):
         from scripts.ci.scan import candidate_tree
         from scripts.ci.summary import RunIdentity
         exe=ROOT/'.local/task5/bin/gitleaks';config=ROOT/'tools/ci/gitleaks.toml'
-        head=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
+        head=REVIEWED_CANDIDATE
         context=kernel.Context(head,'8.30.1',hashlib.sha256(config.read_bytes()).hexdigest(),hashlib.sha256(exe.read_bytes()).hexdigest())
-        with candidate_tree(ROOT,RunIdentity('tree','1',head,head,None)) as snapshot:
+        with reviewed_repo() as repo, candidate_tree(repo,RunIdentity('tree','1',head,head,None)) as snapshot:
             rows=json.loads(subprocess.check_output([str(exe),'dir','.','--config',str(config),
                 '--no-banner','--redact=100','--ignore-gitleaks-allow','--gitleaks-ignore-path=/dev/null',
                 '--exit-code=0','--report-format=json','--report-path=/dev/stdout'],stderr=subprocess.DEVNULL,cwd=snapshot))

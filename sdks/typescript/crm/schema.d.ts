@@ -131,10 +131,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** listContacts */
+        /**
+         * listContacts
+         * @description Returns active contacts ordered by updated_at DESC, id DESC using a tenant and filter bound cursor; concurrent changes do not provide a snapshot. The q filter is a literal case-insensitive substring of display name or email, following the PostgreSQL collation, not accent-insensitive matching. updatedSince is inclusive and all filters are combined with AND. Each query parameter may appear once. Unknown or invalid parameters are rejected.
+         */
         get: operations["listContacts"];
         put?: never;
-        /** createContact */
+        /**
+         * Create or update a contact by email
+         * @description Within the authenticated tenant, a new or null email creates a contact. An existing active email matches after trimming leading and trailing ordinary spaces and applying PostgreSQL lower under the database collation; dots and plus tags are preserved. A matching email updates the existing contact only when If-Match is a strong ETag for its current version and X-Contact-Id equals that same active contact's UUID. The required displayName and other supplied fields replace their current values; omitted optional fields remain unchanged and explicit null clears a nullable field. Updates preserve the contact ID. A no-op keeps its version and ETag. Email is not an authenticated identity or an identity link. If-Match is supplied but no active contact matches, a complete valid If-Match and X-Contact-Id pair returns 412. Missing either member of a conditional pair returns 428; malformed or multiple values return 400. A different ID or stale version returns 412. Failed preconditions make no changes.
+         */
         post: operations["createContact"];
         delete?: never;
         options?: never;
@@ -174,10 +180,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** listTags */
+        /**
+         * listTags
+         * @description Returns tags in ascending UUID order. Each cursor is bound to this tenant and collection. Pages do not form a snapshot.
+         */
         get: operations["listTags"];
         put?: never;
-        /** createTag */
+        /**
+         * createTag
+         * @description Preserves the display name. Within a tenant, names comparing equal under PostgreSQL lower(btrim(name)) and the database collation conflict (409).
+         */
         post: operations["createTag"];
         delete?: never;
         options?: never;
@@ -192,7 +204,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** listContactTags */
+        /**
+         * listContactTags
+         * @description Returns attached tags in ascending UUID order. Each cursor is bound to this tenant, contact and collection. Pages do not form a snapshot.
+         */
         get: operations["listContactTags"];
         put?: never;
         post?: never;
@@ -210,10 +225,16 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** addContactTag */
+        /**
+         * addContactTag
+         * @description After verifying contact version and tag existence, adding an existing attachment is a no-op that preserves the contact version.
+         */
         put: operations["addContactTag"];
         post?: never;
-        /** removeContactTag */
+        /**
+         * removeContactTag
+         * @description After verifying contact version and tag existence, removing an absent attachment is a no-op that preserves the contact version.
+         */
         delete: operations["removeContactTag"];
         options?: never;
         head?: never;
@@ -227,10 +248,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** listCustomFields */
+        /**
+         * listCustomFields
+         * @description Returns definitions in ascending UUID order. Each cursor is bound to this tenant and collection. Pages do not form a snapshot.
+         */
         get: operations["listCustomFields"];
         put?: never;
-        /** createCustomField */
+        /**
+         * createCustomField
+         * @description Creates an immutable version 1 definition. Keys are unique per tenant and required defaults to false.
+         */
         post: operations["createCustomField"];
         delete?: never;
         options?: never;
@@ -245,11 +272,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** getContactField */
+        /**
+         * getContactField
+         * @description Returns 404 when the contact has no value for the definition.
+         */
         get: operations["getContactField"];
         /**
          * setContactField
-         * @description Validate against tenant field definition and dataType; null clears optional value; reject null for required fields.
+         * @description Validate the JSON type against the tenant definition. A date is a valid calendar date string in YYYY-MM-DD form without a timezone. A number is a finite JSON number whose value is preserved. An explicit null clears an optional value and is rejected for required fields. After checking the contact version, writing a typed-equal value or clearing an absent optional value is a no-op that preserves the version.
          */
         put: operations["setContactField"];
         post?: never;
@@ -1514,6 +1544,10 @@ export interface operations {
             header: {
                 /** @description Selected tenant only; server verifies active membership or credential binding. Never an authorization assertion. */
                 "X-Tenant-Id": components["parameters"]["TenantContext"];
+                /** @description Required with X-Contact-Id when the supplied email matches an active contact. Missing either member of the conditional pair returns 428; stale returns 412; malformed, weak, wildcard or multiple values return 400. A new contact is created without either header. */
+                "If-Match"?: string;
+                /** @description Expected active contact ID paired with If-Match on an update. Missing either member of the conditional pair returns 428, an ID mismatch returns 412, and malformed, noncanonical or multiple values return 400. It is not a tenant identifier or an authorization assertion. */
+                "X-Contact-Id"?: string;
             };
             path?: never;
             cookie?: never;
@@ -1524,11 +1558,22 @@ export interface operations {
             };
         };
         responses: {
+            /** @description Existing contact updated, or unchanged when the request is a no-op. */
+            200: {
+                headers: {
+                    /** @description Strong optimistic concurrency token for the returned version. */
+                    ETag: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Contact"];
+                };
+            };
             /** @description Created */
             201: {
                 headers: {
                     /** @description Strong optimistic concurrency token. */
-                    ETag?: string;
+                    ETag: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -1540,8 +1585,10 @@ export interface operations {
             403: components["responses"]["Problem"];
             404: components["responses"]["Problem"];
             409: components["responses"]["Problem"];
+            412: components["responses"]["Problem"];
             413: components["responses"]["Problem"];
             415: components["responses"]["Problem"];
+            428: components["responses"]["Problem"];
             429: components["responses"]["Problem"];
             503: components["responses"]["Problem"];
             default: components["responses"]["Problem"];
@@ -2077,6 +2124,8 @@ export interface operations {
             /** @description Created */
             201: {
                 headers: {
+                    /** @description The server always returns the updated contact's strong ETag on success. If the header is missing, clients must GET /api/v1/contacts/{id} to obtain its current ETag before the next conditional write. */
+                    ETag?: string;
                     [name: string]: unknown;
                 };
                 content: {

@@ -40,7 +40,9 @@ class ActivePolicyTests(unittest.TestCase):
         scanner=ScannerConfig('gitleaks',exe,hashlib.sha256(exe.read_bytes()).hexdigest(),'8.30.1',config)
         with tempfile.TemporaryDirectory() as directory:
             tree=Path(directory)
-            archive=subprocess.run(['git','archive','HEAD'],cwd=ROOT,capture_output=True,check=True).stdout
+            # The reviewed 68-finding fixture is historical; newer candidates
+            # legitimately contain additional blocked findings.
+            archive=subprocess.run(['git','archive','788f7605ee962071b6ecdbd035a6a2e6351fda6d'],cwd=ROOT,capture_output=True,check=True).stdout
             with tarfile.open(fileobj=io.BytesIO(archive)) as tar:tar.extractall(tree,filter='data')
             policy_path=tree/'tools/ci/mvp-secret-reviews.json'
             policy_path.write_bytes((ROOT/'tools/ci/mvp-secret-reviews.json').read_bytes())

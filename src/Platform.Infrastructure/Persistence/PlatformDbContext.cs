@@ -16,7 +16,7 @@ public sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> option
             {
                 table.HasCheckConstraint("entries_actor_issuer_check", "char_length(actor_issuer) BETWEEN 1 AND 2048");
                 table.HasCheckConstraint("entries_actor_subject_check", "char_length(actor_subject) BETWEEN 1 AND 2048");
-                table.HasCheckConstraint("entries_action_check", "action IN ('tenant.created','membership.updated','invite.created','invite.revoked','invite.accepted')");
+                table.HasCheckConstraint("entries_action_check", "action IN ('tenant.created','membership.updated','invite.created','invite.revoked','invite.accepted','contact.created','contact.updated','contact.deleted','tag.created','custom_field.created')");
                 table.HasCheckConstraint("entries_summary_check", "char_length(summary) <= 512");
                 table.HasCheckConstraint("entries_correlation_id_check", "char_length(correlation_id) BETWEEN 1 AND 128");
             });

@@ -147,6 +147,22 @@ class ProcessTests(unittest.TestCase):
                          json.loads(output.getvalue()))
         self.assertNotIn('private', output.getvalue())
 
+    def test_contact_review_emits_only_scoped_safe_diagnostic(self):
+        import contextlib, io, json
+        process = unittest.mock.Mock(returncode=0)
+        process.communicate.return_value = (json.dumps({
+            'reason': 'CONTRACT_BREAKING_REVIEWED',
+            'contactReview': {'basis': 'maintainer-reviewed-adr-020-021', 'independentVerification': False},
+            'private': 'do-not-emit'}).encode(), b'private-error')
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output), patch('scripts.ci.jobs.subprocess.Popen', return_value=process):
+            execute([sys.executable, 'scripts/contracts/compatibility.py'])
+        self.assertTrue(output.getvalue(), 'contact reviewed-break marker missing')
+        self.assertEqual({'reasonToken': 'CONTRACT_BREAKING_REVIEWED',
+                          'basis': 'maintainer-reviewed-adr-020-021', 'independentVerification': False},
+                         json.loads(output.getvalue()))
+        self.assertNotIn('private', output.getvalue())
+
     def test_plan3_review_evidence_survives_later_browser_failure(self):
         import contextlib, io, json
         process = unittest.mock.Mock(returncode=1)
@@ -185,6 +201,13 @@ class ProcessTests(unittest.TestCase):
         self.assertEqual(['SMOKE_TESTS_FAILED'],diagnostic['dotnetTests'])
         self.assertEqual(['OTHER'],diagnostic['dotnetMethods'])
         self.assertNotIn('private',stream.getvalue())
+
+    def test_dotnet_failure_identifies_wave2_test_families_without_echoing_payload(self):
+        from scripts.ci.jobs import dotnet_failure_diagnostic
+        output = (b'[xUnit.net 00:01] Integration.ContactSchemaTests.Case [FAIL]\n'
+                  b'Failed Integration.TimelineEndpointsTests.Case private-sentinel')
+        self.assertEqual(['CONTACT_SCHEMA_TESTS_FAILED', 'TIMELINE_ENDPOINTS_TESTS_FAILED'],
+                         dotnet_failure_diagnostic(output, b''))
 
     def test_dotnet_failure_keeps_multiple_allowlisted_families(self):
         from scripts.ci.jobs import dotnet_failure_diagnostic
@@ -303,6 +326,112 @@ class ProcessTests(unittest.TestCase):
             self.assertEqual({'reasonToken':'CI_COMMAND_FAILED','commandStage':'plan3',
                               'plan3Step':step,'plan3Reason':reason},json.loads(stream.getvalue()))
             self.assertNotIn('private',stream.getvalue())
+
+    def test_browser_followup_commands_report_fixed_stage_without_payload(self):
+        import contextlib,io,json
+        process=unittest.mock.Mock(returncode=1)
+        process.communicate.return_value=(b'private-sentinel',b'')
+        commands=[(['npm','exec','--workspace','apps/crm-web','--','playwright','test','tests/e2e/browser-oidc.spec.ts'], 'browser-provider'),
+                  (['npm','exec','--workspace','apps/crm-web','--','playwright','test','tests/e2e/contacts.spec.ts'], 'browser-contacts'),
+                  (['npm','exec','--workspace','apps/crm-web','--','vitest','run'], 'browser-vitest')]
+        for command,stage in commands:
+            with self.subTest(stage=stage):
+                stream=io.StringIO()
+                with contextlib.redirect_stdout(stream),patch('scripts.ci.jobs.subprocess.Popen',return_value=process):
+                    with self.assertRaises(JobError):execute(command)
+                result=json.loads(stream.getvalue())
+                self.assertEqual(stage,result['commandStage'])
+                self.assertNotIn('private-sentinel',stream.getvalue())
+
+    def test_browser_contact_failure_exposes_only_reviewed_location_and_reason(self):
+        import contextlib,io,json,tempfile
+        from pathlib import Path
+        process=unittest.mock.Mock(returncode=1)
+        process.communicate.return_value=(b'private-sentinel',b'')
+        with tempfile.TemporaryDirectory(prefix='ci-job-') as directory:
+            report=Path(directory)/'contacts.json'
+            report.write_text(json.dumps({'errors':[{'message':'private-sentinel E2E_PRIVATE_OPERATION_FAILED E2E_COMMAND_FAILED docker 1 at contacts.spec.ts:147:8'}], 'status':'timedOut'}))
+            env={'PLAYWRIGHT_JSON_OUTPUT_NAME':str(report)}
+            command=['npm','exec','--workspace','apps/crm-web','--','playwright','test','tests/e2e/contacts.spec.ts']
+            stream=io.StringIO()
+            with contextlib.redirect_stdout(stream),patch('scripts.ci.jobs.subprocess.Popen',return_value=process):
+                with self.assertRaises(JobError):execute(command,env=env)
+            result=json.loads(stream.getvalue())
+            self.assertEqual(['E2E_COMMAND_FAILED','E2E_PRIVATE_OPERATION_FAILED'],result['browserReasons'])
+            self.assertEqual(['contacts.spec.ts:147'],result['browserLocations'])
+            self.assertEqual(['docker'],result['browserCommands'])
+            self.assertEqual(['timedOut'],result['browserStatuses'])
+            self.assertNotIn('private-sentinel',stream.getvalue())
+            from scripts.ci.jobs import browser_failure_diagnostic
+            report.write_text(json.dumps({'errors':[{'location':{'file':'/private/realOidcFixture.ts','line':202},'message':'private-sentinel'}]}))
+            self.assertEqual(['realOidcFixture.ts:202'],browser_failure_diagnostic(env,b'',b'')['browserLocations'])
+            report.unlink();report.symlink_to('/etc/hosts')
+            self.assertEqual({'browserReasons':[],'browserLocations':[],'browserCommands':[],'browserStatuses':[]},browser_failure_diagnostic(env,b'',b''))
+
+    def test_browser_vitest_failure_exposes_only_approved_file(self):
+        import contextlib,io,json,tempfile
+        from pathlib import Path
+        process=unittest.mock.Mock(returncode=1)
+        process.communicate.return_value=(b'private-sentinel',b'')
+        with tempfile.TemporaryDirectory(prefix='ci-job-') as directory:
+            report=Path(directory)/'vitest.json'
+            report.write_text(json.dumps({'testResults':[{'name':'/private/apps/crm-web/src/contacts/contactQueries.test.tsx','status':'failed','message':'private-sentinel'},{'name':'/private/apps/crm-web/src/secret.test.ts','status':'failed'}]}))
+            command=['npm','exec','--workspace','apps/crm-web','--','vitest','run','--outputFile='+str(report)]
+            stream=io.StringIO()
+            with contextlib.redirect_stdout(stream),patch('scripts.ci.jobs.subprocess.Popen',return_value=process):
+                with self.assertRaises(JobError):execute(command)
+            result=json.loads(stream.getvalue())
+            self.assertEqual(['src/contacts/contactQueries.test.tsx'],result['vitestFailedFiles'])
+            self.assertNotIn('private-sentinel',stream.getvalue())
+            self.assertNotIn('secret.test.ts',stream.getvalue())
+            from scripts.ci.jobs import vitest_failure_files
+            report.unlink();report.symlink_to('/etc/hosts')
+            self.assertEqual(['OTHER'],vitest_failure_files(command))
+            self.assertEqual(['OTHER'],vitest_failure_files(['--outputFile=/etc/hosts']))
+
+    def test_clean_export_failure_projects_nested_frontend_failure(self):
+        import contextlib,io,json
+        process=unittest.mock.Mock(returncode=1)
+        process.communicate.return_value=(b'===== frontend-test: npm run test (exit 1, 9s) =====\n FAIL src/contacts/contactQueries.test.tsx > private-sentinel\nplan3 aggregate: FAIL at frontend-test (PLAN3_FRONTEND_STEP_FAILED)\n',b'')
+        stream=io.StringIO()
+        with contextlib.redirect_stdout(stream),patch('scripts.ci.jobs.subprocess.Popen',return_value=process):
+            with self.assertRaises(JobError): execute(['bash','tests/Plan3/clean-export.sh'])
+        result=json.loads(stream.getvalue())
+        self.assertEqual('frontend-test',result['plan3Step'])
+        self.assertEqual(['src/contacts/contactQueries.test.tsx'],result['plan3FailedFiles'])
+        self.assertNotIn('private-sentinel',stream.getvalue())
+
+    def test_frontend_failure_reports_only_reviewed_timeline_test_title(self):
+        from scripts.ci.jobs import plan3_failure_diagnostic
+        data=("===== frontend-test: npm run test (exit 1, 9s) =====\n"
+              " FAIL  src/contacts/ContactTimeline.test.tsx > holds a timed-out note for explicit review without replay\n"
+              " FAIL src/contacts/ContactTimeline.test.tsx > private-sentinel\n"
+              "plan3 aggregate: FAIL at frontend-test (PLAN3_FRONTEND_STEP_FAILED)\n").encode()
+        result=plan3_failure_diagnostic(data,b'')
+        self.assertEqual(['holds a timed-out note for explicit review without replay'],result['plan3TimelineCases'])
+        self.assertNotIn('private-sentinel',str(result))
+
+    def test_frontend_failure_reports_only_reviewed_attribute_test_title(self):
+        from scripts.ci.jobs import plan3_failure_diagnostic
+        data=("===== frontend-test: npm run test (exit 1, 9s) =====\n"
+              " FAIL src/contacts/ContactAttributes.test.tsx > writes the exact boolean scalar and supports an optional null\n"
+              " FAIL src/contacts/ContactAttributes.test.tsx > private-sentinel\n"
+              "plan3 aggregate: FAIL at frontend-test (PLAN3_FRONTEND_STEP_FAILED)\n").encode()
+        result=plan3_failure_diagnostic(data,b'')
+        self.assertEqual(['writes the exact boolean scalar and supports an optional null'],result['plan3AttributeCases'])
+        self.assertNotIn('private-sentinel',str(result))
+
+    def test_frontend_failure_reports_only_known_test_file(self):
+        from scripts.ci.jobs import plan3_failure_diagnostic
+        data = ("===== frontend-test: npm run test (exit 1, 9s) =====\n"
+                " ❯ src/contacts/ContactAttributes.test.tsx (36 tests | 1 failed)\n"
+                " FAIL src/contacts/ContactAttributes.test.tsx > private-sentinel\n"
+                " FAIL src/contacts/Untrusted.test.tsx > private-sentinel\n"
+                "plan3 aggregate: FAIL at frontend-test (PLAN3_FRONTEND_STEP_FAILED)\n").encode()
+        result = plan3_failure_diagnostic(data,b'')
+        self.assertEqual(['src/contacts/ContactAttributes.test.tsx'],result['plan3FailedFiles'])
+        self.assertNotIn('private-sentinel',str(result))
+        self.assertNotIn('Untrusted',str(result))
 
     def test_plan3_duplicate_keys_and_oversized_streams_are_unknown(self):
         from scripts.ci.jobs import plan3_failure_diagnostic

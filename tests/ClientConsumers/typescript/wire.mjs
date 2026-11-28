@@ -41,6 +41,11 @@ await business.GET('/api/v1/contacts', {params: {header: {'X-Tenant-Id': id}, qu
 handler = () => response({id, displayName: 'sample', email: null}, 200, {ETag: '"v1"'});
 let got = await business.GET('/api/v1/contacts/{id}', {params: {header: {'X-Tenant-Id': id}, path: {id}}});
 assert.equal(got.response.headers.get('ETag'), '"v1"');
+const note = {id, contactId: id, inboxId: null, source: 'crm', type: 'crm.note.created.v1', occurredAt: '2026-11-27T00:00:00Z', summary: 'A\0猫😀'};
+handler = () => response(note, 201, {ETag: '"v2"'});
+const created = await business.POST('/api/v1/contacts/{id}/notes', {params: {header: {'X-Tenant-Id': id, 'If-Match': '"v1"'}, path: {id}}, body: {text: note.summary}});
+assert.deepEqual(created.data, note);
+assert.equal(created.response.headers.get('ETag'), '"v2"');
 for (const status of [412, 428]) {
   const before = calls;
   handler = async request => {

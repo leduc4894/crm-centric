@@ -9,7 +9,7 @@
 | platform.memberships | tenant_id, id, issuer, subject, role, status, version | unique `(tenant_id,issuer,subject)`; last owner protected |
 | platform.invites | tenant_id, id, email_normalized, role, token_hash, expires_at, accepted_at, revoked_at | unique token_hash; hash-only storage; atomic single-use transition |
 | platform.roles_permissions | tenant_id, role, scope | deny by default |
-| crm.contacts | tenant_id, id, display_name, email_normalized, phone, version, created_at, updated_at, deleted_at | email not globally unique, optimistic concurrency |
+| crm.contacts | tenant_id, id, display_name, email, email_normalized, phone, version, created_at, updated_at, deleted_at | active non-null normalized email unique within tenant; nullable email; optimistic concurrency |
 | crm.identity_links | tenant_id, id, contact_id, issuer, subject, linked_at, revoked_at | partial unique active `(tenant_id,issuer,subject)`; explicit audit, không tự tạo membership |
 | crm.tags | tenant_id, id, name, normalized_name | unique tenant/normalized_name |
 | crm.contact_tags | tenant_id, contact_id, tag_id | unique tuple |
@@ -33,9 +33,11 @@
 | audit.entries | tenant_id, id, actor, action, target, diff_redacted, timestamp, correlation_id | append-only API |
 
 ## Indexing & growth
-- `(tenant_id, updated_at, id)` contact paging, `(tenant_id, email_normalized)` for candidate lookup (not uniqueness assumption), `(tenant_id, contact_id, occurrence_time desc)` timeline.
+- `(tenant_id, updated_at, id)` contact paging, partial unique `(tenant_id, email_normalized)` for active non-null email, `(tenant_id, contact_id, occurrence_time desc)` timeline.
 - Delivery ready index `(status,next_at)`; partial indexes for pending rows; add partitioning only after benchmarks.
 - PII in JSON payloads: minimize/redact/encrypt; retention by classification, data export/delete plan.
+
+Contact email comparison dùng generated `lower(btrim(email))` của PostgreSQL: `btrim` mặc định chỉ bỏ dấu cách thông thường ở hai đầu; `lower` theo database collation. Không xóa dấu chấm hoặc plus tag; không coi email là authenticated identity. Nhiều contact email null được phép; email của contact soft-deleted có thể tái sử dụng. Xem [ADR-020](10-ADR-020-CONTACT-EMAIL-UPSERT.md) và [migration](../operations/06-CONTACT-MIGRATION.md).
 
 ## Transaction và worker ownership
 - Business owner appends outbox/audit through technical infrastructure ports, same connection/transaction as mutation; explicit technical exception của ADR-008, không sửa domain tables module khác.

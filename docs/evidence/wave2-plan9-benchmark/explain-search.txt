@@ -1,0 +1,7 @@
+Limit  (cost=2038.20..2038.22 rows=10 width=133)
+  ->  Sort  (cost=2038.20..2038.22 rows=10 width=133)
+        Sort Key: updated_at DESC, id DESC
+        ->  Result  (cost=0.01..2038.03 rows=10 width=133)
+              One-Time Filter: ((NULLIF(current_setting('crm.tenant_id'::text, true), ''::text))::uuid = '<tenant>'::uuid)
+              ->  Seq Scan on contacts  (cost=0.01..2038.03 rows=10 width=133)
+                    Filter: ((deleted_at IS NULL) AND (tenant_id = '<tenant>'::uuid) AND ((display_name ~~* '%segment-07%'::text) OR (email ~~* '%segment-07%'::text)))

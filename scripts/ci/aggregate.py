@@ -7,7 +7,7 @@ this module cannot manufacture evidence for a job the scheduler never ran.
 from dataclasses import dataclass
 import uuid
 
-INVENTORY = ('backend', 'compose', 'contracts-sdk', 'web-browser', 'security')
+INVENTORY = ('backend', 'compose', 'contracts-sdk', 'web-browser', 'ci-tests', 'security')
 
 @dataclass(frozen=True)
 class AggregateResult:

@@ -1,4 +1,4 @@
-import type { components } from '@crm-centric/crm-client';
+import type { components, operations } from '@crm-centric/crm-client';
 type Create = components['schemas']['CreateContact'];
 type Update = components['schemas']['UpdateContact'];
 type Rule = components['schemas']['AutomationRule'];
@@ -12,3 +12,18 @@ const extra: Create = { displayName: 'sample', tenant_id: 'sample' };
 const invalid: Update = { displayName: null };
 const rule: Rule = {ruleId: 'sample', version: 1, triggerEventType: 'crm.contact.created.v1', condition: {field: '/data/score', op: 'eq', value: null}, actions: [{type: 'module.send.v1', installationId: '00000000-0000-4000-8000-000000000001', input: {extra: 42}}]};
 void [create, update, missing, extra, invalid, rule];
+
+type ConditionalHeaders = operations['createContact']['parameters']['header'];
+const upsertHeaders: ConditionalHeaders = { 'X-Tenant-Id': '00000000-0000-4000-8000-000000000001', 'If-Match': '"v1"', 'X-Contact-Id': '00000000-0000-4000-8000-000000000001' };
+void upsertHeaders;
+
+import { createApiClient } from '@crm-centric/crm-client';
+const client = createApiClient('https://example.invalid');
+void client.GET('/api/v1/contacts', { params: { header: { 'X-Tenant-Id': '00000000-0000-4000-8000-000000000001' }, query: { limit: 20, cursor: 'opaque', q: 'literal', tagId: '00000000-0000-4000-8000-000000000001', updatedSince: '2026-01-01T00:00:00Z' } } });
+
+const id = '00000000-0000-4000-8000-000000000001';
+const headers = { 'X-Tenant-Id': id, 'If-Match': '"v1"' };
+void client.GET('/api/v1/tags', { params: { header: headers, query: { cursor: 'opaque', limit: 1 } } });
+void client.POST('/api/v1/custom-fields', { params: { header: headers }, body: { key: 'due', displayName: 'Due', dataType: 'date' } });
+void client.PUT('/api/v1/contacts/{id}/fields/{fieldId}', { params: { path: { id, fieldId: id }, header: headers }, body: { value: null } });
+void client.DELETE('/api/v1/contacts/{id}/tags/{tagId}', { params: { path: { id, tagId: id }, header: headers } });

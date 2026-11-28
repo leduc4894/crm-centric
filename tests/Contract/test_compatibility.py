@@ -403,6 +403,7 @@ class CompatibilityTests(unittest.TestCase):
             shutil.copytree(ROOT / directory, self.repo / directory, dirs_exist_ok=True, ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
         for name in ('package.json', 'package-lock.json', '.npmrc', '.node-version', 'global.json'):
             shutil.copyfile(ROOT / name, self.repo / name)
+        shutil.copytree(ROOT / 'tests/ClientConsumers', self.repo / 'tests/ClientConsumers')
         sdk = self.repo / 'sdks/typescript/crm/provenance.json'
         sdk.parent.mkdir(parents=True)
         sdk.write_text('{}')
@@ -510,6 +511,7 @@ class CompatibilityTests(unittest.TestCase):
             shutil.copytree(ROOT / directory, self.repo / directory, dirs_exist_ok=True, ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
         for name in ('package.json', 'package-lock.json', '.npmrc', '.node-version', 'global.json'):
             shutil.copyfile(ROOT / name, self.repo / name)
+        shutil.copytree(ROOT / 'tests/ClientConsumers', self.repo / 'tests/ClientConsumers')
         sdk = self.repo / 'sdks/typescript/crm/provenance.json'
         sdk.parent.mkdir(parents=True)
         sdk.write_text('{}')

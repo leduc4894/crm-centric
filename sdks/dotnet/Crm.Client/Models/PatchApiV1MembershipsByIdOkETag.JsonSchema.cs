@@ -45,7 +45,7 @@ public readonly partial struct PatchApiV1MembershipsByIdOkETag
         /// </summary>
         public static ReadOnlySpan<byte> SchemaDocumentUtf8 => "crm-api.openapi.yaml"u8;
 
-        private static readonly global::Corvus.Text.Json.RuntimeEvaluator.JsonSchemaEvaluator Evaluator = global::Crm.Client.Models.CorvusJsonSchemaProgram.Entry(256);
+        private static readonly global::Corvus.Text.Json.RuntimeEvaluator.JsonSchemaEvaluator Evaluator = global::Crm.Client.Models.CorvusJsonSchemaProgram.Entry(260);
 
         internal static bool Evaluate(
             IJsonDocument parentDocument,

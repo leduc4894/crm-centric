@@ -1,0 +1,5 @@
+Limit  (cost=0.41..2.61 rows=21 width=133)
+  ->  Result  (cost=0.41..5226.52 rows=49999 width=133)
+        One-Time Filter: ((NULLIF(current_setting('crm.tenant_id'::text, true), ''::text))::uuid = '<tenant>'::uuid)
+        ->  Index Scan using contacts_tenant_updated on contacts  (cost=0.41..5226.52 rows=49999 width=133)
+              Index Cond: (tenant_id = '<tenant>'::uuid)

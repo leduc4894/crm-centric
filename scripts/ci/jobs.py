@@ -24,19 +24,23 @@ def verify_versions(actual):
 class JobError(Exception):
     def __init__(self, token): self.token = token
 
-def merge_browser_evidence(regular, provider):
+def merge_browser_evidence(regular, provider, contacts):
     from scripts.ci.summary import parse_cases
     regular_cases = parse_cases('playwright', regular)
     provider_cases = parse_cases('playwright', provider)
     expected = 'browser-oidc.spec.ts::real provider signs in isolated tenants and terminates provider session::chromium'
     if len(provider_cases) != 1 or provider_cases[0] != {'id': expected, 'outcome': 'passed'}:
         raise ReportError('CI_DISCOVERY_INCOMPLETE')
-    cases = regular_cases + provider_cases
+    contacts_cases = parse_cases('playwright', contacts)
+    expected_contacts = 'contacts.spec.ts::contact persists across sessions, rejects stale notes and isolates delayed tenant reads::chromium'
+    if len(contacts_cases) != 1 or contacts_cases[0] != {'id': expected_contacts, 'outcome': 'passed'}:
+        raise ReportError('CI_DISCOVERY_INCOMPLETE')
+    cases = regular_cases + provider_cases + contacts_cases
     if len({case['id'] for case in cases}) != len(cases):
         raise ReportError('CI_DISCOVERY_INCOMPLETE')
     counters = ('expected', 'unexpected', 'skipped', 'flaky')
-    return {'errors': [], 'stats': {key: regular['stats'][key] + provider['stats'][key] for key in counters},
-            'suites': regular['suites'] + provider['suites']}
+    return {'errors': [], 'stats': {key: regular['stats'][key] + provider['stats'][key] + contacts['stats'][key] for key in counters},
+            'suites': regular['suites'] + provider['suites'] + contacts['suites']}
 
 def stop_process_group(process, grace=1):
     """Signal only the session created for this exact command, including descendants."""
@@ -51,6 +55,23 @@ def stop_process_group(process, grace=1):
         pass
     process.wait()
 
+
+_FRONTEND_TEST_FILES = frozenset((
+    'config/contactsProxy.test.ts','config/devServer.test.ts','config/tenantProxy.test.ts',
+    'config/healthProxy.test.ts','src/settings/CustomFieldsPage.test.tsx',
+    'src/callbackRouter.test.tsx','src/contacts/queryScope.test.tsx',
+    'src/contacts/ContactList.test.tsx','src/contacts/ContactTable.test.tsx',
+    'src/contacts/ContactShell.test.tsx','src/contacts/ContactForm.test.tsx',
+    'src/contacts/ContactTimeline.test.tsx','src/contacts/ContactAttributes.test.tsx',
+    'src/contacts/contactSession.test.tsx','src/contacts/crmClient.test.ts',
+    'src/contacts/contactQueries.test.tsx','src/contacts/CustomFieldSettings.test.tsx',
+    'src/auth/oidcConfig.test.ts','src/auth/authClient.test.ts','src/auth/AuthProvider.test.tsx',
+    'src/health/HealthStatus.test.tsx','src/health/healthClient.test.ts',
+    'src/tenant/tenantClient.test.ts','src/tenant/TenantPicker.test.tsx',
+    'src/router.test.tsx','src/tenant/TenantProvider.test.tsx',
+    'tests/picomatch-compatibility.test.ts','tests/e2e/realOidcFixture.test.ts',
+    'tests/e2e/stackProvenance.test.ts',
+))
 
 def plan3_failure_diagnostic(stdout, stderr):
     """Project private child output to fixed enums; never trust it as evidence.
@@ -101,7 +122,79 @@ def plan3_failure_diagnostic(stdout, stderr):
             value=row.get('reason') if isinstance(row,dict) else None
             if isinstance(value,str) and value in reasons: observed.append(value)
         if len(observed)==1: reason=observed[0]
-    return {'plan3Step':step,'plan3Reason':reason}
+    result = {'plan3Step':step, 'plan3Reason':reason}
+    if step == 'frontend-test':
+        # Only source-reviewed filenames are eligible; never expose arbitrary
+        # test titles, assertion details, paths or payloads from child output.
+
+        clean = re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', output)
+        sections = re.findall(r'^===== frontend-test: [^\r\n]* \(exit [1-9][0-9]*, [0-9]+s\) =====\r?\n(.*?)(?=^===== |\Z)', clean, re.MULTILINE | re.DOTALL)
+        found = set()
+        if len(sections) == 1:
+            for line in sections[0].splitlines():
+                match = re.match(r'^\s*FAIL\s+([^\s]+\.test\.tsx?)(?:\s|$)', line)
+                if match and match.group(1) in _FRONTEND_TEST_FILES:
+                    found.add(match.group(1))
+        result['plan3FailedFiles'] = sorted(found) if found else ['OTHER']
+        if 'src/contacts/ContactTimeline.test.tsx' in found:
+            allowed_cases = frozenset((
+                'requires explicit successful review when a saved note has no ETag',
+                'does not attach the note ETag to an old contact representation',
+                'renders ordered provenance and untrusted summaries as text and pages forward',
+                'validates Unicode note length and uses returned or refreshed ETag (true)',
+                'validates Unicode note length and uses returned or refreshed ETag (false)',
+                'keeps draft after conflict or uncertain delivery and requires explicit reconciliation (412)',
+                'keeps draft after conflict or uncertain delivery and requires explicit reconciliation (0)',
+                'retries a failed timeline read and rejects a different contact in the page',
+                'removes the stale record when reconciliation confirms deletion',
+                'holds a timed-out note for explicit review without replay',
+                'returns keyboard focus to the note input after saving',
+                'gates cross-panel writes on refresh of the conflicting field and preserves its draft',
+                'allows timeline pagination after the server denies a note write',
+                'keeps writes locked when a sibling field read fails during reconciliation',
+                'retains a successful note draft when its post-write timeline refresh fails',
+                'prevents simultaneous note submits while the first request is pending',
+                'locks for review and retains a saved note if sibling refresh returns 403',
+                'keeps the note locked for review when the post-write contact read returns 403',
+                'keeps the note locked for review when the post-write contact read returns 409',
+            ))
+            cases = set()
+            for line in sections[0].splitlines():
+                match = re.fullmatch(r'\s*FAIL\s+src/contacts/ContactTimeline\.test\.tsx\s+>\s+(.+?)\s*', line)
+                if match and match.group(1) in allowed_cases:
+                    cases.add(match.group(1))
+            result['plan3TimelineCases'] = sorted(cases) if cases else ['OTHER']
+        if 'src/contacts/ContactAttributes.test.tsx' in found:
+            allowed_cases = {
+                'stores contact and attribute reads in the scoped query cache',
+                'keeps the reviewed version when the query cache receives a newer contact during editing',
+                'collects all tag and field pages through scoped queries',
+                'creates a tag, attaches and removes it with the latest contact version',
+                'waits for the initial field read before the test helper edits a disabled control',
+                'shows the newly read field beside a conflicting draft and blocks a required null',
+                'preserves the server ETag on an idempotent tag attachment',
+                'does not send an unchanged field when its form is submitted directly',
+                'prevents duplicate tag creation while a request is pending',
+                'retains field draft if refresh fails after a successful write',
+                'serializes simultaneous submissions from different attribute forms',
+                'keeps tag selection and requires review after an attachment returns no ETag',
+                'keeps a tag draft after a literal timeout without retrying',
+                'retains and locks an existing field draft when definition refresh fails, then recovers',
+            }
+            allowed_cases.update('writes the exact '+kind+' scalar and supports an optional null' for kind in ('number','string','boolean','date'))
+            allowed_cases.update('handles forbidden and missing tag writes without replay ('+str(status)+')' for status in (403,404))
+            allowed_cases.update('reviews a changed record and sibling values before an unversioned '+action+' action' for action in ('field','delete'))
+            allowed_cases.update('retains a tag draft and write lock after 412 when sibling refresh returns '+str(status) for status in (403,404,500))
+            allowed_cases.update('keeps write locked and draft after successful field write followed by refresh '+str(status) for status in (403,404,409,500))
+            allowed_cases.update('keeps field draft and requires review on a '+mode+' ETag write response' for mode in ('missing','invalid'))
+            allowed_cases.update('leaves existing optional string '+value+' unchanged until edited' for value in ('null','""'))
+            allowed_cases.update('preserves numeric token '+value+' through the field form and wire' for value in ('1e131072','1e-16384','123456789012345678901234567890123','1.00E+0'))
+            cases = set()
+            for line in sections[0].splitlines():
+                match = re.fullmatch(r'\s*FAIL\s+src/contacts/ContactAttributes\.test\.tsx\s+>\s+(.+?)\s*', line)
+                if match and match.group(1) in allowed_cases: cases.add(match.group(1))
+            result['plan3AttributeCases'] = sorted(cases) if cases else ['OTHER']
+    return result
 
 # These public identifiers are reviewed source names, not arbitrary test output.
 _COMPOSE_FAILURE_METHODS = {
@@ -142,6 +235,14 @@ def dotnet_failure_diagnostic(stdout, stderr):
         'ContainerRuntimeTests','FakeOidcIssuerTests','HealthTests','ImageEvidenceSecretTests',
         'KeycloakContainerTests','LocalBootstrapTests','MigrationTests','OperationalSecurityTests',
         'ReadinessTests','RolePrivilegeTests','SmokeTests','StructuredLoggingTests',
+        'AuditEndpointsTests','ContactConcurrencyTests','ContactCursorTests','ContactEmailSchemaTests',
+        'ContactEndpointsTests','ContactListTests','ContactSchemaTests','ContactStreamingTests',
+        'ContactTagFoundationTests','CrmCollectionCursorTests','CustomFieldEndpointsTests',
+        'CustomFieldSchemaTests','InviteAcceptanceTests','InviteManagementTests','InviteSchemaTests',
+        'InviteSecurityTests','MembershipEndpointsTests','MembershipParsingTests','OidcAuthenticationTests',
+        'TagEndpointsTests','TagFieldConcurrencyTests','TenantAuthorizationTests','TenantEndpointsTests',
+        'TenantIsolationTests','TenantLifecycleSchemaTests','TenantProvisioningTests','TenantSchemaTests',
+        'TimelineConcurrencyTests','TimelineEndpointsTests','TimelineSchemaTests',
     )
     matches=[]
     for name in classes:
@@ -225,6 +326,72 @@ def dotnet_failure_methods(stdout, stderr):
     return observed or ['OTHER']
 
 
+def vitest_failure_files(command):
+    """Read only a bounded job-owned report and return reviewed filenames."""
+    try:
+        args = [x.split('=', 1)[1] for x in command if isinstance(x, str) and x.startswith('--outputFile=')]
+        if len(args) != 1: return ['OTHER']
+        path = Path(args[0])
+        parent = path.parent
+        if (not path.is_absolute() or parent.is_symlink() or path.is_symlink()
+                or not parent.name.startswith('ci-job-')
+                or parent.parent.resolve() != Path(tempfile.gettempdir()).resolve()
+                or not path.is_file() or path.stat().st_size > 8 * 1024 * 1024):
+            return ['OTHER']
+        report = json.loads(path.read_text())
+        results = report['testResults']
+        if not isinstance(results, list): return ['OTHER']
+        found = set()
+        for row in results:
+            if not isinstance(row, dict) or row.get('status') != 'failed': continue
+            name = row.get('name')
+            if not isinstance(name, str): continue
+            for allowed in _FRONTEND_TEST_FILES:
+                if name.endswith('/apps/crm-web/' + allowed): found.add(allowed)
+        return sorted(found) if found else ['OTHER']
+    except (OSError, ValueError, TypeError, KeyError, RecursionError):
+        return ['OTHER']
+
+def browser_failure_diagnostic(env, stdout, stderr):
+    """Project only fixed fixture reasons and source locations, never payloads."""
+    allowed = {'E2E_CLEANUP_ID_INVALID','E2E_CLEANUP_IMAGE_INVALID','E2E_COMMAND_FAILED',
+               'E2E_FIXTURE_OPT_IN_REQUIRED','E2E_OWNED_DB_INVALID','E2E_OWNER_INVALID',
+               'E2E_PORT_INVALID','E2E_PRIVATE_OPERATION_FAILED','E2E_REPLAY_NAVIGATION_FAILED',
+               'E2E_USER_INVALID','E2E_WEB_START_FAILED','E2E_WEB_UNAVAILABLE',
+               'E2E_ADMIN_LOGIN_FAILED','E2E_USER_CREATE_FAILED','E2E_USER_READ_FAILED'}
+    texts = [part[:1024*1024].decode('utf-8','replace') for part in (stdout,stderr)]
+    locations = set(); statuses = set()
+    try:
+        path = Path((env or {}).get('PLAYWRIGHT_JSON_OUTPUT_NAME',''))
+        parent = path.parent
+        if (path.is_absolute() and path.name in ('contacts.json','provider.json') and not path.is_symlink()
+                and not parent.is_symlink() and parent.name.startswith('ci-job-')
+                and parent.parent.resolve() == Path(tempfile.gettempdir()).resolve()
+                and path.is_file() and path.stat().st_size <= 8*1024*1024):
+            content = path.read_text(); report = json.loads(content); texts.append(content)
+            pending = [report]; visited = 0
+            while pending and visited < 100000:
+                item = pending.pop(); visited += 1
+                if isinstance(item, dict):
+                    file, line = item.get('file'), item.get('line')
+                    if isinstance(file,str) and Path(file).name in ('contacts.spec.ts','realOidcFixture.ts') and type(line) is int and 1 <= line <= 5000:
+                        locations.add(Path(file).name+':'+str(line))
+                    status = item.get('status')
+                    if status in ('failed','timedOut','interrupted'): statuses.add(status)
+                    pending.extend(item.values())
+                elif isinstance(item, list):
+                    pending.extend(item)
+    except (OSError, ValueError, TypeError, RecursionError):
+        pass
+    text = '\n'.join(texts)
+    reasons = sorted(token for token in allowed if re.search(r'(?<![A-Z0-9_])'+token+r'(?![A-Z0-9_])',text))
+    for file, number in re.findall(r'\b(contacts\.spec\.ts|realOidcFixture\.ts):(\d{1,4}):\d{1,4}\b',text):
+        if 1 <= int(number) <= 5000: locations.add(file+':'+str(int(number)))
+    commands = sorted(set(re.findall(r'\bE2E_COMMAND_FAILED\s+(bash|docker|npm)\s+\d{1,3}\b',text)))
+    return {'browserReasons':reasons,'browserLocations':sorted(locations),
+            'browserCommands':commands,'browserStatuses':sorted(statuses)}
+
+
 def execute(command, timeout=3300, env=None):
     try:
         process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
@@ -253,14 +420,16 @@ def execute(command, timeout=3300, env=None):
         for line in review_output.splitlines():
             try:
                 result = json.loads(line)
-                review = result.get('securityReview', {})
-                if (result.get('reason') == 'CONTRACT_BREAKING_REVIEWED'
-                        and review.get('basis') == 'maintainer-reviewed-adr-019'
-                        and review.get('independentVerification') is False):
-                    print(json.dumps({'reasonToken': 'CONTRACT_BREAKING_REVIEWED',
-                                      'basis': 'maintainer-reviewed-adr-019',
-                                      'independentVerification': False}))
-                    break
+                for field, basis in (('securityReview', 'maintainer-reviewed-adr-019'),
+                                     ('contactReview', 'maintainer-reviewed-adr-020-021')):
+                    review = result.get(field, {})
+                    if (result.get('reason') == 'CONTRACT_BREAKING_REVIEWED'
+                            and review.get('basis') == basis
+                            and review.get('independentVerification') is False):
+                        print(json.dumps({'reasonToken': 'CONTRACT_BREAKING_REVIEWED',
+                                          'basis': basis,
+                                          'independentVerification': False}))
+                        break
             except (ValueError, TypeError, AttributeError, RecursionError):
                 continue
     if process.returncode:
@@ -278,8 +447,22 @@ def execute(command, timeout=3300, env=None):
                 ('bash','tests/Plan3/scratch-cleanup.sh'):'plan3-scratch-cleanup',
                 (sys.executable,'-m'):'python-suite',('node','-e'):'browser-launch'}
         stage=stages.get(tuple(command[:2]),'other')
+        browser_prefix = ('npm','exec','--workspace','apps/crm-web','--')
+        if tuple(command[:5]) == browser_prefix:
+            browser_stages = {
+                ('playwright','test','tests/e2e/browser-oidc.spec.ts'): 'browser-provider',
+                ('playwright','test','tests/e2e/contacts.spec.ts'): 'browser-contacts',
+                ('vitest','run'): 'browser-vitest',
+            }
+            stage = browser_stages.get(tuple(command[5:8]), browser_stages.get(tuple(command[5:7]), stage))
         diagnostic={'reasonToken':'CI_COMMAND_FAILED','commandStage':stage}
-        if stage=='plan3': diagnostic.update(plan3_failure_diagnostic(stdout,stderr))
+        if stage == 'browser-vitest': diagnostic['vitestFailedFiles'] = vitest_failure_files(command)
+        if stage in ('browser-provider','browser-contacts'):
+            diagnostic.update(browser_failure_diagnostic(env,stdout,stderr))
+        if stage == 'plan3': diagnostic.update(plan3_failure_diagnostic(stdout,stderr))
+        elif stage == 'plan3-clean-export':
+            nested = plan3_failure_diagnostic(stdout,stderr)
+            if nested['plan3Step'] != 'other': diagnostic.update(nested)
         elif stage=='dotnet-test':
             diagnostic['dotnetTests'] = dotnet_failure_diagnostic(stdout,stderr)
             diagnostic['dotnetMethods'] = dotnet_failure_methods(stdout,stderr)
@@ -412,9 +595,28 @@ def publish_report(report, output, identity, mode="hardening"):
     return parsed
 
 
+def ci_tests_prerequisites():
+    image = json.loads(Path('tools/contracts/toolchain.json').read_text())['dotnetImage']
+    return [
+        ['npm','ci','--ignore-scripts','--no-audit','--no-fund'],
+        ['docker','pull',image],
+    ]
+
+
+def run_ci_python_suites(run):
+    failures = []
+    for name, directory in (('ci', 'tests/CI'), ('benchmark', 'tests/Benchmarks')):
+        try:
+            run(name, directory)
+        except JobError as failure:
+            failures.append(failure)
+    if failures:
+        raise failures[0]
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('job', choices=['backend','compose','contracts-sdk','web-browser'])
+    parser.add_argument('job', choices=['backend','compose','contracts-sdk','web-browser','ci-tests'])
     parser.add_argument('--mode', choices=['mvp','hardening'], default='hardening')
     parser.add_argument('--revision', required=True, type=Path)
     parser.add_argument('--output', required=True, type=Path)
@@ -453,7 +655,11 @@ def main():
                 finally:
                     if output.is_file():
                         report['suites'].append({'name':name,'tests':json.loads(output.read_text())})
-            if args.job in ('backend','compose'):
+            if args.job == 'ci-tests':
+                for command in ci_tests_prerequisites():
+                    execute(command)
+                run_ci_python_suites(py_suite)
+            elif args.job in ('backend','compose'):
                 execute(['dotnet','restore','CrmPlatform.sln','--locked-mode'])
                 execute(['dotnet','build','CrmPlatform.sln','-c','Release','--no-restore'])
                 category = 'Category=Compose' if args.job == 'compose' else 'Category!=Compose'
@@ -477,7 +683,7 @@ def main():
                     for command in plan3_commands(identity,args.mode):
                         execute(command)
                 else:
-                    vitest = scratch/'vitest.json'; browser = scratch/'browser.json'; provider = scratch/'provider.json'
+                    vitest = scratch/'vitest.json'; browser = scratch/'browser.json'; provider = scratch/'provider.json'; contacts = scratch/'contacts.json'
                     env = {**os.environ,'PLAYWRIGHT_JSON_OUTPUT_NAME':str(browser),
                            'PLAYWRIGHT_HTML_OPEN':'never', 'CI_PLAYWRIGHT_SPLIT':'1'}
                     # Plan 3 owns real API stack startup, readiness and teardown.
@@ -488,12 +694,15 @@ def main():
                     execute(['npm','exec','--workspace','apps/crm-web','--','playwright','test',
                              'tests/e2e/browser-oidc.spec.ts','--project=chromium',
                              '--grep','real provider signs in isolated tenants and terminates provider session'],env=provider_env)
+                    contacts_env = {**provider_env, 'PLAYWRIGHT_JSON_OUTPUT_NAME':str(contacts)}
+                    execute(['npm','exec','--workspace','apps/crm-web','--','playwright','test',
+                             'tests/e2e/contacts.spec.ts','--project=chromium'],env=contacts_env)
                     execute(['npm','exec','--workspace','apps/crm-web','--','vitest','run',
                              '--reporter=json','--outputFile='+str(vitest)])
                     report['suites'].extend([
                         {'name':'vitest','format':'vitest','report':json.loads(vitest.read_text())},
                         {'name':'browser','format':'playwright','report':merge_browser_evidence(
-                            json.loads(browser.read_text()), json.loads(provider.read_text()))}])
+                            json.loads(browser.read_text()), json.loads(provider.read_text()), json.loads(contacts.read_text()))}])
             if args.mode=='hardening' and args.job in ('backend','compose','web-browser'):
                 from scripts.ci.image_identity import verify_job_evidence
                 from scripts.ci.scan import ScanError

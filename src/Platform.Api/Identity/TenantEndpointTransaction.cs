@@ -7,7 +7,7 @@ namespace Platform.Api.Identity;
 internal static class TenantEndpointTransaction
 {
     internal static async Task RunAsync(HttpContext context, IConfiguration configuration, bool mutation, Func<NpgsqlConnection, NpgsqlTransaction, Guid, Func<Task>, Task> operation,
-        TenantPermission permission = TenantPermission.TeamManage)
+        TenantPermission permission = TenantPermission.TeamManage, string storeError = "IDENTITY_STORE_UNAVAILABLE")
     {
         for (var attempt = 0; ; attempt++)
         {
@@ -32,7 +32,7 @@ internal static class TenantEndpointTransaction
             }
             catch (Exception ex) when (ex is NpgsqlException or TimeoutException or InvalidDataException)
             {
-                if (!context.Response.HasStarted) await OperationalErrors.WriteProblemAsync(context, 503, "IDENTITY_STORE_UNAVAILABLE", context.RequestAborted);
+                if (!context.Response.HasStarted) await OperationalErrors.WriteProblemAsync(context, 503, storeError, context.RequestAborted);
                 return;
             }
         }

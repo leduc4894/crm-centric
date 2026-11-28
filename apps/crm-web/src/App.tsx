@@ -1,30 +1,14 @@
+import { Link, Outlet } from '@tanstack/react-router';
 import { TenantProvider } from './tenant/TenantProvider.tsx';
 import { TenantPicker } from './tenant/TenantPicker.tsx';
 import { HealthStatus } from './health/HealthStatus.tsx';
 
-/**
- * Application shell.
- *
- * The shell provides the heading and the minimal navigation. The operational connection status,
- * the retry action and the health states are delivered by the health UI slice.
- */
 export function App() {
-  return (
-    <>
-      <header>
-        <h1>CRM Centric</h1>
-      </header>
-      <nav aria-label="Primary">
-        <ul>
-          <li>
-            <span aria-current="page">Platform</span>
-          </li>
-        </ul>
-      </nav>
-      <main>
-        <TenantProvider><TenantPicker /></TenantProvider>
-        <HealthStatus />
-      </main>
-    </>
-  );
+  return <TenantProvider><div className="crm-shell">
+    <aside><header><h1><span className="brand-mark" aria-hidden="true">C</span> CRM Centric</h1></header>
+      <nav aria-label="Primary"><Link to="/">Platform</Link><Link to="/app/contacts">Liên hệ</Link><Link to="/app/settings/custom-fields">Trường tùy chỉnh</Link></nav>
+      <TenantPicker />
+    </aside>
+    <main><Outlet /><HealthStatus /></main>
+  </div></TenantProvider>;
 }

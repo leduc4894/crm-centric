@@ -33,7 +33,18 @@ CI và remote CI execution còn OPEN. Local Plan 2 đã final review Approved,
 0 Critical/Important; [review và controller rulings](../superpowers/reviews/2026-11-10-wave-0-plan-2-final-review.md).
 
 ## Frontend
-React + TypeScript strict, Vite, TanStack Router, TanStack Query, Tailwind CSS, shadcn/ui; forms with React Hook Form + Zod if adopted consistently; ESLint, formatter, typecheck, Vitest, Playwright; accessibility and localization-ready.
+React + TypeScript strict và Vite; ESLint, typecheck, Vitest, Playwright; chú ý accessibility và localization.
+
+### Convention TanStack cho feature mới
+
+Ưu tiên dùng các thư viện TanStack **đã được tích hợp và ổn định trong ứng dụng** khi chúng phù hợp với nhu cầu. Không bắt buộc thêm abstraction vào bảng tĩnh hay form nhỏ; nếu chọn cách khác cho feature có cùng nhu cầu, ghi lý do trong plan hoặc PR và giữ các invariants bên dưới. Convention này không yêu cầu viết lại code đang hoạt động chỉ để đồng nhất thư viện.
+
+- **Query:** ưu tiên cho dữ liệu server. Query key/lifecycle phải cô lập theo identity, tenant và session; khi đổi tenant/logout, hủy request và xóa hoặc cô lập cache, kể cả response cũ về muộn. Không đưa token vào key/storage/log. Giữ strong ETag cùng snapshot đã review, giữ draft khi `412`, không tự retry mutation xung đột hoặc có kết quả chưa xác định. Tiếp tục dùng client và contract được duyệt.
+- **Table:** ưu tiên cho bảng dữ liệu tương tác cần quản lý cột, selection hoặc trạng thái bảng. Khi dữ liệu được phân trang/filter trên server, không sort/filter cục bộ chỉ tập hàng đã tải hoặc giả định offset/tổng số trang; giữ cursor, thứ tự server, accessibility và thiết kế ứng dụng.
+- **Router và Form:** áp dụng cùng nguyên tắc sau khi các plan tương ứng đã triển khai và ổn định. Router phải giữ auth, tenant isolation, deep link và back/forward. Form phải giữ validation, draft khi conflict và độ chính xác số custom field; không mặc định chuyển số lossless qua JavaScript `Number`.
+- **Virtual:** chỉ đưa vào khi có nhu cầu render nhiều dòng và evidence phù hợp; không mặc định cài.
+
+Query và Table đã có trong frontend theo [Plan 5](../handoff/2026-11-27-wave-2-plan-5-handoff.md) và [Plan 6](../handoff/2026-11-27-wave-2-plan-6-handoff.md); Router và Form thuộc Plan 7–8, không khẳng định đã triển khai. Chọn stable release được hỗ trợ và pin exact trong lockfile khi thêm dependency. Các plan chạy test liên quan local; full suite ở Wave 2 exit trên GitHub CI theo [Wave 2 design](../superpowers/specs/2026-11-27-wave-2-crm-contacts-design.md).
 
 ## Backend
 .NET 10 LTS, C# 14 when compatible, ASP.NET Core, EF Core 10, FluentValidation or explicit validators, OpenTelemetry, structured logging, problem details error contract; xUnit + Testcontainers. Native AOT only after compatibility/profiling assessment.

@@ -1,0 +1,23 @@
+# Wave 2 tags and custom fields: migration and operation
+
+Scope: [Plan 3](../superpowers/plans/2026-11-27-wave-2-plan-3-tags-custom-fields.md) on `wave-2`. Apply migrations in order using the existing migration role and deployment procedure; use a separately provisioned application role. The API role must not own tables or bypass RLS, assume a privileged role, directly rewrite audit, or directly mutate tag assignments or field values. The narrow security-definer functions validate tenant context and active staff/membership and have a fixed search path. Verify configured grants with the existing role-validation mechanism before enabling traffic.
+
+Owner, admin, agent and operator may read tags and field definitions/values. Owner, admin and agent may create tags and mutate contact tags and values; only owner/admin may create field definitions. Definitions are immutable. A true contact mutation checks a strong If-Match, advances contact version and appends audit and outbox atomically; a no-op still checks version and has no journal entry. Definition creation appends audit, with no invented contact event. Cursor provisioning and rotation use the existing [contact cursor key procedure](08-CONTACT-CURSOR-KEY.md); collection cursors are additionally bound to tenant, kind and contact where applicable.
+
+## Upgrade and rollback
+
+`20261127030000_CustomFields` creates tenant-keyed definitions/values, composite foreign keys and forced RLS and expands audit actions. `20261127031000_ContactTagAssignment` adds a controlled assignment function; its downgrade removes the function but leaves assignments. `20261127032000_ContactFieldValue` adds controlled field writes and an escaped-string marker. Deploy compatible API and schema as a coordinated release and use tested backups; no production rollout or restore drill is established by local tests.
+
+Migration `20261127033000_AtomicContactAttributes` revokes application access to the assignment and value helpers. The application calls `platform.mutate_contact_attribute` with the expected version, actor and correlation ID. PostgreSQL checks authorization, locks the contact, checks the version, changes the attribute, advances the version and writes both journal records in one operation. Reapply the matching release's role grants after a downgrade.
+
+Migration `20261127034000_DefinitionNames` stores names containing U+0000 as text segments and checks tag uniqueness against their normalized segments. The original columns and unique constraint handle ordinary names. A downgrade that would discard embedded NUL names fails across all tenants. Back up and use a forward fix if the database contains such names.
+
+Migration `20261127035000_ExactFieldNumbers` stores new numeric values as their original JSON number text plus a canonical equality key; the JSONB `value` column is a placeholder for those rows. Existing JSONB number rows remain readable and compare by numerical value when rewritten. Reads must use the application store rather than interpreting the placeholder as the field value. The canonical key uses decimal arithmetic on the exponent text and does not round values or impose PostgreSQL numeric's exponent limits. No data backfill is required. Deploy the updated API and migration together: the old API cannot read the new representation. Downgrade refuses to remove it while any tenant has a newly represented number; back up and use a reviewed forward fix. Empty or legacy-only rows can be downgraded.
+
+Migration `20261127036000_ExactNumberWhitespace` replaces the private numeric writer so application-role database calls normalize the four JSON whitespace characters around numbers before choosing a representation. Apply it even to databases that already ran `ExactFieldNumbers`; otherwise a padded number can bypass the exact-number path. Rolling back this migration reintroduces that defect, so use a forward fix instead.
+
+Downgrade is deliberately fail-closed: the field value migration refuses to remove the marker if any tenant has values that depend on escaped-string representation; the definitions migration refuses removal if field data or the new audit records exist. Do not bypass these guards or discard data to force rollback. Back up, assess effects across tenants and audit retention, and prefer a reviewed forward fix. The migration tests exercise empty rollback and guarded data cases, not a production recovery drill.
+
+## Compatibility gate
+
+The separate branch-wide compatibility gate remains `CONTRACT_POLICY_REVIEW_REQUIRED` at the actual base; the numeric storage change does not approve or bypass it. Do not interpret focused local tests as a branch-wide compatibility verdict.

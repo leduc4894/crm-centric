@@ -76,7 +76,7 @@ namespace Platform.Infrastructure.Persistence.Migrations
 
                     b.ToTable("entries", "audit", t =>
                         {
-                            t.HasCheckConstraint("entries_action_check", "action IN ('tenant.created','membership.updated','invite.created','invite.revoked','invite.accepted')");
+                            t.HasCheckConstraint("entries_action_check", "action IN ('tenant.created','membership.updated','invite.created','invite.revoked','invite.accepted','contact.created','contact.updated','contact.deleted','tag.created','custom_field.created')");
 
                             t.HasCheckConstraint("entries_actor_issuer_check", "char_length(actor_issuer) BETWEEN 1 AND 2048");
 

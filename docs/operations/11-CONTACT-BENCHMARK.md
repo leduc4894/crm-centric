@@ -1,0 +1,33 @@
+# Contact list benchmark (work in progress)
+
+Plan: [Wave 2 Plan 9](../superpowers/plans/2026-11-27-wave-2-plan-9-exit.md). This document describes the current harness and outstanding setup; it is **not** evidence of a completed benchmark. Use an isolated, disposable environment and a clean checkout of the exact candidate. Do not run the seed against an existing application database.
+
+## Dataset
+
+Apply the application's migrations to a newly created, disposable PostgreSQL database named `crm_bench_<lowercase-id>`. Create two distinct synthetic tenants. Run `scripts/benchmarks/seed_contacts.sql` with psql variables `tenant_a`, `tenant_b`, and `bench_confirm=ISOLATED_BENCHMARK_ONLY`. The script checks the database name, tenant existence and distinctness, uses a transaction and fails if the expected dataset cannot be verified. It creates 50,000 active tenant-A contacts, 10 tags and one tag per contact, with deterministic IDs derived from `crm-bench-v1`; names cover 100 equal segments and `segment-07` has 500 contacts. Synthetic emails are unique, and update timestamps span 1,000 seconds. Tenant B contains one marker. It runs ANALYZE; rerunning it must leave the same dataset. The integration test covers reruns and guards using disposable PostgreSQL.
+
+The seed uses a privileged provisioning connection. The measured API must use the real restricted application role and tenant policies; never measure via SQL or an RLS-bypassing API role. Verify dataset counts and marker using an appropriate tenant-scoped connection, and verify that tenant-A users cannot read tenant B. Destroy only resources whose disposable identity and ownership are confirmed.
+
+## Workload and evidence
+
+Provision a real IdP and API from the candidate, and 50 distinct active authenticated identities bound to tenant A. Their tokens must be accepted by the API's normal issuer/signature and tenant checks. The private input JSON for `scripts/benchmarks/contact_list.py` contains `api_origin`, `tenant_id`, `other_tenant_id`, `other_marker_id`, `allowed_ids` (all expected synthetic tenant-A contact UUIDs), `search_term`, `issuer`, `candidate_sha`, and `users` (50 objects with `subject` and `token`). Construct this file through a secure local process, keep it outside tracked files, restrict permissions, and remove it securely after use. Do not print credentials, raw responses, connection strings, or identity data in logs or artifacts. The CLI expects an unused report path; it never overwrites an existing report.
+
+Run both scenarios separately using `python3 scripts/benchmarks/contact_list.py --input <private-file> --output <new-report-file> --scenario default` and `--scenario search`. The search should use `segment-07`; validate its cardinality before measuring. Requests use separate bearer credentials, 50 closed-loop workers, one request at a time per worker, 60 seconds warmup and 300 seconds measurement, and a 10-second timeout. Each Python worker prepares and reuses its own HTTP opener before timing requests; proxy and redirect handling are disabled. The HTTP transport issues a new connection per request. Capture this topology when comparing results. Returned pages must contain expected tenant-A IDs and valid shapes; search results must match the requested term. Preflight requires successful access for every identity and rejects successful unauthorized or cross-tenant access. Reports contain aggregates, not payloads.
+
+Record **before** running: UTC time and exact candidate SHA; API build and runtime; IdP version; PostgreSQL version, configuration and storage; CPU model and allocation; RAM; OS and container resource limits; network topology and RTT; client host; relevant lockfiles; dataset cardinality; and cache/warmup state. Record API and database CPU/memory utilization and applicable query plans. Associate each scenario's report with this sanitized environment manifest. Keep failed or invalid reports. A valid pass requires all 50 workers, full measurement, no request errors or invalid bodies, and nearest-rank p95 strictly under 400 ms; failed and incomplete measurements are not passes.
+
+## Remaining work
+
+Automated provisioning of the disposable real API/IdP and 50 identities, safe generation of the private input, an environment manifest, repeatability review, and hosted coverage for benchmark tests remain to be completed. No measurement has been run on a qualifying environment. Do not treat a unit or seed integration test as benchmark evidence.
+
+## Recorded run — 2026-11-28
+
+Candidate `f5a34ed75fedf83a4651742e13e6aed5d0f8fb14` was measured on a
+five-vCPU Linux host using the real isolated stack; see the
+[sanitized reports, environment, resource summary and query plans](../evidence/wave2-plan9-benchmark/)
+and [exit verification](../engineering/16-WAVE-2-EXIT-VERIFICATION.md).
+The default scenario passed with p95 105.3 ms and no errors; the separate
+search scenario was 1979.5 ms and is recorded as a diagnostic failure. Earlier
+failed measurements caused by per-request client opener setup remain preserved.
+The private input and provisioner are environment-local, not a complete
+published provisioning workflow; recreate and verify them for a new candidate.

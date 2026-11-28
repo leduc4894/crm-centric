@@ -12,5 +12,6 @@ export const operationsClientEntry = fileURLToPath(
 );
 
 export const workspaceAliases = [
+  { find: /^@crm-centric\/crm-client$/, replacement: fileURLToPath(new URL('../../../sdks/typescript/crm/index.ts', import.meta.url)) },
   { find: /^@crm-centric\/operations-client$/, replacement: operationsClientEntry }
 ];

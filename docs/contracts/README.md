@@ -43,3 +43,21 @@ là aggregate gate fail-closed. Chi tiết bằng chứng: `../engineering/07-WA
 
 ## End-to-end example
 Remote DemoModule sends `demo.activity.created.v1`, mapped to contact by explicit link, engine matches rule, add tag and invokes `demo.echo.v1`. Retry safe. No CRM Core modifications.
+
+## Contact mutation event intent v1
+
+`contact-event-intent.schema.json` defines the durable, internal CRM outbox intent
+for contact create, update and soft-delete; examples are in `fixtures/contact-*.v1.json`.
+The three types are `crm.contact.created.v1`, `crm.contact.updated.v1` and
+`crm.contact.deleted.v1`. `eventId` is generated once per successful mutation and
+remains stable across later delivery attempts. `tenantId` and `contactId` identify
+the affected resource, `occurredAt` is the mutation time, and `payload.version` is
+the resulting contact version. Names, email and phone are deliberately absent.
+
+This is a persisted intent, not a claim that a dispatcher or consumer exists. It
+is not itself a transport CloudEvent: any eventual delivery envelope must follow
+`cloud-event.schema.json` and the webhook protocol, and must derive authorization
+from verified bindings rather than these fields. The v1 schema is closed to unknown
+fields; adding fields or changing meaning requires a new version and consumer
+compatibility/migration review. Consumers must dispatch on the full event type and
+reject unknown versions rather than interpreting them as v1.

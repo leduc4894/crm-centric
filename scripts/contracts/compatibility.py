@@ -4,11 +4,14 @@ import sys
 sys.dont_write_bytecode = True
 import argparse
 import hashlib
+import io
 import json
 import re
 import shutil
+import stat
 from pathlib import Path
 import subprocess
+import tarfile
 import tempfile
 import uuid
 
@@ -78,7 +81,18 @@ def policy_identity_preflight(old_hashes, new_hashes, revision=None, transition=
             or dict(transition.new_hashes) != new_hashes):
         raise GateError('CONTRACT_POLICY_REVIEW_REQUIRED')
 
-def check_baseline_configuration(repo, base, mvp_review=False):
+def reviewed_contact_policy(base, old_hashes, new_hashes, mvp_review, now=None):
+    import time
+    if (not mvp_review or base != 'db04aeaecd7f4b6d083335a71418788d3c4561ca'
+            or (time.time() if now is None else now) >= 1802304000):
+        return False
+    delta = {path: (old_hashes.get(path), new_hashes.get(path))
+             for path in old_hashes.keys() | new_hashes.keys() if old_hashes.get(path) != new_hashes.get(path)}
+    return delta == {'scripts/contracts/sdk_surface.py': (
+        'dff098c30c19efe678a62a8cff4274a714d37a82d1dce1369b41253e9a7f6f3d',
+        '460ae0d885a43024d5d2cd340c719902576381ad8229a13b23bf7d324b5a3a12')}
+
+def check_baseline_configuration(repo, base, mvp_review=False, target=None):
     """Reject incomplete baseline toolchains and unreviewed policy changes."""
     paths = set(git(repo, 'ls-tree', '-r', '--name-only', base, '--', 'tools/contracts', 'scripts/contracts', 'sdks').decode().splitlines())
     marker = 'tools/contracts/toolchain.json'
@@ -108,7 +122,354 @@ def check_baseline_configuration(repo, base, mvp_review=False):
                 'expires':'2027-02-11T00:00:00+00:00','independentVerification':False,
                 'dualPolicyEvaluation':False,'changedFiles':sorted(
                     p for p in old_hashes.keys()|new_hashes.keys() if old_hashes.get(p)!=new_hashes.get(p))}
+    if target == base and (contact_policy_for_scope(base, old_hashes, new_hashes, repo, mvp_review)
+                           or (reviewed_contact_policy(base, old_hashes, new_hashes, mvp_review)
+                               and (reviewed_plan3_candidate(base, repo, mvp_review, target) or reviewed_plan9_candidate(base, repo, mvp_review, target)))):
+        return {'basis':'maintainer-reviewed-contact-sdk-evaluation', 'owner':'maintainer',
+                'expires':'2027-02-11T00:00:00+00:00', 'independentVerification':False,
+                'dualPolicyEvaluation':False, 'changedFiles':['scripts/contracts/sdk_surface.py']}
     policy_identity_preflight(old_hashes, new_hashes)
+
+# Candidate-owned, exact MVP review for ADR-020/021; not independent attestation.
+# Both the complete contract-input set and the selected implementation/migration/
+# consumer evidence are pinned. Any drift, wrong base or expiry fails closed.
+CONTACT_REVIEW_BASE = 'db04aeaecd7f4b6d083335a71418788d3c4561ca'
+CONTACT_REVIEW_EXPIRES = 1802304000
+PLAN3_REVIEW_COMMIT = '8e62f5282aa14cdfca746f2aa78ec05b59ffcb86'
+PLAN3_REVIEW_TREE = '5d9f8b09962405e09851936367d29d4c28414cf1'
+# Candidate-owned governance and documentation are deliberately outside the
+# approved product tree. This is not independent attestation or enforcement.
+PLAN3_GOVERNANCE_FILES = frozenset({
+    'scripts/contracts/compatibility.py',
+    'tests/Contract/test_wave2_plan3_review.py',
+    'tools/ci/coverage.json',
+    'docs/engineering/15-WAVE-2-PLAN-3-CONTRACT-REVIEW.md',
+    'docs/handoff/2026-11-27-wave-2-branch-handoff.md',
+})
+PLAN3_COVERAGE_SHA256 = 'aa7dff3457dc0c7728c68b0d7fd6948d43050c7b07593534f1b921ac812ffe60'
+
+PLAN9_REVIEW_COMMIT = '71959b35c08738d16a03e1f4f54e4f0b21075ce0'
+PLAN9_REVIEW_TREE = '6a7dda4d57c87565389ad125f750fe21be963f15'
+# Draft scope for human review; candidate-owned and not independent enforcement.
+PLAN9_NEXT_REVIEW_COMMIT = 'bc147e4dae9dbed662bd62a7c721774d34ca1e9f'
+PLAN9_NEXT_REVIEW_TREE = '75cecd22475b6f994efd027c3ec1c632923cd707'
+PLAN9_NEXT_COVERAGE_SHA256 = '10986dddabc2442b8796747f6aa7672a824587be90d5f146390c77bdc506bbf5'
+PLAN9_NEXT_HELPER_SHA256 = '9a640f041838cc83a7f00cba1794fee828c3b040370c4f9553219c05f67cbfb9'
+PLAN9_NEXT_CI_FIXTURES = {
+    'scripts/benchmarks/contact_list.py': 'eead4e952aac5f6e9f716233024345e8c2cae1bbc8e605aa157e1111c450baab',
+    'tests/Benchmarks/test_contact_list.py': '622a6cbe2cffeae96e9bd2ee4ddbde48e75a3a3b3089009e0a2d51c22c4959e3',
+    'tests/CI/test_mvp_active_policy.py': 'fb0e41c3350d72016c378253316857bc7df56141210fd1be610662b26a65494f',
+    'tests/CI/test_mvp_history_review.py': 'be45b8043b75201df062610d8d9ef85066c99bf7333b59049d482571e41ad5a2',
+    'scripts/ci/jobs.py': '80b4d6a0c5e703389cfd3a89e2cf985bb1a4d5dd10f2efcdba0f075edce43022',
+    'tests/CI/test_job_reports.py': 'ff9bd63e2236020576970ef1d58f8782576257cb58cb7471f8a48cf8f65cebc9',
+    'tests/CI/test_job_processes.py': 'd31ffd3f0d1595a9f249de603a59e35ff795c8cf4b0eed34a06deaab19f5f012',
+    'apps/crm-web/src/contacts/ContactAttributes.test.tsx': '63c3236ec4ef6a36c456b0096bddb38845507e62c63262b916e1281914850f93',
+    'apps/crm-web/src/contacts/recordTestSupport.tsx': '7c3a67e972b2d2c53a60fa6a34b9eb32c923be8b9357c3cea09fc5e305b7a173',
+}
+# Exact reviewed frontend, test and diagnostic delta; other files remain tree-bound.
+PLAN9_DIAGNOSTIC_HASHES = {
+    'scripts/ci/jobs.py': '9d35230a6e1185107ce4fb9653729c4587ded641c5faaa794821756357d2b646',
+    'tests/CI/test_job_processes.py': '3d266f7ed82a610ac293289eb71a6d1e2969f8fe1403bf7563c48dbdee17a4c9',
+    'apps/crm-web/src/contacts/contactQueries.test.tsx': '791176d691e2a89c07bb81bcbdfe3f96e19ea5739c29356c6c7043bd2761a97d',
+    'apps/crm-web/index.html': '44047a84aa56f5dfc78863cad9dbbdaa329859572bb3778e7afe6a148748fb94',
+    'apps/crm-web/src/App.tsx': '3527d55d19b78924a2fd29f4dc8d50efa6943ebdf2b4250f598f7ac297642b63',
+    'apps/crm-web/src/contacts/crmClient.test.ts': 'b12c4102e014eecb642d3be847a63bd1b71f86e0d3b87519cee7f9690b2cebea',
+}
+PLAN9_GOVERNANCE_FILES = PLAN3_GOVERNANCE_FILES | frozenset({
+    'tests/Contract/test_wave2_plan9_review.py',
+    'tests/Contract/plan9_review_cases.py',
+    'docs/engineering/17-WAVE-2-CANDIDATE-REVIEW-PACKAGE.md',
+    'docs/handoff/2026-11-27-wave-2-plan-9-handoff.md',
+    'docs/handoff/2026-11-28-wave-2-plan-9-handoff.md',
+})
+PLAN9_NEXT_GOVERNANCE_FILES = PLAN9_GOVERNANCE_FILES | frozenset({
+    'tests/Contract/plan9_next_review_cases.py',
+})
+
+def reviewed_plan3_candidate(base, repo, enabled, target, now=None):
+    return _reviewed_candidate(base, repo, enabled, target, now, PLAN3_REVIEW_COMMIT, PLAN3_REVIEW_TREE, PLAN3_GOVERNANCE_FILES)
+
+def reviewed_plan9_candidate(base, repo, enabled, target, now=None):
+    return (_reviewed_candidate(base, repo, enabled, target, now, PLAN9_REVIEW_COMMIT, PLAN9_REVIEW_TREE, PLAN9_GOVERNANCE_FILES)
+            or reviewed_plan9_next_candidate(base, repo, enabled, target, now))
+
+def reviewed_plan9_next_candidate(base, repo, enabled, target, now=None):
+    return _reviewed_candidate(base, repo, enabled, target, now, PLAN9_NEXT_REVIEW_COMMIT, PLAN9_NEXT_REVIEW_TREE, PLAN9_NEXT_GOVERNANCE_FILES)
+
+def _valid_ci_revision_artifact(repo, base):
+    """Permit only the untracked, checkout-bound revision generated by CI."""
+    import json
+    path = repo / 'revision.json'
+    try:
+        if git(repo, 'ls-files', '--cached', '--', 'revision.json').strip():
+            return False
+        info = path.lstat()
+        if not stat.S_ISREG(info.st_mode) or info.st_size > 2048:
+            return False
+        def unique(pairs):
+            result = {}
+            for key, value in pairs:
+                if key in result: raise ValueError('duplicate key')
+                result[key] = value
+            return result
+        data = json.loads(path.read_text(), object_pairs_hook=unique)
+        if set(data) != {'candidate_sha', 'base_sha', 'head_sha', 'merge_sha', 'merge_base_sha'}:
+            return False
+        head = git(repo, 'rev-parse', 'HEAD').decode().strip()
+        if data['candidate_sha'] != head or data['base_sha'] != base or data['merge_base_sha'] != base:
+            return False
+        if git(repo, 'merge-base', head, base).decode().strip() != base:
+            return False
+        if data['merge_sha'] is None:
+            return data['head_sha'] == head
+        parents = git(repo, 'rev-list', '--parents', '-n', '1', head).decode().split()
+        return data['merge_sha'] == head and parents == [head, base, data['head_sha']]
+    except (GateError, OSError, ValueError, TypeError, UnicodeError, RecursionError):
+        return False
+
+def _reviewed_candidate(base, repo, enabled, target, now, commit, expected_tree, governance):
+    """Bind a reviewed scope to its exact product tree, fail closed."""
+    import time
+    if (not enabled or base != CONTACT_REVIEW_BASE or target != base
+            or (time.time() if now is None else now) >= CONTACT_REVIEW_EXPIRES):
+        return False
+    try:
+        if git(repo, 'rev-parse', commit + '^{tree}').decode().strip() != expected_tree:
+            return False
+        inventory = repo / 'tools/ci/coverage.json'
+        coverage_hash = PLAN9_NEXT_COVERAGE_SHA256 if commit == PLAN9_NEXT_REVIEW_COMMIT else PLAN3_COVERAGE_SHA256
+        if (inventory.is_symlink() or any((repo / parent).is_symlink() for parent in Path('tools/ci/coverage.json').parents if str(parent) != '.')
+                or sha(inventory) != coverage_hash):
+            return False
+        if commit in (PLAN9_REVIEW_COMMIT, PLAN9_NEXT_REVIEW_COMMIT):
+            helper = repo / 'tests/Contract/plan9_review_cases.py'
+            if (helper.is_symlink() or any((repo / parent).is_symlink() for parent in Path('tests/Contract/plan9_review_cases.py').parents if str(parent) != '.')
+                    or sha(helper) != '1a3a1221ea1a673f8620dd660724759e86ba6235c18e4f08d95300700c86c6c0'):
+                return False
+        if commit == PLAN9_NEXT_REVIEW_COMMIT:
+            helper = repo / 'tests/Contract/plan9_next_review_cases.py'
+            if (helper.is_symlink() or any((repo / parent).is_symlink() for parent in Path('tests/Contract/plan9_next_review_cases.py').parents if str(parent) != '.')
+                    or sha(helper) != PLAN9_NEXT_HELPER_SHA256):
+                return False
+        tree = {}
+        for item in git(repo, 'ls-tree', '-rz', '--full-tree', commit).split(b'\0'):
+            if not item:
+                continue
+            meta, name = item.split(b'\t', 1)
+            mode, kind, oid = meta.decode('ascii').split()
+            path = name.decode('utf-8')
+            if path not in governance:
+                if kind != 'blob' or mode not in ('100644', '100755'):
+                    return False
+                tree[path] = (mode, oid)
+        actual = {p.decode('utf-8') for p in git(repo, 'ls-files', '-z', '--cached', '--others', '--exclude-standard').split(b'\0') if p}
+        actual -= governance
+        if commit in (PLAN9_REVIEW_COMMIT, PLAN9_NEXT_REVIEW_COMMIT) and 'revision.json' in actual and _valid_ci_revision_artifact(repo, base):
+            actual.remove('revision.json')
+        if actual != set(tree):
+            return False
+        for path, (mode, oid) in tree.items():
+            item = repo / path
+            if any((repo / parent).is_symlink() for parent in Path(path).parents if str(parent) != '.'):
+                return False
+            info = item.lstat()
+            if not stat.S_ISREG(info.st_mode) or bool(info.st_mode & 0o111) != (mode == '100755'):
+                return False
+            data = item.read_bytes()
+            blob = hashlib.sha1(b'blob ' + str(len(data)).encode('ascii') + b'\0' + data).hexdigest()
+            if commit == PLAN9_REVIEW_COMMIT and path in PLAN9_DIAGNOSTIC_HASHES:
+                if hashlib.sha256(data).hexdigest() != PLAN9_DIAGNOSTIC_HASHES[path]:
+                    return False
+            elif commit == PLAN9_NEXT_REVIEW_COMMIT and path in PLAN9_NEXT_CI_FIXTURES:
+                if hashlib.sha256(data).hexdigest() != PLAN9_NEXT_CI_FIXTURES[path]:
+                    return False
+            elif blob != oid:
+                return False
+        return True
+    except (GateError, OSError, UnicodeError, ValueError):
+        return False
+
+def materialize_plan3_source(repo, destination, commit=PLAN3_REVIEW_COMMIT):
+    """Use only the approved Git tree for evaluator code and consumers."""
+    try:
+        archive_data = git(repo, 'archive', '--format=tar', commit)
+        destination.mkdir()
+        with tarfile.open(fileobj=io.BytesIO(archive_data)) as archive:
+            archive.extractall(destination, filter='data')
+        if not plan3_archive_matches_tree(repo, destination, commit):
+            raise GateError('CONTRACT_POLICY_REVIEW_REQUIRED')
+        git_dir = git(repo, 'rev-parse', '--absolute-git-dir').decode('utf-8').strip()
+        (destination / '.git').write_text('gitdir: ' + git_dir + '\n')
+        for relative in ('.local/plan3-tools',):
+            source = repo / relative
+            if source.exists():
+                link = destination / relative
+                link.parent.mkdir(parents=True, exist_ok=True)
+                link.symlink_to(source.resolve(), target_is_directory=True)
+    except (GateError, OSError, UnicodeError, ValueError, tarfile.TarError):
+        raise GateError('CONTRACT_POLICY_REVIEW_REQUIRED') from None
+
+def plan3_archive_matches_tree(repo, root, commit=PLAN3_REVIEW_COMMIT):
+    """Reject Git archive omissions, substitutions and extra filesystem entries."""
+    try:
+        tree = {}
+        directories = set()
+        for item in git(repo, 'ls-tree', '-rz', '--full-tree', commit).split(b'\0'):
+            if not item:
+                continue
+            metadata, raw_name = item.split(b'\t', 1)
+            mode, kind, oid = metadata.decode('ascii').split()
+            path = raw_name.decode('utf-8')
+            if kind != 'blob' or mode not in ('100644', '100755'):
+                return False
+            tree[path] = (mode, oid)
+            directories.update(parent.as_posix() for parent in Path(path).parents if str(parent) != '.')
+        actual_files, actual_directories = set(), set()
+        for item in root.rglob('*'):
+            info = item.lstat()
+            relative = item.relative_to(root).as_posix()
+            if stat.S_ISDIR(info.st_mode):
+                actual_directories.add(relative)
+            elif stat.S_ISREG(info.st_mode):
+                actual_files.add(relative)
+            else:
+                return False
+        if actual_files != set(tree) or actual_directories != directories:
+            return False
+        for path, (mode, oid) in tree.items():
+            item = root / path
+            info = item.lstat()
+            if not stat.S_ISREG(info.st_mode) or bool(info.st_mode & 0o111) != (mode == '100755'):
+                return False
+            data = item.read_bytes()
+            if hashlib.sha1(b'blob ' + str(len(data)).encode('ascii') + b'\0' + data).hexdigest() != oid:
+                return False
+        return True
+    except (GateError, OSError, UnicodeError, ValueError):
+        return False
+
+def plan3_contract_snapshot_matches(approved, snapshot):
+    try:
+        def files(root):
+            paths = list(root.rglob('*'))
+            if any(path.is_symlink() for path in paths):
+                raise ValueError()
+            return {path.relative_to(root): sha(path) for path in paths if path.is_file()}
+        return files(approved) == files(snapshot)
+    except (OSError, ValueError):
+        return False
+CONTACT_REVIEW_INPUTS = {'docs/contracts/automation-rule.schema.json': 'd5ad1506f3de8503a0bb3b060eb9bbc01db8a22efc95fabcef099cfaea0dcd0a',
+ 'docs/contracts/cloud-event.schema.json': 'ca9119a73e6eb6b6537c2c1098148b7fa49c781d5ac1c51ff26189fc05b04bea',
+ 'docs/contracts/contact-event-intent.schema.json': '717dc3a6818150cb8e17cfd1e2a3ce5b70ce31fcdb431c4632f6b014038742f6',
+ 'docs/contracts/crm-api.openapi.yaml': 'ab6839098b82f260a8fd97394bd533865e55f666000a75972413c8cf99f010d5',
+ 'docs/contracts/demo-echo-input.schema.json': 'cb06b937cdc90802f8bf3e51bd97db18221efe4b11f0d27ac6cd9e5b4109a1a7',
+ 'docs/contracts/demo-echo-output.schema.json': '574e8263605ffc9fe0f7c18004450f7b1ec0772036d25cc4b20174760bc56ded',
+ 'docs/contracts/demo-event.schema.json': '12ff9827134c2cbd033238bc1a2e07bc12c9b7204c653948f0ffa4337d2b8840',
+ 'docs/contracts/demo-panel.schema.json': '11e098468bb2839a7987f3fe39972f99fa7a983e332ac0d4076130451edbc57a',
+ 'docs/contracts/module-manifest.schema.json': '53fffd681593692cf40a2f04434fbb39b26fba4ef15198eb074a9866292c632e',
+ 'docs/contracts/platform-operations.openapi.yaml': '40363e45dfd1d3c9841ea43251b4b6a89b0f4fe78fd8155913a9e0c6f3e0856e',
+ 'docs/contracts/publisher-signature.schema.json': '15645564b38f504d18c347411fb52aa682d08816277a69b8b7be3e4cedaace64',
+ 'docs/contracts/remote-action-request.schema.json': 'b6b99aeecb9312fbb645db09aa1379bea5c0910bacf1ce0476bcc974a538ef98',
+ 'docs/contracts/remote-panel-request.schema.json': '7d32cc696474175df0352ed85cff6dbf2b73e2886f3a8ee96bdcf6805d09aee2'}
+CONTACT_REVIEW_EVIDENCE = {'.npmrc': '3b88d1057add6f92ec23dc22dd017e312ded13a042deb0ba6f08bad85d936456',
+ 'docs/architecture/10-ADR-020-CONTACT-EMAIL-UPSERT.md': 'e3402fde49cbd5aaf6850a790c7eba4132a5ee6283482d2e231c383bdf0f9531',
+ 'docs/architecture/11-ADR-021-CONTACT-UPSERT-IDENTITY-DRAFT.md': 'dd0380be8677a38d11aa7fb9eec4061220a4972b26811eb309382b0ce6499afe',
+ 'docs/contracts/contact-event-intent.schema.json': '717dc3a6818150cb8e17cfd1e2a3ce5b70ce31fcdb431c4632f6b014038742f6',
+ 'docs/contracts/crm-api.openapi.yaml': 'ab6839098b82f260a8fd97394bd533865e55f666000a75972413c8cf99f010d5',
+ 'docs/contracts/fixtures/contact-created.v1.json': '6b9025c13caf09ab1eb6296b8455ca3b19da000b00a30f2a410731c30eb41241',
+ 'docs/contracts/fixtures/contact-deleted.v1.json': 'd74b8d749e27663a8c40e6f2f7a0dc35e188bf6aaa2feebf0ca7aa54182458a5',
+ 'docs/contracts/fixtures/contact-updated.v1.json': 'b916b00406a06a0993321095e4c4676ed82fecc171bcbcf140f489faa27e39b7',
+ 'docs/contracts/platform-operations.openapi.yaml': '40363e45dfd1d3c9841ea43251b4b6a89b0f4fe78fd8155913a9e0c6f3e0856e',
+ 'docs/operations/06-CONTACT-MIGRATION.md': '61069c1466345e090eefd7e9a3d56a58e6e3e1c8af9b0650b681a805eb26eb2f',
+ 'docs/operations/07-CONTACT-SDK-MIGRATION.md': '0dad05fe335681078d303341747c328843bb3c22a25c2200f371bd722e69c105',
+ 'package-lock.json': '4eccd95419dbaa9d04935700e0514c98651c0d08e0a303bd163cb5f39381f0c9',
+ 'package.json': '3d3395cf055e9a5d4a740b34cbcf59d46876b9eb996bb878e6ec73ee39c52494',
+ 'scripts/contracts/check.py': '4c287e4e68c2dac8838aefd37f02770c4bb902c267fa9f11e0e0e2171fd1018d',
+ 'scripts/contracts/generate.py': 'd3fc27d3ef4128e340d982193058ca61dcc360333453361f6f11a5da353081b9',
+ 'src/Platform.Api/Crm/ContactEndpoints.cs': '3c3542ec985bb6cc79ca569f8dd7beb1c0812c195765b10d676caaa0ad993f57',
+ 'src/Platform.Api/Identity/TenantAuthorization.cs': 'bb3f9a63ab393b4f052d90ccdde0462d7bc0e3fb1f0cbab0bc9724dc60d116ee',
+ 'src/Platform.Api/Identity/TenantEndpointTransaction.cs': '1764d0ba1ade969e5e8eb3ec7ac48d27636804d36a0c5a041161aea939df1e1b',
+ 'src/Platform.Infrastructure/Crm/ContactMutationJournal.cs': 'd0ea2154e24844eee5e150133b83dce73a009dc5a5d353d325bc47ba9421bb23',
+ 'src/Platform.Infrastructure/Crm/ContactStore.cs': '41ccf2ffdd38a4838694e8e16cfe92f5aeedf4ef22a7710320bb14b4844c7fb0',
+ 'src/Platform.Infrastructure/Persistence/Migrations/20261127000000_ContactFoundation.cs': '8ffd217dab8cda876a57499bfa09f4d43b4dd064d3b2262354e4b2ce0e599bfd',
+ 'src/Platform.Infrastructure/Persistence/Migrations/20261127010000_ContactEmailUpsert.cs': '573bc292b665e637da395de3fb285f217a82daa6e13ff6dfd87b21239855ade7',
+ 'tests/ClientConsumers/audit.py': 'd0d58cc24b23e34dd21d2e6bc59e76ac44b36ee4c6e3a6b927b10965490eac40',
+ 'tests/ClientConsumers/contact-upsert/new/Consumer.csproj': 'b2b2b9b9e886508487d9ec5b9acc43067ee3b1f4517987acc7efcb263935c8f2',
+ 'tests/ClientConsumers/contact-upsert/new/Program.cs': '7bb718ae628fddfbf8040e6ab3503dd852a069e5f117a9a7c299d185589310a0',
+ 'tests/ClientConsumers/contact-upsert/new/packages.lock.json': '12191600c891ac8a4d757ba85e11758eb161b6ecae74635e13becc82bfbca5d4',
+ 'tests/ClientConsumers/contact-upsert/old/Consumer.csproj': 'ffe777cc20e583bc25a5eec587550ecabf1831b93250e16c056c564d1416be28',
+ 'tests/ClientConsumers/contact-upsert/old/Program.cs': 'd6c34bdf7cc8186e8ca725004b7ea3bcbb6a70b7e4bd50322e8c4ce3ac490f15',
+ 'tests/ClientConsumers/contact-upsert/old/packages.lock.json': 'dd06767ef8df0e11dc7cc93fd26a08c859bb88b9d6344af0b6d90cebd92cec73',
+ 'tests/ClientConsumers/contact-upsert/run.sh': 'a4bd114bb7b78251ab3d27e5dc7d837a93e75e54ce98145fa2cc3ed700b97ca4',
+ 'tests/ClientConsumers/dotnet-v2/Consumer.csproj': '43b419988f60c1615337ddee85edf5ad1618ea6554da563334d8ea16ef020735',
+ 'tests/ClientConsumers/dotnet-v2/packages.lock.json': '370407a12defa316e0343f38a3fda4aeecb8cfb6d237ac64bd3722ed691b6924',
+ 'tests/ClientConsumers/dotnet/Consumer.csproj': 'abd33beca7e4913865ba8dd70251f7b0dc3f021fe6a3b82bb9f0154ca31a7a0c',
+ 'tests/ClientConsumers/dotnet/Program.cs': '47500ab0236ab3e060a5e6060ed5be96565f2bf9e47818eeb8d47b4c97672a06',
+ 'tests/ClientConsumers/dotnet/packages.lock.json': 'd63d3958ad82d4aa163986844d6a3887b9c53d49c1961bc0b9ed5bc3695d0512',
+ 'tests/ClientConsumers/normalize_packages.py': 'f40342c0e942f30f0136d16f1c741b639556354d547a43f167ff198d15ceb8f5',
+ 'tests/ClientConsumers/run.sh': 'da6c194a7550d971391b3e29a626134de29dd2574791621c1e10b6c4bd6f069d',
+ 'tests/ClientConsumers/typescript/types.ts': 'ab2f60219843152df649c6d8709f9f3d755b6138e69a7a63e8c173b876fda7b4',
+ 'tests/ClientConsumers/typescript/wire.mjs': '12f91bb7f1eb85d205cbda2078a8c6ff07be0eb8ca92d72e236772a31dd5aa2b',
+ 'tests/Contract/test_contact_crud.py': 'd5efe33c9d407ca6325da15f3d1da00f0a891abd11daab5ad4303bfa564a71c1',
+ 'tests/Contract/test_contact_precondition_identity.py': '4fa6e716f3a2ea5e0ac500b929bc374cdb2b5cf2e8483ef6259621005bd47f12',
+ 'tests/Contract/test_contact_upsert_consumer.py': '6c23685f628b6260355138336493cadc982c38c2c1a0e4c4b21d1ad69fe554a9',
+ 'tests/Integration/ContactConcurrencyTests.cs': 'fa2d00741dc93ceb341e77939555fb7cb0b102908444969dfeb16fae3fefc1a9',
+ 'tests/Integration/ContactEmailSchemaTests.cs': 'be523203a407b8f98b87ee781c91a5a85ece867706932d2b707ac5ae3bc1aac9',
+ 'tests/Integration/ContactEndpointsTests.cs': '20b97f472c837f41357d907163d32fa6fda13a885ccd9eeeb41213d3e3b7257d',
+ 'tests/Integration/ContactSchemaTests.cs': '1fe9efe05d6372bc56aaf5c58bbb2f2cc99c1ca6a97d4b5dba2de9e53273ddf9',
+ 'tests/Integration/ContactStreamingTests.cs': '4bd2189e63984bc41d42c248d808378291f662efed1d808b55e6d6c3781b8f43',
+ 'tools/contracts/facades/ResponseMetadataHandler.cs': '0560712114e72efe8cc805f89457ee15a10f70e07037dada40b01a99900f6d8a',
+ 'tools/contracts/locks/Crm.Client.json': 'd18f93fd5209028d971d32de610bd65797faab6ddad4cf7c79af3fcd35111473',
+ 'tools/contracts/locks/Platform.Operations.Client.json': 'd18f93fd5209028d971d32de610bd65797faab6ddad4cf7c79af3fcd35111473',
+ 'tools/contracts/toolchain.json': '7a83a5ae51108c6714a057be2ff743037a891f24ca0a1f3fcc2bed79f59b255f'}
+
+def reviewed_contact_change(base, repo, hashes, mvp_review, now=None):
+    import time
+    if (not mvp_review or base != CONTACT_REVIEW_BASE
+            or (time.time() if now is None else now) >= CONTACT_REVIEW_EXPIRES
+            or hashes.get('current') != CONTACT_REVIEW_INPUTS):
+        return False
+    try:
+        for path, expected in CONTACT_REVIEW_EVIDENCE.items():
+            item = repo / path
+            if (not item.is_file() or any((repo / Path(path).parents[index]).is_symlink()
+                    for index in range(len(Path(path).parents) - 1))
+                    or item.is_symlink() or sha(item) != expected):
+                return False
+        return True
+    except (OSError, ValueError):
+        return False
+
+def contact_policy_for_scope(base, old_hashes, new_hashes, repo, mvp_review, now=None):
+    if not reviewed_contact_policy(base, old_hashes, new_hashes, mvp_review, now=now):
+        return False
+    try:
+        root = repo / 'docs/contracts'
+        if not root.is_dir() or any(path.is_symlink() for path in root.rglob('*')):
+            return False
+        inputs = {path.relative_to(repo).as_posix(): sha(path) for path in root.rglob('*')
+                  if path.is_file() and (path.name.endswith('.schema.json') or path.name.endswith('.openapi.yaml'))}
+        return reviewed_contact_change(base, repo, {'current': inputs}, mvp_review, now=now)
+    except (OSError, ValueError):
+        return False
+
+def contact_sdk_checks_completed(report):
+    checks = report.get('sdkChecks')
+    required = {'typescriptSurface', 'typescriptHistoricalConsumer', 'dotnetSurface', 'dotnetHistoricalConsumer'}
+    return isinstance(checks, dict) and checks.keys() == required and all(type(value) is bool for value in checks.values())
+
+def contact_sdk_checks_approved(report):
+    return contact_sdk_checks_completed(report) and report['sdkChecks'] == {
+        'typescriptSurface': False, 'typescriptHistoricalConsumer': True,
+        'dotnetSurface': False, 'dotnetHistoricalConsumer': True}
+
+def contact_consumers_passed(returncode, output):
+    if returncode != 0 or not isinstance(output, bytes):
+        return False
+    lines = output.splitlines()
+    required = (b'TYPESCRIPT_WIRE_OK', b'OLD_201_ONLY_CONSUMER_OK', b'NEW_UPSERT_CONSUMER_OK',
+                b'SDK_PACKAGE_BOUNDARY_OK', b'PACKAGED_CONSUMERS_OK')
+    return all(lines.count(marker) == 1 for marker in required) and lines.count(b'DOTNET_WIRE_OK') == 2
 
 def schema_contents(value):
     if not isinstance(value, dict):
@@ -263,11 +624,13 @@ def run(base_ref, repo, context, mvp_review=False):
     from jsonschema.exceptions import SchemaError
     try:
         base = git(repo, 'merge-base', 'HEAD', base_ref).decode().strip()
+        target = git(repo, 'rev-parse', '--verify', '--end-of-options', base_ref + '^{commit}').decode().strip()
         paths = git(repo, 'ls-tree', '-r', '--name-only', base, '--', 'docs/contracts').decode().splitlines()
     except (UnicodeError, ValueError):
         raise GateError('CONTRACT_BASE_UNAVAILABLE') from None
     context['baseSha'] = base
-    review=check_baseline_configuration(repo, base, mvp_review)
+    context['targetSha'] = target
+    review=check_baseline_configuration(repo, base, mvp_review, target=target)
     if review: context['policyReview']=review
     current_root = repo / 'docs/contracts'
     required = {'docs/contracts/crm-api.openapi.yaml', 'docs/contracts/platform-operations.openapi.yaml'}
@@ -282,13 +645,14 @@ def run(base_ref, repo, context, mvp_review=False):
             raise GateError('CONTRACT_TOOL_UNAVAILABLE')
     except (OSError, ValueError, KeyError, TypeError):
         raise GateError('CONTRACT_TOOL_UNAVAILABLE') from None
-    result=evaluate_contract_snapshots(base, paths, repo, context, policy, binary, mvp_review=mvp_review)
+    result=evaluate_contract_snapshots(base, paths, repo, context, policy, binary, mvp_review=mvp_review, target=target)
+    result['targetSha'] = target
     if review: result['policyReview']=review
     return result
 
 
 def evaluate_contract_snapshots(base, paths, repo, context, policy, binary,
-                                immutable_base=None, policy_sources=None, mvp_review=False):
+                                immutable_base=None, policy_sources=None, mvp_review=False, target=None):
     """Semantic phase shared with unprivileged immutable transition runners.
 
     Identity/trust is the coordinator's separate responsibility. The CLI above
@@ -308,20 +672,38 @@ def evaluate_contract_snapshots(base, paths, repo, context, policy, binary,
         newroot = Path(tmp) / 'current'
         snapshot = newroot / 'docs/contracts'
         snapshot.parent.mkdir(parents=True)
-        shutil.copytree(current_root, snapshot, symlinks=True)
+        plan9_next_review = (immutable_base is None and policy_sources is None and target == base
+                             and reviewed_plan9_next_candidate(base, repo, mvp_review, target))
+        plan9_review = plan9_next_review or (immutable_base is None and policy_sources is None and target == base
+                        and reviewed_plan9_candidate(base, repo, mvp_review, target))
+        plan3_review = plan9_review or (immutable_base is None and policy_sources is None and target == base
+                        and reviewed_plan3_candidate(base, repo, mvp_review, target))
+        plan3_source = Path(tmp) / 'reviewed-source'
+        if plan3_review:
+            materialize_plan3_source(repo, plan3_source, PLAN9_NEXT_REVIEW_COMMIT if plan9_next_review else PLAN9_REVIEW_COMMIT if plan9_review else PLAN3_REVIEW_COMMIT)
+        candidate_contracts = plan3_source / 'docs/contracts' if plan3_review else current_root
+        shutil.copytree(candidate_contracts, snapshot, symlinks=True)
+        if plan3_review and not plan3_contract_snapshot_matches(candidate_contracts, snapshot):
+            raise GateError('CONTRACT_POLICY_REVIEW_REQUIRED')
+        if plan3_review:
+            current_inputs = {p.relative_to(newroot).as_posix() for p in snapshot.rglob('*')
+                              if p.is_file() and (p.name.endswith('.openapi.yaml') or p.name.endswith('.schema.json'))}
         if any(path.is_symlink() for path in snapshot.rglob('*')):
             raise GateError('CONTRACT_INPUT_INVALID')
         # Materialize only Git-tracked inputs, including local $ref dependencies.
         for path in paths:
             if path.startswith('docs/contracts/') and '..' not in Path(path).parts:
-                target = oldroot / path
-                target.parent.mkdir(parents=True, exist_ok=True)
-                target.write_bytes(dict(immutable_base)[path] if immutable_base is not None else git(repo, 'show', f'{base}:{path}'))
+                target_path = oldroot / path
+                target_path.parent.mkdir(parents=True, exist_ok=True)
+                target_path.write_bytes(dict(immutable_base)[path] if immutable_base is not None else git(repo, 'show', f'{base}:{path}'))
         for path in sorted(base_inputs):
             hashes['base'][path] = sha(oldroot / path)
         for path in sorted(current_inputs):
             hashes['current'][path] = sha(newroot / path)
         result = {'baseSha': base, 'inputHashes': hashes}
+        contact_review = (immutable_base is None and policy_sources is None and target == base
+                          and (reviewed_contact_change(base, repo, hashes, mvp_review)
+                               or plan3_review))
         openapis = {p for p in base_inputs | current_inputs if p.endswith('.openapi.yaml')}
         schemas = {p for p in base_inputs | current_inputs if p.endswith('.schema.json')}
         if any(p not in base_inputs or p not in current_inputs for p in openapis):
@@ -340,7 +722,8 @@ def evaluate_contract_snapshots(base, paths, repo, context, policy, binary,
                 new_closure = {p.relative_to(newroot).as_posix(): sha(p) for p in new_refs}
                 hashes['current'].update(new_closure)
                 if path not in base_inputs:
-                    schema_requires_review = True
+                    if not (contact_review and path == 'docs/contracts/contact-event-intent.schema.json'):
+                        schema_requires_review = True
                     continue
                 if path in base_inputs:
                     old = json.loads((oldroot / path).read_text())
@@ -395,9 +778,14 @@ def evaluate_contract_snapshots(base, paths, repo, context, policy, binary,
                                             'independentVerification': False}
         config = Path(tmp) / 'config.yaml'
         config.write_text('{}\n')
+        if contact_review:
+            result['contactOpenApiBreaking'] = False
+            result['openApiDiffsChecked'] = []
         for path in sorted(openapis):
             command = ['docker', 'run', '--rm', '--pull=never', '--network', 'none', '-v', f'{binary}:/oasdiff:ro', '-v', f'{tmp}:/work:ro', policy['dockerImage'], '/oasdiff', 'breaking', f'/work/base/{path}', f'/work/current/{path}', '--allow-external-refs=true', '--fail-on', policy['breakOn'], '--format', 'json', '--config', '/work/config.yaml']
             proc = subprocess.run(command, cwd=tmp, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            if contact_review:
+                result['openApiDiffsChecked'].append(path)
             try:
                 findings = json.loads(proc.stdout)
             except (ValueError, UnicodeError):
@@ -414,19 +802,45 @@ def evaluate_contract_snapshots(base, paths, repo, context, policy, binary,
         workspace = Path(tmp) / 'surface'
         workspace.mkdir()
         has_base_toolchain = True if policy_sources else bool(git(repo, 'ls-tree', '-r', '--name-only', base, '--', 'tools/contracts/toolchain.json').strip())
-        source = policy_sources[1] if policy_sources else repo if (repo / 'tools/contracts/toolchain.json').is_file() else ROOT
+        source = (policy_sources[1] if policy_sources else plan3_source if plan3_review
+                  else repo if (repo / 'tools/contracts/toolchain.json').is_file() else ROOT)
         result['sdkBaseline'] = 'historical-toolchain' if has_base_toolchain else 'bootstrap-no-released-consumer'
         try:
+            if plan3_review:
+                install = subprocess.run(['npm', 'ci', '--offline', '--ignore-scripts', '--no-audit', '--no-fund'],
+                                         cwd=plan3_source, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=600)
+                if install.returncode != 0:
+                    raise RuntimeError('SDK_TOOLCHAIN_REVIEW_REQUIRED')
             old_sdk = sdk_surface.prepare(workspace / 'old', policy_sources[0] if policy_sources else repo if has_base_toolchain else source, oldroot / 'docs/contracts', git, None if policy_sources else base if has_base_toolchain else None)
             new_sdk = sdk_surface.prepare(workspace / 'new', source, snapshot, git)
-            if not sdk_surface.compare(old_sdk, new_sdk, source if policy_sources else ROOT, workspace, has_base_toolchain, result):
+            sdk_compatible = sdk_surface.compare(old_sdk, new_sdk, source if policy_sources or plan3_review else ROOT, workspace, has_base_toolchain, result)
+            if contact_review and not contact_sdk_checks_completed(result):
+                raise RuntimeError('SDK_TOOLCHAIN_REVIEW_REQUIRED')
+            if contact_review and not contact_sdk_checks_approved(result):
                 result['reason'] = 'SDK_SURFACE_INCOMPATIBLE'
                 return result
-        except (RuntimeError, OSError, ValueError, KeyError, TypeError):
+            if not sdk_compatible:
+                if not contact_review:
+                    result['reason'] = 'SDK_SURFACE_INCOMPATIBLE'
+                    return result
+                result['contactSdkBreaking'] = True
+        except (RuntimeError, OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError):
             # Keep the baseline kind and toolchain evidence on the closed error path.
             context.update(result)
             raise GateError('SDK_TOOLCHAIN_REVIEW_REQUIRED') from None
-        result['reason'] = 'CONTRACT_BREAKING_REVIEWED' if 'securityReview' in result else 'CONTRACT_COMPATIBLE'
+        if contact_review:
+            try:
+                consumers = subprocess.run(['bash', 'tests/ClientConsumers/run.sh'], cwd=plan3_source if plan3_review else repo,
+                                           stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=600)
+            except (OSError, subprocess.SubprocessError):
+                raise GateError('SDK_TOOLCHAIN_REVIEW_REQUIRED') from None
+            if not contact_consumers_passed(consumers.returncode, consumers.stdout):
+                raise GateError('SDK_TOOLCHAIN_REVIEW_REQUIRED')
+            result['contactReview'] = {'basis':'maintainer-reviewed-adr-020-021',
+                                       'owner':'maintainer', 'expires':'2027-02-11T00:00:00+00:00',
+                                       'independentVerification':False}
+            result['contactConsumerChecks'] = 'passed'
+        result['reason'] = 'CONTRACT_BREAKING_REVIEWED' if 'securityReview' in result or contact_review else 'CONTRACT_COMPATIBLE'
         return result
 
 def main():

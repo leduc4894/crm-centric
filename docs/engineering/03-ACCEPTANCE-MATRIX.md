@@ -193,3 +193,50 @@ required workflows were run in Plan 4.
 Wave 1 remains **OPEN**, Wave 2 remains blocked by the work order, and P0 remains **OPEN**. On local candidate `ce177cf37e443a239dee90f94f224ad6b90c7af1`, the full integration run failed and aborted after a test-host crash, reporting 197 passed, 1 failed and 0 skipped before termination; the observed failure was a stack startup timeout; a later local Compose gate passed 16/16 without proving the timeout cause. Backend aborted, contracts and web-browser gates failed compatibility/security review, security failed `CI_SCAN_FINDINGS`, and the local aggregate failed `CI_DISCOVERY_INCOMPLETE`. The real Keycloak Chromium A/B test passed 1/1, frontend unit tests passed 116/116, and the browser suite passed 7 with one opt-in skip after its missing local-stack prerequisite was supplied; the real-provider skip passed separately. Initial failures remain recorded. These are local rehearsals, not hosted CI or production evidence. See the [exit gate table](11-WAVE-1-EXIT-VERIFICATION.md#final-candidate-exit-decision--2026-11-26) and [handoff](../handoff/2026-11-26-wave-1-exit-handoff.md).
 
 The current sanitized security scan blocks 70 Gitleaks observations and one Trivy finding; prior reviewed metadata must not be assumed valid for this candidate. The historical MCP deferral above remains in effect without a waiver. A separate full npm audit reported nine moderate development-chain findings involving minimatch; `npm audit --omit=dev` returned zero. Resolve or explicitly decide the actual findings under the applicable process; do not infer security acceptance. Remote DemoModule E2E, concurrent duplicate event handling, tenant isolation including future worker/replay, outage/recovery and restore drills remain required for P0.
+
+### Wave 2 Plan 1 contact CRUD — focused local evidence, 2026-11-27
+
+On `wave-2` implementation HEAD `72aeb2b` with the accompanying uncommitted documentation and contract-description update, focused real-PostgreSQL Testcontainers tests passed 35/35, zero skips: `ContactSchemaTests`, `ContactEmailSchemaTests`, and `ContactEndpointsTests` (including concurrency tests in the partial class). The cases cover CRUD, tenant isolation and roles, conditional upsert and ETags, active email uniqueness, duplicate migration rejection, RLS, journal rollback, and simultaneous mutations. The concurrency tests dispatch simultaneous requests but do not force specific database lock interleavings. Focused contact contract tests passed 9/9; generated SDK check passed. See the [handoff](../handoff/2026-11-27-wave-2-branch-handoff.md) for exact commands, RED/GREEN and scope.
+
+This is slice evidence, not Wave 2 exit. `US-03`, `RT-CRM-01` and `RT-PERF-01` remain OPEN: search/filter/pagination, benchmark, final review and exit evidence are not complete. `US-04`, timeline, UI and other plans remain OPEN. On actual base `db04aeaecd7f4b6d083335a71418788d3c4561ca`, compatibility remains **FAIL** `SCHEMA_COMPATIBILITY_REVIEW_REQUIRED`; the new contact event-intent schema is absent from base, and the gate stops before OpenAPI and SDK compatibility checks. User approval of ADR-020 does not change the gate result or advance the trusted baseline. Security remains **FAIL/deferred** and P0 remains OPEN; no remote DemoModule, duplicate-event, recovery or restore drill is implied.
+
+### ADR-021 identity binding — focused local evidence
+
+The user approved [ADR-021](../architecture/11-ADR-021-CONTACT-UPSERT-IDENTITY-DRAFT.md). Conditional POST now requires both the expected contact ID and the strong version ETag, checked against the locked active tenant contact. On code after `412a9a5`, PostgreSQL endpoint regression passed 28/28, zero skips. It includes replacing a soft-deleted contact or changing its email, creating a new contact with the same email and `"v1"`, and rejecting the old ID/ETag with 412 without mutating the replacement or appending audit/outbox. Contract tests passed 13/13 and the generated SDK consumer gate passed on the contract candidate. These results are focused local evidence; they do not close Wave 2, P0 or compatibility. The current actual-base compatibility check still fails `SCHEMA_COMPATIBILITY_REVIEW_REQUIRED`, before OpenAPI/SDK analysis. Security remains FAIL/deferred.
+
+### Scoped contact contract review — local MVP gate
+
+The user authorized the exact scoped contact review in [Wave 2 contract review](13-WAVE-2-CONTACT-CONTRACT-REVIEW.md). Local gate on the actual base returned `CONTRACT_BREAKING_REVIEWED`, not compatible; default/out-of-scope comparisons remain fail-closed. This supersedes only the earlier local `SCHEMA_COMPATIBILITY_REVIEW_REQUIRED` result for the pinned MVP-reviewed scope, not security or P0. The review mechanism is candidate-owned and not independent enforcement; whole-branch independent review, real consumer readiness and hosted exit evidence remain OPEN.
+
+### Wave 2 Plan 2 contact list — focused local evidence
+
+Search, combined filters and tenant-bound keyset pagination have focused local verification, including real PostgreSQL tenant isolation and cursor tests. See the [query plan](14-WAVE-2-CONTACT-LIST-QUERY-PLAN.md) and [handoff](../handoff/2026-11-27-wave-2-branch-handoff.md) for the candidate, commands and exact results. The prior Plan 1 reviewed-breaking compatibility verdict applies only to its exact scoped evidence; it is not a compatibility verdict for this candidate.
+
+`US-03`, `RT-CRM-01`, `RT-PERF-01`, Wave 2 and P0 remain OPEN pending remaining scope, independent final review and exit evidence. The synthetic query plan is not the 50,000-contact, 50-concurrent-user p95 benchmark. The full suite is reserved for Wave 2 exit on GitHub CI. Security remains FAIL/deferred. Plan 3 must retain tenant-safe tag storage and implement authorized, audited, concurrency-controlled mutations.
+
+### Wave 2 Plan 3 tags and fields — focused local evidence
+
+On code `6fc999c970cac758719d96d2b27af5afd0daeb9a`, tags and immutable custom field definitions, contact tag assignments and typed values have focused local PostgreSQL/Testcontainers and contract coverage. See the [handoff](../handoff/2026-11-27-wave-2-branch-handoff.md) for exact commands, RED/GREEN, test counts and task reviews, and [operations guidance](../operations/09-TAGS-FIELDS-MIGRATION.md) for permissions and guarded rollback. This evidence covers a slice; it does not close `US-04` or `RT-CRM-02`, which remain **OPEN** pending the numeric contract issue, final review and Wave 2 exit verification. A review noted that the cross-tenant value-read test should use a populated foreign value.
+
+Subsequent exact-number and whitespace fixes (`3b93c79`, `8e62f52`) resolved the numeric mismatch and added populated foreign-value isolation coverage; focused PostgreSQL runs passed 102/102 and 45/45 on their respective code states, with separate tests documented in the handoff. The approved candidate-specific actual-base gate returned `CONTRACT_BREAKING_REVIEWED` after the required OpenAPI, SDK and consumer checks; independent scoped re-review of its final archive fix found no new important issue. Plan 3 focused local implementation and review are complete. `US-04` and `RT-CRM-02` remain **OPEN** pending Wave 2 exit verification; full hosted CI was not run. The reviewed-breaking gate is candidate-owned, not independent enforcement.
+
+Legal JSON numbers outside PostgreSQL JSONB numeric range receive `FIELD_VALUE_UNREPRESENTABLE` without a write, while the contract does not define that restriction. Contract review and an approved resolution or contract-preserving storage are required. The actual-base compatibility gate on `6fc999c` returned `CONTRACT_POLICY_REVIEW_REQUIRED` before semantic comparison; the previous Plan 1 scoped review does not approve this candidate. Security remains FAIL/deferred; Wave 2 and P0 remain OPEN. Full suite is reserved for GitHub CI at Wave 2 exit, with benchmark and remaining P0 drills separate.
+
+### Wave 2 Plan 4 contact record and timeline
+
+On `wave-2` implementation `e2fdb3a`, the real Chromium, Keycloak, API and PostgreSQL contact journey passed 1/1 with zero skips. An owner created and searched a contact, opened its dedicated profile, attached a tag, defined and saved a high-precision numeric field and added a note containing literal markup. The persisted values survived reload and SSO sign-in. A second session received HTTP 412 and retained its draft. Delaying the actual tenant A search response across a switch to tenant B left B's list empty. The record also passed a 390-pixel width check and keyboard note-navigation check. The focused timeline schema, endpoint and concurrency tests passed 19/19, timeline contract 1/1 and web/fixture unit tests 90/90. [Commands and handoff](../handoff/2026-11-27-wave-2-plan-4-handoff.md)
+
+US-03, US-04, US-05, RT-CRM-01/02, RT-PERF-01, Wave 2 and P0 remain OPEN. RT-EVT-01 requires the external ingestion pipeline. Actual-base compatibility requires candidate-specific review. Security remains FAIL/deferred. Full GitHub CI, benchmark and acceptance drills remain pending.
+
+### Plan 9 benchmark checkpoint — 2026-11-28
+
+Default contact listing on candidate `f5a34ed75fedf83a4651742e13e6aed5d0f8fb14`
+met the proposed RT-PERF-01 workload: 50,000 active contacts, 50 authenticated
+users, 300 measured seconds, 247,518 valid responses and p95 105.3 ms, zero
+errors. A separate 500-match search diagnostic returned p95 1979.5 ms; no
+claim is made that all filters meet the default workload threshold. Earlier
+failed client-inflated runs and the corrected results are retained in the
+[verification and evidence](16-WAVE-2-EXIT-VERIFICATION.md). This does not close
+Wave 2 or transfer the measurement to another candidate; the new CI inventory,
+actual-base review and final hosted verification remain open. Security is
+deferred by user decision and P0 remains open.

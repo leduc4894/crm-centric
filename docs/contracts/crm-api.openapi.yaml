@@ -385,6 +385,13 @@ paths:
     get:
       operationId: listContacts
       summary: listContacts
+      description: >-
+        Returns active contacts ordered by updated_at DESC, id DESC using a
+        tenant and filter bound cursor; concurrent changes do not provide a snapshot.
+        The q filter is a literal case-insensitive substring of display name or email,
+        following the PostgreSQL collation, not accent-insensitive matching.
+        updatedSince is inclusive and all filters are combined with AND.
+        Each query parameter may appear once. Unknown or invalid parameters are rejected.
       responses:
         '200':
           description: Success
@@ -435,8 +442,35 @@ paths:
           format: date-time
     post:
       operationId: createContact
-      summary: createContact
+      summary: Create or update a contact by email
+      description: >-
+        Within the authenticated tenant, a new or null email creates a contact.
+        An existing active email matches after trimming leading and trailing
+        ordinary spaces and applying PostgreSQL lower under the database collation;
+        dots and plus tags are preserved. A matching email updates
+        the existing contact only when If-Match is a strong ETag for its current
+        version and X-Contact-Id equals that same active contact's UUID. The required displayName and other supplied fields replace their
+        current values; omitted optional fields remain unchanged and explicit null
+        clears a nullable field. Updates preserve the contact ID. A no-op keeps its
+        version and ETag. Email is not an authenticated identity or an identity link.
+        If-Match is supplied but no active contact matches, a complete valid
+        If-Match and X-Contact-Id pair returns 412. Missing either member of a
+        conditional pair returns 428; malformed or multiple values return 400.
+        A different ID or stale version returns 412. Failed preconditions make no changes.
       responses:
+        '200':
+          description: Existing contact updated, or unchanged when the request is a no-op.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Contact'
+          headers:
+            ETag:
+              required: true
+              description: Strong optimistic concurrency token for the returned version.
+              schema:
+                type: string
+                pattern: ^"v[1-9][0-9]*"$
         '201':
           description: Created
           content:
@@ -445,6 +479,7 @@ paths:
                 $ref: '#/components/schemas/Contact'
           headers:
             ETag:
+              required: true
               description: Strong optimistic concurrency token.
               schema:
                 type: string
@@ -459,9 +494,13 @@ paths:
           $ref: '#/components/responses/Problem'
         '409':
           $ref: '#/components/responses/Problem'
+        '412':
+          $ref: '#/components/responses/Problem'
         '413':
           $ref: '#/components/responses/Problem'
         '415':
+          $ref: '#/components/responses/Problem'
+        '428':
           $ref: '#/components/responses/Problem'
         '429':
           $ref: '#/components/responses/Problem'
@@ -473,6 +512,29 @@ paths:
       - crm.contacts.write
       parameters:
       - $ref: '#/components/parameters/TenantContext'
+      - name: If-Match
+        in: header
+        required: false
+        description: >-
+          Required with X-Contact-Id when the supplied email matches an active
+          contact. Missing either member of the conditional pair returns 428;
+          stale returns 412; malformed, weak, wildcard or multiple values return
+          400. A new contact is created without either header.
+        schema:
+          type: string
+          pattern: ^"v[1-9][0-9]*"$
+      - name: X-Contact-Id
+        in: header
+        required: false
+        description: >-
+          Expected active contact ID paired with If-Match on an update. Missing
+          either member of the conditional pair returns 428, an ID mismatch
+          returns 412, and malformed, noncanonical or multiple values return 400.
+          It is not a tenant identifier or an authorization assertion.
+        schema:
+          type: string
+          format: uuid
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
       requestBody:
         required: true
         content:
@@ -631,6 +693,7 @@ paths:
     get:
       operationId: listTags
       summary: listTags
+      description: Returns tags in ascending UUID order. Each cursor is bound to this tenant and collection. Pages do not form a snapshot.
       responses:
         '200':
           description: Success
@@ -667,6 +730,7 @@ paths:
     post:
       operationId: createTag
       summary: createTag
+      description: Preserves the display name. Within a tenant, names comparing equal under PostgreSQL lower(btrim(name)) and the database collation conflict (409).
       responses:
         '201':
           description: Created
@@ -708,6 +772,7 @@ paths:
     get:
       operationId: listContactTags
       summary: listContactTags
+      description: Returns attached tags in ascending UUID order. Each cursor is bound to this tenant, contact and collection. Pages do not form a snapshot.
       responses:
         '200':
           description: Success
@@ -751,6 +816,7 @@ paths:
     put:
       operationId: addContactTag
       summary: addContactTag
+      description: After verifying contact version and tag existence, adding an existing attachment is a no-op that preserves the contact version.
       responses:
         '200':
           description: Success
@@ -808,6 +874,7 @@ paths:
     delete:
       operationId: removeContactTag
       summary: removeContactTag
+      description: After verifying contact version and tag existence, removing an absent attachment is a no-op that preserves the contact version.
       responses:
         '200':
           description: Success
@@ -866,6 +933,7 @@ paths:
     get:
       operationId: listCustomFields
       summary: listCustomFields
+      description: Returns definitions in ascending UUID order. Each cursor is bound to this tenant and collection. Pages do not form a snapshot.
       responses:
         '200':
           description: Success
@@ -902,6 +970,7 @@ paths:
     post:
       operationId: createCustomField
       summary: createCustomField
+      description: Creates an immutable version 1 definition. Keys are unique per tenant and required defaults to false.
       responses:
         '201':
           description: Created
@@ -943,6 +1012,7 @@ paths:
     get:
       operationId: getContactField
       summary: getContactField
+      description: Returns 404 when the contact has no value for the definition.
       responses:
         '200':
           description: Success
@@ -1026,8 +1096,12 @@ paths:
           $ref: '#/components/responses/Problem'
         '428':
           $ref: '#/components/responses/Problem'
-      description: Validate against tenant field definition and dataType; null clears optional value; reject null
-        for required fields.
+      description: >-
+        Validate the JSON type against the tenant definition. A date is a valid calendar date string
+        in YYYY-MM-DD form without a timezone. A number is a finite JSON number whose value is preserved.
+        An explicit null clears an optional value and is rejected for required fields.
+        After checking the contact version, writing a typed-equal value or clearing an absent optional
+        value is a no-op that preserves the version.
       x-required-scopes:
       - crm.contacts.write
       parameters:
@@ -1105,6 +1179,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TimelineEntry'
+          headers:
+            ETag:
+              description: >-
+                The server always returns the updated contact's strong ETag on success.
+                If the header is missing, clients must GET /api/v1/contacts/{id} to obtain
+                its current ETag before the next conditional write.
+              schema:
+                type: string
+                pattern: ^"v[1-9][0-9]*"$
         '400':
           $ref: '#/components/responses/Problem'
         '401':
