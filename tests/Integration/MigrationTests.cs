@@ -47,7 +47,7 @@ public sealed class MigrationTests : IAsyncLifetime
         await AssertHistoryCountAsync(connection, 0);
         await AssertSentinelAsync(connection);
         Assert.Equal(0, (await MigratorProcess.RunAsync(database.MigrationConnectionString, database.ApplicationRole)).ExitCode);
-        await AssertHistoryCountAsync(connection, 17);
+        await AssertHistoryCountAsync(connection, 18);
         await AssertSentinelAsync(connection);
     }
 
@@ -141,7 +141,7 @@ public sealed class MigrationTests : IAsyncLifetime
         {
             var names = new List<string>();
             while (await reader.ReadAsync()) names.Add(reader.GetString(0));
-            Assert.Equal(new[] { "__EFMigrationsHistory", "invites", "memberships", "staff_bindings", "tenants" }, names);
+            Assert.Equal(new[] { "__EFMigrationsHistory", "invites", "manifest_candidates", "manifest_schemas", "memberships", "staff_bindings", "tenants" }, names);
         }
         await using var history = new NpgsqlCommand("SELECT \"MigrationId\" FROM platform.\"__EFMigrationsHistory\" ORDER BY \"MigrationId\"", connection);
         await using var rows = await history.ExecuteReaderAsync();
@@ -157,7 +157,7 @@ public sealed class MigrationTests : IAsyncLifetime
             "20261127032000_ContactFieldValue", "20261127033000_AtomicContactAttributes",
             "20261127034000_DefinitionNames", "20261127035000_ExactFieldNumbers",
             "20261127036000_ExactNumberWhitespace", "20261127040000_TimelineEntries",
-            "20261127041000_AtomicContactNote"
+            "20261127041000_AtomicContactNote", "20261128000000_ManifestRegistry"
         }, migrations);
     }
 }
