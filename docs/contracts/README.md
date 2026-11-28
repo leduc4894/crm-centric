@@ -61,3 +61,7 @@ from verified bindings rather than these fields. The v1 schema is closed to unkn
 fields; adding fields or changing meaning requires a new version and consumer
 compatibility/migration review. Consumers must dispatch on the full event type and
 reject unknown versions rather than interpreting them as v1.
+
+## Manifest v2 runtime scope
+
+Wave 3 Plan 1 verifies signed manifest bytes and records immutable catalog candidates. ADR-022 adds operator-assigned event namespace ownership as a semantic validation rule. It preserves the wire format and requires existing publishers to validate their declarations against the proposed assignments before rollout. Tenant approval, challenge and activation remain open. [Namespace policy](MODULE-CALLBACKS.md#event-namespace-ownership-manifest-v2) · [Operator procedure](../operations/12-MANIFEST-CANDIDATES.md)

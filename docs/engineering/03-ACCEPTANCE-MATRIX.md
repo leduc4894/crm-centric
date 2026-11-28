@@ -265,3 +265,9 @@ previous benchmark harness did not enforce full pages. See the
 passed all five non-security jobs with zero skipped tests on merge
 `fdfd10a92ff3255cff750599591f0b8c60f799ce` (tree equal to `1e78b78`).
 Security and aggregate failed; security remains deferred, not cleared.
+
+### Wave 3 Plan 1 manifest trust checkpoint — 2026-11-28
+
+On implementation candidate `d3848ff9d88e4b2f5d03ee51c00cf2c1d3f705ac`, the focused fetch, publisher, validation and PostgreSQL registry classes passed 107/107 and the independent Python contract consumer passed 4/4, with zero failures and skips. The generated SDK check returned `SDK_GENERATED_CURRENT`. Coverage includes actual socket/TLS destination checks, exact-byte Ed25519 verification, ADR-022 namespace policy, offline schema validation and atomic immutable candidate storage. [Verification commands](../handoff/2026-11-28-wave-3-plan-1-handoff.md#task-6-focused-verification)
+
+US-06 and RT-MOD-01 remain OPEN for installation approval, challenge and current-trust enforcement. RT-SSRF-01 remains OPEN for other outbound callers. Wave 3 exit, Wave 2 and P0 remain OPEN. Security remains FAIL/deferred. Remote DemoModule E2E, event-level concurrent duplicate handling, tenant isolation, outage/recovery and restore drills still require acceptance evidence.
