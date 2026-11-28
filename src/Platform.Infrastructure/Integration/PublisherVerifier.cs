@@ -10,7 +10,10 @@ internal static class PublisherVerifier
 {
     public static VerifiedPublisher Verify(FetchResult manifest, FetchResult sidecar, PublisherTrustSnapshot trust)
     {
-        if (sidecar.Bytes.Length > SafeFetchClient.SidecarLimit) throw new PublisherVerificationException(PublisherFailure.InvalidSidecar);
+        if (manifest.Bytes.AsSpan().Length > SafeFetchClient.ManifestLimit)
+            throw new PublisherVerificationException(PublisherFailure.InvalidManifest);
+        if (sidecar.Bytes.AsSpan().Length > SafeFetchClient.SidecarLimit)
+            throw new PublisherVerificationException(PublisherFailure.InvalidSidecar);
         using var body = Parse(manifest.Bytes, PublisherFailure.InvalidManifest);
         string moduleId = Field(body.RootElement, "moduleId", PublisherFailure.InvalidManifest);
         using var envelope = Parse(sidecar.Bytes, PublisherFailure.InvalidSidecar);

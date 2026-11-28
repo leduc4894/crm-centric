@@ -39,6 +39,21 @@ public class PublisherVerifierTests
         Assert.Equal(PublisherFailure.InvalidSidecar, Assert.Throws<PublisherVerificationException>(() => Verify(sig: sig)).Reason);
     }
 
+    [Fact]
+    public void MissingSidecarBytesFailWithTheEnvelopeReason()
+    {
+        var missing = sidecar with { Bytes = default };
+        Assert.Equal(PublisherFailure.InvalidSidecar, Assert.Throws<PublisherVerificationException>(() => Verify(sig: missing)).Reason);
+    }
+
+    [Fact]
+    public void OversizedManifestFailsBeforeSignatureVerification()
+    {
+        string padded = Encoding.UTF8.GetString(manifest.Bytes.AsSpan()).PadRight(262145);
+        var oversized = Fetch(Encoding.UTF8.GetBytes(padded), "manifest.json");
+        Assert.Equal(PublisherFailure.InvalidManifest, Assert.Throws<PublisherVerificationException>(() => Verify(body: oversized)).Reason);
+    }
+
     [Theory]
     [InlineData("whitespace")]
     [InlineData("one-byte")]
