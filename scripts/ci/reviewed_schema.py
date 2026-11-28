@@ -3,10 +3,13 @@
 A protected coordinator must supply an independently trusted event authority.
 Synthetic in-process authorities prove only tests; this module does not attest CI.
 """
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+import ctypes
+import errno
 import hashlib
 import json
 import os
+import pickle
 from pathlib import Path, PurePosixPath
 import re
 import selectors
@@ -27,6 +30,8 @@ _MAX_GIT_STDERR_BYTES = 64 * 1024
 _MAX_SNAPSHOT_BYTES = 512 * 1024 * 1024
 _MAX_BLOB_BYTES = 16 * 1024 * 1024
 _MAX_TREE_ENTRIES = 20000
+_CAPTURE_TIMEOUT_SECONDS = 120
+_UNDER_SUPERVISOR = False
 
 
 class ReviewSnapshotError(Exception):
@@ -127,7 +132,7 @@ def _git(repo, *args, input_data=None):
                                         '-c', 'core.untrackedCache=false', '-c', 'core.hooksPath=/dev/null',
                                         '-c', 'core.attributesfile=/dev/null', '-c', 'core.excludesFile=/dev/null',
                                         *args], cwd=repo, env=env, stdin=input_file, stdout=subprocess.PIPE,
-                                       stderr=subprocess.PIPE, start_new_session=True)
+                                       stderr=subprocess.PIPE, start_new_session=not _UNDER_SUPERVISOR)
             selector.register(process.stdout, selectors.EVENT_READ, ('out', _MAX_GIT_STDOUT_BYTES))
             selector.register(process.stderr, selectors.EVENT_READ, ('err', _MAX_GIT_STDERR_BYTES))
             buffers = {'out': bytearray(), 'err': bytearray()}
@@ -160,7 +165,7 @@ def _git(repo, *args, input_data=None):
         if process is not None:
             if process.poll() is None:
                 try:
-                    os.killpg(process.pid, signal.SIGKILL)
+                    (process.kill() if _UNDER_SUPERVISOR else os.killpg(process.pid, signal.SIGKILL))
                 except ProcessLookupError:
                     pass
                 process.wait()
@@ -485,7 +490,7 @@ def _check_worktree(root, candidate):
         os.close(root_fd)
 
 
-def capture_review_snapshot(repo: Path, event: VerifiedEvent, candidate_tree: str) -> ReviewSnapshot:
+def _capture_with_guard(repo: Path, event: VerifiedEvent, candidate_tree: str) -> ReviewSnapshot:
     """Require protected coordinator's continuous confinement capability.
 
     This module provides no such production capability. A synthetic guard can
@@ -509,6 +514,193 @@ def capture_review_snapshot(repo: Path, event: VerifiedEvent, candidate_tree: st
         raise
     except Exception:
         raise ReviewSnapshotError('CI_REVIEW_CONFINEMENT_UNAVAILABLE') from None
+
+
+def capture_review_snapshot(repo: Path, event: VerifiedEvent, candidate_tree: str) -> ReviewSnapshot:
+    """Run the synthetic capture inside a bounded Linux subreaper supervisor.
+
+    A protected external owner must independently guarantee supervisor lifecycle,
+    confinement and guard cleanup. This seam is not a production trust boundary.
+    """
+    deadline = time.monotonic() + _CAPTURE_TIMEOUT_SECONDS
+    data_r, data_w = os.pipe()
+    control_r, control_w = os.pipe()
+    supervisor = None
+    worker_group = None
+    try:
+        supervisor = os.fork()
+        if supervisor == 0:
+            os.close(data_r)
+            os.close(control_r)
+            _run_snapshot_supervisor(repo, event, candidate_tree, deadline, data_w, control_w)
+            os._exit(1)
+        os.close(data_w)
+        data_w = None
+        os.close(control_w)
+        control_w = None
+        os.set_blocking(data_r, False)
+        os.set_blocking(control_r, False)
+        payload = bytearray()
+        control = bytearray()
+        with selectors.DefaultSelector() as selector:
+            selector.register(data_r, selectors.EVENT_READ)
+            selector.register(control_r, selectors.EVENT_READ)
+            while selector.get_map():
+                remaining = deadline + 2 - time.monotonic()
+                if remaining <= 0:
+                    raise ReviewSnapshotError('CI_REVIEW_CAPTURE_TIMEOUT')
+                ready = selector.select(remaining)
+                if not ready:
+                    raise ReviewSnapshotError('CI_REVIEW_CAPTURE_TIMEOUT')
+                for key, _ in ready:
+                    chunk = os.read(key.fd, 65536)
+                    if not chunk:
+                        selector.unregister(key.fd)
+                        continue
+                    if key.fd == data_r:
+                        payload.extend(chunk)
+                        if len(payload) > 2 * _MAX_SNAPSHOT_BYTES + _MAX_GIT_STDOUT_BYTES:
+                            raise ReviewSnapshotError('CI_REVIEW_RESOURCE_LIMIT')
+                    else:
+                        control.extend(chunk)
+                        if len(control) > 128:
+                            raise ReviewSnapshotError()
+                        match = re.match(rb'P([0-9]+)\n', control)
+                        if match:
+                            worker_group = int(match.group(1))
+        _, status = os.waitpid(supervisor, 0)
+        supervisor = None
+        if not os.WIFEXITED(status) or os.WEXITSTATUS(status) != 0 or not control.endswith(b'OK\n'):
+            raise ReviewSnapshotError('CI_REVIEW_CAPTURE_TIMEOUT' if b'TIMEOUT\n' in control else 'CI_REVIEW_SUPERVISOR_UNAVAILABLE')
+        if time.monotonic() > deadline:
+            raise ReviewSnapshotError('CI_REVIEW_CAPTURE_TIMEOUT')
+        ok, result = pickle.loads(payload)
+        if time.monotonic() > deadline:
+            raise ReviewSnapshotError('CI_REVIEW_CAPTURE_TIMEOUT')
+        if not ok:
+            raise ReviewSnapshotError(result)
+        if not isinstance(result, ReviewSnapshot) or result.event is not None:
+            raise ReviewSnapshotError()
+        return replace(result, event=event)
+    except ReviewSnapshotError:
+        raise
+    except Exception:
+        raise ReviewSnapshotError('CI_REVIEW_SUPERVISOR_UNAVAILABLE') from None
+    finally:
+        if supervisor is not None:
+            if worker_group is not None:
+                try:
+                    os.killpg(worker_group, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+            try:
+                os.kill(supervisor, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            os.waitpid(supervisor, 0)
+        for fd in (data_r, data_w, control_r, control_w):
+            if fd is not None:
+                os.close(fd)
+
+
+def _kill_adopted_children():
+    # Linux subreaper adoption also catches descendants that changed process group.
+    path = f'/proc/self/task/{os.getpid()}/children'
+    for raw_pid in Path(path).read_text(encoding='ascii').split():
+        try:
+            os.kill(int(raw_pid), signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+
+
+def _run_snapshot_supervisor(repo, event, candidate_tree, deadline, data_w, control_w):
+    """Synthetic Linux supervisor; adopted children must be reaped before success."""
+    worker = None
+    try:
+        libc = ctypes.CDLL(None, use_errno=True)
+        if libc.prctl(36, 1, 0, 0, 0) != 0:  # PR_SET_CHILD_SUBREAPER
+            raise OSError(ctypes.get_errno(), 'subreaper unavailable')
+        worker = os.fork()
+        if worker == 0:
+            os.close(control_w)
+            try:
+                os.setpgid(0, 0)
+                global _UNDER_SUPERVISOR
+                _UNDER_SUPERVISOR = True
+                try:
+                    value = _capture_with_guard(repo, event, candidate_tree)
+                    result = (True, replace(value, event=None))
+                except ReviewSnapshotError as error:
+                    result = (False, error.reason_token)
+                except BaseException:
+                    result = (False, 'CI_REVIEW_SUPERVISOR_UNAVAILABLE')
+                data = pickle.dumps(result, protocol=5)
+                view = memoryview(data)
+                while view:
+                    written = os.write(data_w, view)
+                    view = view[written:]
+                os.close(data_w)
+                os._exit(0)
+            except BaseException:
+                os._exit(1)
+        os.close(data_w)
+        try:
+            os.setpgid(worker, worker)
+        except OSError as error:
+            if error.errno not in (errno.EACCES, errno.ESRCH):
+                raise
+        os.write(control_w, f'P{worker}\n'.encode())
+        timed_out = False
+        worker_done = False
+        worker_ok = False
+        while not worker_done:
+            pid, status = os.waitpid(worker, os.WNOHANG)
+            if pid:
+                worker_done = True
+                worker_ok = os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0
+                break
+            if time.monotonic() >= deadline:
+                timed_out = True
+                break
+            time.sleep(min(0.005, max(0, deadline - time.monotonic())))
+        try:
+            os.killpg(worker, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        cleanup_deadline = time.monotonic() + 1
+        while True:
+            _kill_adopted_children()
+            try:
+                pid, _ = os.waitpid(-1, os.WNOHANG)
+            except ChildProcessError:
+                break
+            if not pid:
+                if time.monotonic() >= cleanup_deadline:
+                    raise RuntimeError('unreaped child')
+                time.sleep(0.005)
+        os.write(control_w, b'TIMEOUT\n' if timed_out else (b'OK\n' if worker_ok else b'FAIL\n'))
+        os.close(control_w)
+        os._exit(0)
+    except BaseException:
+        if worker is not None and worker > 0:
+            try:
+                os.killpg(worker, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            cleanup_deadline = time.monotonic() + 1
+            while time.monotonic() < cleanup_deadline:
+                try:
+                    _kill_adopted_children()
+                    pid, _ = os.waitpid(-1, os.WNOHANG)
+                    if not pid:
+                        time.sleep(0.005)
+                except (ChildProcessError, OSError, ValueError):
+                    break
+        try:
+            os.write(control_w, b'FAIL\n')
+        except OSError:
+            pass
+        os._exit(1)
 
 
 def _capture_confined_snapshot(repo: Path, event: VerifiedEvent, candidate_tree: str) -> ReviewSnapshot:

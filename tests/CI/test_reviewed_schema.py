@@ -5,9 +5,12 @@ import hashlib
 import hmac
 import importlib
 import json
+import os
+import signal
 from pathlib import Path
 import subprocess
 import tempfile
+import time
 import unittest
 from unittest.mock import patch
 
@@ -97,6 +100,79 @@ class ReviewSnapshotTests(unittest.TestCase):
         authority = self.authority if authority is None else authority
         proof = authority.proof(revision, kind, method)
         return subject.wrap_verified_event(revision, kind, method, proof, authority)
+
+    def test_total_deadline_bounds_slow_authority(self):
+        event = self.verified()
+        original = event.authority.verify_event
+
+        def slow_verify(*args):
+            time.sleep(0.2)
+            return original(*args)
+
+        self.assertTrue(hasattr(subject, '_CAPTURE_TIMEOUT_SECONDS'), 'total capture deadline is missing')
+        with patch.object(subject, '_CAPTURE_TIMEOUT_SECONDS', 0.05), \
+                patch.object(event.authority, 'verify_event', side_effect=slow_verify):
+            started = time.monotonic()
+            with self.assertRaises(subject.ReviewSnapshotError):
+                subject.capture_review_snapshot(self.repo, event, self.tree)
+            self.assertLess(time.monotonic() - started, 0.18)
+
+    def test_total_deadline_kills_and_reaps_blocked_worker_descendant(self):
+        event = self.verified()
+        self.assertTrue(hasattr(subject, '_CAPTURE_TIMEOUT_SECONDS'), 'total capture deadline is missing')
+        marker = self.repo.parent / (self.repo.name + '-descendant-pid')
+
+        def blocked_read(*args):
+            child = subprocess.Popen(['/bin/sleep', '30'], start_new_session=True)
+            marker.write_text(str(child.pid), encoding='ascii')
+            read_fd, write_fd = os.pipe()
+            try:
+                os.read(read_fd, 1)
+            finally:
+                os.close(read_fd)
+                os.close(write_fd)
+
+        try:
+            with patch.object(subject, '_CAPTURE_TIMEOUT_SECONDS', 1), \
+                    patch.object(subject, '_read_worktree_file', side_effect=blocked_read):
+                with self.assertRaises(subject.ReviewSnapshotError):
+                    subject.capture_review_snapshot(self.repo, event, self.tree)
+            self.assertTrue(marker.exists(), 'blocked read was not reached')
+            pid = int(marker.read_text(encoding='ascii'))
+            self.assertFalse(Path('/proc', str(pid)).exists(), 'descendant not terminated and reaped')
+        finally:
+            if marker.exists():
+                pid = int(marker.read_text(encoding='ascii'))
+                try:
+                    os.kill(pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                marker.unlink()
+
+    def test_total_deadline_limits_many_individually_fast_git_calls(self):
+        event = self.verified()
+        original_git = subject._git
+        def slow_git(*args, **kwargs):
+            time.sleep(0.02)
+            return original_git(*args, **kwargs)
+        with patch.object(subject, '_CAPTURE_TIMEOUT_SECONDS', 0.15), \
+                patch.object(subject, '_git', side_effect=slow_git):
+            started = time.monotonic()
+            with self.assertRaises(subject.ReviewSnapshotError):
+                subject.capture_review_snapshot(self.repo, event, self.tree)
+            self.assertLess(time.monotonic() - started, 1)
+
+    def test_supervisor_unavailable_and_authority_exception_fail_closed(self):
+        event = self.verified()
+        with patch.object(subject.ctypes, 'CDLL', side_effect=OSError('unavailable')):
+            with self.assertRaises(subject.ReviewSnapshotError) as failure:
+                subject.capture_review_snapshot(self.repo, event, self.tree)
+            self.assertEqual('CI_REVIEW_SUPERVISOR_UNAVAILABLE', failure.exception.reason_token)
+        with patch.object(event.authority, 'verify_event', side_effect=RuntimeError('private')):
+            with self.assertRaises(subject.ReviewSnapshotError) as failure:
+                subject.capture_review_snapshot(self.repo, event, self.tree)
+            self.assertEqual('CI_REVIEW_EVENT_UNTRUSTED', failure.exception.reason_token)
+            self.assertNotIn('private', str(failure.exception))
 
     def test_exact_git_snapshot_and_dirty_input_fail_closed(self):
         event = self.verified()
