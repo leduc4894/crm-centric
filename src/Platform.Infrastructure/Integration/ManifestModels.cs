@@ -69,7 +69,8 @@ internal sealed class FetchPolicy
     private static IPNetwork[] Networks(params string[] values) => values.Select(IPNetwork.Parse).ToArray();
 }
 
-internal sealed record VerifiedPublisher(string ModuleId, string KeyId, long TrustRevision, string ManifestHash);
+internal sealed record VerifiedPublisher(string ModuleId, string KeyId, long TrustRevision, string ManifestHash,
+    string? EventNamespace, ImmutableArray<Uri> AllowedOrigins);
 
 internal enum PublisherFailure { InvalidManifest, InvalidSidecar, UntrustedKey, OriginDenied, InvalidSignature }
 

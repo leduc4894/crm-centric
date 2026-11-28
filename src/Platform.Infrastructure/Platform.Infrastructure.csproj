@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <EmbeddedResource Include="../../docs/contracts/module-manifest.schema.json" LogicalName="module-manifest.schema.json" />
     <PackageReference Include="Corvus.Text.Json.Validator" />
     <PackageReference Include="NSec.Cryptography" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />

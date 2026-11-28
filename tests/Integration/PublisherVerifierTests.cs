@@ -26,7 +26,7 @@ public class PublisherVerifierTests
     [Fact]
     public void KnownAnswer()
     {
-        Assert.Equal(new VerifiedPublisher(Module, KeyId, 1, "82478c0cc6aa2e468f3fe87f73a13f4b2e482bdeb764e5947bf8b9e5083d1c52"), Verify());
+        Assert.Equal(new VerifiedPublisher(Module, KeyId, 1, "82478c0cc6aa2e468f3fe87f73a13f4b2e482bdeb764e5947bf8b9e5083d1c52", null, entry.AllowedOrigins), Verify());
     }
 
     [Theory]
@@ -125,12 +125,14 @@ public class PublisherVerifierTests
     {
         using var rotated = new Key(SignatureAlgorithm.Ed25519);
         var replacement = entry with { KeyId = "next", PublicKey = [.. rotated.PublicKey.Export(KeyBlobFormat.RawPublicKey)] };
-        var trust = new PublisherTrustSnapshot(2, [entry with { Status = PublisherKeyStatus.Revoked }, replacement]);
+        var trust = new PublisherTrustSnapshot(2, [entry with { Status = PublisherKeyStatus.Revoked }, replacement], [new(Module, "demo.")]);
         Assert.Throws<PublisherVerificationException>(() => PublisherVerifier.Verify(manifest, sidecar, trust));
         var json = JsonNode.Parse(sidecar.Bytes.AsSpan())!.AsObject();
         json["keyId"] = replacement.KeyId;
         json["signature"] = System.Buffers.Text.Base64Url.EncodeToString(SignatureAlgorithm.Ed25519.Sign(rotated, manifest.Bytes.AsSpan()));
         var sig = Fetch(Encoding.UTF8.GetBytes(json.ToJsonString()), "manifest.json.sig.json");
-        Assert.Equal(2, PublisherVerifier.Verify(manifest, sig, trust).TrustRevision);
+        var verified = PublisherVerifier.Verify(manifest, sig, trust);
+        Assert.Equal(2, verified.TrustRevision);
+        Assert.Equal("demo.", verified.EventNamespace);
     }
 }

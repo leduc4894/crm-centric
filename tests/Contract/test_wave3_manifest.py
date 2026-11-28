@@ -28,6 +28,18 @@ class PublisherContractTests(unittest.TestCase):
             with self.subTest(change=change):
                 self.assertFalse(validator.is_valid(demo | change))
 
+    def test_signed_demo_pins_valid_schema_bytes(self):
+        demo = read_json(VECTOR / "manifest.json")
+        references = [descriptor[name] for kind in ("events", "actions", "panels")
+                      for descriptor in demo[kind] for name in ("schema", "inputSchema", "outputSchema")
+                      if name in descriptor]
+        self.assertEqual(4, len(references))
+        for reference in references:
+            with self.subTest(uri=reference["uri"]):
+                payload = (CONTRACTS / reference["uri"].rsplit("/", 1)[1]).read_bytes()
+                self.assertEqual(reference["sha256"], hashlib.sha256(payload).hexdigest())
+                Draft202012Validator.check_schema(json.loads(payload))
+
     def test_sidecar_schema(self):
         validator = Draft202012Validator(read_json(CONTRACTS / "publisher-signature.schema.json"))
         sidecar = read_json(VECTOR / "manifest.json.sig.json")

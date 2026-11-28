@@ -44,7 +44,8 @@ internal static class PublisherVerifier
         if (!PublicKey.TryImport(algorithm, entry.PublicKey.AsSpan(), KeyBlobFormat.RawPublicKey, out var key) ||
             !algorithm.Verify(key, manifest.Bytes.AsSpan(), signature))
             throw new PublisherVerificationException(PublisherFailure.InvalidSignature);
-        return new(moduleId, keyId, trust.Revision, Convert.ToHexStringLower(SHA256.HashData(manifest.Bytes.AsSpan())));
+        return new(moduleId, keyId, trust.Revision, Convert.ToHexStringLower(SHA256.HashData(manifest.Bytes.AsSpan())),
+            trust.EventNamespaces.GetValueOrDefault(moduleId), entry.AllowedOrigins);
     }
 
     private static JsonDocument Parse(ImmutableArray<byte> bytes, PublisherFailure failure)
