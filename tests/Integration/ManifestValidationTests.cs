@@ -142,6 +142,7 @@ public class ManifestValidationTests
     }
 
     [Theory]
+    [InlineData("unrelated")] [InlineData("overrideCycle")]
     [InlineData("inert")] [InlineData("dynamicRemote")] [InlineData("dynamicCycle")]
     [InlineData("resources")] [InlineData("dynamic")] [InlineData("resourceCycle")]
     [InlineData("local")] [InlineData("refdepth")] [InlineData("badpattern")]
@@ -152,6 +153,17 @@ public class ManifestValidationTests
         var demo = Demo();
         var schema = demo["events"]![0]!["schema"]!;
         var payload = change switch {
+            "unrelated" => """
+                {"$ref":"a","$defs":{
+                    "a":{"$id":"a","$dynamicAnchor":"x","$dynamicRef":"#y","$defs":{"leaf":{"$dynamicAnchor":"y"}}},
+                    "b":{"$id":"b","$dynamicAnchor":"y","$dynamicRef":"#x","$defs":{"leaf":{"$dynamicAnchor":"x"}}}
+                }}
+                """,
+            "overrideCycle" => """
+                {"$dynamicAnchor":"leaf","$ref":"nested","$defs":{
+                    "nested":{"$id":"nested","$dynamicRef":"#leaf","$defs":{"value":{"$dynamicAnchor":"leaf"}}}
+                }}
+                """,
             "inert" => """{"properties":{"value":{"$id":"nested","$dynamicAnchor":"value","type":"integer"}}}""",
             "dynamicRemote" => """{"$dynamicRef":"https://forbidden.test/schema#name"}""",
             "dynamicCycle" => """{"$dynamicAnchor":"here","$dynamicRef":"#here"}""",
@@ -183,7 +195,7 @@ public class ManifestValidationTests
             return Task.FromResult(new FetchResult([..result], uri));
         });
         async Task Run() => await loader.LoadAsync(manifest, new(Origin), default);
-        if (change is "limit" or "local" or "resources" or "dynamic" or "inert") await Run();
+        if (change is "limit" or "local" or "resources" or "dynamic" or "inert" or "unrelated") await Run();
         else if (change is "cross" or "missing") await Assert.ThrowsAsync<ManifestFetchException>(Run);
         else await Assert.ThrowsAsync<ManifestValidationException>(Run);
         Assert.All(calls, uri => Assert.Equal(Origin.Host, uri.Host));
