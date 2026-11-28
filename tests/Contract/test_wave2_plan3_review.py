@@ -10,11 +10,13 @@ from scripts.contracts import compatibility as gate
 ROOT = Path(__file__).resolve().parents[2]
 BASE = 'db04aeaecd7f4b6d083335a71418788d3c4561ca'
 CANDIDATE = '8e62f5282aa14cdfca746f2aa78ec05b59ffcb86'
+PLAN9_FIXTURE = '51a75d48bf1ae32fd46cecc886cf841a53aaea15'
 
 def reviewed_fixture_available():
     try:
-        return subprocess.run(['git', '-C', str(ROOT), 'cat-file', '-e', CANDIDATE + '^{commit}'],
-                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10).returncode == 0
+        return all(subprocess.run(['git', '-C', str(ROOT), 'cat-file', '-e', commit + '^{commit}'],
+                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10).returncode == 0
+                   for commit in (CANDIDATE, PLAN9_FIXTURE))
     except (OSError, subprocess.SubprocessError):
         return False
 
@@ -25,9 +27,12 @@ class Plan3ReviewTests(unittest.TestCase):
     def setUpClass(cls):
         cls.tmp = tempfile.TemporaryDirectory()
         cls.repo = Path(cls.tmp.name) / 'repo'
+        cls.plan9_fixture = Path(cls.tmp.name) / 'plan9-fixture'
         subprocess.run(['git', 'clone', '--shared', '--no-checkout', str(ROOT), str(cls.repo)], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         subprocess.run(['git', '-C', str(cls.repo), 'checkout', '--detach', CANDIDATE], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        (cls.repo / 'tools/ci/coverage.json').write_bytes((ROOT / 'tools/ci/coverage.json').read_bytes())
+        subprocess.run(['git', 'clone', '--shared', '--no-checkout', str(ROOT), str(cls.plan9_fixture)], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(['git', '-C', str(cls.plan9_fixture), 'checkout', '--detach', PLAN9_FIXTURE], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        (cls.repo / 'tools/ci/coverage.json').write_bytes((cls.plan9_fixture / 'tools/ci/coverage.json').read_bytes())
 
     @classmethod
     def tearDownClass(cls):
@@ -46,7 +51,8 @@ class Plan3ReviewTests(unittest.TestCase):
         # executing every Plan 9 scope regression inside this required case.
         import plan9_review_cases
         result = unittest.TestResult()
-        unittest.defaultTestLoader.loadTestsFromTestCase(plan9_review_cases.Plan9ReviewTests).run(result)
+        with patch.object(plan9_review_cases, 'ROOT', self.plan9_fixture):
+            unittest.defaultTestLoader.loadTestsFromTestCase(plan9_review_cases.Plan9ReviewTests).run(result)
         self.assertEqual(8, result.testsRun)
         self.assertEqual((0, 0, 0), (len(result.failures), len(result.errors), len(result.skipped)))
 
