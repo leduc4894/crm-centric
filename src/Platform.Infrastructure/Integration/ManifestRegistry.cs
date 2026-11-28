@@ -6,7 +6,7 @@ using NpgsqlTypes;
 namespace Platform.Infrastructure.Integration;
 
 internal enum RegistryResult { Inserted, AlreadyRegistered }
-internal enum RegistryFailure { InvalidSnapshot, VersionConflict, Downgrade, Storage }
+internal enum RegistryFailure { InvalidSnapshot, VersionConflict, Downgrade, UnsupportedIsolation, Storage }
 
 internal sealed class RegistryException(RegistryFailure reason, Guid correlationId) : Exception(reason.ToString())
 {
@@ -58,6 +58,7 @@ internal sealed class ManifestRegistry(NpgsqlDataSource dataSource)
                 "inserted" => RegistryResult.Inserted,
                 "already_registered" => RegistryResult.AlreadyRegistered,
                 "version_conflict" => throw new RegistryException(RegistryFailure.VersionConflict, correlationId),
+                "unsupported_isolation" => throw new RegistryException(RegistryFailure.UnsupportedIsolation, correlationId),
                 "downgrade" => throw new RegistryException(RegistryFailure.Downgrade, correlationId),
                 _ => throw new RegistryException(RegistryFailure.Storage, correlationId)
             };

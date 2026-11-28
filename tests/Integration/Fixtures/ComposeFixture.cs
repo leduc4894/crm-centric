@@ -194,7 +194,7 @@ public sealed class ComposeFixture : IAsyncDisposable
         Success(await Command("smoke"));
         foreach (var s in new[] { "crm-db", "idp-db", "crm-api", "keycloak" }) Assert.Equal("healthy", (await Inspect(s)).GetProperty("State").GetProperty("Health").GetProperty("Status").GetString());
         foreach (var s in new[] { "crm-bootstrap", "crm-migrate" }) Assert.Equal(0, (await Inspect(s)).GetProperty("State").GetProperty("ExitCode").GetInt32());
-        Assert.Equal("18", await Sql("SELECT count(*) FROM platform.\"__EFMigrationsHistory\""));
+        Assert.Equal("19", await Sql("SELECT count(*) FROM platform.\"__EFMigrationsHistory\""));
         Assert.Equal("5", await Sql("SELECT count(*) FROM platform.\"__EFMigrationsHistory\" WHERE \"MigrationId\" IN ('20261108144703_InitialPlatformInfrastructure', '20261116000000_TenantFoundation', '20261118000000_TenantLifecycle', '20261118010000_VerifiedStaffBindings', '20261126000000_Invitations')"));
     }
     public async ValueTask DisposeAsync()

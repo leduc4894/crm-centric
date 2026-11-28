@@ -7,7 +7,9 @@ namespace Platform.Infrastructure.Persistence.Migrations;
 [Migration("20261128000000_ManifestRegistry")]
 public sealed class ManifestRegistry : Migration
 {
-    protected override void Up(MigrationBuilder migrationBuilder) => migrationBuilder.Sql("""
+    protected override void Up(MigrationBuilder migrationBuilder)
+    {
+        migrationBuilder.Sql("""
         CREATE TABLE platform.manifest_candidates (
             id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
             module_id text NOT NULL,
@@ -34,7 +36,15 @@ public sealed class ManifestRegistry : Migration
             schema_hash bytea GENERATED ALWAYS AS (sha256(schema_bytes)) STORED,
             PRIMARY KEY(candidate_id,ordinal)
         );
-        CREATE FUNCTION platform.register_manifest(body bytea, key_id text, revision bigint, origins text[],
+        """);
+        migrationBuilder.Sql(RegisterFunctionSql(""));
+        migrationBuilder.Sql("""
+        REVOKE ALL ON FUNCTION platform.register_manifest(bytea,text,bigint,text[],text[],text[],bytea[],text,text,text[],bytea[]) FROM PUBLIC;
+        """);
+    }
+
+    internal static string RegisterFunctionSql(string isolationCheck) => $"""
+        CREATE OR REPLACE FUNCTION platform.register_manifest(body bytea, key_id text, revision bigint, origins text[],
             uris text[], versions text[], bodies bytea[], module text, release text, scopes text[], descriptors bytea[])
         RETURNS text LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog AS $fn$
         DECLARE
@@ -43,6 +53,7 @@ public sealed class ManifestRegistry : Migration
             incoming_parts text[] := string_to_array(release,'.');
             latest_parts text[];
         BEGIN
+            {isolationCheck}
             PERFORM pg_advisory_xact_lock(hashtextextended(module, 24873));
             SELECT * INTO latest FROM platform.manifest_candidates
               WHERE module_id=module ORDER BY id DESC LIMIT 1;
@@ -69,8 +80,7 @@ public sealed class ManifestRegistry : Migration
             SELECT candidate,i,uris[i],versions[i],bodies[i] FROM generate_subscripts(uris,1) AS i;
             RETURN 'inserted';
         END $fn$;
-        REVOKE ALL ON FUNCTION platform.register_manifest(bytea,text,bigint,text[],text[],text[],bytea[],text,text,text[],bytea[]) FROM PUBLIC;
-        """);
+        """;
 
     protected override void Down(MigrationBuilder migrationBuilder) => migrationBuilder.Sql("""
         LOCK TABLE platform.manifest_candidates, platform.manifest_schemas IN ACCESS EXCLUSIVE MODE;

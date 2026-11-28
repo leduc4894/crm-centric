@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Transactions;
 using Integration.Fixtures;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -86,6 +87,59 @@ public sealed class ManifestRegistryTests : IAsyncLifetime
         Assert.Equal(8L, await Scalar("SELECT count(*) FROM platform.manifest_schemas"));
         Assert.Equal("Inserted", await Submit(Candidate("123456789012345678901234567890.0.0")));
         Assert.Equal("Downgrade", await Submit(Candidate("99999999999999999999999999999.0.0")));
+    }
+
+    [Fact]
+    public async Task Concurrent_different_releases_finish_at_highest_version()
+    {
+        var lower = Candidate("1.9.0");
+        var higher = Candidate("1.10.0");
+        var schemas = await Schemas(lower);
+        async Task<bool> Register(ValidatedManifest candidate)
+        {
+            try { return await registry.RegisterAsync(candidate, schemas, Guid.NewGuid(), default) == RegistryResult.Inserted; }
+            catch (RegistryException ex) when (ex.Reason == RegistryFailure.Downgrade) { return false; }
+        }
+        var outcomes = await Task.WhenAll(Register(lower), Register(higher));
+        Assert.True(outcomes[1]);
+        Assert.Equal("1.10.0", await Scalar("SELECT release_version FROM platform.manifest_candidates ORDER BY id DESC LIMIT 1"));
+        Assert.Equal(RegistryFailure.Downgrade, (await Assert.ThrowsAsync<RegistryException>(() => Store(lower))).Reason);
+    }
+
+    [Fact]
+    public async Task Ambient_stale_snapshot_requires_supported_isolation_before_registration()
+    {
+        using var scope = new TransactionScope(TransactionScopeOption.RequiresNew,
+            new TransactionOptions { IsolationLevel = IsolationLevel.RepeatableRead }, TransactionScopeAsyncFlowOption.Enabled);
+        // Release the connection back to its ambient transaction. The registry
+        // reuses that enlisted connection and the snapshot pinned by this query.
+        await using (var pin = app.CreateCommand("SELECT txid_current_snapshot()::text"))
+            await pin.ExecuteScalarAsync();
+        using (var independent = new TransactionScope(TransactionScopeOption.Suppress, TransactionScopeAsyncFlowOption.Enabled))
+            Assert.Equal(RegistryResult.Inserted, await Store(Candidate("2.0.0")));
+        var correlation = Guid.NewGuid();
+        var candidate = Candidate("3.0.0");
+        var schemas = await Schemas(candidate);
+        var ex = await Assert.ThrowsAsync<RegistryException>(() => registry.RegisterAsync(candidate, schemas, correlation, default));
+        Assert.Equal(RegistryFailure.UnsupportedIsolation, ex.Reason);
+        Assert.Equal(correlation, ex.CorrelationId);
+        scope.Complete();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Configured_default_isolation_is_checked_on_the_registration_connection(bool roleDefault)
+    {
+        await using var admin = new NpgsqlConnection(db.AdminConnectionString);
+        await admin.OpenAsync();
+        var target = roleDefault
+            ? $"ROLE {PostgresFixture.Quote(db.ApplicationRole)}"
+            : $"DATABASE {PostgresFixture.Quote(db.DatabaseName)}";
+        await PostgresFixture.ExecuteAsync(admin, $"ALTER {target} SET default_transaction_isolation='repeatable read'");
+        var ex = await Assert.ThrowsAsync<RegistryException>(() => Store(Candidate("1.0.0")));
+        Assert.Equal(RegistryFailure.UnsupportedIsolation, ex.Reason);
+        Assert.Equal(0L, await Scalar("SELECT count(*) FROM platform.manifest_candidates"));
     }
 
     [Fact]

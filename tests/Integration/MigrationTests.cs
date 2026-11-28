@@ -47,7 +47,7 @@ public sealed class MigrationTests : IAsyncLifetime
         await AssertHistoryCountAsync(connection, 0);
         await AssertSentinelAsync(connection);
         Assert.Equal(0, (await MigratorProcess.RunAsync(database.MigrationConnectionString, database.ApplicationRole)).ExitCode);
-        await AssertHistoryCountAsync(connection, 18);
+        await AssertHistoryCountAsync(connection, 19);
         await AssertSentinelAsync(connection);
     }
 
@@ -157,7 +157,8 @@ public sealed class MigrationTests : IAsyncLifetime
             "20261127032000_ContactFieldValue", "20261127033000_AtomicContactAttributes",
             "20261127034000_DefinitionNames", "20261127035000_ExactFieldNumbers",
             "20261127036000_ExactNumberWhitespace", "20261127040000_TimelineEntries",
-            "20261127041000_AtomicContactNote", "20261128000000_ManifestRegistry"
+            "20261127041000_AtomicContactNote", "20261128000000_ManifestRegistry",
+            "20261128010000_ManifestRegistryIsolation"
         }, migrations);
     }
 }
