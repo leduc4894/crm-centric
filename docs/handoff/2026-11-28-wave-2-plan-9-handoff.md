@@ -453,3 +453,37 @@ SHA. Updated candidate review package pins the exact proposed files and records
 that no fresh policy approval or hosted CI has occurred. Review the final scope,
 rerun affected candidate-bound evidence, and run one hosted CI after review;
 security and aggregate retain factual results. No push/merge/deployment yet.
+
+A further local draft prepares a new exact candidate-owned review scope, **not
+approved, committed or pushed**. Its immutable snapshot is
+`bc147e4dae9dbed662bd62a7c721774d34ca1e9f` (tree
+`75cecd22475b6f994efd027c3ec1c632923cd707`). Modified:
+`scripts/contracts/compatibility.py`, `tests/Contract/test_wave2_plan3_review.py`;
+untracked: `tests/Contract/plan9_next_review_cases.py`; this handoff and the
+review package are modified to document the draft. Four new focused scope tests
+were RED before implementation and GREEN after; the combined Plan 3 suite
+passed 11/11, including eight old and four new nested scope tests. An initial
+local dry run failed `SDK_TOOLCHAIN_REVIEW_REQUIRED` without Node's required
+library path. With `source .local/contact-ui-env` and `.local/ci-dotnet` on PATH,
+the dry run returned `CONTRACT_BREAKING_REVIEWED` with SDK break explicit and
+consumer checks passed, correlation `89f147c8-c3ec-4131-bf82-2074dde80b2b`.
+This is execution of a hypothetical unapproved candidate-owned scope, not
+independent attestation or final gate evidence. See the exact file hashes and
+decision request in `docs/engineering/17-WAVE-2-CANDIDATE-REVIEW-PACKAGE.md`.
+
+The user authorized security deferral, not automatic scope approval. Obtain an
+authorized review of the concrete draft before enabling/committing it; do not
+push a knowingly unapproved scope. After approval, freeze the resulting commit,
+repeat affected SHA-bound benchmark evidence, run a single hosted workflow and
+monitor all jobs to completion, compare security findings and report aggregate
+truthfully. Full hosted CI, independent enforcement, Wave 2 exit and P0 drills
+remain OPEN. Branch HEAD before the uncommitted draft is `bc147e4`, ahead of
+origin by seven commits. No user-facing credentials or sensitive payloads were
+logged.
+
+The user subsequently replied "Ok làm đi" to the explicit request to approve
+the exact draft scope and proceed. Verified the three draft file SHA-256 values
+still match the review package before committing. This is user authorization
+for the bounded candidate-owned scope, not independent enforcement or a security
+waiver. Next: commit exact draft, verify actual-base gate and final candidate,
+rerun the benchmark on that exact SHA, push once, and monitor hosted CI.

@@ -160,3 +160,43 @@ SHA-256 for the exact changed code, tests and CI policy at this candidate:
 | `tests/Benchmarks/test_contact_list.py` | `9e5458f7a542cb1b9226f73a1a0cd5ff4b9d9ba017ac7a2e6565513f8d3957d8` |
 | `tests/Integration/BenchmarkSeedTests.cs` | `55abe873166a7ef62834f71d20e1958845bb8a1cc3878bd9a189355955473f3d` |
 | `tests/Contract/test_wave2_plan3_review.py` | `b81e90bf6c991ce4bfecada5c72a2ecefcf295d2d8372eb8b52bcd2072d22f55` |
+
+## Draft bounded scope ready for decision
+
+The concrete **uncommitted draft** extends the existing candidate-owned MVP
+review to immutable snapshot `bc147e4dae9dbed662bd62a7c721774d34ca1e9f`
+(tree `75cecd22475b6f994efd027c3ec1c632923cd707`), while retaining the old
+scopes. It binds the new CI inventory by SHA-256, pins a new regression helper,
+keeps the existing base and expiry, rejects added/modified files and forged CI
+revision identity, and materializes the immutable new snapshot for the real
+OpenAPI/SDK/consumer checks. It does not waive security or call a breaking
+contract compatible. This is candidate-owned policy: even if authorized, it
+is **not independent enforcement**.
+
+| Draft file | SHA-256 |
+|---|---|
+| `scripts/contracts/compatibility.py` | `5fdb1ea04284192cb968f23d1d86984c3db739e461052b147c3410b4d7689632` |
+| `tests/Contract/test_wave2_plan3_review.py` | `c073658ec37b4534f1679a63e7ddcbfdd79eac9bc22b9d4e2a77c5ffd121a61f` |
+| `tests/Contract/plan9_next_review_cases.py` | `9c237fc617607e309a64b373c0117365c327adcfd75d3088538f29d322f1e24d` |
+
+Four new bounded-scope regressions failed before the draft and passed after;
+the existing Plan 3 suite passed 11/11 including eight old and four new nested
+scope cases. A local **simulation using the unapproved draft** reached
+`CONTRACT_BREAKING_REVIEWED`, correlation
+`89f147c8-c3ec-4131-bf82-2074dde80b2b`; historical SDK and packaged consumer
+checks ran and the SDK break remains reported. This is evidence about the draft,
+not an approval, hosted result, independent attestation or compatible verdict.
+The initial simulation without the Node library path failed with
+`SDK_TOOLCHAIN_REVIEW_REQUIRED`; rerunning with the project's pinned toolchain
+produced the simulated result above.
+
+Decision requested: an authorized reviewer may approve or reject this exact
+draft and snapshot after reviewing the diff, CI changes, tests and evidence.
+If approved, commit it, freeze the resulting new candidate, repeat any required
+candidate-bound measurement and run a single hosted CI while monitoring; report
+security as deferred and the aggregate according to its actual result. No
+scope is authorized by this document alone.
+
+On 2026-11-28 the user approved proceeding with the exact draft described above.
+This authorizes this bounded candidate-owned MVP scope; it does not provide
+independent enforcement, waive security, or approve later product/CI drift.
