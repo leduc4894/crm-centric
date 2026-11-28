@@ -240,3 +240,28 @@ failed client-inflated runs and the corrected results are retained in the
 Wave 2 or transfer the measurement to another candidate; the new CI inventory,
 actual-base review and final hosted verification remain open. Security is
 deferred by user decision and P0 remains open.
+
+### Plan 9 hosted non-security checkpoint — 2026-11-28
+
+[Run 46112248331](https://github.com/leduc4894/crm-centric/actions/runs/46112248331)
+passed all non-security jobs on tested merge
+`6a73157c2d8353ca1ce55edb60d2a5986db699b3`: backend 424, Compose 18,
+contracts-sdk 137, web 306 and ci-tests 219, zero failures/skips in those jobs.
+Security FAIL/deferred and aggregate FAIL; the reviewed-breaking contract
+outcome is candidate-owned, not independent enforcement. On matching head
+`fcccd09ba006b53b4960e3613f0ff1f856da6e42`, default-list benchmark p95 was
+108.02 ms with 242,305 valid responses and zero errors. Search diagnostic p95
+was 1861.61 ms. See [exit verification](16-WAVE-2-EXIT-VERIFICATION.md) for
+scope and remaining environment evidence gaps. Wave 2 and P0 remain OPEN; this
+documentation does not move the run or benchmark verdict to its own commit.
+
+The later candidate `1e78b78` strengthens Wave 2 integration discovery and
+benchmark response validation. Its default-list p95 was 112.82 ms; search
+p95 was 1643.72 ms and remains an open diagnostic performance issue. The
+previous benchmark harness did not enforce full pages. See the
+[updated evidence](16-WAVE-2-EXIT-VERIFICATION.md). Wave 2 and P0 remain OPEN.
+
+[Run 46114911449](https://github.com/leduc4894/crm-centric/actions/runs/46114911449)
+passed all five non-security jobs with zero skipped tests on merge
+`fdfd10a92ff3255cff750599591f0b8c60f799ce` (tree equal to `1e78b78`).
+Security and aggregate failed; security remains deferred, not cleared.

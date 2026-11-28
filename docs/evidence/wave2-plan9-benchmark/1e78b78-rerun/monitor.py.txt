@@ -1,0 +1,13 @@
+import datetime,json,subprocess,time
+from pathlib import Path
+base=Path('.local/plan9-exit-runtime');m=json.loads((base/'metadata.json').read_text());project=m['project']
+with (base/'resource-samples.jsonl').open('x') as out:
+ deadline=time.monotonic()+850
+ while time.monotonic()<deadline:
+  p=subprocess.run(['docker','stats','--no-stream','--format','{{json .}}'],capture_output=True,text=True,timeout=30)
+  records=[]
+  if p.returncode==0:
+   for line in p.stdout.splitlines():
+    item=json.loads(line)
+    if item.get('Name','').startswith(project):records.append({k:item.get(k) for k in ('Name','CPUPerc','MemUsage','MemPerc')})
+  out.write(json.dumps({'utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),'containers':records})+'\n');out.flush();time.sleep(10)

@@ -1,0 +1,21 @@
+{
+  "recorded_utc": "2026-11-28T06:47:31.137145+00:00",
+  "tcp_client_to_published_api_loopback_ms": {
+    "samples": 30,
+    "mean": 0.21232759269575277,
+    "max": 2.873831894248724
+  },
+  "limitations": "TCP connect timing includes kernel/socket overhead; not API-to-database RTT.",
+  "icmp_client_loopback_rtt_ms": {
+    "samples": 10,
+    "min": 0.048,
+    "mean": 0.069,
+    "max": 0.094
+  },
+  "icmp_api_namespace_to_database_rtt_ms": {
+    "samples": 10,
+    "min": 0.087,
+    "mean": 0.112,
+    "max": 0.146
+  }
+}

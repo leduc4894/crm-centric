@@ -1,0 +1,55 @@
+{
+  "candidate_sha": "1e78b7860dd7d5620556ea5c27becda7afde556d",
+  "containers": {
+    "api": {
+      "image_id": "sha256:8a2b9bba715d7719d20d06ca7341b03ceba45edeee1e610a8e93b7bea0ca7dc4",
+      "memory_limit_bytes": 0,
+      "nano_cpus": 0
+    },
+    "crm-db": {
+      "image_id": "sha256:4a78f88106d8b488f5c55c94b170d8eebd4d621a36345e51e4d38d27a0fdaa66",
+      "memory_limit_bytes": 0,
+      "nano_cpus": 0
+    },
+    "idp-db": {
+      "image_id": "sha256:4a78f88106d8b488f5c55c94b170d8eebd4d621a36345e51e4d38d27a0fdaa66",
+      "memory_limit_bytes": 0,
+      "nano_cpus": 0
+    },
+    "keycloak": {
+      "image_id": "sha256:d3ef2cba4f5a6a4cc60d428c46970aa448fe3a7652702d1a50b7de848b277468",
+      "memory_limit_bytes": 0,
+      "nano_cpus": 0
+    }
+  },
+  "cpu_model": "Intel(R) Xeon(R) Platinum 8272CL CPU @ 2.60GHz",
+  "dataset": {
+    "application_role_non_superuser_non_bypassrls": true,
+    "contacts": 50000,
+    "search_matches": 500,
+    "tag_assignments": 50000,
+    "tenant_b_marker": 1
+  },
+  "docker_version": "29.9.3",
+  "host_memory_bytes": 8326561792,
+  "lock_sha256": {
+    "infra/compose/images.lock.env": "cb4b7bbb071e0dddf6fb83a0e03456050fbde0bd2b622c3f22822e085ee44145"
+  },
+  "os": "Linux-6.8.0-149-generic-x86_64-with-glibc2.39",
+  "postgresql": {
+    "max_connections": "100",
+    "shared_buffers": "128MB",
+    "storage": "Docker local volume",
+    "version": "18.6 (Debian 18.6-1.pgdg12+2)"
+  },
+  "recorded_utc": "2026-11-28T06:46:46.152409+00:00",
+  "runtime": "containerized .NET API, local Keycloak",
+  "topology": "same Linux host; client via IPv4 loopback to published API, API to PostgreSQL/IdP via Docker bridge",
+  "visible_vcpu": 5,
+  "workload": {
+    "measurement_seconds": 300,
+    "timeout_seconds": 10,
+    "warmup_seconds": 60,
+    "workers": 50
+  }
+}

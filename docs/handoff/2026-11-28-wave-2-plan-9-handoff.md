@@ -665,3 +665,111 @@ file hashes against the package before committing. The user authorizes continued
 CI fixes and monitoring until non-security jobs are green, with security deferred;
 this does not establish independent enforcement or security clearance. Avoid
 overlapping workflows; group failures from each completed run before rerunning.
+
+## Final reviewed candidate and hosted run — 2026-11-28
+
+Objective: complete non-security CI, monitor one workflow at a time and compare
+security with the known baseline. The user authorized continuing CI fixes and
+security deferral; this is not independent policy enforcement or a waiver.
+Read [Plan 9](../superpowers/plans/2026-11-27-wave-2-plan-9-exit.md) and
+[exit verification](../engineering/16-WAVE-2-EXIT-VERIFICATION.md).
+
+Independent review found that CI discovery did not require the 163 Wave 2
+integration identities, and benchmark validation accepted incomplete pages and
+missed some HTTP protocol exceptions. RED tests reproduced each issue; commit
+`1e78b7860dd7d5620556ea5c27becda7afde556d` fixes those cases and binds the exact
+candidate-owned scope to the new test and benchmark files. Benchmark tests
+passed 20/20, job report tests 9/9, scoped review regressions 8/8 and the nested
+Plan 3 scope test passed. An initially mistyped unittest selector failed to
+load; the corrected selector passed. `git diff --check` and Python compilation
+passed. Actual-base contract gate returned `CONTRACT_BREAKING_REVIEWED`,
+correlation `2e473623-c306-49e8-8d30-c00d143a4bf4`; this is candidate-owned,
+not an independent attestation or a compatibility verdict.
+
+[Run 46114911449](https://github.com/leduc4894/crm-centric/actions/runs/46114911449)
+completed with tested merge `fdfd10a92ff3255cff750599591f0b8c60f799ce` and
+head tree `42f4c7738995d53b72bcd724c812cb4aaed36437` equal to the merge tree.
+Backend passed 424/424, Compose 18/18, contracts-sdk 137/137, web-browser
+306/306, and ci-tests 222/222; zero failures or skips in these five reports.
+Security failed and the aggregate failed. Security comparison with the previous
+run found 105 blocked Gitleaks in each; 15 changed IDs matched one-to-one by
+rule, path and value digest computed only in memory, with zero unmatched.
+Trivy's nine IDs and verdicts were unchanged, one blocked. No values/digests
+were saved or printed; no new finding in this exact comparison is not clearance.
+
+The 50,000-contact, 50-user isolated benchmark on `1e78b78` passed the mandatory
+default workload: 232,626 valid requests, no errors, p95 112.82 ms,
+correlation `e1ba8902-286f-4b30-8ba4-a1ce493ce801`. Search diagnostic failed:
+13,022 valid, no errors, p95 1643.72 ms, correlation
+`19c40696-330d-4bce-a6a6-d86cce0a61f0`; its plan is a sequential scan.
+Both used 60s warmup/300s measurement. The previous benchmark harness did not
+require full pages, so its historical results do not prove that invariant.
+Sanitized evidence and environment are in `docs/evidence/wave2-plan9-benchmark/`;
+network RTT, client saturation and reproducible provisioning remain gaps. The
+owned benchmark stack, two volumes, four images and private state were removed.
+
+Docs and sanitized evidence changed after the tested commit: acceptance matrix,
+exit verification, benchmark operations and this handoff. This documentation
+must not be represented as the tested candidate tree. Wave 2 and P0 remain OPEN:
+remote DemoModule E2E, concurrent duplicate, tenant/worker/replay isolation,
+outage/recovery and restore drills and independent enforcement remain to be
+assessed; search performance also remains open. Next session: inspect the
+branch/worktree and this handoff, preserve the security deferral and baseline,
+and plan the remaining acceptance evidence before claiming closure. No full
+suite was run locally and no deployment or security clearance was made.
+
+At handoff the code commit `1e78b78` is pushed on `wave-2`. The listed docs and
+sanitized evidence are uncommitted local work; no documentation-only commit was
+pushed or tested, avoiding a second CI run. Preserve these files on continuation.
+
+## Continued Wave 2 exit assessment — 2026-11-28
+
+The user requested all steps to close Wave 2 and explicitly accepted deferring
+security. Rechecked the current branch, PR #4, run 46114911449, Plan 9, roadmap,
+AGENTS.md and the actual hosted artifacts. Independent read-only review found no
+new important product issue in its assessed scope. The five non-security reports
+contain 1,107 passing tests and no skips; 14 actual test IDs are linked to their
+scope in `docs/engineering/16-WAVE-2-EXIT-VERIFICATION.md`. Internal timeline
+coverage is not an event-pipeline acceptance test, and Vite/browser evidence is
+not proof of deployed SPA fallback. Candidate-owned reviewed-breaking is not an
+independent verifier; that verifier is pre-production hardening under the MVP
+scope decision, not itself a separate MVP exit criterion.
+
+Because the prior benchmark had not recorded network RTT or client CPU, the
+mandatory default workload was rerun from a clean detached `1e78b78` worktree
+against an owned disposable stack. It passed 235,048/235,048 valid responses,
+zero errors, p95 110.36 ms, 60s warmup/300s measured, correlation
+`a0234a46-6fc9-44b4-a3fe-c59548278e51`. Pre-run ICMP RTT was 0.069 ms mean
+on client loopback and 0.112 ms from API network namespace to DB. Across 72
+five-second samples including warmup, the client process averaged 86.78% and
+peaked at 242.36% of one CPU; 32 container samples summarize CPU/memory.
+Sanitized evidence, exact provisioning/measurement scripts and instructions
+are in `docs/evidence/wave2-plan9-benchmark/1e78b78-rerun/` and
+`docs/operations/11-CONTACT-BENCHMARK.md`. These scripts still need an
+independent repeatability review. The separate earlier search diagnostic remains
+p95 1643.72 ms and was not rerun in this measurement. The rerun's stack,
+two owned volumes, four images, private state and detached worktree were removed.
+
+Security remains FAIL/deferred and aggregate FAIL, not PASS or clearance.
+AGENTS.md explicitly prohibits claiming done until remote DemoModule E2E,
+concurrent duplicate, tenant isolation, outage/recovery and restore drills
+pass. The external module, event kernel and recovery drills belong to later
+waves and have no qualifying evidence here; therefore do not claim Wave 2 or P0
+closed. This instruction cannot be replaced by an assumed waiver. See the
+roadmap and updated exit matrix for the conditional functional checkpoint.
+No full test suite ran locally, no deployment occurred and no extra CI was
+started; the verified product SHA remains `1e78b78`. This documentation and
+evidence are committed separately locally; the documentation commit itself has
+not run CI and must not be represented as the tested product candidate.
+
+## Merge into main — 2026-11-28
+
+The user explicitly requested merging Wave 2 into main, with Wave 3–5
+acceptance and security deferred. PR #4 was marked ready and merged without
+changing its reviewed head `1e78b7860dd7d5620556ea5c27becda7afde556d`;
+merge commit `069d3e5a80ad891b4bcf09e1e1a965601f2c1793` has the same product
+tree. GitHub push run 46119012805 started on main; its result is not inferred
+from PR run 46114911449. Documentation and sanitized evidence from local
+`61a4b91` are prepared separately against merged main so that they do not alter
+the candidate already tested. The original `wave-2` checkout retains `61a4b91`.
+Security remains FAIL/deferred, and P0/later-wave acceptance is not claimed.

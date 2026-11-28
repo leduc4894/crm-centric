@@ -1,0 +1,20 @@
+import datetime,json,re,socket,statistics,subprocess,time
+from pathlib import Path
+p=Path('.local/plan9-exit-runtime');m=json.loads((p/'metadata.json').read_text());times=[]
+for i in range(30):
+ start=time.monotonic()
+ with socket.create_connection(('127.0.0.1',m['api_port']),timeout=2):pass
+ times.append((time.monotonic()-start)*1000)
+result={'recorded_utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),'tcp_client_to_published_api_loopback_ms':{'samples':len(times),'mean':statistics.mean(times),'max':max(times)},'limitations':'TCP connect timing includes kernel/socket overhead; not API-to-database RTT.'}
+cmd=subprocess.run(['ping','-n','-c','10','-i','0.1','-W','1','127.0.0.1'],capture_output=True,text=True)
+match=re.search(r'=\s*([0-9.]+)/([0-9.]+)/([0-9.]+)/([0-9.]+)\s*ms',cmd.stdout)
+if cmd.returncode==0 and match:result['icmp_client_loopback_rtt_ms']={'samples':10,'min':float(match[1]),'mean':float(match[2]),'max':float(match[3])}
+else:result['icmp_client_loopback_rtt_ms']='unavailable'
+db=subprocess.check_output(['docker','ps','-q','--filter','label=com.docker.compose.project='+m['project'],'--filter','label=com.docker.compose.service=crm-db'],text=True).strip()
+info=json.loads(subprocess.check_output(['docker','inspect',db],text=True))[0]
+address=next(v['IPAddress'] for k,v in info['NetworkSettings']['Networks'].items() if k.endswith('_crm'))
+bridge=subprocess.run(['docker','run','--rm','--network','container:'+m['benchmark_api'],'alpine:latest','ping','-c','10','-i','0.1','-W','1',address],capture_output=True,text=True,timeout=30)
+match=re.search(r'=\s*([0-9.]+)/([0-9.]+)/([0-9.]+)(?:/[0-9.]+)?\s*ms',bridge.stdout)
+if bridge.returncode==0 and match:result['icmp_api_namespace_to_database_rtt_ms']={'samples':10,'min':float(match[1]),'mean':float(match[2]),'max':float(match[3])}
+else:result['icmp_api_namespace_to_database_rtt_ms']='unavailable'
+(p/'network.json').write_text(json.dumps(result,indent=2)+'\n');print('NETWORK_PRE_MEASUREMENT_RECORDED',flush=True)

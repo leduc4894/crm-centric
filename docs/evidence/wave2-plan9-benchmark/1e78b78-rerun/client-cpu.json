@@ -1,0 +1,10 @@
+{
+  "sampling_interval_seconds": 5,
+  "sample_count": 72,
+  "process_cpu_percent_mean": 86.78,
+  "process_cpu_percent_peak": 242.36,
+  "visible_vcpu": 5,
+  "percent_unit": "100% means one fully utilized CPU; average covers warmup and measurement",
+  "return_code": 0,
+  "recorded_utc": "2026-11-28T06:53:38.736441+00:00"
+}

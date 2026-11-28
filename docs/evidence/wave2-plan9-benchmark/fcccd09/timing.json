@@ -1,0 +1,12 @@
+{
+  "default": {
+    "approx_measured_start_utc": "2026-11-28T05:31:18.149609+00:00",
+    "report_written_utc": "2026-11-28T05:36:18.187609+00:00",
+    "source": "report file mtime minus reported elapsed; approximate"
+  },
+  "search": {
+    "approx_measured_start_utc": "2026-11-28T05:37:33.193087+00:00",
+    "report_written_utc": "2026-11-28T05:42:33.886087+00:00",
+    "source": "report file mtime minus reported elapsed; approximate"
+  }
+}

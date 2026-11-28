@@ -28,6 +28,7 @@ Local Plan 4 replaces the old contract-only workflow with `.github/workflows/wav
 - Optimistic concurrency, audit, contacts API contract, TS client generation.
 - Sau Plan 4: Plan 5 TanStack Query → Plan 6 Table → Plan 7 Router → Plan 8 Form; mỗi plan review và test liên quan local. TanStack Virtual để sau khi có nhu cầu đo được. Plan 9 là Wave 2 exit và full suite trên GitHub CI. Xem [Wave 2 design](../superpowers/specs/2026-11-27-wave-2-crm-contacts-design.md).
 **Exit:** 50k contacts/tenant, 50 concurrent users; p95 <400ms trong benchmark environment ghi rõ CPU/RAM/DB/network; permission/concurrency/audit tests pass. Chỉ seed fixture không đủ đóng wave.
+**Checkpoint 2026-11-28:** [Wave 2 evidence](../engineering/16-WAVE-2-EXIT-VERIFICATION.md) identifies hosted candidate `1e78b78`: five non-security jobs passed, default-list p95 112.82 ms with 50k contacts and 50 users. Security and aggregate failed; user deferred security. Search p95 1643.72 ms remains diagnostic follow-up. Exit/P0 are not declared closed: see the evidence limitations and AGENTS.md acceptance prerequisites.
 
 ## Wave 3 — Integration Kernel
 - Module manifest schema+registry, install/uninstall, connector credentials, verified webhook ingestion/inbox, outbox worker, delivery retries/DLQ.

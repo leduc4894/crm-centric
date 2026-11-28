@@ -1,0 +1,17 @@
+import datetime,json,os,statistics,subprocess,time
+from pathlib import Path
+p=Path('.local/plan9-exit-runtime'); out=p/'default-report.json'
+cmd=['python3','scripts/benchmarks/contact_list.py','--input',str(p/'input.json'),'--output',str(out),'--scenario','default']
+with (p/'default.log').open('w') as log:
+ proc=subprocess.Popen(cmd,stdout=log,stderr=subprocess.STDOUT)
+ clk=os.sysconf('SC_CLK_TCK'); samples=[];previous=None
+ while proc.poll() is None:
+  try:
+   stat=Path('/proc/'+str(proc.pid)+'/stat').read_text(); tail=stat[stat.rindex(')')+2:].split(); ticks=int(tail[11])+int(tail[12]);now=time.monotonic()
+   if previous:
+    samples.append(100*(ticks-previous[0])/clk/(now-previous[1]))
+   previous=(ticks,now)
+  except (FileNotFoundError,ValueError,IndexError): pass
+  time.sleep(5)
+rc=proc.wait(); data={'sampling_interval_seconds':5,'sample_count':len(samples),'process_cpu_percent_mean':round(statistics.mean(samples),2) if samples else None,'process_cpu_percent_peak':round(max(samples),2) if samples else None,'visible_vcpu':len(os.sched_getaffinity(0)),'percent_unit':'100% means one fully utilized CPU; average covers warmup and measurement','return_code':rc,'recorded_utc':datetime.datetime.now(datetime.timezone.utc).isoformat()}
+(p/'client-cpu.json').write_text(json.dumps(data,indent=2)+'\n');print('BENCHMARK_EXIT',rc,'CPU_SAMPLES',len(samples),flush=True)

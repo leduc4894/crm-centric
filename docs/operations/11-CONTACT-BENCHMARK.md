@@ -1,6 +1,6 @@
-# Contact list benchmark (work in progress)
+# Contact list benchmark
 
-Plan: [Wave 2 Plan 9](../superpowers/plans/2026-11-27-wave-2-plan-9-exit.md). This document describes the current harness and outstanding setup; it is **not** evidence of a completed benchmark. Use an isolated, disposable environment and a clean checkout of the exact candidate. Do not run the seed against an existing application database.
+Plan: [Wave 2 Plan 9](../superpowers/plans/2026-11-27-wave-2-plan-9-exit.md). This document describes the harness, recorded measurements and remaining reproducibility gaps. Use an isolated, disposable environment and a clean checkout of the exact candidate. Do not run the seed against an existing application database.
 
 ## Dataset
 
@@ -18,7 +18,7 @@ Record **before** running: UTC time and exact candidate SHA; API build and runti
 
 ## Remaining work
 
-Automated provisioning of the disposable real API/IdP and 50 identities, safe generation of the private input, an environment manifest, repeatability review, and hosted coverage for benchmark tests remain to be completed. No measurement has been run on a qualifying environment. Do not treat a unit or seed integration test as benchmark evidence.
+The original measurement omitted network RTT and client CPU. A later run records both and publishes its provisioning scripts below; independent repeatability review remains open. Hosted CI covered the benchmark unit tests, and the recorded candidate measurements below are separate runtime evidence. Do not treat a unit or seed integration test as benchmark evidence.
 
 ## Recorded run — 2026-11-28
 
@@ -31,3 +31,81 @@ search scenario was 1979.5 ms and is recorded as a diagnostic failure. Earlier
 failed measurements caused by per-request client opener setup remain preserved.
 The private input and provisioner are environment-local, not a complete
 published provisioning workflow; recreate and verify them for a new candidate.
+
+## Latest candidate — 2026-11-28
+
+On head `fcccd09ba006b53b4960e3613f0ff1f856da6e42` (same tree as GitHub tested
+merge `6a73157c2d8353ca1ce55edb60d2a5986db699b3`), the default workload
+returned p95 108.02 ms from 242,305 valid responses, with zero errors. The
+separate search diagnostic returned p95 1861.61 ms from 12,129 valid responses,
+with zero errors. The [reports and sanitized environment](../evidence/wave2-plan9-benchmark/fcccd09/)
+retain both results. Measured network RTT and client CPU saturation were not
+recorded, and local provisioning scripts remain environment-local; account for
+these gaps before treating this as fully reproducible exit evidence.
+
+## Later benchmark validation — 2026-11-28
+
+The first page must contain exactly 20 distinct contacts and a nonempty cursor;
+incomplete HTTP responses are classified in the aggregate report. On candidate
+`1e78b7860dd7d5620556ea5c27becda7afde556d`, the default scenario passed with
+p95 112.82 ms and 232,626 valid responses; search was 1643.72 ms and remains a
+diagnostic failure. Both had zero errors. See the [reports and environment](../evidence/wave2-plan9-benchmark/1e78b78/).
+The earlier candidate's harness did not enforce full pages, so its results do
+not independently prove that every response contained 20 contacts.
+
+## Reproduce the 1e78b78 default measurement
+
+The [rerun evidence](../evidence/wave2-plan9-benchmark/1e78b78-rerun/)
+includes the exact local provisioning, manifest, network and monitoring scripts
+used for the rerun, without generated credentials or private input. They target
+`.local/plan9-exit-runtime` in a clean checkout of the measured commit. Inspect
+them before use. They create an isolated stack and synthetic principals; never
+point them at an existing database or identity provider. The commands below
+must run as the normal, non-root development user with Docker available.
+
+From a clean checkout of `1e78b7860dd7d5620556ea5c27becda7afde556d`, copy the
+five `*.py.txt` evidence files into `.local/plan9-exit-runtime/`, removing only
+the final `.txt` suffix. Create the private runtime metadata and cursor key:
+
+```sh
+python3 - <<'PY'
+import base64, json, os, secrets, socket, uuid
+from pathlib import Path
+p = Path.cwd() / '.local/plan9-exit-runtime'
+p.mkdir(parents=True, exist_ok=True, mode=0o700)
+def port():
+    with socket.socket() as s:
+        s.bind(('127.0.0.1', 0))
+        return s.getsockname()[1]
+a, b = port(), port()
+while a == b: b = port()
+(p / 'metadata.json').write_text(json.dumps({
+    'project': 'crm-bench-' + uuid.uuid4().hex, 'api_port': a, 'idp_port': b}))
+(p / 'cursor-key').write_text(base64.b64encode(secrets.token_bytes(32)).decode())
+for name in ('metadata.json', 'cursor-key'): os.chmod(p / name, 0o600)
+PY
+```
+
+Start the stack using `scripts/dev-up.sh` with environment variables
+`LOCAL_STACK_PROJECT`, `LOCAL_STACK_STATE_DIR` (absolute path to the runtime's
+`state` directory), `LOCAL_API_PORT` and `LOCAL_IDP_PORT` taken from that
+metadata. Redirect command output to a private local log; do not print generated
+credentials. Run the copied `provision.py`, then `manifest.py` and `network.py`
+before the workload. The scripts verify the disposable project label, dataset,
+restricted application role and isolated identity provider. The network script
+uses an already installed Alpine image for an ICMP probe from the API network
+namespace to the database; its reported probe is not application latency.
+
+Start `monitor.py` and `run-measured.py` from the clean checkout. The latter
+runs `scripts/benchmarks/contact_list.py --input .local/plan9-exit-runtime/input.json
+--output .local/plan9-exit-runtime/default-report.json --scenario default` and
+samples the client process CPU. The monitor samples container CPU and memory;
+stop it after the workload. Retain only sanitized reports and summaries. Verify
+that the project label is the generated `crm-bench-<32 hex>` value, remove only
+its extra `-bench-api` container, run `scripts/dev-down.sh` with the same
+`LOCAL_STACK_*` variables, and remove only volumes and images bearing that
+project identity. Remove its private runtime state and input after collection.
+
+The documented rerun on `1e78b78` recorded p95 110.36 ms from 235,048 valid
+responses and zero errors. Its network probes preceded the run; the measured
+client CPU covers warmup and measurement. See the rerun evidence above.

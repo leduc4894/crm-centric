@@ -1,0 +1,32 @@
+{
+  "samples": 32,
+  "first_utc": "2026-11-28T06:47:35.769208+00:00",
+  "last_utc": "2026-11-28T06:53:53.712133+00:00",
+  "services": {
+    "bench-api": {
+      "cpu_percent_mean": 105.8,
+      "cpu_percent_peak": 164.22,
+      "memory_mib_mean": 121.29,
+      "memory_mib_peak": 133.9
+    },
+    "keycloak-1": {
+      "cpu_percent_mean": 2.42,
+      "cpu_percent_peak": 38.66,
+      "memory_mib_mean": 555.82,
+      "memory_mib_peak": 558.6
+    },
+    "crm-db-1": {
+      "cpu_percent_mean": 153.25,
+      "cpu_percent_peak": 178.98,
+      "memory_mib_mean": 219.85,
+      "memory_mib_peak": 227.5
+    },
+    "idp-db-1": {
+      "cpu_percent_mean": 3.57,
+      "cpu_percent_peak": 12.25,
+      "memory_mib_mean": 60.25,
+      "memory_mib_peak": 63.71
+    }
+  },
+  "note": "Samples approximately every 10 seconds across default warmup and measurement; CPU percentages may exceed 100 on multicore."
+}

@@ -1,0 +1,24 @@
+import datetime,hashlib,json,os,platform,subprocess
+from pathlib import Path
+base=Path('.local/plan9-exit-runtime');m=json.loads((base/'metadata.json').read_text());c=json.loads((base/'input.json').read_text());project=m['project']
+def cmd(*args,input=None):
+ p=subprocess.run(args,input=input,text=True,capture_output=True,check=True,timeout=60);return p.stdout.strip()
+def docker(*args,input=None):return cmd('docker',*args,input=input)
+db=docker('ps','-q','--filter','label=com.docker.compose.project='+project,'--filter','label=com.docker.compose.service=crm-db')
+sql="BEGIN; SET ROLE crm_app; SET LOCAL crm.tenant_id='"+c['tenant_id']+"'; SELECT count(*) FROM crm.contacts; SELECT count(*) FROM crm.contact_tags; SELECT count(*) FROM crm.contacts WHERE display_name LIKE '%segment-07%'; SET LOCAL crm.tenant_id='"+c['other_tenant_id']+"'; SELECT count(*) FROM crm.contacts; COMMIT;"
+counts=docker('exec','-i',db,'psql','-qAt','-U','postgres','-d',m['database'],'-v','ON_ERROR_STOP=1',input=sql).splitlines()
+if counts!=['50000','50000','500','1']: raise RuntimeError('BENCHMARK_DATASET_INVALID')
+role=docker('exec','-i',db,'psql','-qAt','-U','postgres','-d',m['database'],input="SELECT rolsuper,rolbypassrls FROM pg_roles WHERE rolname='crm_app';").splitlines()
+if role!=['f|f']: raise RuntimeError('BENCHMARK_ROLE_INVALID')
+pg=docker('exec','-i',db,'psql','-qAt','-U','postgres','-d',m['database'],input='SHOW server_version; SHOW shared_buffers; SHOW max_connections;').splitlines()
+cpu=next((line.split(':',1)[1].strip() for line in Path('/proc/cpuinfo').read_text().splitlines() if line.startswith('model name')),'unknown')
+containers={}
+for service in ('crm-db','idp-db','keycloak'):
+ cid=docker('ps','-q','--filter','label=com.docker.compose.project='+project,'--filter','label=com.docker.compose.service='+service)
+ info=json.loads(docker('inspect',cid))[0];host=info['HostConfig'];containers[service]={'image_id':info['Image'],'memory_limit_bytes':host['Memory'],'nano_cpus':host['NanoCpus']}
+info=json.loads(docker('inspect',m['benchmark_api']))[0];host=info['HostConfig'];containers['api']={'image_id':info['Image'],'memory_limit_bytes':host['Memory'],'nano_cpus':host['NanoCpus']}
+locks={str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in [Path('infra/compose/images.lock.env'),Path('packages.lock.json')] if p.exists()}
+manifest={'recorded_utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),'candidate_sha':m['candidate_sha'],'os':platform.platform(),'cpu_model':cpu,'visible_vcpu':len(os.sched_getaffinity(0)),'host_memory_bytes':os.sysconf('SC_PAGE_SIZE')*os.sysconf('SC_PHYS_PAGES'),'docker_version':docker('version','--format','{{.Server.Version}}'),'postgresql':{'version':pg[0],'shared_buffers':pg[1],'max_connections':pg[2],'storage':'Docker local volume'},'containers':containers,'topology':'same Linux host; client via IPv4 loopback to published API, API to PostgreSQL/IdP via Docker bridge','runtime':'containerized .NET API, local Keycloak','dataset':{'contacts':50000,'tag_assignments':50000,'search_matches':500,'tenant_b_marker':1,'application_role_non_superuser_non_bypassrls':True},'workload':{'workers':50,'warmup_seconds':60,'measurement_seconds':300,'timeout_seconds':10},'lock_sha256':locks}
+path=base/'environment.json'
+with path.open('x') as f:json.dump(manifest,f,indent=2,sort_keys=True)
+print('BENCHMARK_ENVIRONMENT_RECORDED dataset=50000 principals=50 app_role=restricted')

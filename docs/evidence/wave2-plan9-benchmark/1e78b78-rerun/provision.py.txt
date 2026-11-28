@@ -1,0 +1,86 @@
+import base64, hashlib, json, os, secrets, subprocess, time, urllib.request, urllib.parse, urllib.error, uuid
+from pathlib import Path
+root=Path.cwd(); base=root/'.local/plan9-exit-runtime'; meta=json.loads((base/'metadata.json').read_text())
+project=meta['project']; api_port=meta['api_port']; idp_port=meta['idp_port']
+if not project.startswith('crm-bench-') or len(project)!=42: raise RuntimeError('owner invalid')
+def docker(*args, input=None):
+ p=subprocess.run(['docker',*args],input=input,text=True,capture_output=True,timeout=180)
+ if p.returncode: raise RuntimeError('docker operation failed')
+ return p.stdout.strip()
+def container(service):
+ found=docker('ps','-aq','--filter','label=com.docker.compose.project='+project,'--filter','label=com.docker.compose.service='+service).split()
+ if len(found)!=1: raise RuntimeError('owned service invalid')
+ return found[0]
+def inspect(cid): return json.loads(docker('inspect',cid))[0]
+def req(method,url,body=None,token=None,form=False):
+ headers={}
+ if token: headers['Authorization']='Bearer '+token
+ if body is not None:
+  if form: data=urllib.parse.urlencode(body).encode();headers['Content-Type']='application/x-www-form-urlencoded'
+  else: data=json.dumps(body).encode();headers['Content-Type']='application/json'
+ else: data=None
+ try:
+  with urllib.request.urlopen(urllib.request.Request(url,method=method,data=data,headers=headers),timeout=30) as r:
+   raw=r.read();return json.loads(raw) if raw else None
+ except urllib.error.HTTPError as e:
+  path=urllib.parse.urlsplit(url).path
+  stage='token' if path.endswith('/token') else 'users' if '/users' in path else 'clients' if '/clients' in path else 'realm'
+  print('PROVISION_HTTP_ERROR',stage,method,e.code,flush=True)
+  raise
+api=container('crm-api');db=container('crm-db'); spec=inspect(api)
+if spec['Config']['Labels'].get('com.docker.compose.project')!=project: raise RuntimeError('owner invalid')
+issuer='http://localhost:'+str(idp_port)+'/realms/crm-local'; admin_url='http://localhost:'+str(idp_port)+'/admin/realms/crm-local'
+password=(base/'state/idp_admin_password').read_text().strip()
+admin=req('POST','http://localhost:'+str(idp_port)+'/realms/master/protocol/openid-connect/token',{'grant_type':'password','client_id':'admin-cli','username':'local-admin','password':password},form=True)['access_token']
+realm=req('GET',admin_url,token=admin);realm['accessTokenLifespan']=1800;req('PUT',admin_url,realm,admin)
+clients=req('GET',admin_url+'/clients?clientId=crm-web-local',token=admin)
+if len(clients)!=1: raise RuntimeError('client invalid')
+client=clients[0];client['directAccessGrantsEnabled']=True;req('PUT',admin_url+'/clients/'+client['id'],client,admin)
+users=[]
+for i in range(50):
+ name='bench-'+uuid.uuid4().hex;secret=secrets.token_urlsafe(30)
+ req('POST',admin_url+'/users',{'username':name,'email':name+'@benchmark.invalid','firstName':'Benchmark','lastName':'User','enabled':True,'emailVerified':True,'credentials':[{'type':'password','value':secret,'temporary':False}]},admin)
+ account=req('GET',admin_url+'/users?'+urllib.parse.urlencode({'username':name,'exact':'true'}),token=admin)
+ if len(account)!=1: raise RuntimeError('user invalid')
+ subject=str(uuid.UUID(account[0]['id']))
+ token=req('POST',issuer+'/protocol/openid-connect/token',{'grant_type':'password','client_id':'crm-web-local','username':name,'password':secret},form=True)['access_token']
+ users.append({'subject':subject,'token':token})
+print('BENCHMARK_IDENTITIES_PROVISIONED',flush=True)
+docker('stop',api)
+# No operation is sent outside this uniquely labelled disposable database container.
+dbname='crm_bench_'+uuid.uuid4().hex
+docker('exec','-i',db,'psql','-U','postgres','-d','postgres','-v','ON_ERROR_STOP=1',input="SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='crm' AND pid<>pg_backend_pid();\nCREATE DATABASE "+dbname+" TEMPLATE crm;\n")
+a=str(uuid.uuid4());b=str(uuid.uuid4());
+sql="INSERT INTO platform.tenants VALUES ('"+a+"','Benchmark A','active',now()),('"+b+"','Benchmark B','active',now());\n"
+for user in users:
+ sql+="INSERT INTO platform.memberships VALUES ('"+a+"',gen_random_uuid(),'"+issuer+"','"+user['subject']+"','owner','active',1); INSERT INTO platform.staff_bindings VALUES ('"+issuer+"','"+user['subject']+"','active','benchmark');\n"
+docker('exec','-i',db,'psql','-U','postgres','-d',dbname,'-v','ON_ERROR_STOP=1',input=sql)
+seed=(root/'scripts/benchmarks/seed_contacts.sql').read_text()
+docker('exec','-i',db,'psql','-U','postgres','-d',dbname,'-v','tenant_a='+a,'-v','tenant_b='+b,'-v','bench_confirm=ISOLATED_BENCHMARK_ONLY',input=seed)
+print('BENCHMARK_DATASET_PROVISIONED',flush=True)
+connection=(base/'state/crm_app_connection').read_text().replace('Database=crm;','Database='+dbname+';')
+if 'Database='+dbname+';' not in connection: raise RuntimeError('connection invalid')
+def private(path,data):
+ fd=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
+ with os.fdopen(fd,'w') as f:f.write(data)
+private(base/'bench-app-connection',connection)
+key=(base/'cursor-key').read_text()
+private(base/'bench-api.env','ASPNETCORE_URLS=http://+:8080\nASPNETCORE_ENVIRONMENT=Development\nOidc__Issuer='+issuer+'\nOidc__Audience=crm-api\nOidc__AllowHttpLoopback=true\nOidc__MetadataAddress=https://keycloak:8443/realms/crm-local/.well-known/openid-configuration\nSSL_CERT_FILE=/run/secrets/idp_tls_cert\nContactCursor__SigningKey='+key+'\n')
+networks=spec['NetworkSettings']['Networks'];crm=next(n for n in networks if n.endswith('_crm'));oidc=next(n for n in networks if n.endswith('_oidc'))
+name=project+'-bench-api'
+docker('create','--name',name,'--label','io.crm-centric.benchmark-owner='+project,'--network',crm,'--env-file',str(base/'bench-api.env'),'-p','127.0.0.1:'+str(api_port)+':8080','--mount','type=bind,src='+str(base/'bench-app-connection')+',dst=/run/secrets/platform_connection,readonly','--mount','type=bind,src='+str(base/'state.tls/cert.pem')+',dst=/run/secrets/idp_tls_cert,readonly',project+'-api')
+docker('network','connect',oidc,name);docker('start',name)
+for i in range(90):
+ try:
+  with urllib.request.urlopen('http://127.0.0.1:'+str(api_port)+'/health/ready',timeout=2) as r:
+   if r.status==200: break
+ except Exception: time.sleep(1)
+else: raise RuntimeError('api unavailable')
+ids=[str(uuid.UUID(hashlib.md5(('crm-bench-v1:'+str(i)).encode()).hexdigest())) for i in range(1,50001)]
+marker=str(uuid.UUID(hashlib.md5(b'crm-bench-v1:tenant-b-marker').hexdigest()))
+sha=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
+config={'api_origin':'http://127.0.0.1:'+str(api_port),'tenant_id':a,'other_tenant_id':b,'other_marker_id':marker,'allowed_ids':ids,'search_term':'segment-07','issuer':issuer,'candidate_sha':sha,'users':users}
+private(base/'input.json',json.dumps(config))
+meta.update({'database':dbname,'benchmark_api':name,'candidate_sha':sha})
+(base/'metadata.json').write_text(json.dumps(meta))
+print('BENCHMARK_PREFLIGHT_READY',flush=True)
