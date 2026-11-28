@@ -4,6 +4,7 @@ import os
 from pathlib import Path, PurePosixPath
 import re
 import selectors
+import signal
 import subprocess
 import time
 import uuid
@@ -33,6 +34,16 @@ def resolve_cgroup_parent(mountinfo, cgroups):
     return str(PurePosixPath('/sys/fs/cgroup') / raw.lstrip('/'))
 
 
+def has_live_tree(parent_returncode, events, members, parent_pid, child_pid):
+    try:
+        state = dict(line.split(' ', 1) for line in events.splitlines())
+        pids = {int(value) for value in members.splitlines()}
+        return (parent_returncode is None and state.get('populated') == '1' and
+                parent_pid != child_pid and {parent_pid, child_pid}.issubset(pids))
+    except (ValueError, TypeError):
+        return False
+
+
 def run_probe(backend):
     result = {'cgroup_version': 'unavailable', 'delegated_group': 'unavailable',
               'kill_tree': 'not_tested', 'cleanup': 'not_needed', 'mount_layout': 'unknown'}
@@ -46,6 +57,8 @@ def run_probe(backend):
         backend.perform('spawn')
         backend.perform('attach')
         backend.perform('read_pid')
+        if backend.perform('verify_live') is not True:
+            raise ValueError('tree was not live in the probe cgroup')
     except UnsupportedMount:
         result['cgroup_version'] = 'v2'
         result['mount_layout'] = 'unsupported'
@@ -62,7 +75,9 @@ def run_probe(backend):
             except (OSError, ValueError, TimeoutError, subprocess.SubprocessError):
                 cleanup_ok = False
             try:
-                backend.perform('reap')
+                returncode = backend.perform('reap')
+                if result['kill_tree'] == 'not_tested' and returncode != -signal.SIGKILL:
+                    result['kill_tree'] = 'failed'
             except (OSError, ValueError, TimeoutError, subprocess.SubprocessError):
                 cleanup_ok = False
             if cleanup_ok:
@@ -83,6 +98,7 @@ class SystemBackend:
     def __init__(self):
         self.group = None
         self.process = None
+        self.child_pid = None
 
     def perform(self, operation):
         if operation == 'locate':
@@ -124,6 +140,12 @@ class SystemBackend:
                 line = self.process.stdout.readline().strip()
             if not re.fullmatch(r'[1-9][0-9]*', line):
                 raise ValueError('invalid descendant identifier')
+            self.child_pid = int(line)
+        elif operation == 'verify_live':
+            return has_live_tree(self.process.poll(),
+                                 (self.group / 'cgroup.events').read_text(encoding='ascii'),
+                                 (self.group / 'cgroup.procs').read_text(encoding='ascii'),
+                                 self.process.pid, self.child_pid)
         elif operation == 'kill':
             (self.group / 'cgroup.kill').write_text('1', encoding='ascii')
         elif operation == 'populated':
@@ -139,7 +161,7 @@ class SystemBackend:
             return True
         elif operation == 'reap':
             if self.process is not None:
-                self.process.wait(timeout=5)
+                return self.process.wait(timeout=5)
         elif operation == 'remove':
             self.group.rmdir()
         else:

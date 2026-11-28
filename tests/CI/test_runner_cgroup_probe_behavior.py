@@ -22,7 +22,7 @@ class FakeBackend:
         self.calls.append(operation)
         if operation == self.failure:
             raise OSError('fixture failure')
-        return {'locate': 'v2', 'populated': False}.get(operation)
+        return {'locate': 'v2', 'populated': False, 'verify_live': True, 'reap': -9}.get(operation)
 
 
 class ProbeBehaviorTests(unittest.TestCase):
@@ -50,6 +50,65 @@ class ProbeBehaviorTests(unittest.TestCase):
         self.assertNotIn('remove', fake.calls)
         self.assertIn('reap', fake.calls)
         self.assertEqual('failed', result['cleanup'])
+
+    def test_live_membership_checks_parent_child_and_population(self):
+        probe = load_probe()
+        self.assertTrue(probe.has_live_tree(None, 'populated 1\n', '100\n101\n', 100, 101))
+        for status, events, members in ((0, 'populated 1\n', '100\n101\n'),
+                                         (None, 'populated 0\n', '100\n101\n'),
+                                         (None, 'populated 1\n', '100\n'),
+                                         (None, 'populated 1\n', '101\n')):
+            self.assertFalse(probe.has_live_tree(status, events, members, 100, 101))
+
+    def test_empty_or_exited_before_kill_is_not_termination_success(self):
+        probe = load_probe()
+        for bad_state in ('empty', 'parent_exited'):
+            class BeforeKill(FakeBackend):
+                def perform(self, operation):
+                    if operation == 'verify_live':
+                        self.calls.append(operation)
+                        raise ValueError(bad_state)
+                    return super().perform(operation)
+            fake = BeforeKill()
+            result = probe.run_probe(fake)
+            self.assertIn('kill', fake.calls)
+            self.assertEqual('failed', result['kill_tree'])
+            self.assertEqual('removed', result['cleanup'])
+
+    def test_membership_mismatch_is_not_termination_success(self):
+        probe = load_probe()
+        class WrongGroup(FakeBackend):
+            def perform(self, operation):
+                if operation == 'verify_live':
+                    self.calls.append(operation)
+                    raise ValueError('membership mismatch')
+                return super().perform(operation)
+        fake = WrongGroup()
+        result = probe.run_probe(fake)
+        self.assertEqual('failed', result['kill_tree'])
+        self.assertIn('kill', fake.calls)
+        self.assertEqual('removed', result['cleanup'])
+
+    def test_success_requires_live_tree_and_killed_parent(self):
+        probe = load_probe()
+        fake = FakeBackend()
+        result = probe.run_probe(fake)
+        self.assertLess(fake.calls.index('verify_live'), fake.calls.index('kill'))
+        self.assertEqual('terminated', result['kill_tree'])
+        self.assertEqual('removed', result['cleanup'])
+
+    def test_parent_exit_not_sigkill_never_reports_success(self):
+        probe = load_probe()
+        class WrongExit(FakeBackend):
+            def perform(self, operation):
+                if operation == 'reap':
+                    self.calls.append(operation)
+                    return 0
+                return super().perform(operation)
+        fake = WrongExit()
+        result = probe.run_probe(fake)
+        self.assertEqual('failed', result['kill_tree'])
+        self.assertEqual('removed', result['cleanup'])
 
     def test_unsupported_mount_is_reported_without_attempting_creation(self):
         probe = load_probe()
