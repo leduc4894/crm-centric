@@ -38,7 +38,7 @@ internal sealed class FetchPolicy
         if (!origins.Contains(Origin(uri))) throw new ManifestFetchException(FetchFailure.OriginDenied);
     }
 
-    private static string Origin(Uri uri)
+    internal static string Origin(Uri uri)
     {
         if (!uri.IsAbsoluteUri || uri.Scheme != Uri.UriSchemeHttps || uri.Host.Length == 0 ||
             uri.UserInfo.Length != 0 || uri.Fragment.Length != 0 ||
@@ -67,4 +67,13 @@ internal sealed class FetchPolicy
     }
 
     private static IPNetwork[] Networks(params string[] values) => values.Select(IPNetwork.Parse).ToArray();
+}
+
+internal sealed record VerifiedPublisher(string ModuleId, string KeyId, long TrustRevision, string ManifestHash);
+
+internal enum PublisherFailure { InvalidManifest, InvalidSidecar, UntrustedKey, OriginDenied, InvalidSignature }
+
+internal sealed class PublisherVerificationException(PublisherFailure reason) : Exception(reason.ToString())
+{
+    public PublisherFailure Reason { get; } = reason;
 }
