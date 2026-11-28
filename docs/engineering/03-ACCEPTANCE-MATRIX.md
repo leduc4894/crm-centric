@@ -272,4 +272,6 @@ On implementation candidate `d3848ff9d88e4b2f5d03ee51c00cf2c1d3f705ac`, the focu
 
 The final-review corrections at `3d2587f` passed 125/125 focused .NET tests and 4/4 Python contract tests. The generated SDK check returned `SDK_GENERATED_CURRENT`. Controlled HTTPS and PostgreSQL tests now exercise the derived signature path, inclusive byte limits, stage reasons and correlation IDs, successful storage and zero rows after failure. Pinned peer schemas resolve offline across the complete candidate. [Final-review verification](../handoff/2026-11-28-wave-3-plan-1-handoff.md#whole-branch-review-corrections)
 
+The schema index correction at `b80df59` passed 129/129 focused .NET tests and 4/4 Python contract tests. Tests exercise ordinary multi-document breadth and budget exhaustion during graph construction. [Schema index evidence](../handoff/2026-11-28-wave-3-plan-1-handoff.md#schema-index-construction-budget)
+
 US-06 and RT-MOD-01 remain OPEN for installation approval, challenge and current-trust enforcement. RT-SSRF-01 remains OPEN for other outbound callers. Wave 3 exit, Wave 2 and P0 remain OPEN. Security remains FAIL/deferred. Remote DemoModule E2E, event-level concurrent duplicate handling, tenant isolation, outage/recovery and restore drills still require acceptance evidence.
