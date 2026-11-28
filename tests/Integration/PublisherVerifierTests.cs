@@ -105,6 +105,21 @@ public class PublisherVerifierTests
         Assert.Throws<PublisherVerificationException>(() => Verify(sig: Fetch(Encoding.UTF8.GetBytes(text), "manifest.json.sig.json")));
     }
 
+    [Theory]
+    [InlineData("entries")]
+    [InlineData("publicKey")]
+    [InlineData("allowedOrigins")]
+    public void MissingOperatorTrustMaterialHasTypedFailure(string missing)
+    {
+        var trust = missing switch {
+            "entries" => new PublisherTrustSnapshot(1, default),
+            "publicKey" => new PublisherTrustSnapshot(1, [entry with { PublicKey = default }]),
+            _ => new PublisherTrustSnapshot(1, [entry with { AllowedOrigins = default }])
+        };
+        var failure = Assert.Throws<PublisherVerificationException>(() => PublisherVerifier.Verify(manifest, sidecar, trust));
+        Assert.Equal(missing == "allowedOrigins" ? PublisherFailure.OriginDenied : PublisherFailure.UntrustedKey, failure.Reason);
+    }
+
     [Fact]
     public void RotationUsesCurrentSnapshot()
     {

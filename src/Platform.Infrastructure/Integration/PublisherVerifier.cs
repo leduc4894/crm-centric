@@ -21,10 +21,14 @@ internal static class PublisherVerifier
             throw new PublisherVerificationException(PublisherFailure.InvalidSidecar);
         byte[] signature = DecodeSignature(Field(root, "signature", PublisherFailure.InvalidSidecar));
 
+        if (trust.Entries.IsDefaultOrEmpty)
+            throw new PublisherVerificationException(PublisherFailure.UntrustedKey);
         var matches = trust.Entries.Where(e => e.ModuleId == moduleId && e.KeyId == keyId).Take(2).ToArray();
-        if (matches.Length != 1 || matches[0].Status != PublisherKeyStatus.Active || matches[0].PublicKey.Length != 32)
+        if (matches.Length != 1 || matches[0].Status != PublisherKeyStatus.Active || matches[0].PublicKey.AsSpan().Length != 32)
             throw new PublisherVerificationException(PublisherFailure.UntrustedKey);
         var entry = matches[0];
+        if (entry.AllowedOrigins.IsDefaultOrEmpty)
+            throw new PublisherVerificationException(PublisherFailure.OriginDenied);
         try
         {
             string origin = FetchPolicy.Origin(manifest.FinalUri);
