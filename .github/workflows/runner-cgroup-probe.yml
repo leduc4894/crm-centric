@@ -1,0 +1,100 @@
+name: Runner cgroup capability probe
+on:
+  push:
+    branches: [wave-3]
+permissions:
+  contents: read
+jobs:
+  cgroup-probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Measure delegated cgroup capability
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import re
+          import selectors
+          import signal
+          import subprocess
+          import time
+          import uuid
+
+          sha = os.environ.get('GITHUB_SHA', '')
+          if not re.fullmatch(r'[0-9a-f]{40}', sha):
+              raise SystemExit('invalid run commit identity')
+          result = {'commit_sha': sha, 'cgroup_version': 'unavailable',
+                    'delegated_group': 'unavailable', 'kill_tree': 'not_tested',
+                    'cleanup': 'not_needed'}
+          root = Path('/sys/fs/cgroup')
+          group = None
+          process = None
+          descendant = None
+          try:
+              if (root / 'cgroup.controllers').is_file():
+                  result['cgroup_version'] = 'v2'
+                  records = Path('/proc/self/cgroup').read_text(encoding='ascii').splitlines()
+                  paths = [line[3:] for line in records if line.startswith('0::/')]
+                  if len(paths) != 1 or '..' in Path(paths[0]).parts:
+                      raise ValueError('unsupported cgroup path')
+                  parent = root / paths[0].lstrip('/')
+                  group = parent / ('ci-probe-' + uuid.uuid4().hex)
+                  group.mkdir()
+                  result['delegated_group'] = 'created'
+                  if not (group / 'cgroup.kill').is_file():
+                      result['kill_tree'] = 'unsupported'
+                  else:
+                      program = ("import subprocess,sys,time; sys.stdin.readline(); "
+                                 "p=subprocess.Popen(['/bin/sleep','30'], start_new_session=True); "
+                                 "print(p.pid, flush=True); time.sleep(30)")
+                      process = subprocess.Popen(['python3', '-c', program], stdin=subprocess.PIPE,
+                                                 stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                                                 start_new_session=True, text=True)
+                      (group / 'cgroup.procs').write_text(str(process.pid), encoding='ascii')
+                      process.stdin.write('go\n')
+                      process.stdin.flush()
+                      with selectors.DefaultSelector() as selector:
+                          selector.register(process.stdout, selectors.EVENT_READ)
+                          if not selector.select(5):
+                              raise TimeoutError('descendant did not start')
+                          line = process.stdout.readline().strip()
+                      if not re.fullmatch(r'[1-9][0-9]*', line):
+                          raise ValueError('invalid descendant identifier')
+                      descendant = int(line)
+                      (group / 'cgroup.kill').write_text('1', encoding='ascii')
+                      process.wait(timeout=5)
+                      until = time.monotonic() + 5
+                      while time.monotonic() < until:
+                          status = Path('/proc') / str(descendant) / 'stat'
+                          if not status.exists() or status.read_text().split(') ', 1)[1][0] == 'Z':
+                              result['kill_tree'] = 'terminated'
+                              break
+                          time.sleep(0.05)
+                      else:
+                          result['kill_tree'] = 'failed'
+          except (OSError, ValueError, TimeoutError, subprocess.SubprocessError, IndexError):
+              if result['delegated_group'] == 'created' and result['kill_tree'] == 'not_tested':
+                  result['kill_tree'] = 'failed'
+          finally:
+              for pid in (descendant, process.pid if process else None):
+                  if pid is not None:
+                      try:
+                          os.killpg(pid, signal.SIGKILL)
+                      except ProcessLookupError:
+                          pass
+              if process is not None:
+                  try:
+                      process.wait(timeout=5)
+                  except subprocess.TimeoutExpired:
+                      result['kill_tree'] = 'failed'
+              if group is not None and group.exists():
+                  try:
+                      group.rmdir()
+                      result['cleanup'] = 'removed'
+                  except OSError:
+                      result['cleanup'] = 'failed'
+          print(json.dumps(result, sort_keys=True))
+          PY
