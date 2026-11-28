@@ -83,6 +83,11 @@ public sealed class ManifestRegistry : Migration
         """;
 
     protected override void Down(MigrationBuilder migrationBuilder) => migrationBuilder.Sql("""
+        DO $isolation$ BEGIN
+            IF current_setting('transaction_isolation') <> 'read committed' THEN
+                RAISE EXCEPTION 'manifest_registry_rollback_requires_read_committed';
+            END IF;
+        END $isolation$;
         LOCK TABLE platform.manifest_candidates, platform.manifest_schemas IN ACCESS EXCLUSIVE MODE;
         DO $guard$ BEGIN
             IF EXISTS (SELECT FROM platform.manifest_candidates) THEN

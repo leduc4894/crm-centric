@@ -162,6 +162,26 @@ public sealed class ManifestRegistryTests : IAsyncLifetime
         await Failure(schemas, RegistryFailure.Storage);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Registry_rollback_requires_read_committed_for_emptiness_check(bool concurrentRegistration)
+    {
+        var migrator = context.GetService<IMigrator>();
+        const string registryMigration = "20261128000000_ManifestRegistry";
+        var down = migrator.GenerateScript(registryMigration, Previous, MigrationsSqlGenerationOptions.NoTransactions);
+        await using var tx = await owner.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead);
+        Assert.Equal(0L, await Scalar("SELECT count(*) FROM platform.manifest_candidates"));
+        if (concurrentRegistration)
+            Assert.Equal(RegistryResult.Inserted, await Store(Candidate("1.0.0")));
+        await using var command = new NpgsqlCommand(down, owner, tx);
+        var ex = await Assert.ThrowsAsync<PostgresException>(() => command.ExecuteNonQueryAsync());
+        Assert.Equal("manifest_registry_rollback_requires_read_committed", ex.MessageText);
+        await tx.RollbackAsync();
+        Assert.Equal(concurrentRegistration ? 1L : 0L, await Scalar("SELECT count(*) FROM platform.manifest_candidates"));
+        Assert.Equal(concurrentRegistration ? 4L : 0L, await Scalar("SELECT count(*) FROM platform.manifest_schemas"));
+    }
+
     [Fact]
     public async Task Revocation_before_write_preserves_historical_candidate_and_guarded_rollback()
     {
@@ -204,7 +224,8 @@ public sealed class ManifestRegistryTests : IAsyncLifetime
                 $"INSERT INTO platform.{table} DEFAULT VALUES", $"TRUNCATE platform.{table}" })
                 Assert.Equal(PostgresErrorCodes.InsufficientPrivilege, (await Assert.ThrowsAsync<PostgresException>(
                     () => new NpgsqlCommand(statement, login).ExecuteNonQueryAsync())).SqlState);
-        await Assert.ThrowsAsync<PostgresException>(() => migrator.MigrateAsync(Previous));
+        var populated = await Assert.ThrowsAsync<PostgresException>(() => migrator.MigrateAsync(Previous));
+        Assert.Equal("manifest_registry_contains_data", populated.MessageText);
         Assert.Equal(4L, await Scalar("SELECT count(*) FROM platform.manifest_schemas"));
     }
 }
