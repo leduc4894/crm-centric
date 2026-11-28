@@ -487,3 +487,50 @@ still match the review package before committing. This is user authorization
 for the bounded candidate-owned scope, not independent enforcement or a security
 waiver. Next: commit exact draft, verify actual-base gate and final candidate,
 rerun the benchmark on that exact SHA, push once, and monitor hosted CI.
+
+After user approval, the exact prior draft was committed as `94c9fe6`; its
+focused scope tests passed 11/11 and actual-base gate returned
+`CONTRACT_BREAKING_REVIEWED`, historical consumers passed and SDK break remained
+explicit (correlation `1ad3be71-e60e-44a3-af4d-aa98cf5ac075`). The new CI test
+job's focused scanner modules exposed three historical-fixture failures. Two
+files now use the immutable reviewed commit `788f7605...` and preserve its public
+Git origin for stable Gitleaks metadata; no production security policy or
+finding suppression changed. Initial 3/24 scanner regressions failed; after
+the changes all 24 passed. One intermediate attempt had one failure because a
+local clone's origin changed historical metadata; preserving the exact public
+origin made it pass. The new-scope focused suite passed 5/5 and combined existing
+Plan 3 review suite passed 11/11, with a fifth nested case rejecting any drift
+in those two CI fixtures.
+
+These two additional test deltas were **not** part of the user's prior exact
+scope approval. The current five-file draft, hashes and required decision are
+recorded in `docs/engineering/17-WAVE-2-CANDIDATE-REVIEW-PACKAGE.md`; it is
+not committed, pushed or approved. A fresh bounded approval is necessary before
+extending candidate-owned scope. Exact-base draft gate and a second targeted
+policy/toolchain test group were running at this checkpoint; record their real
+outcomes before final handoff. The new candidate benchmark has not run. An
+unused final-benchmark preparation stack was removed, including its two owned
+volumes and four owned images, and private files were removed. Security is still
+deferred; CI, independent enforcement and Wave 2/P0 exit remain open.
+
+The revised unapproved draft's actual-base dry run returned
+`CONTRACT_BREAKING_REVIEWED`, consumer checks passed and SDK break remained
+explicit, correlation `59d0fca9-2717-4dbe-9230-96d2880034d6`. This is not
+independent approval or hosted evidence. The focused policy/toolchain test group
+was still running at this checkpoint; update this handoff with its actual result.
+
+The revised draft gate completed as above. The additional focused policy and
+toolchain group (`test_policy_transition`, `test_mvp_contract_review`,
+`test_surface_restore_profile`) passed 17/17 with `source .local/contact-ui-env`
+and `.local/ci-dotnet` on PATH. Its initial run without those prerequisites
+failed one tool-dependent case and errored another; no product failure was
+inferred. The earlier statement that this group was still running is superseded.
+`git diff --check` and exact draft hashes should be verified before applying
+any subsequent user decision. No GitHub CI was started or pushed.
+
+The user subsequently replied "Ok làm đi" to the request to approve the exact
+five-file historical fixture extension. Rechecked all five SHA-256 values against
+the package; they matched. This authorizes the bounded candidate-owned change,
+not independent enforcement or a security waiver. Next: commit, run one hosted
+CI for the resulting SHA and monitor it, repeat the benchmark on that candidate,
+and investigate all non-security failures as a group before any rerun.

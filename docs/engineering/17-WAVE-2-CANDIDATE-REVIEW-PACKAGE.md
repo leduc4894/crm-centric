@@ -200,3 +200,53 @@ scope is authorized by this document alone.
 On 2026-11-28 the user approved proceeding with the exact draft described above.
 This authorizes this bounded candidate-owned MVP scope; it does not provide
 independent enforcement, waive security, or approve later product/CI drift.
+
+## Additional historical CI fixture delta — review required
+
+After the user approved the exact preceding scope, focused execution of the
+new hosted `tests/CI` inventory found three failures: scanner regression tests
+were interpreting the evolving checkout as an immutable historical baseline.
+One scanner expected its historical candidate to be `HEAD`, another expected
+all current findings to be covered by an old 68-record decision, and another
+used current documents against old evidence. The corrected tests use the
+previously reviewed immutable commit `788f7605ee962071b6ecdbd035a6a2e6351fda6d`;
+the shared Git clone preserves the public origin because Gitleaks history IDs
+include repository links. No security policy, finding or scanner suppression
+was changed. Three targeted failures were reproduced before the changes; the
+24 tests in the affected scanner modules passed afterward.
+
+Because these are additional test-file changes outside the exact previously
+authorized scope, an **uncommitted draft extension** pins both fixture files by
+SHA-256 within the existing `bc147e4` scope and adds a fifth nested regression
+that requires each exact file and rejects tampering. The previous scope's base,
+expiry and all other file checks remain unchanged. Five new-scope regressions
+and the combined Plan 3 suite (11/11, including eight old and five new nested
+checks) passed. The exact complete revised draft is:
+
+| Draft file | SHA-256 |
+|---|---|
+| `scripts/contracts/compatibility.py` | `2c099cb75dac092fcae3008f98ee6eee98f8827dc5f88af0fbddad1b6f7d4b4f` |
+| `tests/Contract/test_wave2_plan3_review.py` | `526861dc448cf0b9bb189ff3664732d74514ad2a4f0ef64a149fff3051997ef6` |
+| `tests/Contract/plan9_next_review_cases.py` | `7bdd7e0c856366449f264590ac2490339628113f559321dda41be28823c408e0` |
+| `tests/CI/test_mvp_active_policy.py` | `fb0e41c3350d72016c378253316857bc7df56141210fd1be610662b26a65494f` |
+| `tests/CI/test_mvp_history_review.py` | `be45b8043b75201df062610d8d9ef85066c99bf7333b59049d482571e41ad5a2` |
+
+The previous approval does not automatically approve these additional files.
+An authorized reviewer must approve or reject this revised exact delta before
+it is committed or used by CI. Candidate-owned evaluation remains distinct from
+independent enforcement and the security deferral remains unchanged.
+
+A local dry run of the revised draft reached `CONTRACT_BREAKING_REVIEWED`,
+consumer checks passed, and the SDK break remains reported; correlation
+`59d0fca9-2717-4dbe-9230-96d2880034d6`. This remains a dry run of the
+unapproved extension, not independent approval or hosted evidence. One
+additional focused policy/toolchain group remains in progress at this writing.
+
+The focused policy/toolchain group completed 17/17 with the pinned Node/.NET
+environment. Its first invocation without that environment had two tool-related
+failures; those were retained and the correct-environment run passed. No full
+local suite or GitHub CI run was performed.
+
+On 2026-11-28 the user approved proceeding with the additional exact historical
+fixture delta above. This is authorization of that bounded candidate-owned scope,
+not independent enforcement or a security waiver.

@@ -154,7 +154,11 @@ PLAN9_REVIEW_TREE = '6a7dda4d57c87565389ad125f750fe21be963f15'
 PLAN9_NEXT_REVIEW_COMMIT = 'bc147e4dae9dbed662bd62a7c721774d34ca1e9f'
 PLAN9_NEXT_REVIEW_TREE = '75cecd22475b6f994efd027c3ec1c632923cd707'
 PLAN9_NEXT_COVERAGE_SHA256 = '1d1a7cd007e9f5e58c3c38abaabedeb9f53971d26289c2aabb20bb65a779f978'
-PLAN9_NEXT_HELPER_SHA256 = '9c237fc617607e309a64b373c0117365c327adcfd75d3088538f29d322f1e24d'
+PLAN9_NEXT_HELPER_SHA256 = '7bdd7e0c856366449f264590ac2490339628113f559321dda41be28823c408e0'
+PLAN9_NEXT_CI_FIXTURES = {
+    'tests/CI/test_mvp_active_policy.py': 'fb0e41c3350d72016c378253316857bc7df56141210fd1be610662b26a65494f',
+    'tests/CI/test_mvp_history_review.py': 'be45b8043b75201df062610d8d9ef85066c99bf7333b59049d482571e41ad5a2',
+}
 # Exact reviewed frontend, test and diagnostic delta; other files remain tree-bound.
 PLAN9_DIAGNOSTIC_HASHES = {
     'scripts/ci/jobs.py': '9d35230a6e1185107ce4fb9653729c4587ded641c5faaa794821756357d2b646',
@@ -268,6 +272,9 @@ def _reviewed_candidate(base, repo, enabled, target, now, commit, expected_tree,
             blob = hashlib.sha1(b'blob ' + str(len(data)).encode('ascii') + b'\0' + data).hexdigest()
             if commit == PLAN9_REVIEW_COMMIT and path in PLAN9_DIAGNOSTIC_HASHES:
                 if hashlib.sha256(data).hexdigest() != PLAN9_DIAGNOSTIC_HASHES[path]:
+                    return False
+            elif commit == PLAN9_NEXT_REVIEW_COMMIT and path in PLAN9_NEXT_CI_FIXTURES:
+                if hashlib.sha256(data).hexdigest() != PLAN9_NEXT_CI_FIXTURES[path]:
                     return False
             elif blob != oid:
                 return False
