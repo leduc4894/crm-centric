@@ -1,5 +1,6 @@
 """Immutable reviewed-schema event and Git boundary; synthetic authority only."""
 from dataclasses import replace
+from contextlib import contextmanager
 import hashlib
 import hmac
 import importlib
@@ -31,6 +32,17 @@ class SyntheticEventAuthority:
     def verify_event(self, revision, kind, method, proof):
         return hmac.compare_digest(proof, self.proof(revision, kind, method))
 
+    @contextmanager
+    def confine(self, repo, revision, candidate_tree):
+        # A test double; this does not implement an OS or CI confinement boundary.
+        class Guard:
+            valid = True
+
+            def assert_confined(self):
+                return self.valid
+
+        yield Guard()
+
 
 class ReviewSnapshotTests(unittest.TestCase):
     def setUp(self):
@@ -50,6 +62,12 @@ class ReviewSnapshotTests(unittest.TestCase):
         self.write('docs/architecture/adr.md', '# Review policy\n')
         self.write('sdks/client/schema.d.ts', 'export type Item = string;\n')
         self.write('tests/Contract/consumer.py', '# independent fixture\n')
+        self.write('global.json', '{"sdk":{"version":"10.0.403"}}')
+        self.write('.node-version', '24.22.2\n')
+        self.write('Directory.Build.props', '<Project/>\n')
+        self.write('Directory.Packages.props', '<Project/>\n')
+        self.write('.github/actions/example/action.yml', 'name: example\n')
+        self.write('scripts/other-tool.py', '# relevant tool\n')
         self.git('add', '.')
         self.git('commit', '-qm', 'base')
         self.base = self.git('rev-parse', 'HEAD').strip()
@@ -126,6 +144,17 @@ class ReviewSnapshotTests(unittest.TestCase):
     def test_replaced_git_object_is_not_accepted(self):
         event = self.verified()
         self.git('replace', self.base, self.head)
+        with self.assertRaises(subject.ReviewSnapshotError):
+            subject.capture_review_snapshot(self.repo, event, self.tree)
+
+    def test_git_alternates_and_promisor_configuration_fail_closed(self):
+        event = self.verified()
+        alternates = self.repo / '.git/objects/info/alternates'
+        alternates.write_text(str(self.repo / '.git/objects') + '\n', encoding='utf-8')
+        with self.assertRaises(subject.ReviewSnapshotError):
+            subject.capture_review_snapshot(self.repo, event, self.tree)
+        alternates.unlink()
+        self.git('config', 'remote.synthetic.promisor', 'true')
         with self.assertRaises(subject.ReviewSnapshotError):
             subject.capture_review_snapshot(self.repo, event, self.tree)
 
@@ -253,6 +282,158 @@ class ReviewSnapshotTests(unittest.TestCase):
         source.symlink_to(relocated, target_is_directory=True)
         with self.assertRaises(subject.ReviewSnapshotError):
             subject.capture_review_snapshot(self.repo, event, self.tree)
+
+    def test_complete_tracked_tree_binds_root_and_workflow_dependencies(self):
+        result = subject.capture_review_snapshot(self.repo, self.verified(), self.tree)
+        self.assertTrue(hasattr(result, 'candidate_repository'), 'complete repository inventory is missing')
+        repository = dict(result.candidate_repository)
+        for name in ('global.json', '.node-version', 'Directory.Build.props', 'Directory.Packages.props',
+                     '.github/actions/example/action.yml', 'scripts/other-tool.py'):
+            with self.subTest(name=name):
+                self.assertIn(name, repository)
+                self.assertEqual(hashlib.sha256(repository[name]).hexdigest(), dict(result.candidate_repository_hashes)[name])
+        self.write('global.json', '{"sdk":{"version":"forged"}}')
+        with self.assertRaises(subject.ReviewSnapshotError):
+            subject.capture_review_snapshot(self.repo, self.verified(), self.tree)
+
+    def test_committed_root_mutation_and_action_addition_change_repository_digest_set(self):
+        self.write('global.json', '{"sdk":{"version":"10.0.404"}}')
+        self.write('.github/actions/example/added.yml', 'name: added\n')
+        self.git('add', '.')
+        self.git('commit', '-qm', 'change policy dependencies')
+        candidate = self.git('rev-parse', 'HEAD').strip()
+        tree = self.git('rev-parse', 'HEAD^{tree}').strip()
+        revision = resolve_event({'event_name': 'push', 'before': self.candidate, 'after': candidate, 'forced': False},
+                                 candidate, GitReader(self.repo))
+        result = subject.capture_review_snapshot(self.repo, self.verified(revision, 'push', None), tree)
+        before, after = dict(result.base_repository_hashes), dict(result.candidate_repository_hashes)
+        self.assertNotEqual(before['global.json'], after['global.json'])
+        self.assertNotIn('.github/actions/example/added.yml', before)
+        self.assertIn('.github/actions/example/added.yml', after)
+
+    def test_missing_or_revoked_confinement_fails_closed(self):
+        class NoGuardAuthority:
+            def verify_event(self, revision, kind, method, proof):
+                return True
+        unguarded = subject.wrap_verified_event(self.pr, 'pull_request', 'merge', b'public-test-proof', NoGuardAuthority())
+        with self.assertRaises(subject.ReviewSnapshotError) as failure:
+            subject.capture_review_snapshot(self.repo, unguarded, self.tree)
+        self.assertEqual('CI_REVIEW_CONFINEMENT_UNAVAILABLE', failure.exception.reason_token)
+
+        class RevokedAuthority(SyntheticEventAuthority):
+            @contextmanager
+            def confine(self, repo, revision, candidate_tree):
+                class Guard:
+                    checks = 0
+                    def assert_confined(self):
+                        self.checks += 1
+                        return self.checks < 2
+                yield Guard()
+        authority = RevokedAuthority()
+        proof = authority.proof(self.pr, 'pull_request', 'merge')
+        event = subject.wrap_verified_event(self.pr, 'pull_request', 'merge', proof, authority)
+        with self.assertRaises(subject.ReviewSnapshotError) as failure:
+            subject.capture_review_snapshot(self.repo, event, self.tree)
+        self.assertEqual('CI_REVIEW_CONFINEMENT_UNAVAILABLE', failure.exception.reason_token)
+
+    def test_transient_restored_worktree_change_is_rejected_when_guard_detects_it(self):
+        class GuardedAuthority(SyntheticEventAuthority):
+            @contextmanager
+            def confine(self, repo, revision, candidate_tree):
+                class Guard:
+                    valid = True
+                    def assert_confined(self):
+                        return self.valid
+                self.guard = Guard()
+                yield self.guard
+        authority = GuardedAuthority()
+        proof = authority.proof(self.pr, 'pull_request', 'merge')
+        event = subject.wrap_verified_event(self.pr, 'pull_request', 'merge', proof, authority)
+        original_inventory = subject._inventory
+        altered = False
+
+        def mutate_and_restore(*args):
+            nonlocal altered
+            if not altered:
+                altered = True
+                path = self.repo / 'global.json'
+                original = path.read_bytes()
+                path.write_bytes(b'{"temporary":"changed"}')
+                path.write_bytes(original)
+                authority.guard.valid = False
+            return original_inventory(*args)
+
+        with patch.object(subject, '_inventory', side_effect=mutate_and_restore):
+            with self.assertRaises(subject.ReviewSnapshotError) as failure:
+                subject.capture_review_snapshot(self.repo, event, self.tree)
+        self.assertEqual('CI_REVIEW_CONFINEMENT_UNAVAILABLE', failure.exception.reason_token)
+
+    def test_ignored_untracked_root_dependency_fails_closed(self):
+        self.git('rm', '-q', 'global.json')
+        self.write('.gitignore', 'global.json\n')
+        self.git('add', '.')
+        self.git('commit', '-qm', 'ignore fixture')
+        candidate = self.git('rev-parse', 'HEAD').strip()
+        tree = self.git('rev-parse', 'HEAD^{tree}').strip()
+        revision = resolve_event({'event_name': 'push', 'before': self.candidate, 'after': candidate, 'forced': False},
+                                 candidate, GitReader(self.repo))
+        self.write('global.json', '{"sdk":{"version":"forged"}}')
+        with self.assertRaises(subject.ReviewSnapshotError):
+            subject.capture_review_snapshot(self.repo, self.verified(revision, 'push', None), tree)
+
+    def test_invalid_json_pointer_and_unsupported_schema_scope_fail_closed(self):
+        bad_documents = (
+            'openapi: 3.1.0\ncomponents:\n  schemas:\n    Item:\n      $ref: defs.json#/$defs/missing\n',
+            'openapi: 3.1.0\ncomponents:\n  schemas:\n    Item:\n      $ref: defs.json#badAnchor\n',
+            'openapi: 3.1.0\ncomponents:\n  schemas:\n    Item:\n      $id: https://other.example/\n',
+            'openapi: 3.1.0\ncomponents:\n  schemas:\n    Item:\n      $anchor: foo\n',
+            'openapi: 3.1.0\ncomponents:\n  schemas:\n    Item:\n      $dynamicAnchor: foo\n',
+            'openapi: 3.1.0\ncomponents:\n  schemas:\n    Item:\n      $dynamicRef: "#thing"\n',
+            'openapi: 3.1.0\ncomponents:\n  schemas:\n    Item:\n      $ref: "defs.json#/$defs/invalid~2escape"\n',
+            'openapi: 3.1.0\ncomponents:\n  schemas:\n    Item:\n      $ref: "#/components/schemas/Item"\n',
+        )
+        previous = self.candidate
+        for index, text in enumerate(bad_documents):
+            with self.subTest(document=index):
+                self.write('docs/contracts/api.openapi.yaml', text)
+                self.git('add', '.')
+                self.git('commit', '-qm', f'invalid-{index}')
+                candidate = self.git('rev-parse', 'HEAD').strip()
+                tree = self.git('rev-parse', 'HEAD^{tree}').strip()
+                revision = resolve_event({'event_name': 'push', 'before': previous, 'after': candidate, 'forced': False},
+                                         candidate, GitReader(self.repo))
+                with self.assertRaises(subject.ReviewSnapshotError):
+                    subject.capture_review_snapshot(self.repo, self.verified(revision, 'push', None), tree)
+                previous = candidate
+
+    def test_valid_escaped_json_pointer_and_array_reference(self):
+        self.write('docs/contracts/defs.json', '{"$defs":{"a/b":[{"~name":{"type":"string"}}]}}')
+        self.write('docs/contracts/api.openapi.yaml', 'openapi: 3.1.0\ncomponents:\n  schemas:\n    Item:\n      $ref: "defs.json#/$defs/a~1b/0/~0name"\n')
+        self.git('add', '.')
+        self.git('commit', '-qm', 'escaped pointer')
+        candidate = self.git('rev-parse', 'HEAD').strip()
+        tree = self.git('rev-parse', 'HEAD^{tree}').strip()
+        revision = resolve_event({'event_name': 'push', 'before': self.candidate, 'after': candidate, 'forced': False},
+                                 candidate, GitReader(self.repo))
+        result = subject.capture_review_snapshot(self.repo, self.verified(revision, 'push', None), tree)
+        self.assertIn('docs/contracts/defs.json', dict(result.candidate_inputs))
+
+    def test_git_output_and_total_inventory_limits_apply_before_read(self):
+        self.assertTrue(hasattr(subject, '_MAX_GIT_STDOUT_BYTES'), 'missing bounded Git output')
+        self.assertTrue(hasattr(subject, '_MAX_SNAPSHOT_BYTES'), 'missing cumulative object budget')
+        with patch.object(subject, '_MAX_GIT_STDOUT_BYTES', 128):
+            with self.assertRaises(subject.ReviewSnapshotError):
+                subject._git(self.repo, 'ls-tree', '-r', '-z', self.candidate)
+        calls = []
+        real_git = subject._git
+        def record(repo, *args, **kwargs):
+            if args[:2] == ('cat-file', 'blob'):
+                calls.append(args)
+            return real_git(repo, *args, **kwargs)
+        with patch.object(subject, '_MAX_SNAPSHOT_BYTES', 1), patch.object(subject, '_git', side_effect=record):
+            with self.assertRaises(subject.ReviewSnapshotError):
+                subject._inventory(self.repo, self.candidate)
+        self.assertEqual([], calls, 'object read before cumulative size validation')
 
     def test_ci_evidence_is_included_but_only_noninput_caches_are_ignored(self):
         self.write('.gitignore', '__pycache__/\nobj/\n*.schema.json\n')
