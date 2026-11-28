@@ -28,6 +28,8 @@ class RunnerCgroupProbeWorkflowTests(unittest.TestCase):
         self.assertNotIn('env', step)
         script = step['run']
         self.assertNotIn('${{', script)
+        source = (ROOT / '.github/probes/runner_cgroup_probe.py').read_text(encoding='utf-8')
+        self.assertEqual("python3 - <<'PYCODE'\n" + source + 'PYCODE\n', script)
         for forbidden in ('checkout', 'sudo', 'curl', 'wget', 'GITHUB_TOKEN', 'secrets.', 'github.workspace'):
             self.assertNotIn(forbidden, script)
         for required in ('GITHUB_SHA', '/sys/fs/cgroup', 'cgroup.kill', 'start_new_session=True', 'json.dumps'):
