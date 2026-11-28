@@ -15,3 +15,11 @@ User approved the proposed nine-plan direction and requested a Wave 3 spec, focu
 ## Move spec to main
 
 User interrupted the Plan 1 request and asked to switch to main, bring the Wave 3 spec there, and delete the Wave 2 branch. Fetched origin; `origin/wave-2` was an ancestor of `origin/main`, and the local `wave-2` tip's tree differed from `origin/main` only by 12 additional handoff lines on main, so its documentation was preserved. Switched to `main`, fast-forwarded from `db04aea` to `dd5dca5`, retained this handoff and the Wave 3 spec, and deleted local `wave-2` (tip `61a4b91`). Remote `origin/wave-2` and separate `wave-2-exit-evidence` worktree were not changed. Plan 1 was not written. Verification: Git ancestry/tree comparison, `git status`, and documentation whitespace check; tests/CI not run. Security FAIL/deferred and Wave 2/P0 OPEN remain unchanged. Next: review the spec and write Plan 1 when requested; assess work-order prerequisites before implementation.
+
+## Remote branch cleanup
+
+User requested deleting the remaining Wave 2 branch. `git push origin --delete wave-2` succeeded; the local branch had already been deleted and `main` remains at `ea72135`, ahead of `origin/main` by one. The separate `wave-2-exit-evidence` branch/worktree was not changed. No tests or CI run; no product changes. Next: review the Wave 3 spec and plan further work when requested.
+
+## Create Wave 3 branch
+
+User clarified that Wave 3 must branch from main and the spec commit must belong only to Wave 3. Created `wave-3` from local spec commit `ea72135`, whose parent is `dd5dca5` (`origin/main`), and moved local `main` back to `origin/main` while on `wave-3`. Spec remains on `wave-3`; no main push or remote branch creation. This handoff update records the local and remote Wave 2 cleanup and branch move. No tests or CI run. Next: write Wave 3 Plan 1 when requested, and check work-order prerequisites before implementation.
